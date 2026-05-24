@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false
+  },
+  "include": ["src/**/*"],
+  "references": [
+    { "path": "../../packages/hr-shared-kernel" },
+    { "path": "../../packages/hr-database" },
+    { "path": "../../packages/hr-event-schemas" },
+    { "path": "../../packages/hr-command-contracts" },
+    { "path": "../../packages/hr-platform-core" },
+    { "path": "../../packages/hr-access-control" },
+    { "path": "../../packages/hr-policy-engines" },
+    { "path": "../../packages/hr-openapi-contracts" }
+  ]
+}

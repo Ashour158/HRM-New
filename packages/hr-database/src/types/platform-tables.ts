@@ -1,0 +1,1550 @@
+import type { ColumnType } from 'kysely';
+
+export interface TenantsTable {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AuditLogTable {
+  id: string;
+  tenant_id: string;
+  actor_type: string;
+  actor_id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  payload: unknown;
+  occurred_at: Date;
+  correlation_id: string | null;
+}
+
+export interface IdempotencyKeysTable {
+  id: string;
+  tenant_id: string;
+  key: string;
+  hash: string;
+  status: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+  expires_at: Date | null;
+}
+
+export interface TransitionLedgersTable {
+  id: string;
+  tenant_id: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  from_state: string;
+  to_state: string;
+  action: string;
+  triggered_by: string;
+  occurred_at: Date;
+  correlation_id: string | null;
+  decision_record_id: string | null;
+}
+
+export interface OutboxEventsTable {
+  id: string;
+  tenant_id: string;
+  event_name: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  payload: unknown;
+  metadata: unknown;
+  correlation_id: string | null;
+  causation_id: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  published_at: Date | null;
+  publish_attempt_count: number;
+}
+
+export interface InboxEventsTable {
+  id: string;
+  tenant_id: string;
+  consumer_name: string;
+  consumer_version: string;
+  source_event_id: string;
+  source_topic: string;
+  source_partition: number;
+  source_offset: number;
+  event_name: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  processing_status: string;
+  retry_count: number;
+  next_retry_at: Date | null;
+  error_summary: string | null;
+  processed_at: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface WorkersTable {
+  id: string;
+  tenant_id: string;
+  employee_number: string;
+  status: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  hire_date: Date;
+  termination_date: Date | null;
+  legal_entity_id: string | null;
+  department_id: string | null;
+  manager_id: string | null;
+  job_title: string | null;
+  employment_type: string;
+  aggregate_version: number;
+  data_classification: string;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface EmploymentRelationshipsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  relationship_type: string;
+  start_date: Date;
+  end_date: Date | null;
+  legal_entity_id: string | null;
+  contract_type: string | null;
+  probation_end_date: Date | null;
+  state: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface JobAssignmentsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  position_id: string | null;
+  department_id: string | null;
+  manager_id: string | null;
+  job_title: string | null;
+  start_date: Date;
+  end_date: Date | null;
+  assignment_type: string;
+  state: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface EmploymentContractsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  contract_type: string;
+  start_date: Date;
+  end_date: Date | null;
+  terms: unknown;
+  signed_at: Date | null;
+  state: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PersonalDataRecordsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  data_category: string;
+  data_classification: string;
+  encrypted_payload_ref: string | null;
+  payload: unknown | null;
+  consent_status: string;
+  state: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PositionsTable {
+  id: string;
+  tenant_id: string;
+  position_code: string;
+  title: string;
+  department_id: string | null;
+  legal_entity_id: string | null;
+  job_family: string | null;
+  job_level: string | null;
+  employment_type: string;
+  status: string;
+  filled_by_worker_id: string | null;
+  headcount_request_id: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface HeadcountRequestsTable {
+  id: string;
+  tenant_id: string;
+  request_number: string;
+  department_id: string | null;
+  legal_entity_id: string | null;
+  justification: string;
+  requested_by: string;
+  approved_by: string | null;
+  approved_at: Date | null;
+  status: string;
+  positions_requested: number;
+  positions_approved: number | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface LegalEntitiesTable {
+  id: string;
+  tenant_id: string;
+  name: string;
+  code: string;
+  country_code: string;
+  registration_number: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface OrgUnitsTable {
+  id: string;
+  tenant_id: string;
+  name: string;
+  code: string | null;
+  parent_id: string | null;
+  legal_entity_id: string | null;
+  level: number;
+  path: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ManagerRelationshipsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  manager_id: string;
+  department_id: string | null;
+  is_primary: boolean;
+  start_date: ColumnType<Date, string | undefined, never>;
+  end_date: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface JobRequisitionsTable {
+  id: string;
+  tenant_id: string;
+  requisition_number: string;
+  position_id: string;
+  department_id: string | null;
+  hiring_manager_id: string | null;
+  recruiter_id: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  published_at: Date | null;
+  filled_at: Date | null;
+  closed_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CandidatesTable {
+  id: string;
+  tenant_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string | null;
+  resume_url: string | null;
+  source: string | null;
+  status: string;
+  requisition_id: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface InterviewPlansTable {
+  id: string;
+  tenant_id: string;
+  candidate_id: string;
+  requisition_id: string;
+  interviewers: unknown;
+  scheduled_at: Date | null;
+  format: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface OffersTable {
+  id: string;
+  tenant_id: string;
+  candidate_id: string;
+  requisition_id: string;
+  proposed_salary: number;
+  currency: string;
+  start_date: Date;
+  benefits_package: unknown;
+  status: string;
+  sent_at: Date | null;
+  accepted_at: Date | null;
+  declined_at: Date | null;
+  proposed_by: string | null;
+  approved_by: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface OnboardingPlansTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  start_date: Date;
+  assigned_buddy_id: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface OnboardingTasksTable {
+  id: string;
+  tenant_id: string;
+  onboarding_plan_id: string;
+  title: string;
+  description: string | null;
+  assigned_to: string | null;
+  due_date: Date | null;
+  completed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CompensationPlansTable {
+  id: string;
+  tenant_id: string;
+  name: string;
+  plan_type: string;
+  currency: string;
+  effective_from: Date | null;
+  effective_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CompensationBandsTable {
+  id: string;
+  tenant_id: string;
+  band_code: string;
+  job_level: string;
+  job_family: string;
+  min_salary: number;
+  mid_salary: number;
+  max_salary: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CompensationChangesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  change_type: string;
+  old_amount: number | null;
+  new_amount: number;
+  currency: string;
+  effective_date: Date;
+  approved_by: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface BonusCyclesTable {
+  id: string;
+  tenant_id: string;
+  cycle_name: string;
+  cycle_year: number;
+  eligibility_date: Date;
+  payment_date: Date;
+  total_pool_amount: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface EquityGrantsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  grant_type: string;
+  grant_date: Date;
+  vesting_schedule: unknown;
+  total_units: number;
+  vested_units: number;
+  exercised_units: number;
+  strike_price: number | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface VariableCompPlansTable {
+  id: string;
+  tenant_id: string;
+  name: string;
+  plan_type: string;
+  target_percentage: number;
+  max_percentage: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PayScalesTable {
+  id: string;
+  tenant_id: string;
+  scale_code: string;
+  grade: string;
+  steps: unknown;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface TotalCompensationStatementsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  statement_year: number;
+  base_salary: number;
+  bonus_amount: number;
+  equity_value: number;
+  benefits_value: number;
+  total_comp: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface BenefitsProgramsTable {
+  id: string;
+  tenant_id: string;
+  program_name: string;
+  program_type: string;
+  carrier_id: string | null;
+  effective_from: Date | null;
+  effective_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface BenefitsEnrollmentsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  program_id: string;
+  coverage_level: string;
+  dependents: unknown;
+  effective_date: Date;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface BenefitsLifeEventsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  event_type: string;
+  event_date: Date;
+  description: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface SpendingAccountsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  account_type: string;
+  annual_election: number;
+  used_amount: number;
+  available_amount: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CarrierReconciliationRunsTable {
+  id: string;
+  tenant_id: string;
+  carrier_id: string;
+  period_start: Date;
+  period_end: Date;
+  total_premium: number;
+  total_collected: number;
+  variance_amount: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PolicyDocumentsTable {
+  id: string;
+  tenant_id: string;
+  title: string;
+  document_type: string;
+  version: string;
+  content: unknown;
+  effective_from: Date | null;
+  effective_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PolicyAcknowledgementsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  policy_document_id: string;
+  acknowledged_at: Date | null;
+  due_date: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface LegalHoldsTable {
+  id: string;
+  tenant_id: string;
+  hold_name: string;
+  description: string | null;
+  reason: string;
+  affected_worker_ids: unknown;
+  placed_by: string;
+  placed_at: Date;
+  released_by: string | null;
+  released_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface StatutoryReportsTable {
+  id: string;
+  tenant_id: string;
+  report_type: string;
+  reporting_period: string;
+  country_code: string;
+  legal_entity_id: string;
+  content: unknown;
+  submitted_at: Date | null;
+  filed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CountryRuleSetsTable {
+  id: string;
+  tenant_id: string;
+  country_code: string;
+  rule_set_type: string;
+  version: string;
+  effective_from: Date | null;
+  effective_until: Date | null;
+  rules: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface StatutoryLeaveTypesTable {
+  id: string;
+  tenant_id: string;
+  country_code: string;
+  leave_type_code: string;
+  leave_type_name: string;
+  minimum_entitlement: number;
+  unit: string;
+  carryover_allowed: boolean;
+  max_carryover: number;
+  effective_from: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface WorksCouncilConsultationsTable {
+  id: string;
+  tenant_id: string;
+  country_code: string;
+  legal_entity_id: string;
+  action_type: string;
+  consultation_type: string;
+  initiated_at: Date | null;
+  deadline_date: Date | null;
+  completed_at: Date | null;
+  blocking_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface WorkAuthorizationCasesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  authorization_type: string;
+  issuing_country: string;
+  document_number: string | null;
+  valid_from: Date | null;
+  valid_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CountryPolicyPacksTable {
+  id: string;
+  tenant_id: string;
+  country_code: string;
+  country_pack_version: string;
+  effective_from: Date | null;
+  effective_until: Date | null;
+  status: string;
+  sections: unknown;
+  required_approvals: unknown;
+  source_evidence: unknown;
+  recalculation_required: boolean;
+  uploaded_by: string | null;
+  uploaded_at: Date | null;
+  published_at: Date | null;
+  published_by: string | null;
+  superseded_by: string | null;
+  rollback_reason: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CountryPolicyValidationRunsTable {
+  id: string;
+  tenant_id: string;
+  policy_pack_id: string;
+  validation_type: string;
+  results: unknown;
+  errors: unknown;
+  started_at: Date | null;
+  completed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CountryPolicyImpactSimulationsTable {
+  id: string;
+  tenant_id: string;
+  policy_pack_id: string;
+  impacted_workers: unknown;
+  impacted_payroll_runs: unknown;
+  impacted_tax_assignments: unknown;
+  impacted_leave_balances: unknown;
+  impacted_benefits: unknown;
+  risk_level: string | null;
+  results: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface WorkSchedulesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  schedule_type: string;
+  start_date: Date;
+  end_date: Date | null;
+  days_of_week: unknown;
+  hours_per_day: number;
+  timezone: string;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface TimesheetsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  period_start: Date;
+  period_end: Date;
+  entries: unknown;
+  total_hours: number;
+  status: string;
+  submitted_at: Date | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface TimeClockEventsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  event_type: string;
+  timestamp: Date;
+  location: string | null;
+  device_id: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AttendanceExceptionsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  exception_type: string;
+  description: string;
+  detected_at: Date;
+  resolved_at: Date | null;
+  resolved_by: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface OvertimeApprovalsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  requested_hours: number;
+  reason: string;
+  requested_at: Date;
+  approved_by: string | null;
+  approved_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AbsenceRequestsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  absence_type: string;
+  start_date: Date;
+  end_date: Date;
+  reason: string | null;
+  status: string;
+  submitted_at: Date | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface LeaveCasesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  leave_type: string;
+  start_date: Date;
+  expected_return_date: Date | null;
+  actual_return_date: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AbsenceAccrualBalancesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  leave_type: string;
+  balance_hours: number;
+  accrued_hours: number;
+  used_hours: number;
+  carried_over_hours: number;
+  effective_date: Date;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface LeaveEntitlementCalculationsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  leave_type: string;
+  calculated_entitlement: number;
+  used_entitlement: number;
+  remaining_entitlement: number;
+  calculation_date: Date;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollCyclesTable {
+  id: string;
+  tenant_id: string;
+  cycle_name: string;
+  pay_period_start: Date;
+  pay_period_end: Date;
+  pay_date: Date | null;
+  status: string;
+  opened_at: Date | null;
+  closed_at: Date | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollInputsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  payroll_cycle_id: string;
+  input_type: string;
+  amount: number;
+  currency: string;
+  description: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollCalculationRunsTable {
+  id: string;
+  tenant_id: string;
+  payroll_cycle_id: string;
+  started_at: Date | null;
+  completed_at: Date | null;
+  total_workers: number;
+  total_gross_pay: number;
+  total_net_pay: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollResultLinesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  payroll_cycle_id: string;
+  calculation_run_id: string;
+  line_type: string;
+  description: string;
+  amount: number;
+  currency: string;
+  rule_set_id: string | null;
+  rule_id: string | null;
+  explanation: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+
+
+export interface ShiftSchedulesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  shift_date: Date;
+  start_time: Date;
+  end_time: Date;
+  break_duration: number;
+  department_id: string;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface OpenShiftsTable {
+  id: string;
+  tenant_id: string;
+  department_id: string;
+  shift_date: Date;
+  start_time: Date;
+  end_time: Date;
+  required_skills: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ShiftBidsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  open_shift_id: string;
+  bid_date: Date;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ShiftSwapRequestsTable {
+  id: string;
+  tenant_id: string;
+  requester_worker_id: string;
+  target_worker_id: string;
+  shift_date: Date;
+  reason: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface WfmOvertimeApprovalsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  requested_hours: number;
+  reason: string;
+  requested_at: Date;
+  approved_by: string | null;
+  approved_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CoverageGapsTable {
+  id: string;
+  tenant_id: string;
+  department_id: string;
+  shift_date: Date;
+  gap_start: Date;
+  gap_end: Date;
+  unfilled_positions: number;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface EmployeeRelationsCasesTable {
+  id: string;
+  tenant_id: string;
+  subject_worker_id: string;
+  manager_id: string;
+  case_number: string;
+  case_type: string;
+  status: string;
+  opened_at: Date;
+  assigned_to: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ErInvestigationsTable {
+  id: string;
+  tenant_id: string;
+  er_case_id: string;
+  investigator_id: string;
+  findings: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface DisciplinaryActionsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  action_type: string;
+  severity: string;
+  effective_date: Date;
+  expiry_date: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AccommodationCasesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  request_type: string;
+  medical_documentation: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface HrServiceCasesTable {
+  id: string;
+  tenant_id: string;
+  requester_worker_id: string;
+  case_type: string;
+  priority: string;
+  status: string;
+  assigned_to: string | null;
+  resolved_at: Date | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface HrCaseTasksTable {
+  id: string;
+  tenant_id: string;
+  case_id: string;
+  title: string;
+  description: string | null;
+  assigned_to: string | null;
+  due_date: Date | null;
+  completed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface HrKnowledgeArticlesTable {
+  id: string;
+  tenant_id: string;
+  title: string;
+  content: unknown;
+  category: string;
+  tags: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface HrServiceCatalogItemsTable {
+  id: string;
+  tenant_id: string;
+  service_name: string;
+  service_type: string;
+  description: string | null;
+  sla_hours: number | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface HrCaseSlaInstancesTable {
+  id: string;
+  tenant_id: string;
+  case_id: string;
+  sla_definition_id: string;
+  target_hours: number;
+  started_at: Date;
+  breached_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ContingentWorkerAssignmentsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  vendor_id: string;
+  project_id: string;
+  start_date: Date;
+  end_date: Date;
+  rate: number;
+  currency: string;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SowEngagementsTable {
+  id: string;
+  tenant_id: string;
+  sow_number: string;
+  vendor_id: string;
+  project_name: string;
+  total_value: number;
+  currency: string;
+  start_date: Date;
+  end_date: Date;
+  milestones: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ContractorRateCardsTable {
+  id: string;
+  tenant_id: string;
+  vendor_id: string;
+  job_title: string;
+  rate: number;
+  currency: string;
+  effective_from: Date;
+  effective_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MisclassificationAssessmentsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  assessment_date: Date;
+  risk_score: number | null;
+  risk_factors: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface EapReferralsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  reason: string;
+  status: string;
+  scheduled_date: Date | null;
+  completed_date: Date | null;
+  provider_id: string | null;
+  notes: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface WellnessProgramsTable {
+  id: string;
+  tenant_id: string;
+  name: string;
+  type: string;
+  status: string;
+  start_date: Date | null;
+  end_date: Date | null;
+  description: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface MentalHealthCasesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  severity: string;
+  status: string;
+  provider_id: string | null;
+  notes: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface UnionRecognitionsTable {
+  id: string;
+  tenant_id: string;
+  union_name: string;
+  bargaining_unit_id: string;
+  status: string;
+  effective_date: Date | null;
+  expiration_date: Date | null;
+  agreement_document: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface GrievancesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  grievance_type: string;
+  description: string;
+  status: string;
+  resolution: string | null;
+  arbitrator_decision: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CollectiveBargainingSessionsTable {
+  id: string;
+  tenant_id: string;
+  union_recognition_id: string;
+  session_date: Date;
+  status: string;
+  location: string | null;
+  agenda: string | null;
+  minutes: string | null;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface ReportDefinitionsTable {
+  id: string;
+  tenant_id: string;
+  report_name: string;
+  report_type: string;
+  data_source: string;
+  query_definition: unknown;
+  parameters: unknown;
+  schedule: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ReportExecutionsTable {
+  id: string;
+  tenant_id: string;
+  report_definition_id: string;
+  executed_by: string;
+  parameters: unknown;
+  result_url: string | null;
+  row_count: number | null;
+  started_at: Date | null;
+  completed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ReportSchedulesTable {
+  id: string;
+  tenant_id: string;
+  report_definition_id: string;
+  frequency: string;
+  recipients: unknown;
+  next_run_at: Date | null;
+  last_run_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface CalculatedFieldsTable {
+  id: string;
+  tenant_id: string;
+  field_name: string;
+  expression: string;
+  data_type: string;
+  source_fields: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface DeiReportsTable {
+  id: string;
+  tenant_id: string;
+  report_type: string;
+  reporting_period: string;
+  country_code: string;
+  legal_entity_id: string;
+  metrics: unknown;
+  aggregation_threshold: number;
+  suppression_applied: boolean;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PayGapReportsTable {
+  id: string;
+  tenant_id: string;
+  report_type: string;
+  reporting_year: number;
+  country_code: string;
+  mean_hourly_gap: number | null;
+  median_hourly_gap: number | null;
+  quartile_distribution: unknown;
+  action_plan: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PayEquityReviewsTable {
+  id: string;
+  tenant_id: string;
+  review_name: string;
+  review_period: string;
+  scope: unknown;
+  findings: unknown;
+  remediation_actions: unknown;
+  completed_actions: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AttritionSegmentReportsTable {
+  id: string;
+  tenant_id: string;
+  report_period: string;
+  segment_type: string;
+  segments: unknown;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface HrAiUseCasesTable {
+  id: string;
+  tenant_id: string;
+  use_case_name: string;
+  use_case_type: string;
+  risk_classification: string;
+  description: string | null;
+  data_usage: unknown;
+  human_oversight_required: boolean;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface HrAiModelRunsTable {
+  id: string;
+  tenant_id: string;
+  use_case_id: string;
+  model_version: string;
+  input_data_snapshot: unknown;
+  output_data_snapshot: unknown;
+  run_at: Date | null;
+  completed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface HrAiBiasTestsTable {
+  id: string;
+  tenant_id: string;
+  use_case_id: string;
+  test_type: string;
+  test_data: unknown;
+  metrics: unknown;
+  threshold: number;
+  passed: boolean | null;
+  executed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface HrAiKillSwitchesTable {
+  id: string;
+  tenant_id: string;
+  use_case_id: string;
+  triggered_by: string;
+  trigger_reason: string;
+  triggered_at: Date | null;
+  resolved_at: Date | null;
+  resolution: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface Database {
+  tenants: TenantsTable;
+  audit_log: AuditLogTable;
+  idempotency_keys: IdempotencyKeysTable;
+  transition_ledgers: TransitionLedgersTable;
+  outbox_events: OutboxEventsTable;
+  inbox_events: InboxEventsTable;
+  workers: WorkersTable;
+  employment_relationships: EmploymentRelationshipsTable;
+  job_assignments: JobAssignmentsTable;
+  employment_contracts: EmploymentContractsTable;
+  personal_data_records: PersonalDataRecordsTable;
+  'hr_position.positions': PositionsTable;
+  'hr_position.headcount_requests': HeadcountRequestsTable;
+  'hr_org.legal_entities': LegalEntitiesTable;
+  'hr_org.org_units': OrgUnitsTable;
+  'hr_org.manager_relationships': ManagerRelationshipsTable;
+  'hr_recruiting.job_requisitions': JobRequisitionsTable;
+  'hr_recruiting.candidates': CandidatesTable;
+  'hr_recruiting.interview_plans': InterviewPlansTable;
+  'hr_recruiting.offers': OffersTable;
+  'hr_onboarding.onboarding_plans': OnboardingPlansTable;
+  'hr_onboarding.onboarding_tasks': OnboardingTasksTable;
+  compensation_plans: CompensationPlansTable;
+  compensation_bands: CompensationBandsTable;
+  compensation_changes: CompensationChangesTable;
+  bonus_cycles: BonusCyclesTable;
+  equity_grants: EquityGrantsTable;
+  variable_comp_plans: VariableCompPlansTable;
+  pay_scales: PayScalesTable;
+  total_compensation_statements: TotalCompensationStatementsTable;
+  benefits_programs: BenefitsProgramsTable;
+  benefits_enrollments: BenefitsEnrollmentsTable;
+  benefits_life_events: BenefitsLifeEventsTable;
+  spending_accounts: SpendingAccountsTable;
+  carrier_reconciliation_runs: CarrierReconciliationRunsTable;
+  'hr_compliance.policy_documents': PolicyDocumentsTable;
+  'hr_compliance.policy_acknowledgements': PolicyAcknowledgementsTable;
+  'hr_compliance.legal_holds': LegalHoldsTable;
+  'hr_compliance.statutory_reports': StatutoryReportsTable;
+  'hr_global_hr.country_rule_sets': CountryRuleSetsTable;
+  'hr_global_hr.statutory_leave_types': StatutoryLeaveTypesTable;
+  'hr_global_hr.works_council_consultations': WorksCouncilConsultationsTable;
+  'hr_global_hr.work_authorization_cases': WorkAuthorizationCasesTable;
+  'hr_country_policy.policy_packs': CountryPolicyPacksTable;
+  'hr_country_policy.validation_runs': CountryPolicyValidationRunsTable;
+  'hr_country_policy.impact_simulations': CountryPolicyImpactSimulationsTable;
+  work_schedules: WorkSchedulesTable;
+  timesheets: TimesheetsTable;
+  time_clock_events: TimeClockEventsTable;
+  attendance_exceptions: AttendanceExceptionsTable;
+  overtime_approvals: OvertimeApprovalsTable;
+  absence_requests: AbsenceRequestsTable;
+  leave_cases: LeaveCasesTable;
+  absence_accrual_balances: AbsenceAccrualBalancesTable;
+  leave_entitlement_calculations: LeaveEntitlementCalculationsTable;
+  payroll_cycles: PayrollCyclesTable;
+  payroll_inputs: PayrollInputsTable;
+  payroll_calculation_runs: PayrollCalculationRunsTable;
+  payroll_result_lines: PayrollResultLinesTable;
+
+  shift_schedules: ShiftSchedulesTable;
+  open_shifts: OpenShiftsTable;
+  shift_bids: ShiftBidsTable;
+  shift_swap_requests: ShiftSwapRequestsTable;
+  wfm_overtime_approvals: WfmOvertimeApprovalsTable;
+  coverage_gaps: CoverageGapsTable;
+  employee_relations_cases: EmployeeRelationsCasesTable;
+  er_investigations: ErInvestigationsTable;
+  disciplinary_actions: DisciplinaryActionsTable;
+  accommodation_cases: AccommodationCasesTable;
+  hr_service_cases: HrServiceCasesTable;
+  hr_case_tasks: HrCaseTasksTable;
+  hr_knowledge_articles: HrKnowledgeArticlesTable;
+  hr_service_catalog_items: HrServiceCatalogItemsTable;
+  hr_case_sla_instances: HrCaseSlaInstancesTable;
+  contingent_worker_assignments: ContingentWorkerAssignmentsTable;
+  sow_engagements: SowEngagementsTable;
+  contractor_rate_cards: ContractorRateCardsTable;
+  misclassification_assessments: MisclassificationAssessmentsTable;
+  eap_referrals: EapReferralsTable;
+  wellness_programs: WellnessProgramsTable;
+  mental_health_cases: MentalHealthCasesTable;
+  union_recognitions: UnionRecognitionsTable;
+  grievances: GrievancesTable;
+  collective_bargaining_sessions: CollectiveBargainingSessionsTable;
+  'hr_reporting.report_definitions': ReportDefinitionsTable;
+  'hr_reporting.report_executions': ReportExecutionsTable;
+  'hr_reporting.report_schedules': ReportSchedulesTable;
+  'hr_reporting.calculated_fields': CalculatedFieldsTable;
+  'hr_dei_analytics.dei_reports': DeiReportsTable;
+  'hr_dei_analytics.pay_gap_reports': PayGapReportsTable;
+  'hr_dei_analytics.pay_equity_reviews': PayEquityReviewsTable;
+  'hr_dei_analytics.attrition_segment_reports': AttritionSegmentReportsTable;
+  'hr_ai_governance.hr_ai_use_cases': HrAiUseCasesTable;
+  'hr_ai_governance.hr_ai_model_runs': HrAiModelRunsTable;
+  'hr_ai_governance.hr_ai_bias_tests': HrAiBiasTestsTable;
+  'hr_ai_governance.hr_ai_kill_switches': HrAiKillSwitchesTable;
+}

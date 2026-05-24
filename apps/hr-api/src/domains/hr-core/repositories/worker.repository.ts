@@ -1,0 +1,134 @@
+import { Injectable } from '@nestjs/common';
+import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import type { Database } from '@hcm/database';
+import type { Insertable, Updateable } from 'kysely';
+import { Uuid, Email } from '@hcm/shared-kernel';
+import { WorkerProfile, type WorkerStatus, type EmploymentType } from '../aggregates/worker-profile.aggregate.js';
+
+/**
+ * Repository for {@link WorkerProfile} aggregates.
+ * Maps DB rows to/from the aggregate and ensures tenant isolation.
+ */
+@Injectable()
+export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
+  protected readonly tableName = 'workers' as const;
+
+  constructor() {
+    super(createKyselyInstance(getPool()));
+  }
+
+  async findById(id: Uuid): Promise<WorkerProfile | undefined> {
+    const row = await super.findById(id);
+    return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
+  async findByEmployeeNumber(employeeNumber: string): Promise<WorkerProfile | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('employee_number', '=', employeeNumber)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
+  async findByEmail(email: string): Promise<WorkerProfile | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('email', '=', email)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
+  async findByManager(managerId: Uuid): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('manager_id', '=', managerId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async findByDepartment(departmentId: Uuid): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('department_id', '=', departmentId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async findByLegalEntity(legalEntityId: Uuid): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('legal_entity_id', '=', legalEntityId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async findActive(): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('status', '=', 'ACTIVE')
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async save(entity: WorkerProfile): Promise<void> {
+    const row = this.toRow(entity);
+    const existing = await this.findById(entity.id);
+    if (existing) {
+      await this.update(entity.id, row as unknown as Updateable<Database['workers']>);
+    } else {
+      await this.insert(row as unknown as Insertable<Database['workers']>);
+    }
+  }
+
+  private toAggregate(row: Database['workers']): WorkerProfile {
+    return new WorkerProfile({
+      id: new Uuid(row.id),
+      tenantId: new Uuid(row.tenant_id),
+      employeeNumber: row.employee_number,
+      status: row.status as WorkerStatus,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      email: new Email(row.email ?? ''),
+      hireDate: row.hire_date,
+      terminationDate: row.termination_date ?? undefined,
+      legalEntityId: row.legal_entity_id ? new Uuid(row.legal_entity_id) : undefined,
+      departmentId: row.department_id ? new Uuid(row.department_id) : undefined,
+      managerId: row.manager_id ? new Uuid(row.manager_id) : undefined,
+      jobTitle: row.job_title ?? undefined,
+      employmentType: row.employment_type as EmploymentType,
+      aggregateVersion: row.aggregate_version,
+      dataClassification: row.data_classification as 'CONFIDENTIAL',
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  private toRow(entity: WorkerProfile): Record<string, unknown> {
+    return {
+      id: entity.id.value,
+      tenant_id: entity.tenantId.value,
+      employee_number: entity.employeeNumber,
+      status: entity.status,
+      first_name: entity.firstName,
+      last_name: entity.lastName,
+      email: entity.email.toString(),
+      hire_date: entity.hireDate,
+      termination_date: entity.terminationDate ?? null,
+      legal_entity_id: entity.legalEntityId?.value ?? null,
+      department_id: entity.departmentId?.value ?? null,
+      manager_id: entity.managerId?.value ?? null,
+      job_title: entity.jobTitle ?? null,
+      employment_type: entity.employmentType,
+      aggregate_version: entity.aggregateVersion,
+      data_classification: entity.dataClassification,
+      created_at: entity.createdAt,
+      updated_at: entity.updatedAt,
+    };
+  }
+}

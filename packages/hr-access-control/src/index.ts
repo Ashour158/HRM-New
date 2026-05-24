@@ -1,0 +1,161 @@
+/**
+ * @file @hcm/access-control
+ * @description RBAC, ABAC, SoD, field-level access control, self-service allowlists, and break-glass rules for the HR/HCM platform.
+ */
+
+// RBAC
+export {
+  type RoleCode,
+  type RoleTier,
+  type RoleDefinition,
+  getRoleDefinition,
+  getAllRoles,
+} from './rbac/roles.js';
+
+export {
+  WORKER_READ,
+  WORKER_CREATE,
+  WORKER_UPDATE,
+  WORKER_TERMINATE,
+  WORKER_REACTIVATE,
+  ORG_READ,
+  ORG_CREATE,
+  ORG_UPDATE,
+  ORG_DELETE,
+  POSITION_READ,
+  POSITION_CREATE,
+  POSITION_APPROVE,
+  RECRUITING_READ,
+  RECRUITING_CREATE,
+  RECRUITING_APPROVE,
+  RECRUITING_PUBLISH,
+  PAYROLL_READ,
+  PAYROLL_CREATE,
+  PAYROLL_APPROVE,
+  PAYROLL_EXPORT,
+  BENEFITS_READ,
+  BENEFITS_ENROLL,
+  BENEFITS_APPROVE,
+  COMPENSATION_READ,
+  COMPENSATION_CHANGE,
+  COMPENSATION_APPROVE,
+  PERFORMANCE_READ,
+  PERFORMANCE_CREATE,
+  PERFORMANCE_APPROVE,
+  LEARNING_READ,
+  LEARNING_ASSIGN,
+  LEARNING_APPROVE,
+  ABSENCE_READ,
+  ABSENCE_APPROVE,
+  ABSENCE_MANAGE,
+  TIME_READ,
+  TIME_APPROVE,
+  TIME_MANAGE,
+  ER_CASE_READ,
+  ER_CASE_CREATE,
+  ER_CASE_INVESTIGATE,
+  ER_CASE_CLOSE,
+  COMPLIANCE_READ,
+  COMPLIANCE_MANAGE,
+  LEGAL_HOLD_MANAGE,
+  REPORT_READ,
+  REPORT_CREATE,
+  REPORT_EXPORT,
+  ADMIN_SYSTEM,
+  ADMIN_TENANT,
+  ADMIN_SECURITY,
+  ALL_PERMISSIONS,
+  type DataClassification,
+  type PermissionDefinition,
+  getPermissionDefinition,
+  getAllPermissions,
+} from './rbac/permissions.js';
+
+export { RbacEngine } from './rbac/rbac-engine.js';
+
+// ABAC
+export {
+  type AbacContext,
+  AbacDimension,
+} from './abac/dimensions.js';
+
+export {
+  type AbacEffect,
+  type AbacDecision,
+  type AbacCondition,
+  type AbacPolicy,
+  AbacEngine,
+} from './abac/abac-engine.js';
+
+// SoD
+export {
+  COMPENSATION_PROPOSER_CANNOT_APPROVE,
+  PAYROLL_PREPARER_CANNOT_APPROVE,
+  INTERVIEWER_CANNOT_FINAL_OFFER_APPROVE,
+  ER_SUBJECT_MANAGER_CANNOT_INVESTIGATE,
+  BREAK_GLASS_REQUESTER_CANNOT_APPROVE,
+  COUNTRY_POLICY_UPLOADER_CANNOT_LEGAL_APPROVE,
+  BONUS_RECOMMENDER_CANNOT_CALIBRATE_APPROVE,
+  EQUITY_GRANT_DRAFTER_CANNOT_APPROVE,
+  PAY_EQUITY_AUDIT_PREPARER_CANNOT_ACTION_APPROVE,
+  BENEFITS_ENROLLMENT_REQUESTER_CANNOT_EXCEPTION_APPROVE,
+  CARRIER_RECONCILIATION_PREPARER_CANNOT_APPROVE,
+  PERFORMANCE_RATER_CANNOT_CALIBRATION_APPROVE,
+  DISCIPLINARY_REQUESTER_CANNOT_FINAL_APPROVE,
+  TERMINATION_REQUESTER_CANNOT_FINAL_APPROVE,
+  HIRING_MANAGER_CANNOT_BACKGROUND_CHECK_DECIDE,
+  OFFER_DRAFTER_CANNOT_OFFER_APPROVE,
+  HR_ADMIN_CANNOT_SELF_APPROVE_COMPENSATION,
+  HR_ADMIN_CANNOT_APPROVE_OWN_BREAK_GLASS,
+  HRBP_CANNOT_CALIBRATE_OWN_PERFORMANCE,
+  HRBP_CANNOT_DISCIPLINARY_APPROVE_OWN_REQUEST,
+  COMPLIANCE_REPORT_PREPARER_CANNOT_APPROVE,
+  DEI_REPORT_PREPARER_CANNOT_PUBLISH_APPROVE,
+  CONTRACT_DRAFTER_CANNOT_LEGAL_APPROVE,
+  ORG_DESIGN_DRAFTER_CANNOT_FINAL_APPROVE,
+  RIF_SCENARIO_DRAFTER_CANNOT_FINAL_APPROVE,
+  WORKFORCE_PLAN_PREPARER_CANNOT_APPROVE,
+  LEARNING_UPLOADER_CANNOT_CONTENT_APPROVE,
+  TAX_JURISDICTION_REVIEWER_CANNOT_PAYROLL_FINALIZE,
+  PAYROLL_CALCULATION_PREPARER_CANNOT_FINAL_APPROVE,
+  DATA_EXPORT_REQUESTER_CANNOT_EXPORT_APPROVE,
+  COUNTRY_POLICY_UPLOADER_CANNOT_FINAL_PUBLISH,
+  type SodEnforcement,
+  type SodResult,
+  type SodContext,
+  type SodRule,
+  SodMatrix,
+} from './sod/sod-matrix.js';
+
+// Field Policy
+export {
+  FieldAccessDecision,
+  type DataClassification as FieldDataClassification,
+  type MaskingRule,
+  type FieldPolicy,
+  type FieldAccessResult,
+  FieldPolicyEngine,
+} from './field-policy/field-policy.js';
+
+// Self-Service
+export {
+  EmployeeSelfServiceAllowlist,
+  ManagerSelfServiceAllowlist,
+  SelfServiceValidator,
+} from './self-service/allowlists.js';
+
+// Break-Glass
+export {
+  type BreakGlassRequest,
+  BreakGlassRules,
+  BreakGlassValidator,
+} from './break-glass/break-glass.js';
+
+// Service
+export {
+  type HrActor,
+  type HrCommandEnvelope,
+  type AccessControlDecision,
+  type QueryAccessDecision,
+  AccessControlService,
+} from './access-control.service.js';

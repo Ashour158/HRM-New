@@ -1,0 +1,405 @@
+/**
+ * @file RBAC Role Catalog
+ * @description 17+ canonical roles across 5 tiers for the HR/HCM platform.
+ */
+
+export type RoleCode =
+  | 'EXECUTIVE_VIEWER'
+  | 'COMPLIANCE_OFFICER'
+  | 'LEGAL'
+  | 'GLOBAL_HR_COMPLIANCE_OFFICER'
+  | 'HR_ADMIN'
+  | 'HRBP'
+  | 'ER_SPECIALIST'
+  | 'PAYROLL_ADMIN'
+  | 'BENEFITS_ADMIN'
+  | 'COMPENSATION_ADMIN'
+  | 'RECRUITER'
+  | 'LEARNING_ADMIN'
+  | 'WORKFORCE_PLANNING_ADMIN'
+  | 'MANAGER'
+  | 'EMPLOYEE'
+  | 'SYSTEM_ACTOR'
+  | 'INTEGRATION_ACTOR';
+
+/** 5-tier role hierarchy */
+export type RoleTier = 1 | 2 | 3 | 4 | 5;
+
+export interface RoleDefinition {
+  /** Canonical role code */
+  code: RoleCode;
+  /** Human-readable name */
+  name: string;
+  /** Tier in the hierarchy (1 = highest) */
+  tier: RoleTier;
+  /** Description of the role */
+  description: string;
+  /** Default permission codes granted to this role */
+  defaultPermissions: string[];
+  /** Fields this role is permitted to mutate (field paths) */
+  mutableFields: string[];
+}
+
+const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
+  EXECUTIVE_VIEWER: {
+    code: 'EXECUTIVE_VIEWER',
+    name: 'Executive Viewer',
+    tier: 1,
+    description: 'Organization-wide analytics, dashboards, compliance posture, workforce health. Read-only to individual records unless explicitly delegated.',
+    defaultPermissions: [
+      'ORG_READ',
+      'POSITION_READ',
+      'REPORT_READ',
+      'REPORT_CREATE',
+      'COMPLIANCE_READ',
+      'PERFORMANCE_READ',
+    ],
+    mutableFields: [],
+  },
+  COMPLIANCE_OFFICER: {
+    code: 'COMPLIANCE_OFFICER',
+    name: 'Compliance Officer',
+    tier: 1,
+    description: 'Policy management, legal hold administration, compliance reporting, DSAR processing, retention enforcement.',
+    defaultPermissions: [
+      'COMPLIANCE_READ',
+      'COMPLIANCE_MANAGE',
+      'LEGAL_HOLD_MANAGE',
+      'REPORT_READ',
+      'REPORT_CREATE',
+      'REPORT_EXPORT',
+      'WORKER_READ',
+    ],
+    mutableFields: ['compliance.policy', 'compliance.retention', 'legalHold.status'],
+  },
+  LEGAL: {
+    code: 'LEGAL',
+    name: 'Legal',
+    tier: 1,
+    description: 'Contract review, legal advice, ER case legal oversight, disciplinary review, litigation hold management, policy legal approval.',
+    defaultPermissions: [
+      'COMPLIANCE_READ',
+      'LEGAL_HOLD_MANAGE',
+      'ER_CASE_READ',
+      'ER_CASE_CLOSE',
+      'REPORT_READ',
+      'REPORT_EXPORT',
+      'WORKER_READ',
+    ],
+    mutableFields: ['legal.review', 'legal.hold', 'contract.status'],
+  },
+  GLOBAL_HR_COMPLIANCE_OFFICER: {
+    code: 'GLOBAL_HR_COMPLIANCE_OFFICER',
+    name: 'Global HR Compliance Officer',
+    tier: 1,
+    description: 'Country rule sets, statutory reports, work authorization, I-9/E-Verify, country policy packs.',
+    defaultPermissions: [
+      'COMPLIANCE_READ',
+      'COMPLIANCE_MANAGE',
+      'LEGAL_HOLD_MANAGE',
+      'ADMIN_SYSTEM',
+      'REPORT_READ',
+      'REPORT_EXPORT',
+      'WORKER_READ',
+    ],
+    mutableFields: ['country.policy', 'workAuthorization.status', 'statutory.report'],
+  },
+  HR_ADMIN: {
+    code: 'HR_ADMIN',
+    name: 'HR Admin',
+    tier: 2,
+    description: 'Full HR operational scope within delegated legal entities and countries. Worker lifecycle, org management, position control.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'WORKER_CREATE',
+      'WORKER_UPDATE',
+      'WORKER_TERMINATE',
+      'WORKER_REACTIVATE',
+      'ORG_READ',
+      'ORG_CREATE',
+      'ORG_UPDATE',
+      'POSITION_READ',
+      'POSITION_CREATE',
+      'POSITION_APPROVE',
+      'RECRUITING_READ',
+      'PAYROLL_READ',
+      'BENEFITS_READ',
+      'COMPENSATION_READ',
+      'PERFORMANCE_READ',
+      'LEARNING_READ',
+      'ABSENCE_READ',
+      'ABSENCE_MANAGE',
+      'TIME_READ',
+      'TIME_MANAGE',
+      'ER_CASE_READ',
+      'COMPLIANCE_READ',
+      'REPORT_READ',
+      'REPORT_CREATE',
+      'ADMIN_TENANT',
+    ],
+    mutableFields: [
+      'worker.profile',
+      'worker.jobAssignment',
+      'worker.status',
+      'org.unit',
+      'position.details',
+    ],
+  },
+  HRBP: {
+    code: 'HRBP',
+    name: 'HR Business Partner',
+    tier: 2,
+    description: 'Assigned business units, departments, or employee populations. ER triage, performance coaching, compensation recommendations.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'WORKER_UPDATE',
+      'ORG_READ',
+      'POSITION_READ',
+      'RECRUITING_READ',
+      'RECRUITING_CREATE',
+      'COMPENSATION_READ',
+      'COMPENSATION_CHANGE',
+      'PERFORMANCE_READ',
+      'PERFORMANCE_CREATE',
+      'ABSENCE_READ',
+      'ABSENCE_APPROVE',
+      'TIME_READ',
+      'TIME_APPROVE',
+      'ER_CASE_READ',
+      'ER_CASE_CREATE',
+      'REPORT_READ',
+      'REPORT_CREATE',
+    ],
+    mutableFields: [
+      'worker.profile',
+      'compensation.recommendation',
+      'performance.review',
+      'er.case',
+    ],
+  },
+  ER_SPECIALIST: {
+    code: 'ER_SPECIALIST',
+    name: 'Employee Relations Specialist',
+    tier: 2,
+    description: 'ER cases, investigations, disciplinary actions, accommodations, grievances within assigned scope.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'ER_CASE_READ',
+      'ER_CASE_CREATE',
+      'ER_CASE_INVESTIGATE',
+      'ER_CASE_CLOSE',
+      'COMPLIANCE_READ',
+      'REPORT_READ',
+      'REPORT_CREATE',
+    ],
+    mutableFields: ['er.case', 'er.investigation', 'disciplinary.action', 'accommodation.plan'],
+  },
+  PAYROLL_ADMIN: {
+    code: 'PAYROLL_ADMIN',
+    name: 'Payroll Admin',
+    tier: 3,
+    description: 'Payroll cycles, payroll inputs, validations, exports, tax filings within assigned legal entities.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'PAYROLL_READ',
+      'PAYROLL_CREATE',
+      'PAYROLL_APPROVE',
+      'PAYROLL_EXPORT',
+      'TIME_READ',
+      'ABSENCE_READ',
+      'REPORT_READ',
+      'REPORT_EXPORT',
+    ],
+    mutableFields: ['payroll.cycle', 'payroll.input', 'payroll.export', 'tax.filing'],
+  },
+  BENEFITS_ADMIN: {
+    code: 'BENEFITS_ADMIN',
+    name: 'Benefits Admin',
+    tier: 3,
+    description: 'Benefits programs, enrollments, carrier reconciliations, life events, open enrollment periods.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'BENEFITS_READ',
+      'BENEFITS_ENROLL',
+      'BENEFITS_APPROVE',
+      'REPORT_READ',
+      'REPORT_CREATE',
+    ],
+    mutableFields: ['benefits.enrollment', 'benefits.carrier', 'lifeEvent.processing'],
+  },
+  COMPENSATION_ADMIN: {
+    code: 'COMPENSATION_ADMIN',
+    name: 'Compensation Admin',
+    tier: 3,
+    description: 'Compensation bands, compensation plans, pay scales, bonus cycles, equity grants, total compensation statements.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'COMPENSATION_READ',
+      'COMPENSATION_CHANGE',
+      'COMPENSATION_APPROVE',
+      'REPORT_READ',
+      'REPORT_CREATE',
+      'REPORT_EXPORT',
+    ],
+    mutableFields: ['compensation.band', 'compensation.plan', 'bonus.cycle', 'equity.grant'],
+  },
+  RECRUITER: {
+    code: 'RECRUITER',
+    name: 'Recruiter',
+    tier: 3,
+    description: 'Assigned requisitions, candidates, and hiring pipelines.',
+    defaultPermissions: [
+      'RECRUITING_READ',
+      'RECRUITING_CREATE',
+      'RECRUITING_APPROVE',
+      'RECRUITING_PUBLISH',
+      'WORKER_READ',
+      'POSITION_READ',
+      'REPORT_READ',
+    ],
+    mutableFields: ['requisition.details', 'candidate.pipeline', 'offer.draft'],
+  },
+  LEARNING_ADMIN: {
+    code: 'LEARNING_ADMIN',
+    name: 'Learning Admin',
+    tier: 3,
+    description: 'Learning catalog, learning assignments, content packages, certifications, skills profiles.',
+    defaultPermissions: [
+      'LEARNING_READ',
+      'LEARNING_ASSIGN',
+      'LEARNING_APPROVE',
+      'WORKER_READ',
+      'REPORT_READ',
+      'REPORT_CREATE',
+    ],
+    mutableFields: ['learning.catalog', 'learning.assignment', 'certification.status'],
+  },
+  WORKFORCE_PLANNING_ADMIN: {
+    code: 'WORKFORCE_PLANNING_ADMIN',
+    name: 'Workforce Planning Admin',
+    tier: 3,
+    description: 'Workforce scenarios, headcount planning, org design, skills gap analysis, budget reconciliation.',
+    defaultPermissions: [
+      'ORG_READ',
+      'POSITION_READ',
+      'WORKER_READ',
+      'REPORT_READ',
+      'REPORT_CREATE',
+      'REPORT_EXPORT',
+    ],
+    mutableFields: ['workforce.scenario', 'org.design', 'headcount.plan'],
+  },
+  MANAGER: {
+    code: 'MANAGER',
+    name: 'Manager',
+    tier: 4,
+    description: 'Direct reports, dotted-line reports, team data, and organizational context.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'PERFORMANCE_READ',
+      'PERFORMANCE_CREATE',
+      'ABSENCE_READ',
+      'ABSENCE_APPROVE',
+      'TIME_READ',
+      'TIME_APPROVE',
+      'RECRUITING_READ',
+      'RECRUITING_CREATE',
+      'REPORT_READ',
+    ],
+    mutableFields: [
+      'performance.rating',
+      'absence.approval',
+      'time.approval',
+      'requisition.request',
+      'compensation.recommendation',
+    ],
+  },
+  EMPLOYEE: {
+    code: 'EMPLOYEE',
+    name: 'Employee (Self-Service)',
+    tier: 5,
+    description: 'Own worker profile only.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'BENEFITS_READ',
+      'BENEFITS_ENROLL',
+      'PERFORMANCE_READ',
+      'LEARNING_READ',
+      'ABSENCE_READ',
+      'TIME_READ',
+      'REPORT_READ',
+    ],
+    mutableFields: [
+      'worker.contact',
+      'worker.emergencyContact',
+      'worker.consent',
+      'absence.request',
+      'benefits.election',
+    ],
+  },
+  SYSTEM_ACTOR: {
+    code: 'SYSTEM_ACTOR',
+    name: 'System Actor',
+    tier: 5,
+    description: 'Internal automated processes, scheduled jobs, policy engines, FSM transitions.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'PAYROLL_READ',
+      'PAYROLL_CREATE',
+      'BENEFITS_READ',
+      'BENEFITS_ENROLL',
+      'ABSENCE_READ',
+      'TIME_READ',
+      'COMPENSATION_READ',
+      'LEARNING_READ',
+      'REPORT_READ',
+      'REPORT_CREATE',
+      'REPORT_EXPORT',
+      'ADMIN_SYSTEM',
+    ],
+    mutableFields: [
+      'payroll.calculation',
+      'entitlement.calculation',
+      'timer.transition',
+      'reconciliation.result',
+    ],
+  },
+  INTEGRATION_ACTOR: {
+    code: 'INTEGRATION_ACTOR',
+    name: 'Integration Actor',
+    tier: 5,
+    description: 'External systems: LMS, ATS, payroll providers, benefits carriers, background check, tax authorities.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'WORKER_CREATE',
+      'WORKER_UPDATE',
+      'PAYROLL_READ',
+      'PAYROLL_EXPORT',
+      'BENEFITS_READ',
+      'BENEFITS_ENROLL',
+      'LEARNING_READ',
+      'LEARNING_ASSIGN',
+      'REPORT_READ',
+      'REPORT_EXPORT',
+    ],
+    mutableFields: [
+      'integration.sync',
+      'webhook.payload',
+      'batch.import',
+    ],
+  },
+};
+
+/** Retrieve a single role definition by code. */
+export function getRoleDefinition(code: RoleCode): RoleDefinition {
+  const def = ROLE_CATALOG[code];
+  if (!def) {
+    throw new Error(`Unknown role code: ${code}`);
+  }
+  return def;
+}
+
+/** Retrieve all role definitions. */
+export function getAllRoles(): RoleDefinition[] {
+  return Object.values(ROLE_CATALOG);
+}

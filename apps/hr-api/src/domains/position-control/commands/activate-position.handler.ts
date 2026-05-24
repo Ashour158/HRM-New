@@ -1,0 +1,51 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { Uuid } from '@hcm/shared-kernel';
+import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
+import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
+import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
+import { PositionRepository } from '../repositories/position.repository.js';
+import { PositionEventsPublisher } from '../events/position-events.publisher.js';
+
+export interface ActivatePositionCommandPayload {
+  positionId: string;
+}
+
+/**
+ * Handler for the ActivatePosition command.
+ */
+@Injectable()
+@CommandHandler('ActivatePosition')
+export class ActivatePositionHandler implements ICommandHandler {
+  readonly commandName = 'ActivatePosition';
+
+  constructor(
+    private readonly positionRepo: PositionRepository,
+    private readonly eventsPublisher: PositionEventsPublisher,
+  ) {}
+
+  async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
+    const payload = command.payload as ActivatePositionCommandPayload;
+    const position = await this.positionRepo.findById(new Uuid(payload.positionId));
+    if (!position) {
+      throw new NotFoundException('Position not found');
+    }
+
+    position.activate(command.correlationId);
+    await this.positionRepo.save(position);
+    await this.eventsPublisher.publishUncommitted(position, command.tenantId, command.correlationId);
+
+    return {
+      success: true,
+      data: { positionId: position.id.value, status: position.status },
+      commandId: command.commandId,
+      correlationId: command.correlationId,
+      aggregateId: position.id,
+      newState: position.status,
+      newVersion: position.version,
+      allowedNextActions: ['Freeze', 'Fill', 'Close', 'Update'],
+      fieldAccessDecisions: {},
+      eventsEmitted: ['PositionActivated'],
+      auditRecordId: Uuid.generate(),
+    };
+  }
+}
