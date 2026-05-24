@@ -53,7 +53,7 @@ export interface Worker {
   email: string;
   phone?: string;
   hireDate: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'TERMINATED' | 'ON_LEAVE';
+  status: string;
   departmentId?: string;
   departmentName?: string;
   jobTitle?: string;

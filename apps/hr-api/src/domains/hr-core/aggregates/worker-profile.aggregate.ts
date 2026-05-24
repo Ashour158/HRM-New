@@ -257,10 +257,14 @@ export class WorkerProfile extends AggregateRoot {
     Guard.againstEmptyString(props.lastName, 'lastName');
     Guard.againstFutureDate(props.hireDate, 'hireDate');
 
-    const employeeNumber = props.employeeNumber || `EMP-${props.tenantId.value.slice(0, 8)}-${Date.now()}`;
+    const id = props.id instanceof Uuid ? props.id : new Uuid(props.id as unknown as string);
+    const tenantId = props.tenantId instanceof Uuid ? props.tenantId : new Uuid(props.tenantId as unknown as string);
+    const employeeNumber = props.employeeNumber || `EMP-${tenantId.value.slice(0, 8)}-${Date.now()}`;
 
     const profile = new WorkerProfile({
       ...props,
+      id,
+      tenantId,
       employeeNumber,
       status: 'DRAFT',
       createdAt: new Date(),

@@ -76,6 +76,34 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
   }
 
+  async search(query: string, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
+    let dbQuery = this.db
+      .selectFrom(this.tableName)
+      .selectAll();
+
+    if (query) {
+      const like = `%${query}%`;
+      dbQuery = dbQuery.where((eb) =>
+        eb.or([
+          eb('first_name', 'ilike', like),
+          eb('last_name', 'ilike', like),
+          eb('email', 'ilike', like),
+          eb('employee_number', 'ilike', like),
+        ])
+      );
+    }
+
+    if (options?.limit !== undefined) {
+      dbQuery = dbQuery.limit(options.limit);
+    }
+    if (options?.offset !== undefined) {
+      dbQuery = dbQuery.offset(options.offset);
+    }
+
+    const rows = await dbQuery.execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
   async save(entity: WorkerProfile): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

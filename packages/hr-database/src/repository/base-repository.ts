@@ -12,7 +12,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
     const result = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('id', '=', id as any)
+      .where('id', '=', id.value as any)
       .executeTakeFirst();
     return result as unknown as TAggregate | undefined;
   }
@@ -37,7 +37,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
 
     const result = await this.db
       .insertInto(this.tableName)
-      .values({ ...(row as unknown as Record<string, unknown>), tenant_id: tenantId } as unknown as Insertable<Database[TTable]>)
+      .values({ ...(row as unknown as Record<string, unknown>), tenant_id: tenantId.value } as unknown as Insertable<Database[TTable]>)
       .returningAll()
       .executeTakeFirstOrThrow();
 
@@ -48,7 +48,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
     const result = await this.db
       .updateTable(this.tableName)
       .set(row as any)
-      .where('id', '=', id as any)
+      .where('id', '=', id.value as any)
       .returningAll()
       .executeTakeFirst();
 
@@ -58,7 +58,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   async delete(id: Uuid): Promise<boolean> {
     const result = await this.db
       .deleteFrom(this.tableName)
-      .where('id', '=', id as any)
+      .where('id', '=', id.value as any)
       .executeTakeFirst();
 
     return Number((result as unknown as { numDeletedRows: bigint }).numDeletedRows) > 0;

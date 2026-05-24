@@ -14,30 +14,36 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
-    "db:migrate": "pnpm --filter hr-database migrate",
-    "db:migrate:create": "pnpm --filter hr-database migrate:create",
-    "db:seed": "pnpm --filter hr-database seed",
-    "api:start": "pnpm --filter hr-api start:dev",
-    "web:dev": "pnpm --filter hr-web dev",
+    "db:migrate": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate",
+    "db:migrate:create": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate:create",
+    "db:seed": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database seed",
+    "api:start": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/hr-api start:dev",
+    "web:dev": "pnpm exec dotenv -e .env -- pnpm --filter hr-web dev",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
     "infra:down": "docker compose -f infra/docker-compose.yml down",
     "infra:logs": "docker compose -f infra/docker-compose.yml logs -f"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.3.0",
     "@types/node": "^20.10.0",
-    "vitest": "^1.6.0",
-    "@vitest/coverage-v8": "^1.6.0",
-    "eslint": "^8.57.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
-    "prettier": "^3.2.0",
+    "@vitest/coverage-v8": "^1.6.0",
+    "dotenv-cli": "^11.0.0",
+    "eslint": "^8.57.0",
     "husky": "^9.0.0",
-    "lint-staged": "^15.0.0"
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.2.0",
+    "turbo": "^2.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
   },
   "lint-staged": {
-    "*.{ts,tsx}": ["eslint --fix", "prettier --write"],
-    "*.{js,jsx,json,md}": ["prettier --write"]
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{js,jsx,json,md}": [
+      "prettier --write"
+    ]
   }
 }

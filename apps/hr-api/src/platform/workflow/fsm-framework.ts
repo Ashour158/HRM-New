@@ -28,6 +28,7 @@ export interface FsmDefinition<TState, TAction> {
 
 export interface FsmInstance<TState> {
   aggregateId: Uuid;
+  aggregateType: string;
   currentState: TState;
   version: number;
   history: FsmTransitionRecord[];
@@ -71,15 +72,14 @@ export class FsmFramework {
   }
 
   canTransition(instance: FsmInstance<string>, action: string): boolean {
-    for (const def of this.definitions.values()) {
-      if (!def.states.includes(instance.currentState)) continue;
-      if (def.terminalStates.includes(instance.currentState)) return false;
-      const transition = def.transitions.find(
-        (t) => t.from === instance.currentState && t.action === action,
-      );
-      return !!transition;
-    }
-    return false;
+    const def = this.definitions.get(instance.aggregateType);
+    if (!def) return false;
+    if (!def.states.includes(instance.currentState)) return false;
+    if (def.terminalStates.includes(instance.currentState)) return false;
+    const transition = def.transitions.find(
+      (t) => t.from === instance.currentState && t.action === action,
+    );
+    return !!transition;
   }
 
   transition(
@@ -87,54 +87,59 @@ export class FsmFramework {
     action: string,
     _context: TransitionContext,
   ): Result<FsmTransitionResult, FsmError> {
-    for (const def of this.definitions.values()) {
-      if (!def.states.includes(instance.currentState)) continue;
-
-      if (def.terminalStates.includes(instance.currentState)) {
-        return new Err({
-          code: FsmErrorCode.ALREADY_TERMINAL,
-          message: `Aggregate is in terminal state ${instance.currentState}`,
-        });
-      }
-
-      const transition = def.transitions.find(
-        (t) => t.from === instance.currentState && t.action === action,
-      );
-      if (!transition) {
-        return new Err({
-          code: FsmErrorCode.INVALID_ACTION,
-          message: `Action ${action} not allowed from state ${instance.currentState}`,
-        });
-      }
-
-      const record: FsmTransitionRecord = {
-        fromState: instance.currentState,
-        toState: transition.to,
-        action,
-        occurredAt: new Date(),
-      };
-
-      return new Ok({
-        newState: transition.to,
-        eventName: transition.eventName,
-        transitionRecord: record,
+    const def = this.definitions.get(instance.aggregateType);
+    if (!def) {
+      return new Err({
+        code: FsmErrorCode.DEFINITION_NOT_FOUND,
+        message: `No FSM definition found for aggregate type ${instance.aggregateType}`,
       });
     }
 
-    return new Err({
-      code: FsmErrorCode.DEFINITION_NOT_FOUND,
-      message: `No FSM definition found for state ${instance.currentState}`,
+    if (!def.states.includes(instance.currentState)) {
+      return new Err({
+        code: FsmErrorCode.DEFINITION_NOT_FOUND,
+        message: `State ${instance.currentState} is not valid for aggregate type ${instance.aggregateType}`,
+      });
+    }
+
+    if (def.terminalStates.includes(instance.currentState)) {
+      return new Err({
+        code: FsmErrorCode.ALREADY_TERMINAL,
+        message: `Aggregate is in terminal state ${instance.currentState}`,
+      });
+    }
+
+    const transition = def.transitions.find(
+      (t) => t.from === instance.currentState && t.action === action,
+    );
+    if (!transition) {
+      return new Err({
+        code: FsmErrorCode.INVALID_ACTION,
+        message: `Action ${action} not allowed from state ${instance.currentState}`,
+      });
+    }
+
+    const record: FsmTransitionRecord = {
+      fromState: instance.currentState,
+      toState: transition.to,
+      action,
+      occurredAt: new Date(),
+    };
+
+    return new Ok({
+      newState: transition.to,
+      eventName: transition.eventName,
+      transitionRecord: record,
     });
   }
 
   getAllowedActions(instance: FsmInstance<string>): string[] {
-    for (const def of this.definitions.values()) {
-      if (!def.states.includes(instance.currentState)) continue;
-      return def.transitions
-        .filter((t) => t.from === instance.currentState)
-        .map((t) => t.action);
-    }
-    return [];
+    const def = this.definitions.get(instance.aggregateType);
+    if (!def) return [];
+    if (!def.states.includes(instance.currentState)) return [];
+    return def.transitions
+      .filter((t) => t.from === instance.currentState)
+      .map((t) => t.action);
   }
 
   getAllowedActionsFromState(state: string, aggregateType: string): string[] {

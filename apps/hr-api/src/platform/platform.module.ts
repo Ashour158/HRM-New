@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DiscoveryModule } from '@nestjs/core';
 import { Redis } from 'ioredis';
 import { RedisCacheService } from '@hcm/platform-core';
+import { AccessControlService } from '@hcm/access-control';
 import { CommandBus } from './command-bus/command-bus.js';
 import { EventBus, InMemoryEventBus } from './event-bus/event-bus.js';
 import { KafkaEventBus } from './event-bus/kafka-event-bus.js';
@@ -37,6 +38,7 @@ const eventBusProvider = {
         return new RedisCacheService(redis);
       },
     },
+    AccessControlService,
     CommandBus,
     OutboxPublisher,
     InboxConsumer,

@@ -26,7 +26,7 @@ function mapFieldDecision(decision: FieldAccessDecision): 'VISIBLE' | 'MASKED' |
   }
 }
 
-function buildFieldAccessDecisions(
+export function buildFieldAccessDecisions(
   fieldPolicy: FieldPolicyEngine,
   roles: string[],
   abacContext: AbacContext,

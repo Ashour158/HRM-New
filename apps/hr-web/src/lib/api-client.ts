@@ -10,13 +10,16 @@ interface RetryConfig extends InternalAxiosRequestConfig {
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
+const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
 
 /**
  * Creates and configures the Axios API client.
  */
 function createApiClient(): AxiosInstance {
   const client = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
+    baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1',
     timeout: 30000,
     headers: {
       'Content-Type': 'application/json',
@@ -27,11 +30,11 @@ function createApiClient(): AxiosInstance {
   client.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
       const token = localStorage.getItem('auth_token');
-      if (token) {
+      if (token && !(AUTH_BYPASS_ENABLED && token === LOCAL_BYPASS_TOKEN)) {
         config.headers.set('Authorization', `Bearer ${token}`);
       }
 
-      const tenantId = localStorage.getItem('tenant_id');
+      const tenantId = localStorage.getItem('tenant_id') || (AUTH_BYPASS_ENABLED ? DEFAULT_TENANT_ID : '');
       if (tenantId) {
         config.headers.set('X-Tenant-ID', tenantId);
       }
@@ -53,8 +56,10 @@ function createApiClient(): AxiosInstance {
 
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
-        localStorage.removeItem('auth_token');
-        window.location.href = '/login?reason=session_expired';
+        if (!AUTH_BYPASS_ENABLED) {
+          localStorage.removeItem('auth_token');
+          window.location.href = '/login?reason=session_expired';
+        }
         return Promise.reject(error);
       }
 

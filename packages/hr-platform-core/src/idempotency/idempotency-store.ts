@@ -43,8 +43,17 @@ export interface IdempotencyStore {
    * @param tenantId - The owning tenant.
    * @param hash - SHA-256 of the normalized payload.
    * @param commandName - The canonical command name.
+   * @param aggregateType - The aggregate type being targeted.
+   * @param aggregateId - The aggregate ID (optional for creation commands).
    */
-  reserve(key: string, tenantId: Uuid, hash: string, commandName: string): Promise<void>;
+  reserve(
+    key: string,
+    tenantId: Uuid,
+    hash: string,
+    commandName: string,
+    aggregateType: string,
+    aggregateId?: Uuid
+  ): Promise<void>;
 
   /**
    * Stores a successful command result against the idempotency key.
@@ -109,7 +118,9 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     key: string,
     tenantId: Uuid,
     hash: string,
-    _commandName: string
+    commandName: string,
+    aggregateType: string,
+    aggregateId?: Uuid
   ): Promise<void> {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + this.ttlHours * 60 * 60 * 1000);
@@ -122,6 +133,9 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
         key,
         hash,
         status: 'PENDING',
+        command_name: commandName,
+        aggregate_type: aggregateType,
+        aggregate_id: aggregateId?.value ?? null,
         created_at: now.toISOString(),
         expires_at: expiresAt,
       })
@@ -182,6 +196,9 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     key: string;
     hash: string;
     status: string;
+    command_name: string;
+    aggregate_type: string;
+    aggregate_id: string | null;
     created_at: Date;
     expires_at: Date | null;
   }): IdempotencyEntry {
@@ -191,8 +208,9 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       key: row.key,
       hash: row.hash,
       status: row.status as 'PENDING' | 'SUCCESS' | 'FAILED',
-      commandName: '', // not stored in base schema; enriched by guard layer
-      aggregateType: '',
+      commandName: row.command_name,
+      aggregateType: row.aggregate_type,
+      aggregateId: row.aggregate_id ? new Uuid(row.aggregate_id) : undefined,
       createdAt: row.created_at,
       expiresAt: row.expires_at ?? new Date(Date.now() + this.ttlHours * 60 * 60 * 1000),
     };

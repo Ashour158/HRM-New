@@ -12,6 +12,8 @@ import { ActivateWorkerHandler } from './commands/activate-worker.handler.js';
 import { TerminateWorkerHandler } from './commands/terminate-worker.handler.js';
 import { UpdateWorkerPersonalDataHandler } from './commands/update-worker-personal-data.handler.js';
 import { CreateJobAssignmentHandler } from './commands/create-job-assignment.handler.js';
+import { ActivateJobAssignmentHandler } from './commands/activate-job-assignment.handler.js';
+import { EndJobAssignmentHandler } from './commands/end-job-assignment.handler.js';
 import { WorkerEventsPublisher } from './events/worker-events.publisher.js';
 import { WorkerViewProjectionBuilder } from './projections/worker-view.projection.js';
 import { registerWorkerProfileFsm } from './fsm/worker-profile.fsm.js';
@@ -33,6 +35,8 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     TerminateWorkerHandler,
     UpdateWorkerPersonalDataHandler,
     CreateJobAssignmentHandler,
+    ActivateJobAssignmentHandler,
+    EndJobAssignmentHandler,
     WorkerEventsPublisher,
     WorkerViewProjectionBuilder,
   ],

@@ -8,6 +8,11 @@ import {
   Query,
   Req,
   BadRequestException,
+  NotFoundException,
+  ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -15,6 +20,8 @@ import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { Uuid } from '@hcm/shared-kernel';
+import { OptionalAuthGuard } from '../../../guards/optional-auth.guard.js';
+import { WorkerProfile } from '../aggregates/worker-profile.aggregate.js';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { WorkerRepository } from '../repositories/worker.repository.js';
@@ -35,6 +42,7 @@ import {
 } from './dtos.js';
 
 @ApiTags('HR Core')
+@UseGuards(OptionalAuthGuard)
 @Controller('hr/core')
 export class HrCoreController {
   constructor(
@@ -64,18 +72,19 @@ export class HrCoreController {
     const tenantId = new Uuid(
       (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001',
     );
+    const actor = req.actor ?? {
+      actorType: 'SYSTEM' as const,
+      actorId: Uuid.generate(),
+      roles: ['HR_ADMIN'],
+      permissions: ['WORKER_CREATE', 'WORKER_UPDATE', 'WORKER_READ', 'WORKER_TERMINATE'],
+      mfaAuthenticated: true,
+    };
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: {
-        actorType: 'SYSTEM',
-        actorId: Uuid.generate(),
-        roles: ['HR_ADMIN'],
-        permissions: ['WORKER_CREATE', 'WORKER_UPDATE', 'WORKER_READ', 'WORKER_TERMINATE'],
-        mfaAuthenticated: true,
-      },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -88,9 +97,50 @@ export class HrCoreController {
       payload,
       metadata: {
         requestHash: computeRequestHash(payload),
-        clientType: 'HR_ADMIN',
+        clientType: this.mapRoleToClientType(actor.roles[0]),
       },
     };
+  }
+
+  private mapRoleToClientType(role?: string): 'HR_ADMIN' | 'MANAGER_PORTAL' | 'EMPLOYEE_PORTAL' | 'SYSTEM' {
+    switch (role) {
+      case 'HR_ADMIN':
+        return 'HR_ADMIN';
+      case 'MANAGER':
+        return 'MANAGER_PORTAL';
+      case 'EMPLOYEE':
+        return 'EMPLOYEE_PORTAL';
+      default:
+        return 'SYSTEM';
+    }
+  }
+
+  private async executeCommand(command: HrCommandEnvelope<unknown>): Promise<unknown> {
+    const result = await this.commandBus.execute(command);
+    if (result && typeof result === 'object' && 'success' in result && result.success === false) {
+      const errorResult = result as { errorCode: string; errorMessage: string };
+      switch (errorResult.errorCode) {
+        case 'COMMAND_HANDLER_NOT_FOUND':
+          throw new NotFoundException(errorResult.errorMessage);
+        case 'TENANT_RESOLUTION_FAILED':
+        case 'TENANT_NOT_FOUND':
+        case 'UNAUTHORIZED':
+          throw new UnauthorizedException(errorResult.errorMessage);
+        case 'ACCESS_CONTROL_DENIED':
+        case 'SOD_VIOLATION':
+          throw new ForbiddenException(errorResult.errorMessage);
+        case 'FSM_TRANSITION_NOT_ALLOWED':
+        case 'INVALID_PAYLOAD':
+        case 'IDEMPOTENCY_HASH_MISMATCH':
+          throw new BadRequestException(errorResult.errorMessage);
+        case 'MODULE_DISABLED':
+        case 'TENANT_INACTIVE':
+          throw new ConflictException(errorResult.errorMessage);
+        default:
+          throw new BadRequestException(errorResult.errorMessage);
+      }
+    }
+    return result;
   }
 
   /* ---------------------------------------------------------------- */
@@ -102,8 +152,9 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(CreateWorkerDtoSchema)) dto: dtos.CreateWorkerDto,
     @Req() req: Request,
   ) {
-    const command = this.buildCommand('CreateWorker', 'WorkerProfile', dto, req);
-    return this.commandBus.execute(command);
+    const payload = { ...dto, workerId: Uuid.generate().value };
+    const command = this.buildCommand('CreateWorker', 'WorkerProfile', payload, req);
+    return this.executeCommand(command);
   }
 
   @Post('workers/:id/commands/activate')
@@ -122,7 +173,7 @@ export class HrCoreController {
         subjectWorkerId: new Uuid(id),
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('workers/:id/commands/terminate')
@@ -146,7 +197,7 @@ export class HrCoreController {
         effectiveDate: dto.terminationDate,
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('workers/:id/commands/suspend')
@@ -165,7 +216,7 @@ export class HrCoreController {
         subjectWorkerId: new Uuid(id),
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('workers/:id/commands/reinstate')
@@ -184,7 +235,7 @@ export class HrCoreController {
         subjectWorkerId: new Uuid(id),
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Patch('workers/:id')
@@ -207,35 +258,45 @@ export class HrCoreController {
         subjectWorkerId: new Uuid(id),
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Get('workers')
   async listWorkers(
+    @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('department') department?: string,
     @Query('manager') manager?: string,
     @Query('legalEntity') legalEntity?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
+    const limit = pageSize ? parseInt(pageSize, 10) : 50;
+    const offset = page ? (parseInt(page, 10) - 1) * limit : 0;
+
+    let workers: WorkerProfile[];
     if (department) {
-      return this.workerRepo.findByDepartment(new Uuid(department));
+      workers = await this.workerRepo.findByDepartment(new Uuid(department));
+    } else if (manager) {
+      workers = await this.workerRepo.findByManager(new Uuid(manager));
+    } else if (legalEntity) {
+      workers = await this.workerRepo.findByLegalEntity(new Uuid(legalEntity));
+    } else if (search) {
+      workers = await this.workerRepo.search(search, { limit, offset });
+    } else if (status) {
+      workers = await this.workerRepo.findActive();
+    } else {
+      workers = await this.workerRepo.search('', { limit, offset });
     }
-    if (manager) {
-      return this.workerRepo.findByManager(new Uuid(manager));
-    }
-    if (legalEntity) {
-      return this.workerRepo.findByLegalEntity(new Uuid(legalEntity));
-    }
-    if (status) {
-      // repository has findActive; could extend for arbitrary status
-      return this.workerRepo.findActive();
-    }
-    return this.workerRepo.findActive();
+
+    return workers.map((w) => this.toWorkerDto(w));
   }
 
   @Get('workers/:id')
   async getWorker(@Param('id') id: string) {
-    return this.workerRepo.findById(new Uuid(id));
+    const worker = await this.workerRepo.findById(new Uuid(id));
+    if (!worker) throw new BadRequestException('Worker not found');
+    return this.toWorkerDto(worker);
   }
 
   @Get('workers/:id/allowed-actions')
@@ -243,6 +304,25 @@ export class HrCoreController {
     const worker = await this.workerRepo.findById(new Uuid(id));
     if (!worker) throw new BadRequestException('Worker not found');
     return this.fsm.getAllowedActionsFromState(worker.status, 'WorkerProfile');
+  }
+
+  private toWorkerDto(worker: WorkerProfile) {
+    return {
+      id: worker.id.value,
+      employeeId: worker.employeeNumber,
+      firstName: worker.firstName,
+      lastName: worker.lastName,
+      email: worker.email.toString(),
+      hireDate: worker.hireDate?.toISOString() ?? null,
+      status: worker.status,
+      jobTitle: worker.jobTitle ?? undefined,
+      departmentId: worker.departmentId?.value,
+      departmentName: undefined,
+      managerId: worker.managerId?.value,
+      managerName: undefined,
+      legalEntityId: worker.legalEntityId?.value,
+      legalEntityName: undefined,
+    };
   }
 
   @Get('workers/:id/timeline')
@@ -273,7 +353,7 @@ export class HrCoreController {
     @Req() req: Request,
   ) {
     const command = this.buildCommand('CreateEmploymentRelationship', 'EmploymentRelationship', dto, req);
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('employment-relationships/:id/commands/activate')
@@ -291,7 +371,7 @@ export class HrCoreController {
         expectedVersion: relationship.aggregateVersion,
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('employment-relationships/:id/commands/end')
@@ -309,7 +389,7 @@ export class HrCoreController {
         expectedVersion: relationship.aggregateVersion,
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Get('employment-relationships/worker/:workerId')
@@ -326,8 +406,9 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(CreateJobAssignmentDtoSchema)) dto: dtos.CreateJobAssignmentDto,
     @Req() req: Request,
   ) {
-    const command = this.buildCommand('CreateJobAssignment', 'JobAssignment', dto, req);
-    return this.commandBus.execute(command);
+    const payload = { ...dto, assignmentId: Uuid.generate().value };
+    const command = this.buildCommand('CreateJobAssignment', 'JobAssignment', payload, req);
+    return this.executeCommand(command);
   }
 
   @Post('job-assignments/:id/commands/activate')
@@ -345,7 +426,7 @@ export class HrCoreController {
         expectedVersion: assignment.aggregateVersion,
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('job-assignments/:id/commands/end')
@@ -363,7 +444,7 @@ export class HrCoreController {
         expectedVersion: assignment.aggregateVersion,
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Get('job-assignments/worker/:workerId')
@@ -381,7 +462,7 @@ export class HrCoreController {
     @Req() req: Request,
   ) {
     const command = this.buildCommand('CreateEmploymentContract', 'EmploymentContract', dto, req);
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Post('employment-contracts/:id/commands/sign')
@@ -399,7 +480,7 @@ export class HrCoreController {
         expectedVersion: contract.aggregateVersion,
       },
     );
-    return this.commandBus.execute(command);
+    return this.executeCommand(command);
   }
 
   @Get('employment-contracts/worker/:workerId')

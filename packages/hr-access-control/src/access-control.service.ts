@@ -178,7 +178,7 @@ export class AccessControlService {
 
   private inferPermissions(command: HrCommandEnvelope): string[] {
     const perms: string[] = [];
-    const prefix = command.aggregateType.toUpperCase();
+    const prefix = this.mapAggregateTypeToPermissionPrefix(command.aggregateType);
     switch (command.commandType) {
       case 'CREATE':
         perms.push(`${prefix}_CREATE`);
@@ -199,6 +199,17 @@ export class AccessControlService {
         perms.push(`${prefix}_READ`, `${prefix}_CREATE`, `${prefix}_UPDATE`);
     }
     return perms;
+  }
+
+  private mapAggregateTypeToPermissionPrefix(aggregateType: string): string {
+    const mapping: Record<string, string> = {
+      WorkerProfile: 'WORKER',
+      EmploymentRelationship: 'WORKER',
+      JobAssignment: 'WORKER',
+      EmploymentContract: 'WORKER',
+      PersonalDataRecord: 'WORKER',
+    };
+    return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }
 
   private domainMatchesAggregate(domain: string, aggregateType: string): boolean {

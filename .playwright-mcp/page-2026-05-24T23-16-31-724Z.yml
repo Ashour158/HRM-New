@@ -1,0 +1,94 @@
+- generic [ref=e2]:
+  - generic [ref=e26]:
+    - complementary [ref=e27]:
+      - link "HR/HCM" [ref=e29] [cursor=pointer]:
+        - /url: /
+        - img [ref=e30]
+        - generic [ref=e34]: HR/HCM
+      - navigation [ref=e35]:
+        - link "Home" [ref=e36] [cursor=pointer]:
+          - /url: /
+          - img [ref=e37]
+          - generic [ref=e40]: Home
+        - link "HR Admin" [ref=e41] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e42]
+          - generic [ref=e44]: HR Admin
+      - button "Collapse sidebar" [ref=e46] [cursor=pointer]:
+        - img [ref=e47]
+        - generic [ref=e48]: Collapse
+    - generic [ref=e49]:
+      - banner [ref=e50]:
+        - button "Notifications" [ref=e51] [cursor=pointer]:
+          - img [ref=e52]
+        - button "HA HR Admin" [ref=e55] [cursor=pointer]:
+          - generic [ref=e57]: HA
+          - generic [ref=e58]: HR Admin
+          - img [ref=e59]
+      - main [ref=e61]:
+        - generic [ref=e62]:
+          - generic [ref=e63]:
+            - heading "Employee Self-Service" [level=1] [ref=e64]
+            - paragraph [ref=e65]: Manage your personal information, benefits, and time off
+          - navigation [ref=e66]:
+            - link "Dashboard" [ref=e67] [cursor=pointer]:
+              - /url: /employee
+              - button "Dashboard" [ref=e68]
+            - link "Profile" [ref=e69] [cursor=pointer]:
+              - /url: /employee/profile
+              - button "Profile" [ref=e70]
+            - link "Payslips" [ref=e71] [cursor=pointer]:
+              - /url: /employee/payslip
+              - button "Payslips" [ref=e72]
+            - link "Benefits" [ref=e73] [cursor=pointer]:
+              - /url: /employee/benefits
+              - button "Benefits" [ref=e74]
+            - link "Time Off" [ref=e75] [cursor=pointer]:
+              - /url: /employee/time-off
+              - button "Time Off" [ref=e76]
+          - generic [ref=e78]:
+            - generic [ref=e80]:
+              - heading "Welcome back, HR!" [level=3] [ref=e81]
+              - paragraph [ref=e82]: Here's what's happening with your HR profile today.
+            - generic [ref=e87]:
+              - link "Submit Absence Request time off" [ref=e88] [cursor=pointer]:
+                - /url: /employee/time-off
+                - generic [ref=e91]:
+                  - img [ref=e93]
+                  - generic [ref=e95]:
+                    - paragraph [ref=e96]: Submit Absence
+                    - paragraph [ref=e97]: Request time off
+              - link "View Payslip Latest pay period" [ref=e98] [cursor=pointer]:
+                - /url: /employee/payslip
+                - generic [ref=e101]:
+                  - img [ref=e103]
+                  - generic [ref=e106]:
+                    - paragraph [ref=e107]: View Payslip
+                    - paragraph [ref=e108]: Latest pay period
+              - link "Start Learning Training courses" [ref=e109] [cursor=pointer]:
+                - /url: /employee/benefits
+                - generic [ref=e112]:
+                  - img [ref=e114]
+                  - generic [ref=e117]:
+                    - paragraph [ref=e118]: Start Learning
+                    - paragraph [ref=e119]: Training courses
+              - link "Submit Goals Performance goals" [ref=e120] [cursor=pointer]:
+                - /url: /employee/profile
+                - generic [ref=e123]:
+                  - img [ref=e125]
+                  - generic [ref=e128]:
+                    - paragraph [ref=e129]: Submit Goals
+                    - paragraph [ref=e130]: Performance goals
+            - generic [ref=e131]:
+              - heading "Upcoming Events" [level=3] [ref=e134]:
+                - img [ref=e135]
+                - text: Upcoming Events
+              - heading "Pending Tasks" [level=3] [ref=e142]:
+                - img [ref=e143]
+                - text: Pending Tasks
+              - heading "Time Off Balance" [level=3] [ref=e149]:
+                - img [ref=e150]
+                - text: Time Off Balance
+            - heading "Recent Activity" [level=3] [ref=e156]
+  - region "Notifications (F8)":
+    - list

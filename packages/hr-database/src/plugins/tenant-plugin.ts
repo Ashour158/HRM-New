@@ -73,7 +73,7 @@ export class TenantFilterPlugin implements KyselyPlugin {
     const tenantFilter = BinaryOperationNode.create(
       ColumnNode.create('tenant_id'),
       OperatorNode.create('='),
-      ValueNode.create(tenantId)
+      ValueNode.create(tenantId.value)
     );
 
     const newWhere = node.where

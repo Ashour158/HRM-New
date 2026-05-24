@@ -40,9 +40,10 @@ export function FieldMask({
         return `${str.slice(0, 4)}****`;
       case 'CURRENCY_MASK':
         return '$XX,XXX.XX';
-      case 'EMAIL_MASK':
+      case 'EMAIL_MASK': {
         const [local, domain] = str.split('@');
         return `${local.charAt(0)}***@${domain}`;
+      }
       case 'PHONE_MASK':
         return `(***) ***-${str.slice(-4)}`;
       default:

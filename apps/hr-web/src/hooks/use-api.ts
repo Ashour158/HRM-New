@@ -41,7 +41,7 @@ export function useApiQuery<T>(
  * @returns Mutation result
  */
 export function useApiMutation<TData, TVariables = unknown>(
-  url: string,
+  url: string | ((variables: TVariables) => string),
   method: 'post' | 'put' | 'patch' | 'delete' = 'post',
   invalidateKeys?: QueryKey[],
   options?: Omit<UseMutationOptions<TData, AxiosError, TVariables>, 'mutationFn'>
@@ -50,7 +50,8 @@ export function useApiMutation<TData, TVariables = unknown>(
 
   return useMutation<TData, AxiosError, TVariables>({
     mutationFn: async (variables: TVariables) => {
-      const response = await apiClient[method]<ApiResponse<TData>>(url, variables);
+      const resolvedUrl = typeof url === 'function' ? url(variables) : url;
+      const response = await apiClient[method]<ApiResponse<TData>>(resolvedUrl, variables);
       return response.data.data;
     },
     onSuccess: () => {

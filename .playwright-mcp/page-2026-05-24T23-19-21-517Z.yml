@@ -1,0 +1,284 @@
+- generic:
+  - generic:
+    - generic:
+      - complementary:
+        - generic:
+          - link:
+            - /url: /
+            - img
+        - navigation:
+          - link:
+            - /url: /
+            - img
+          - link:
+            - /url: /admin
+            - img
+        - generic:
+          - button:
+            - img
+      - generic:
+        - banner:
+          - button:
+            - img
+          - button:
+            - generic:
+              - generic: HA
+            - generic: HR Admin
+            - img
+        - main:
+          - generic:
+            - generic:
+              - heading [level=1]: HR Administration
+              - paragraph: Full administrative access to all HR domains
+            - navigation:
+              - link:
+                - /url: /admin
+                - button: Dashboard
+              - link:
+                - /url: /admin/workers
+                - button: Workers
+              - link:
+                - /url: /admin/organization
+                - button: Organization
+              - link:
+                - /url: /admin/payroll
+                - button: Payroll
+              - link:
+                - /url: /admin/compliance
+                - button: Compliance
+              - link:
+                - /url: /admin/country-policy
+                - button: Country Policy
+            - generic:
+              - generic:
+                - generic:
+                  - generic:
+                    - heading [level=2]: Workers
+                    - paragraph: Manage employee records and lifecycle
+                  - button:
+                    - img
+                    - text: Add Worker
+                - generic:
+                  - generic:
+                    - img
+                    - textbox:
+                      - /placeholder: Search workers...
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - table:
+                          - rowgroup:
+                            - row:
+                              - columnheader:
+                                - generic: Name
+                              - columnheader:
+                                - generic: Employee ID
+                              - columnheader:
+                                - generic: Email
+                              - columnheader:
+                                - generic: Job Title
+                              - columnheader:
+                                - generic: Department
+                              - columnheader:
+                                - generic: Status
+                              - columnheader:
+                                - generic: Hire Date
+                              - columnheader:
+                                - generic: Actions
+                          - rowgroup:
+                            - row:
+                              - cell:
+                                - button: Alice Smith
+                              - cell: EMP-00000000-1779656878998
+                              - cell: alice@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: DRAFT
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Bob Jones
+                              - cell: EMP-00000000-1779656966076
+                              - cell: bob@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: DRAFT
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Charlie Brown
+                              - cell: EMP-00000000-1779657020112
+                              - cell: charlie@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: DRAFT
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Diana Prince
+                              - cell: EMP-00000000-1779657165106
+                              - cell: diana@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: DRAFT
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Eve Adams
+                              - cell: EMP-00000000-1779657311669
+                              - cell: eve@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: DRAFT
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Test Worker
+                              - cell: EMP-00000000-1779657753355
+                              - cell: test.worker@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: ACTIVE
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Codex Verifier
+                              - cell: EMP-00000000-1779658312419
+                              - cell: codex.verify.1779658312193@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: ACTIVE
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Browser Test
+                              - cell: EMP-00000000-1779659077540
+                              - cell: browser.test@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: ACTIVE
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Final Verify
+                              - cell: EMP-00000000-1779659850502
+                              - cell: final.verify@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: ACTIVE
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                            - row:
+                              - cell:
+                                - button: Codex Verify1779662301794
+                              - cell: EMP-00000000-1779662302028
+                              - cell: codex.verify.1779662301794@example.com
+                              - cell: "-"
+                              - cell: "-"
+                              - cell:
+                                - generic: DRAFT
+                              - cell: May 25, 2026
+                              - cell:
+                                - generic:
+                                  - button:
+                                    - img
+                                  - button:
+                                    - img
+                      - generic:
+                        - paragraph: Showing 1 to 10 of 10 entries
+                        - generic:
+                          - button [disabled]:
+                            - img
+                          - generic: Page 1 of 1
+                          - button [disabled]:
+                            - img
+    - list
+  - dialog "Add Worker" [ref=e310]:
+    - generic [ref=e311]:
+      - heading "Add Worker" [level=2] [ref=e312]
+      - paragraph [ref=e313]: Create a new worker record.
+    - generic [ref=e314]:
+      - generic [ref=e315]:
+        - generic [ref=e316]: First Name
+        - textbox "First Name" [ref=e317]:
+          - /placeholder: Jane
+          - text: E2E
+      - generic [ref=e318]:
+        - generic [ref=e319]: Last Name
+        - textbox "Last Name" [ref=e320]:
+          - /placeholder: Doe
+          - text: TestWorker
+      - generic [ref=e321]:
+        - generic [ref=e322]: Email
+        - textbox "Email" [active] [ref=e323]:
+          - /placeholder: jane.doe@example.com
+          - text: e2e.test.worker@example.com
+    - generic [ref=e324]:
+      - button "Cancel" [ref=e325] [cursor=pointer]
+      - button "Create Worker" [ref=e331] [cursor=pointer]
+    - button "Close" [ref=e326] [cursor=pointer]:
+      - img [ref=e327]
+      - generic [ref=e330]: Close

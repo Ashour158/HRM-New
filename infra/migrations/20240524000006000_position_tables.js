@@ -1,5 +1,5 @@
 exports.up = (pgm) => {
-  pgm.createTable('hr_position.positions', {
+  pgm.createTable({ schema: 'hr_position', name: 'positions' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id: { type: 'uuid', notNull: true },
     position_code: { type: 'text', notNull: true },
@@ -16,9 +16,9 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     updated_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.addConstraint('hr_position.positions', 'positions_tenant_code_unique', 'UNIQUE(tenant_id, position_code)');
+  pgm.addConstraint({ schema: 'hr_position', name: 'positions' }, 'positions_tenant_code_unique', 'UNIQUE(tenant_id, position_code)');
 
-  pgm.createTable('hr_position.headcount_requests', {
+  pgm.createTable({ schema: 'hr_position', name: 'headcount_requests' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id: { type: 'uuid', notNull: true },
     request_number: { type: 'text' },
@@ -35,6 +35,6 @@ exports.up = (pgm) => {
 };
 
 exports.down = (pgm) => {
-  pgm.dropTable('hr_position.headcount_requests', { cascade: true });
-  pgm.dropTable('hr_position.positions', { cascade: true });
+  pgm.dropTable({ schema: 'hr_position', name: 'headcount_requests' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_position', name: 'positions' }, { cascade: true });
 };

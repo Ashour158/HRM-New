@@ -31,6 +31,17 @@ export class TenantInterceptor implements NestInterceptor {
     const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
 
+    // Skip tenant resolution for public health and documentation routes.
+    const path = request.path ?? request.url;
+    if (typeof path === 'string' &&
+      (path === '/health' || path === '/health/ready' || path === '/health/live' ||
+       path.endsWith('/health') || path.endsWith('/health/ready') || path.endsWith('/health/live') ||
+       path === '/api/docs' || path.startsWith('/api/docs') ||
+       path === '/api/v1/auth/login' || path === '/api/v1/auth/logout' ||
+       path.startsWith('/api/v1/auth/'))) {
+      return next.handle();
+    }
+
     const result = await tenantResolver.resolve(request);
 
     const tenantId = result.match(

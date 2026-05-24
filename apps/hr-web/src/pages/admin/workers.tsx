@@ -4,14 +4,37 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 import { DataTable } from '@/components/common/data-table';
 import { FieldMask } from '@/components/common/field-mask';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { AuditTrail } from '@/components/common/audit-trail';
 import { formatDate } from '@/lib/utils';
-import { Search, Plus, UserMinus, Eye } from 'lucide-react';
-import type { Worker, PaginatedResponse } from '@/types';
+import { Search, Plus, UserMinus, UserCheck, Eye } from 'lucide-react';
+import type { Worker } from '@/types';
+
+interface CreateWorkerForm {
+  firstName: string;
+  lastName: string;
+  email?: string;
+}
+
+function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (status) {
+    case 'ACTIVE':
+      return 'default';
+    case 'DRAFT':
+    case 'PENDING_ACTIVATION':
+      return 'secondary';
+    case 'TERMINATED':
+    case 'SUSPENDED':
+      return 'destructive';
+    default:
+      return 'outline';
+  }
+}
 
 /**
  * Worker management page with search, filters, pagination, and lifecycle actions.
@@ -20,15 +43,30 @@ export function AdminWorkers() {
   const [search, setSearch] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [selectedWorker, setSelectedWorker] = React.useState<Worker | null>(null);
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [createForm, setCreateForm] = React.useState<CreateWorkerForm>({ firstName: '', lastName: '', email: '' });
 
-
-  const { data, isLoading } = useApiQuery<PaginatedResponse<Worker>>(
+  const { data: workersData, isLoading, refetch } = useApiQuery<Worker[]>(
     ['admin-workers', search, page],
-    `/admin/workers?search=${encodeURIComponent(search)}&page=${page}`
+    `/hr/core/workers?search=${encodeURIComponent(search)}&page=${page}&pageSize=10`
+  );
+
+  const data = workersData ? { items: workersData, total: workersData.length } : undefined;
+
+  const createMutation = useApiMutation<Worker, CreateWorkerForm & { workerId: string }>(
+    '/hr/core/workers',
+    'post',
+    [['admin-workers']]
+  );
+
+  const activateMutation = useApiMutation<void, { workerId: string }>(
+    (vars) => `/hr/core/workers/${vars.workerId}/commands/activate`,
+    'post',
+    [['admin-workers']]
   );
 
   const terminateMutation = useApiMutation<void, { workerId: string; reason: string }>(
-    '/admin/workers/terminate',
+    (vars) => `/hr/core/workers/${vars.workerId}/commands/terminate`,
     'post',
     [['admin-workers']]
   );
@@ -36,6 +74,23 @@ export function AdminWorkers() {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearch(e.target.value);
     setPage(1);
+  };
+
+  const handleCreate = async () => {
+    const workerId = crypto.randomUUID();
+    await createMutation.mutateAsync({
+      workerId,
+      firstName: createForm.firstName,
+      lastName: createForm.lastName,
+      email: createForm.email,
+    });
+    setCreateOpen(false);
+    setCreateForm({ firstName: '', lastName: '', email: '' });
+    refetch();
+  };
+
+  const handleActivate = async (workerId: string) => {
+    await activateMutation.mutateAsync({ workerId });
   };
 
   const handleTerminate = async (workerId: string) => {
@@ -66,7 +121,7 @@ export function AdminWorkers() {
       key: 'status',
       header: 'Status',
       cell: (row: Worker) => (
-        <Badge variant={row.status === 'ACTIVE' ? 'default' : 'secondary'}>{row.status}</Badge>
+        <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>
       ),
     },
     {
@@ -82,6 +137,17 @@ export function AdminWorkers() {
           <Button variant="ghost" size="sm" onClick={() => setSelectedWorker(row)} aria-label="View worker">
             <Eye className="h-4 w-4" />
           </Button>
+          {(row.status === 'DRAFT' || row.status === 'PENDING_ACTIVATION') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleActivate(row.id)}
+              aria-label="Activate worker"
+              className="text-green-600 hover:text-green-700"
+            >
+              <UserCheck className="h-4 w-4" />
+            </Button>
+          )}
           {row.status === 'ACTIVE' && (
             <Button
               variant="ghost"
@@ -191,7 +257,7 @@ export function AdminWorkers() {
           <h2 className="text-2xl font-bold">Workers</h2>
           <p className="text-muted-foreground">Manage employee records and lifecycle</p>
         </div>
-        <Button>
+        <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Add Worker
         </Button>
@@ -225,6 +291,54 @@ export function AdminWorkers() {
           />
         </CardContent>
       </Card>
+
+      {/* Create Worker Dialog */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Worker</DialogTitle>
+            <DialogDescription>Create a new worker record.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="firstName">First Name</Label>
+              <Input
+                id="firstName"
+                value={createForm.firstName}
+                onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })}
+                placeholder="Jane"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                value={createForm.lastName}
+                onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })}
+                placeholder="Doe"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+                placeholder="jane.doe@example.com"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreate} disabled={!createForm.firstName || !createForm.lastName || createMutation.isPending}>
+              {createMutation.isPending ? 'Creating...' : 'Create Worker'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

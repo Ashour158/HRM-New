@@ -27,6 +27,9 @@ exports.up = (pgm) => {
   pgm.createSchema('hr_dei');
   pgm.createSchema('hr_country_policy');
   pgm.createSchema('hr_ai');
+
+  // Set search_path so unqualified table names resolve correctly across schemas.
+  pgm.sql(`ALTER DATABASE hcm_platform SET search_path TO hr_platform, hr_core, hr_org, hr_position, hr_recruiting, hr_onboarding, hr_compensation, hr_benefits, hr_payroll, hr_time, hr_absence, hr_performance, hr_learning, hr_skills, hr_engagement, hr_er, hr_compliance, hr_service_delivery, hr_wfm, hr_global, hr_contingent, hr_mobile, hr_wellbeing, hr_union, hr_reporting, hr_dei, hr_country_policy, hr_ai, public`);
 };
 
 exports.down = (pgm) => {

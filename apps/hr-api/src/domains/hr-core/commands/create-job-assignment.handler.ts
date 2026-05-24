@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { CreateJobAssignmentPayload } from '@hcm/command-contracts';
-import { NotFoundError, ValidationError } from '@hcm/shared-kernel';
+import { NotFoundError, ValidationError, Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { WorkerRepository } from '../repositories/worker.repository.js';
 import { JobAssignmentRepository } from '../repositories/job-assignment.repository.js';
@@ -23,7 +23,8 @@ export class CreateJobAssignmentHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CreateJobAssignmentPayload;
 
-    const worker = await this.workerRepo.findById(payload.workerId);
+    const workerId = payload.workerId instanceof Uuid ? payload.workerId : new Uuid(payload.workerId as string);
+    const worker = await this.workerRepo.findById(workerId);
     if (!worker) {
       throw new NotFoundError('Worker not found');
     }
@@ -33,10 +34,10 @@ export class CreateJobAssignmentHandler {
 
     const assignment = JobAssignment.create(
       {
-        id: payload.assignmentId,
+        id: payload.assignmentId instanceof Uuid ? payload.assignmentId : new Uuid(payload.assignmentId as string),
         tenantId: command.tenantId,
-        workerId: payload.workerId,
-        positionId: payload.positionId,
+        workerId,
+        positionId: payload.positionId instanceof Uuid ? payload.positionId : new Uuid(payload.positionId as string),
         startDate: payload.startDate,
         endDate: payload.endDate,
         assignmentType: 'PRIMARY',

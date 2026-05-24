@@ -1,7 +1,7 @@
 exports.up = (pgm) => {
-  pgm.createTable('hr_core.workers', {
+  pgm.createTable({ schema: 'hr_core', name: 'workers' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
-    tenant_id: { type: 'uuid', notNull: true, references: 'hr_platform.tenants(id)' },
+    tenant_id: { type: 'uuid', notNull: true, references: { schema: 'hr_platform', name: 'tenants' } },
     employee_number: { type: 'text' },
     status: { type: 'text', notNull: true },
     aggregate_version: { type: 'bigint', default: 0 },
@@ -22,13 +22,13 @@ exports.up = (pgm) => {
     created_by: { type: 'uuid' },
     updated_by: { type: 'uuid' },
   });
-  pgm.addConstraint('hr_core.workers', 'workers_status_check', "CHECK (status IN ('DRAFT', 'PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'TERMINATED', 'REHIRED'))");
-  pgm.addConstraint('hr_core.workers', 'workers_tenant_employee_number_unique', 'UNIQUE(tenant_id, employee_number)');
-  pgm.createIndex('hr_core.workers', ['tenant_id', 'status']);
-  pgm.createIndex('hr_core.workers', ['tenant_id', 'manager_id']);
-  pgm.createIndex('hr_core.workers', ['tenant_id', 'legal_entity_id']);
+  pgm.addConstraint({ schema: 'hr_core', name: 'workers' }, 'workers_status_check', "CHECK (status IN ('DRAFT', 'PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'TERMINATED', 'REHIRED'))");
+  pgm.addConstraint({ schema: 'hr_core', name: 'workers' }, 'workers_tenant_employee_number_unique', 'UNIQUE(tenant_id, employee_number)');
+  pgm.createIndex({ schema: 'hr_core', name: 'workers' }, ['tenant_id', 'status']);
+  pgm.createIndex({ schema: 'hr_core', name: 'workers' }, ['tenant_id', 'manager_id']);
+  pgm.createIndex({ schema: 'hr_core', name: 'workers' }, ['tenant_id', 'legal_entity_id']);
 
-  pgm.createTable('hr_core.employment_relationships', {
+  pgm.createTable({ schema: 'hr_core', name: 'employment_relationships' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id: { type: 'uuid', notNull: true },
     worker_id: { type: 'uuid', notNull: true },
@@ -43,9 +43,9 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     updated_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('hr_core.employment_relationships', ['tenant_id', 'worker_id']);
+  pgm.createIndex({ schema: 'hr_core', name: 'employment_relationships' }, ['tenant_id', 'worker_id']);
 
-  pgm.createTable('hr_core.job_assignments', {
+  pgm.createTable({ schema: 'hr_core', name: 'job_assignments' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id: { type: 'uuid', notNull: true },
     worker_id: { type: 'uuid', notNull: true },
@@ -61,9 +61,9 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     updated_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('hr_core.job_assignments', ['tenant_id', 'worker_id']);
+  pgm.createIndex({ schema: 'hr_core', name: 'job_assignments' }, ['tenant_id', 'worker_id']);
 
-  pgm.createTable('hr_core.employment_contracts', {
+  pgm.createTable({ schema: 'hr_core', name: 'employment_contracts' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id: { type: 'uuid', notNull: true },
     worker_id: { type: 'uuid', notNull: true },
@@ -77,9 +77,9 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     updated_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('hr_core.employment_contracts', ['tenant_id', 'worker_id']);
+  pgm.createIndex({ schema: 'hr_core', name: 'employment_contracts' }, ['tenant_id', 'worker_id']);
 
-  pgm.createTable('hr_core.personal_data_records', {
+  pgm.createTable({ schema: 'hr_core', name: 'personal_data_records' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     tenant_id: { type: 'uuid', notNull: true },
     worker_id: { type: 'uuid', notNull: true },
@@ -92,13 +92,13 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     updated_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.createIndex('hr_core.personal_data_records', ['tenant_id', 'worker_id']);
+  pgm.createIndex({ schema: 'hr_core', name: 'personal_data_records' }, ['tenant_id', 'worker_id']);
 };
 
 exports.down = (pgm) => {
-  pgm.dropTable('hr_core.personal_data_records', { cascade: true });
-  pgm.dropTable('hr_core.employment_contracts', { cascade: true });
-  pgm.dropTable('hr_core.job_assignments', { cascade: true });
-  pgm.dropTable('hr_core.employment_relationships', { cascade: true });
-  pgm.dropTable('hr_core.workers', { cascade: true });
+  pgm.dropTable({ schema: 'hr_core', name: 'personal_data_records' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_core', name: 'employment_contracts' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_core', name: 'job_assignments' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_core', name: 'employment_relationships' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_core', name: 'workers' }, { cascade: true });
 };

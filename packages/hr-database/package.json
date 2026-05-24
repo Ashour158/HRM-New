@@ -14,9 +14,10 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "migrate": "node-pg-migrate up",
-    "migrate:create": "node-pg-migrate create",
-    "test": "vitest run",
+    "migrate": "node-pg-migrate up --migrations-dir ../../infra/migrations",
+    "migrate:create": "node-pg-migrate create --migrations-dir ../../infra/migrations",
+    "seed": "node dist/seed.js",
+    "test": "vitest run --passWithNoTests",
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {

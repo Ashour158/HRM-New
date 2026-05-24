@@ -75,11 +75,40 @@ function ProfileField({
  * Employee profile page with personal info, employment details, and documents.
  * Field-level access policies are applied to sensitive fields.
  */
+const DEMO_PROFILE: EmployeeProfileData = {
+  id: '00000000-0000-0000-0000-000000000000',
+  employeeId: 'DEMO-001',
+  firstName: 'Demo',
+  lastName: 'User',
+  email: 'demo.user@example.com',
+  phone: '+1-555-0100',
+  dateOfBirth: '1990-01-01',
+  ssn: '123-45-6789',
+  address: {
+    street: '123 Innovation Dr',
+    city: 'San Francisco',
+    state: 'CA',
+    zip: '94105',
+    country: 'US',
+  },
+  hireDate: '2023-01-15',
+  employmentType: 'FULL_TIME',
+  status: 'ACTIVE',
+  department: 'Engineering',
+  jobTitle: 'Senior Software Engineer',
+  manager: 'Alice Manager',
+  legalEntity: 'Acme Corp US',
+  documents: [],
+};
+
 export function EmployeeProfile() {
-  const { data: profile, isLoading } = useApiQuery<EmployeeProfileData>(
+  const { data: profile, isLoading, error } = useApiQuery<EmployeeProfileData>(
     ['employee-profile'],
     '/employee/profile'
   );
+
+  const displayProfile = profile ?? DEMO_PROFILE;
+  const isDemo = !profile || !!error;
 
   if (isLoading) {
     return (
@@ -90,23 +119,28 @@ export function EmployeeProfile() {
     );
   }
 
-  if (!profile) {
+  if (!displayProfile) {
     return <div className="p-4 text-muted-foreground">Profile not found</div>;
   }
 
   return (
     <div className="space-y-6">
+      {isDemo && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
+          <strong>Development Mode:</strong> Showing demo profile data because <code>/employee/profile</code> is not yet wired to an authenticated user endpoint. Create a worker in the Admin Workers page to see real data.
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">
-            {profile.firstName} {profile.lastName}
+            {displayProfile.firstName} {displayProfile.lastName}
           </h2>
-          <p className="text-muted-foreground">{profile.jobTitle} • {profile.department}</p>
+          <p className="text-muted-foreground">{displayProfile.jobTitle} • {displayProfile.department}</p>
         </div>
         <AllowedActions
           aggregateType="WORKER"
-          aggregateId={profile.id}
+          aggregateId={displayProfile.id}
           onAction={(action) => console.log('Action:', action)}
         />
       </div>
@@ -132,51 +166,51 @@ export function EmployeeProfile() {
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <ProfileField
                   label="First Name"
-                  value={profile.firstName}
+                  value={displayProfile.firstName}
                   fieldPath="worker.personal.firstName"
-                  resourceId={profile.id}
+                  resourceId={displayProfile.id}
                 />
                 <ProfileField
                   label="Last Name"
-                  value={profile.lastName}
+                  value={displayProfile.lastName}
                   fieldPath="worker.personal.lastName"
-                  resourceId={profile.id}
+                  resourceId={displayProfile.id}
                 />
                 <ProfileField
                   label="Email"
-                  value={profile.email}
+                  value={displayProfile.email}
                   fieldPath="worker.personal.email"
-                  resourceId={profile.id}
+                  resourceId={displayProfile.id}
                 />
                 <ProfileField
                   label="Phone"
-                  value={profile.phone}
+                  value={displayProfile.phone}
                   fieldPath="worker.personal.phone"
-                  resourceId={profile.id}
+                  resourceId={displayProfile.id}
                 />
                 <ProfileField
                   label="Date of Birth"
-                  value={formatDate(profile.dateOfBirth)}
+                  value={formatDate(displayProfile.dateOfBirth)}
                   fieldPath="worker.personal.dateOfBirth"
-                  resourceId={profile.id}
+                  resourceId={displayProfile.id}
                 />
                 <ProfileField
                   label="SSN"
-                  value={profile.ssn}
+                  value={displayProfile.ssn}
                   fieldPath="worker.personal.ssn"
-                  resourceId={profile.id}
+                  resourceId={displayProfile.id}
                 />
               </div>
 
-              {profile.address && (
+              {displayProfile.address && (
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <MapPin className="h-3 w-3" />
                     Address
                   </p>
                   <p className="text-sm">
-                    {profile.address.street}, {profile.address.city}, {profile.address.state}{' '}
-                    {profile.address.zip}, {profile.address.country}
+                    {displayProfile.address.street}, {displayProfile.address.city}, {displayProfile.address.state}{' '}
+                    {displayProfile.address.zip}, {displayProfile.address.country}
                   </p>
                 </div>
               )}
@@ -197,35 +231,35 @@ export function EmployeeProfile() {
               <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Employee ID</p>
-                  <p className="text-sm font-medium">{profile.employeeId}</p>
+                  <p className="text-sm font-medium">{displayProfile.employeeId}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Hire Date</p>
-                  <p className="text-sm font-medium">{formatDate(profile.hireDate)}</p>
+                  <p className="text-sm font-medium">{formatDate(displayProfile.hireDate)}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Employment Type</p>
-                  <p className="text-sm font-medium">{profile.employmentType}</p>
+                  <p className="text-sm font-medium">{displayProfile.employmentType}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Status</p>
-                  <p className="text-sm font-medium">{profile.status}</p>
+                  <p className="text-sm font-medium">{displayProfile.status}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Department</p>
-                  <p className="text-sm font-medium">{profile.department}</p>
+                  <p className="text-sm font-medium">{displayProfile.department}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Job Title</p>
-                  <p className="text-sm font-medium">{profile.jobTitle}</p>
+                  <p className="text-sm font-medium">{displayProfile.jobTitle}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Manager</p>
-                  <p className="text-sm font-medium">{profile.manager}</p>
+                  <p className="text-sm font-medium">{displayProfile.manager}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Legal Entity</p>
-                  <p className="text-sm font-medium">{profile.legalEntity}</p>
+                  <p className="text-sm font-medium">{displayProfile.legalEntity}</p>
                 </div>
               </div>
             </CardContent>
@@ -242,9 +276,9 @@ export function EmployeeProfile() {
               <CardDescription>Your uploaded documents and files</CardDescription>
             </CardHeader>
             <CardContent>
-              {profile.documents && profile.documents.length > 0 ? (
+              {displayProfile.documents && displayProfile.documents.length > 0 ? (
                 <div className="space-y-3">
-                  {profile.documents.map((doc) => (
+                  {displayProfile.documents.map((doc) => (
                     <div key={doc.id} className="flex items-center justify-between rounded-lg border p-3">
                       <div className="flex items-center gap-3">
                         <FileText className="h-5 w-5 text-primary" />
@@ -272,7 +306,7 @@ export function EmployeeProfile() {
               <CardDescription>Activity log for your profile</CardDescription>
             </CardHeader>
             <CardContent>
-              <AuditTrail resourceType="WORKER" resourceId={profile.id} />
+              <AuditTrail resourceType="WORKER" resourceId={displayProfile.id} />
             </CardContent>
           </Card>
         </TabsContent>

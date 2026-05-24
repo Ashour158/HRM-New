@@ -1,0 +1,253 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - link "HR/HCM" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e11]: HR/HCM
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img [ref=e14]
+          - generic [ref=e17]: Home
+        - link "HR Admin" [ref=e18] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e19]
+          - generic [ref=e21]: HR Admin
+      - button "Collapse sidebar" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - generic [ref=e25]: Collapse
+    - generic [ref=e26]:
+      - banner [ref=e27]:
+        - button "Notifications" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+        - button "HA HR Admin" [ref=e32] [cursor=pointer]:
+          - generic [ref=e34]: HA
+          - generic [ref=e35]: HR Admin
+          - img [ref=e36]
+      - main [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - heading "HR Administration" [level=1] [ref=e41]
+            - paragraph [ref=e42]: Full administrative access to all HR domains
+          - navigation [ref=e43]:
+            - link "Dashboard" [ref=e44] [cursor=pointer]:
+              - /url: /admin
+              - button "Dashboard" [ref=e45]
+            - link "Workers" [ref=e46] [cursor=pointer]:
+              - /url: /admin/workers
+              - button "Workers" [ref=e47]
+            - link "Organization" [ref=e48] [cursor=pointer]:
+              - /url: /admin/organization
+              - button "Organization" [ref=e49]
+            - link "Payroll" [ref=e50] [cursor=pointer]:
+              - /url: /admin/payroll
+              - button "Payroll" [ref=e51]
+            - link "Compliance" [ref=e52] [cursor=pointer]:
+              - /url: /admin/compliance
+              - button "Compliance" [ref=e53]
+            - link "Country Policy" [ref=e54] [cursor=pointer]:
+              - /url: /admin/country-policy
+              - button "Country Policy" [ref=e55]
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e59]:
+                - heading "Workers" [level=2] [ref=e60]
+                - paragraph [ref=e61]: Manage employee records and lifecycle
+              - button "Add Worker" [ref=e62] [cursor=pointer]:
+                - img [ref=e63]
+                - text: Add Worker
+            - generic [ref=e65]:
+              - img [ref=e66]
+              - textbox "Search workers..." [ref=e69]: BrowserE2E
+            - generic [ref=e72]:
+              - table [ref=e79]:
+                - rowgroup [ref=e80]:
+                  - row "Name Employee ID Email Job Title Department Status Hire Date Actions" [ref=e81]:
+                    - columnheader "Name" [ref=e82]:
+                      - generic [ref=e83]: Name
+                    - columnheader "Employee ID" [ref=e84]:
+                      - generic [ref=e85]: Employee ID
+                    - columnheader "Email" [ref=e86]:
+                      - generic [ref=e87]: Email
+                    - columnheader "Job Title" [ref=e88]:
+                      - generic [ref=e89]: Job Title
+                    - columnheader "Department" [ref=e90]:
+                      - generic [ref=e91]: Department
+                    - columnheader "Status" [ref=e92]:
+                      - generic [ref=e93]: Status
+                    - columnheader "Hire Date" [ref=e94]:
+                      - generic [ref=e95]: Hire Date
+                    - columnheader "Actions" [ref=e96]:
+                      - generic [ref=e97]: Actions
+                - rowgroup [ref=e98]:
+                  - row "Alice Smith EMP-00000000-1779656878998 alice@example.com - - DRAFT May 25, 2026 View worker Activate worker" [ref=e99]:
+                    - cell "Alice Smith" [ref=e100]:
+                      - button "Alice Smith" [ref=e101] [cursor=pointer]
+                    - cell "EMP-00000000-1779656878998" [ref=e102]
+                    - cell "alice@example.com" [ref=e103]
+                    - cell "-" [ref=e104]
+                    - cell "-" [ref=e105]
+                    - cell "DRAFT" [ref=e106]:
+                      - generic [ref=e107]: DRAFT
+                    - cell "May 25, 2026" [ref=e108]
+                    - cell "View worker Activate worker" [ref=e109]:
+                      - generic [ref=e110]:
+                        - button "View worker" [ref=e111] [cursor=pointer]:
+                          - img [ref=e112]
+                        - button "Activate worker" [ref=e115] [cursor=pointer]:
+                          - img [ref=e116]
+                  - row "Bob Jones EMP-00000000-1779656966076 bob@example.com - - DRAFT May 25, 2026 View worker Activate worker" [ref=e120]:
+                    - cell "Bob Jones" [ref=e121]:
+                      - button "Bob Jones" [ref=e122] [cursor=pointer]
+                    - cell "EMP-00000000-1779656966076" [ref=e123]
+                    - cell "bob@example.com" [ref=e124]
+                    - cell "-" [ref=e125]
+                    - cell "-" [ref=e126]
+                    - cell "DRAFT" [ref=e127]:
+                      - generic [ref=e128]: DRAFT
+                    - cell "May 25, 2026" [ref=e129]
+                    - cell "View worker Activate worker" [ref=e130]:
+                      - generic [ref=e131]:
+                        - button "View worker" [ref=e132] [cursor=pointer]:
+                          - img [ref=e133]
+                        - button "Activate worker" [ref=e136] [cursor=pointer]:
+                          - img [ref=e137]
+                  - row "Charlie Brown EMP-00000000-1779657020112 charlie@example.com - - DRAFT May 25, 2026 View worker Activate worker" [ref=e141]:
+                    - cell "Charlie Brown" [ref=e142]:
+                      - button "Charlie Brown" [ref=e143] [cursor=pointer]
+                    - cell "EMP-00000000-1779657020112" [ref=e144]
+                    - cell "charlie@example.com" [ref=e145]
+                    - cell "-" [ref=e146]
+                    - cell "-" [ref=e147]
+                    - cell "DRAFT" [ref=e148]:
+                      - generic [ref=e149]: DRAFT
+                    - cell "May 25, 2026" [ref=e150]
+                    - cell "View worker Activate worker" [ref=e151]:
+                      - generic [ref=e152]:
+                        - button "View worker" [ref=e153] [cursor=pointer]:
+                          - img [ref=e154]
+                        - button "Activate worker" [ref=e157] [cursor=pointer]:
+                          - img [ref=e158]
+                  - row "Diana Prince EMP-00000000-1779657165106 diana@example.com - - DRAFT May 25, 2026 View worker Activate worker" [ref=e162]:
+                    - cell "Diana Prince" [ref=e163]:
+                      - button "Diana Prince" [ref=e164] [cursor=pointer]
+                    - cell "EMP-00000000-1779657165106" [ref=e165]
+                    - cell "diana@example.com" [ref=e166]
+                    - cell "-" [ref=e167]
+                    - cell "-" [ref=e168]
+                    - cell "DRAFT" [ref=e169]:
+                      - generic [ref=e170]: DRAFT
+                    - cell "May 25, 2026" [ref=e171]
+                    - cell "View worker Activate worker" [ref=e172]:
+                      - generic [ref=e173]:
+                        - button "View worker" [ref=e174] [cursor=pointer]:
+                          - img [ref=e175]
+                        - button "Activate worker" [ref=e178] [cursor=pointer]:
+                          - img [ref=e179]
+                  - row "Eve Adams EMP-00000000-1779657311669 eve@example.com - - DRAFT May 25, 2026 View worker Activate worker" [ref=e183]:
+                    - cell "Eve Adams" [ref=e184]:
+                      - button "Eve Adams" [ref=e185] [cursor=pointer]
+                    - cell "EMP-00000000-1779657311669" [ref=e186]
+                    - cell "eve@example.com" [ref=e187]
+                    - cell "-" [ref=e188]
+                    - cell "-" [ref=e189]
+                    - cell "DRAFT" [ref=e190]:
+                      - generic [ref=e191]: DRAFT
+                    - cell "May 25, 2026" [ref=e192]
+                    - cell "View worker Activate worker" [ref=e193]:
+                      - generic [ref=e194]:
+                        - button "View worker" [ref=e195] [cursor=pointer]:
+                          - img [ref=e196]
+                        - button "Activate worker" [ref=e199] [cursor=pointer]:
+                          - img [ref=e200]
+                  - row "Test Worker EMP-00000000-1779657753355 test.worker@example.com - - ACTIVE May 25, 2026 View worker Terminate worker" [ref=e204]:
+                    - cell "Test Worker" [ref=e205]:
+                      - button "Test Worker" [ref=e206] [cursor=pointer]
+                    - cell "EMP-00000000-1779657753355" [ref=e207]
+                    - cell "test.worker@example.com" [ref=e208]
+                    - cell "-" [ref=e209]
+                    - cell "-" [ref=e210]
+                    - cell "ACTIVE" [ref=e211]:
+                      - generic [ref=e212]: ACTIVE
+                    - cell "May 25, 2026" [ref=e213]
+                    - cell "View worker Terminate worker" [ref=e214]:
+                      - generic [ref=e215]:
+                        - button "View worker" [ref=e216] [cursor=pointer]:
+                          - img [ref=e217]
+                        - button "Terminate worker" [ref=e220] [cursor=pointer]:
+                          - img [ref=e221]
+                  - row "Codex Verifier EMP-00000000-1779658312419 codex.verify.1779658312193@example.com - - ACTIVE May 25, 2026 View worker Terminate worker" [ref=e224]:
+                    - cell "Codex Verifier" [ref=e225]:
+                      - button "Codex Verifier" [ref=e226] [cursor=pointer]
+                    - cell "EMP-00000000-1779658312419" [ref=e227]
+                    - cell "codex.verify.1779658312193@example.com" [ref=e228]
+                    - cell "-" [ref=e229]
+                    - cell "-" [ref=e230]
+                    - cell "ACTIVE" [ref=e231]:
+                      - generic [ref=e232]: ACTIVE
+                    - cell "May 25, 2026" [ref=e233]
+                    - cell "View worker Terminate worker" [ref=e234]:
+                      - generic [ref=e235]:
+                        - button "View worker" [ref=e236] [cursor=pointer]:
+                          - img [ref=e237]
+                        - button "Terminate worker" [ref=e240] [cursor=pointer]:
+                          - img [ref=e241]
+                  - row "Browser Test EMP-00000000-1779659077540 browser.test@example.com - - ACTIVE May 25, 2026 View worker Terminate worker" [ref=e244]:
+                    - cell "Browser Test" [ref=e245]:
+                      - button "Browser Test" [ref=e246] [cursor=pointer]
+                    - cell "EMP-00000000-1779659077540" [ref=e247]
+                    - cell "browser.test@example.com" [ref=e248]
+                    - cell "-" [ref=e249]
+                    - cell "-" [ref=e250]
+                    - cell "ACTIVE" [ref=e251]:
+                      - generic [ref=e252]: ACTIVE
+                    - cell "May 25, 2026" [ref=e253]
+                    - cell "View worker Terminate worker" [ref=e254]:
+                      - generic [ref=e255]:
+                        - button "View worker" [ref=e256] [cursor=pointer]:
+                          - img [ref=e257]
+                        - button "Terminate worker" [ref=e260] [cursor=pointer]:
+                          - img [ref=e261]
+                  - row "Final Verify EMP-00000000-1779659850502 final.verify@example.com - - ACTIVE May 25, 2026 View worker Terminate worker" [ref=e264]:
+                    - cell "Final Verify" [ref=e265]:
+                      - button "Final Verify" [ref=e266] [cursor=pointer]
+                    - cell "EMP-00000000-1779659850502" [ref=e267]
+                    - cell "final.verify@example.com" [ref=e268]
+                    - cell "-" [ref=e269]
+                    - cell "-" [ref=e270]
+                    - cell "ACTIVE" [ref=e271]:
+                      - generic [ref=e272]: ACTIVE
+                    - cell "May 25, 2026" [ref=e273]
+                    - cell "View worker Terminate worker" [ref=e274]:
+                      - generic [ref=e275]:
+                        - button "View worker" [ref=e276] [cursor=pointer]:
+                          - img [ref=e277]
+                        - button "Terminate worker" [ref=e280] [cursor=pointer]:
+                          - img [ref=e281]
+                  - row "Codex Verify1779662301794 EMP-00000000-1779662302028 codex.verify.1779662301794@example.com - - DRAFT May 25, 2026 View worker Activate worker" [ref=e284]:
+                    - cell "Codex Verify1779662301794" [ref=e285]:
+                      - button "Codex Verify1779662301794" [ref=e286] [cursor=pointer]
+                    - cell "EMP-00000000-1779662302028" [ref=e287]
+                    - cell "codex.verify.1779662301794@example.com" [ref=e288]
+                    - cell "-" [ref=e289]
+                    - cell "-" [ref=e290]
+                    - cell "DRAFT" [ref=e291]:
+                      - generic [ref=e292]: DRAFT
+                    - cell "May 25, 2026" [ref=e293]
+                    - cell "View worker Activate worker" [ref=e294]:
+                      - generic [ref=e295]:
+                        - button "View worker" [ref=e296] [cursor=pointer]:
+                          - img [ref=e297]
+                        - button "Activate worker" [ref=e300] [cursor=pointer]:
+                          - img [ref=e301]
+              - generic [ref=e305]:
+                - paragraph [ref=e306]: Showing 1 to 10 of 10 entries
+                - generic [ref=e307]:
+                  - button "Previous page" [disabled]:
+                    - img
+                  - generic [ref=e308]: Page 1 of 1
+                  - button "Next page" [disabled]:
+                    - img
+  - region "Notifications (F8)":
+    - list

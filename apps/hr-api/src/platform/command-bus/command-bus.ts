@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { Kysely, Transaction } from 'kysely';
-import type { Uuid, AggregateRoot } from '@hcm/shared-kernel';
+import { Uuid, AggregateRoot } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
 import { getPool, createKyselyInstance } from '@hcm/database';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
@@ -13,11 +13,11 @@ import type {
   CommandOutcome,
 } from '@hcm/command-contracts';
 import { CommandPipelineStep } from '@hcm/command-contracts';
-import type { TenantResolver, TenantConfig } from '@hcm/platform-core';
-import { TenantValidator, RedisCacheService } from '@hcm/platform-core';
+import type { TenantConfig } from '@hcm/platform-core';
+import { TenantValidator, RedisCacheService, tenantResolver } from '@hcm/platform-core';
 import { AccessControlService } from '@hcm/access-control';
-import type { EngineInvoker } from '@hcm/policy-engines';
-import { EngineRegistry } from '@hcm/policy-engines';
+// Phase 3: EngineRegistry and EngineInvoker will be wired when policy engines
+// are integrated into the command pipeline.
 import { EventBus } from '../event-bus/event-bus.js';
 import type { FsmInstance } from '../workflow/fsm-framework.js';
 import { FsmFramework } from '../workflow/fsm-framework.js';
@@ -29,6 +29,9 @@ export interface CommandHandler {
   handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>>;
 }
 
+/** Minimal aggregate shell used by stepLoadAggregate for FSM checks. */
+class LoadedAggregate extends AggregateRoot {}
+
 @Injectable()
 export class CommandBus implements OnModuleInit {
   private readonly handlers = new Map<string, CommandHandler>();
@@ -38,14 +41,11 @@ export class CommandBus implements OnModuleInit {
   constructor(
     private readonly discovery: DiscoveryService,
     private readonly reflector: Reflector,
-    private readonly tenantResolver: TenantResolver,
     private readonly redisCache: RedisCacheService,
     private readonly accessControl: AccessControlService,
     private readonly fsmFramework: FsmFramework,
     private readonly transitionLedger: TransitionLedgerService,
     _eventBus: EventBus,
-    _engineRegistry: EngineRegistry,
-    _engineInvoker: EngineInvoker,
   ) {
     this.db = createKyselyInstance(getPool());
     this.tenantValidator = new TenantValidator(this.db);
@@ -158,18 +158,28 @@ export class CommandBus implements OnModuleInit {
         } as unknown as CommandResult<TResult>;
         return enriched as CommandOutcome<TResult>;
       } catch (err) {
+        const originalError = err instanceof Error ? err.message : String(err);
+        console.error(`[CommandBus] Command ${command.commandName} failed at step ${step}: ${originalError}`);
         if (this.isCommandError(err)) {
-          await this.stepStoreIdempotencyError(_tx, command, err);
+          try {
+            await this.stepStoreIdempotencyError(_tx, command, err);
+          } catch (storeErr) {
+            console.error(`[CommandBus] Failed to store idempotency error: ${storeErr instanceof Error ? storeErr.message : String(storeErr)}`);
+          }
           return err as CommandOutcome<TResult>;
         }
         const cmdError = this.makeError(
           command,
           step,
           'COMMAND_EXECUTION_ERROR',
-          err instanceof Error ? err.message : String(err),
+          originalError,
           step < CommandPipelineStep.WRITE_AUTHORITATIVE_STATE,
         );
-        await this.stepStoreIdempotencyError(_tx, command, cmdError);
+        try {
+          await this.stepStoreIdempotencyError(_tx, command, cmdError);
+        } catch (storeErr) {
+          console.error(`[CommandBus] Failed to store idempotency error: ${storeErr instanceof Error ? storeErr.message : String(storeErr)}`);
+        }
         return cmdError as CommandOutcome<TResult>;
       }
     });
@@ -200,12 +210,14 @@ export class CommandBus implements OnModuleInit {
   }
 
   private async stepAuthenticateActor(_command: HrCommandEnvelope<unknown>): Promise<void> {
+    // Phase 3: Integrate with identity provider (OAuth2/SAML/SCIM) to validate
+    // the actor's authentication token and enrich actor metadata.
     return;
   }
 
   private async stepResolveTenant(command: HrCommandEnvelope<unknown>): Promise<TenantConfig> {
     const request = { headers: { 'x-tenant-id': command.tenantId.value } };
-    const result = await this.tenantResolver.resolve(request);
+    const result = await tenantResolver.resolve(request);
     if (result.isErr()) {
       throw this.makeError(command, CommandPipelineStep.RESOLVE_TENANT, 'TENANT_RESOLUTION_FAILED', (result as { error: { message: string } }).error.message, false);
     }
@@ -255,7 +267,9 @@ export class CommandBus implements OnModuleInit {
         tenant_id: command.tenantId.value,
         key: command.idempotencyKey,
         hash: requestHash,
-        status: 'RESERVED',
+        status: 'PENDING',
+        command_name: command.commandName,
+        aggregate_type: command.aggregateType,
         expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000),
       })
       .onConflict((oc) => oc.doNothing())
@@ -285,20 +299,48 @@ export class CommandBus implements OnModuleInit {
   }
 
   private async stepLoadAggregate(
-    _tx: Transaction<Database>,
+    tx: Transaction<Database>,
     command: HrCommandEnvelope<unknown>,
   ): Promise<AggregateRoot | undefined> {
     if (!command.aggregateId) {
       return undefined;
     }
+
+    /**
+     * Phase-2 pragmatic aggregate loader for the Worker vertical slice.
+     * Queries the authoritative state table directly to reconstruct a
+     * minimal aggregate shell sufficient for FSM version checks.
+     * Full repository-based hydration is Phase 3 work.
+     */
+    if (command.aggregateType === 'WorkerProfile') {
+      const row = await tx
+        .selectFrom('workers')
+        .select(['id', 'aggregate_version', 'status'])
+        .where('id', '=', command.aggregateId.value)
+        .executeTakeFirst();
+
+      if (row) {
+        const aggregate = new LoadedAggregate(new Uuid(row.id));
+        aggregate.restoreVersion(Number(row.aggregate_version));
+        return aggregate;
+      }
+    }
+
+    // TODO(Phase 3): Add loaders for EmploymentRelationship, JobAssignment,
+    // Position, JobRequisition, Candidate, Offer, etc.
     return undefined;
   }
 
   private async stepValidateSubjectWorkerAccess(_command: HrCommandEnvelope<unknown>): Promise<void> {
+    // Phase 3: Verify the actor has a legitimate managerial or delegated
+    // relationship to the subject worker before allowing mutating commands.
     return;
   }
 
   private async stepEvaluateFieldPolicy(_command: HrCommandEnvelope<unknown>): Promise<void> {
+    // Phase 3: Pre-command field-level policy gate (e.g. block CREATE if
+    // sensitive fields are present without proper consent). Current slice
+    // computes fieldAccessDecisions in the command handler itself.
     return;
   }
 
@@ -313,7 +355,7 @@ export class CommandBus implements OnModuleInit {
     const acActor = {
       workerId: command.actor.actorId,
       roles: command.actor.roles,
-      actorType: this.mapActorType(command.actor.actorType),
+      actorType: this.mapActorType(command.actor.actorType, command.actor.roles),
     };
     const decision = this.accessControl.evaluateCommandAccess(acCommand, acActor);
     if (!decision.allowed) {
@@ -329,6 +371,7 @@ export class CommandBus implements OnModuleInit {
 
   private mapActorType(
     actorType: 'USER' | 'SYSTEM' | 'SERVICE_ACCOUNT' | 'INTEGRATION',
+    roles: string[],
   ): 'SYSTEM' | 'INTEGRATION' | 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN' | 'HRBP' | 'EXECUTIVE' | 'EXTERNAL' {
     switch (actorType) {
       case 'SYSTEM':
@@ -338,11 +381,17 @@ export class CommandBus implements OnModuleInit {
         return 'EXTERNAL';
       case 'USER':
       default:
+        if (roles.includes('HR_ADMIN')) return 'HR_ADMIN';
+        if (roles.includes('MANAGER')) return 'MANAGER';
+        if (roles.includes('HRBP')) return 'HRBP';
+        if (roles.includes('EXECUTIVE')) return 'EXECUTIVE';
         return 'EMPLOYEE';
     }
   }
 
   private async stepEvaluateManagerRelationship(_command: HrCommandEnvelope<unknown>): Promise<void> {
+    // Phase 3: Dynamic managerial-chain validation (skip for SYSTEM actors).
+    // Required for manager-initiated compensation changes, PII updates, etc.
     return;
   }
 
@@ -355,6 +404,7 @@ export class CommandBus implements OnModuleInit {
     }
     const fsmInstance: FsmInstance<string> = {
       aggregateId: command.aggregateId!,
+      aggregateType: command.aggregateType,
       currentState: command.expectedState,
       version: aggregate.version,
       history: [],
@@ -373,6 +423,8 @@ export class CommandBus implements OnModuleInit {
   }
 
   private async stepEvaluateLegalAndPolicy(_command: HrCommandEnvelope<unknown>): Promise<void> {
+    // Phase 3: Legal-hold, retention-policy, and country-labor-law checks
+    // (e.g. block termination if a legal hold is active on the worker).
     return;
   }
 
@@ -403,6 +455,7 @@ export class CommandBus implements OnModuleInit {
     command: HrCommandEnvelope<unknown>,
     result: CommandResult<unknown>,
   ): Promise<void> {
+    console.error(`[stepWriteTransitionLedger] aggregateId type=${typeof result.aggregateId}, value=${result.aggregateId?.value ?? result.aggregateId}`);
     await this.transitionLedger.recordTransition({
       id: crypto.randomUUID() as unknown as Uuid,
       tenantId: command.tenantId,
@@ -505,7 +558,7 @@ export class CommandBus implements OnModuleInit {
   ): Promise<void> {
     await tx
       .updateTable('idempotency_keys')
-      .set({ status: 'COMPLETED' })
+      .set({ status: 'SUCCESS' })
       .where('tenant_id', '=', command.tenantId.value)
       .where('key', '=', command.idempotencyKey)
       .execute();

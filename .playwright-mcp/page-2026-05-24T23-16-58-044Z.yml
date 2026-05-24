@@ -1,0 +1,86 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - link "HR/HCM" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e11]: HR/HCM
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img [ref=e14]
+          - generic [ref=e17]: Home
+        - link "HR Admin" [ref=e18] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e19]
+          - generic [ref=e21]: HR Admin
+      - button "Collapse sidebar" [ref=e23] [cursor=pointer]:
+        - img [ref=e24]
+        - generic [ref=e25]: Collapse
+    - generic [ref=e26]:
+      - banner [ref=e27]:
+        - button "Notifications" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+        - button "HA HR Admin" [ref=e32] [cursor=pointer]:
+          - generic [ref=e34]: HA
+          - generic [ref=e35]: HR Admin
+          - img [ref=e36]
+      - main [ref=e38]:
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - heading "HR Administration" [level=1] [ref=e41]
+            - paragraph [ref=e42]: Full administrative access to all HR domains
+          - navigation [ref=e43]:
+            - link "Dashboard" [ref=e44] [cursor=pointer]:
+              - /url: /admin
+              - button "Dashboard" [ref=e45]
+            - link "Workers" [ref=e46] [cursor=pointer]:
+              - /url: /admin/workers
+              - button "Workers" [ref=e47]
+            - link "Organization" [ref=e48] [cursor=pointer]:
+              - /url: /admin/organization
+              - button "Organization" [ref=e49]
+            - link "Payroll" [ref=e50] [cursor=pointer]:
+              - /url: /admin/payroll
+              - button "Payroll" [ref=e51]
+            - link "Compliance" [ref=e52] [cursor=pointer]:
+              - /url: /admin/compliance
+              - button "Compliance" [ref=e53]
+            - link "Country Policy" [ref=e54] [cursor=pointer]:
+              - /url: /admin/country-policy
+              - button "Country Policy" [ref=e55]
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e59]:
+                - heading "Workers" [level=2] [ref=e60]
+                - paragraph [ref=e61]: Manage employee records and lifecycle
+              - button "Add Worker" [ref=e62] [cursor=pointer]:
+                - img [ref=e63]
+                - text: Add Worker
+            - generic [ref=e65]:
+              - img [ref=e66]
+              - textbox "Search workers..." [ref=e69]
+            - table [ref=e79]:
+              - rowgroup [ref=e80]:
+                - row "Name Employee ID Email Job Title Department Status Hire Date Actions" [ref=e81]:
+                  - columnheader "Name" [ref=e82]:
+                    - generic [ref=e83]: Name
+                  - columnheader "Employee ID" [ref=e84]:
+                    - generic [ref=e85]: Employee ID
+                  - columnheader "Email" [ref=e86]:
+                    - generic [ref=e87]: Email
+                  - columnheader "Job Title" [ref=e88]:
+                    - generic [ref=e89]: Job Title
+                  - columnheader "Department" [ref=e90]:
+                    - generic [ref=e91]: Department
+                  - columnheader "Status" [ref=e92]:
+                    - generic [ref=e93]: Status
+                  - columnheader "Hire Date" [ref=e94]:
+                    - generic [ref=e95]: Hire Date
+                  - columnheader "Actions" [ref=e96]:
+                    - generic [ref=e97]: Actions
+              - rowgroup [ref=e98]:
+                - row "No workers found" [ref=e99]:
+                  - cell "No workers found" [ref=e100]
+  - region "Notifications (F8)":
+    - list

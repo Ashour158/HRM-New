@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PositionControlModule } from '../position-control/position-control.module.js';
 import { RecruitingController } from './api/recruiting.controller.js';
 import { JobRequisitionFsmRegistrar } from './fsm/job-requisition.fsm.js';
 import { CandidateFsmRegistrar } from './fsm/candidate.fsm.js';
@@ -32,6 +33,7 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
  * and the OfferToHire saga.
  */
 @Module({
+  imports: [PositionControlModule],
   controllers: [RecruitingController],
   providers: [
     // FSM registrars

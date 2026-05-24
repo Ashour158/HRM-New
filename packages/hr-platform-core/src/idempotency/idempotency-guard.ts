@@ -57,7 +57,9 @@ export class IdempotencyGuard {
         command.idempotencyKey,
         command.tenantId,
         hash,
-        command.commandName
+        command.commandName,
+        command.aggregateType,
+        command.aggregateId
       );
       return { status: 'NEW' };
     }

@@ -1,8 +1,8 @@
 /**
- * Regular expression for validating UUID v4 format.
+ * Regular expression for validating UUID format (accepts any RFC 4122 variant).
  */
-const UUID_V4_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Immutable UUID v4 value object.
@@ -50,7 +50,7 @@ export class Uuid {
    * @returns True if valid
    */
   static isValid(value: string): boolean {
-    return UUID_V4_REGEX.test(value);
+    return UUID_REGEX.test(value);
   }
 
   /**

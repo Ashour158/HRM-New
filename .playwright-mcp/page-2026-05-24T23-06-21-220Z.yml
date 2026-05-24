@@ -1,0 +1,110 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - link "HR/HCM" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e11]: HR/HCM
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img [ref=e14]
+          - generic [ref=e17]: Home
+        - link "Employee Portal" [ref=e18] [cursor=pointer]:
+          - /url: /employee
+          - img [ref=e19]
+          - generic [ref=e23]: Employee Portal
+        - link "Manager Hub" [ref=e24] [cursor=pointer]:
+          - /url: /manager
+          - img [ref=e25]
+          - generic [ref=e30]: Manager Hub
+        - link "HR Admin" [ref=e31] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e32]
+          - generic [ref=e34]: HR Admin
+        - link "Recruiter" [ref=e35] [cursor=pointer]:
+          - /url: /recruiter
+          - img [ref=e36]
+          - generic [ref=e39]: Recruiter
+        - link "Payroll" [ref=e40] [cursor=pointer]:
+          - /url: /payroll
+          - img [ref=e41]
+          - generic [ref=e43]: Payroll
+      - button "Collapse sidebar" [ref=e45] [cursor=pointer]:
+        - img [ref=e46]
+        - generic [ref=e47]: Collapse
+    - generic [ref=e48]:
+      - banner [ref=e49]:
+        - button "Notifications" [ref=e50] [cursor=pointer]:
+          - img [ref=e51]
+        - button "HA HR Admin" [ref=e54] [cursor=pointer]:
+          - generic [ref=e56]: HA
+          - generic [ref=e57]: HR Admin
+          - img [ref=e58]
+      - main [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e62]:
+            - heading "Employee Self-Service" [level=1] [ref=e63]
+            - paragraph [ref=e64]: Manage your personal information, benefits, and time off
+          - navigation [ref=e65]:
+            - link "Dashboard" [ref=e66] [cursor=pointer]:
+              - /url: /employee
+              - button "Dashboard" [ref=e67]
+            - link "Profile" [ref=e68] [cursor=pointer]:
+              - /url: /employee/profile
+              - button "Profile" [ref=e69]
+            - link "Payslips" [ref=e70] [cursor=pointer]:
+              - /url: /employee/payslip
+              - button "Payslips" [ref=e71]
+            - link "Benefits" [ref=e72] [cursor=pointer]:
+              - /url: /employee/benefits
+              - button "Benefits" [ref=e73]
+            - link "Time Off" [ref=e74] [cursor=pointer]:
+              - /url: /employee/time-off
+              - button "Time Off" [ref=e75]
+          - generic [ref=e77]:
+            - generic [ref=e79]:
+              - heading "Welcome back, HR!" [level=3] [ref=e80]
+              - paragraph [ref=e81]: Here's what's happening with your HR profile today.
+            - generic [ref=e86]:
+              - link "Submit Absence Request time off" [ref=e87] [cursor=pointer]:
+                - /url: /employee/time-off
+                - generic [ref=e90]:
+                  - img [ref=e92]
+                  - generic [ref=e94]:
+                    - paragraph [ref=e95]: Submit Absence
+                    - paragraph [ref=e96]: Request time off
+              - link "View Payslip Latest pay period" [ref=e97] [cursor=pointer]:
+                - /url: /employee/payslip
+                - generic [ref=e100]:
+                  - img [ref=e102]
+                  - generic [ref=e105]:
+                    - paragraph [ref=e106]: View Payslip
+                    - paragraph [ref=e107]: Latest pay period
+              - link "Start Learning Training courses" [ref=e108] [cursor=pointer]:
+                - /url: /employee/benefits
+                - generic [ref=e111]:
+                  - img [ref=e113]
+                  - generic [ref=e116]:
+                    - paragraph [ref=e117]: Start Learning
+                    - paragraph [ref=e118]: Training courses
+              - link "Submit Goals Performance goals" [ref=e119] [cursor=pointer]:
+                - /url: /employee/profile
+                - generic [ref=e122]:
+                  - img [ref=e124]
+                  - generic [ref=e127]:
+                    - paragraph [ref=e128]: Submit Goals
+                    - paragraph [ref=e129]: Performance goals
+            - generic [ref=e130]:
+              - heading "Upcoming Events" [level=3] [ref=e133]:
+                - img [ref=e134]
+                - text: Upcoming Events
+              - heading "Pending Tasks" [level=3] [ref=e141]:
+                - img [ref=e142]
+                - text: Pending Tasks
+              - heading "Time Off Balance" [level=3] [ref=e148]:
+                - img [ref=e149]
+                - text: Time Off Balance
+            - heading "Recent Activity" [level=3] [ref=e155]
+  - region "Notifications (F8)":
+    - list

@@ -1,0 +1,23 @@
+- generic [ref=e2]:
+  - generic [ref=e29]:
+    - generic [ref=e30]:
+      - img [ref=e31]
+      - heading "HR/HCM Platform" [level=1] [ref=e35]
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - heading "Sign In" [level=3] [ref=e38]
+        - paragraph [ref=e39]: Enter your credentials to access your account
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - text: Email
+            - textbox "Email" [ref=e43]:
+              - /placeholder: name@company.com
+          - generic [ref=e44]:
+            - text: Password
+            - textbox "Password" [ref=e45]:
+              - /placeholder: Enter your password
+        - button "Sign In" [ref=e47] [cursor=pointer]
+    - paragraph [ref=e48]: © 2026 HR/HCM Platform. All rights reserved.
+  - region "Notifications (F8)":
+    - list

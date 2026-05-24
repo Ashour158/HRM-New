@@ -1,0 +1,58 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - complementary [ref=e4]:
+      - link "HR/HCM" [ref=e6] [cursor=pointer]:
+        - /url: /
+        - img [ref=e7]
+        - generic [ref=e11]: HR/HCM
+      - navigation [ref=e12]:
+        - link "Home" [ref=e13] [cursor=pointer]:
+          - /url: /
+          - img [ref=e14]
+          - generic [ref=e17]: Home
+      - button "Collapse sidebar" [ref=e19] [cursor=pointer]:
+        - img [ref=e20]
+        - generic [ref=e21]: Collapse
+    - generic [ref=e22]:
+      - banner [ref=e23]:
+        - button "Notifications" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+        - button [ref=e28] [cursor=pointer]:
+          - img [ref=e31]
+      - main [ref=e33]:
+        - generic [ref=e34]:
+          - generic [ref=e35]:
+            - heading "HR Administration" [level=1] [ref=e36]
+            - paragraph [ref=e37]: Full administrative access to all HR domains
+          - navigation [ref=e38]:
+            - link "Dashboard" [ref=e39] [cursor=pointer]:
+              - /url: /admin
+              - button "Dashboard" [ref=e40]
+            - link "Workers" [ref=e41] [cursor=pointer]:
+              - /url: /admin/workers
+              - button "Workers" [ref=e42]
+            - link "Organization" [ref=e43] [cursor=pointer]:
+              - /url: /admin/organization
+              - button "Organization" [ref=e44]
+            - link "Payroll" [ref=e45] [cursor=pointer]:
+              - /url: /admin/payroll
+              - button "Payroll" [ref=e46]
+            - link "Compliance" [ref=e47] [cursor=pointer]:
+              - /url: /admin/compliance
+              - button "Compliance" [ref=e48]
+            - link "Country Policy" [ref=e49] [cursor=pointer]:
+              - /url: /admin/country-policy
+              - button "Country Policy" [ref=e50]
+          - generic [ref=e52]:
+            - generic [ref=e53]:
+              - generic [ref=e54]:
+                - heading "Workers" [level=2] [ref=e55]
+                - paragraph [ref=e56]: Manage employee records and lifecycle
+              - button "Add Worker" [ref=e57] [cursor=pointer]:
+                - img [ref=e58]
+                - text: Add Worker
+            - generic [ref=e60]:
+              - img [ref=e61]
+              - textbox "Search workers..." [ref=e64]
+  - region "Notifications (F8)":
+    - list

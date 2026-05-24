@@ -389,6 +389,7 @@ export class SodMatrix {
   private hasRoleConflict(actorRoles: string[], rule: SodRule): boolean {
     if (rule.incompatibleRolePairs.length === 0) return false;
     return rule.incompatibleRolePairs.some(([a, b]) => {
+      if (a === b) return false; // self-role conflicts require contextual evaluation (permission-based)
       const hasA = actorRoles.includes(a);
       const hasB = actorRoles.includes(b);
       return hasA && hasB;

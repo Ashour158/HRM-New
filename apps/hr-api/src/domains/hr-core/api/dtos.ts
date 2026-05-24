@@ -7,7 +7,6 @@ import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 /* ------------------------------------------------------------------ */
 
 export const CreateWorkerDtoSchema = z.object({
-  workerId: z.string().uuid(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   email: z.string().email().optional(),
@@ -15,10 +14,10 @@ export const CreateWorkerDtoSchema = z.object({
   phoneNumber: z.string().optional(),
   hireDate: z.coerce.date().optional(),
   employmentType: z.enum(['FULL_TIME', 'PART_TIME', 'CONTRACTOR', 'INTERN', 'TEMPORARY']).optional(),
+  legalEntityId: z.string().uuid().optional(),
 });
 
 export class CreateWorkerDto {
-  @ApiProperty() workerId!: string;
   @ApiProperty() firstName!: string;
   @ApiProperty() lastName!: string;
   @ApiPropertyOptional() email?: string;
@@ -26,6 +25,7 @@ export class CreateWorkerDto {
   @ApiPropertyOptional() phoneNumber?: string;
   @ApiPropertyOptional() hireDate?: Date;
   @ApiPropertyOptional() employmentType?: string;
+  @ApiPropertyOptional() legalEntityId?: string;
 }
 
 export const UpdateWorkerDtoSchema = z.object({
@@ -59,7 +59,6 @@ export class TerminateWorkerDto {
 /* ------------------------------------------------------------------ */
 
 export const CreateJobAssignmentDtoSchema = z.object({
-  assignmentId: z.string().uuid(),
   workerId: z.string().uuid(),
   positionId: z.string().uuid(),
   startDate: z.coerce.date(),
@@ -67,7 +66,6 @@ export const CreateJobAssignmentDtoSchema = z.object({
 });
 
 export class CreateJobAssignmentDto {
-  @ApiProperty() assignmentId!: string;
   @ApiProperty() workerId!: string;
   @ApiProperty() positionId!: string;
   @ApiProperty() startDate!: Date;

@@ -28,6 +28,11 @@ export interface IdempotencyKeysTable {
   key: string;
   hash: string;
   status: string;
+  command_name: string;
+  aggregate_type: string;
+  aggregate_id: string | null;
+  result: unknown | null;
+  error: unknown | null;
   created_at: ColumnType<Date, string | undefined, never>;
   expires_at: Date | null;
 }
@@ -44,6 +49,7 @@ export interface TransitionLedgersTable {
   occurred_at: Date;
   correlation_id: string | null;
   decision_record_id: string | null;
+  command_id: string;
 }
 
 export interface OutboxEventsTable {

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import * as React from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,7 @@ export interface ButtonProps
  * Reusable button component with variants and sizes.
  */
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     return (
       <button

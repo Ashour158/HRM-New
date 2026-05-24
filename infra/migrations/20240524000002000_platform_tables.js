@@ -1,5 +1,5 @@
 exports.up = (pgm) => {
-  pgm.createTable('hr_platform.tenants', {
+  pgm.createTable({ schema: 'hr_platform', name: 'tenants' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
     name: { type: 'text', notNull: true },
     slug: { type: 'text', notNull: true },
@@ -10,12 +10,12 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     updated_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.addConstraint('hr_platform.tenants', 'tenants_slug_unique', 'UNIQUE(slug)');
-  pgm.addConstraint('hr_platform.tenants', 'tenants_status_check', "CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_SETUP'))");
+  pgm.addConstraint({ schema: 'hr_platform', name: 'tenants' }, 'tenants_slug_unique', 'UNIQUE(slug)');
+  pgm.addConstraint({ schema: 'hr_platform', name: 'tenants' }, 'tenants_status_check', "CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'PENDING_SETUP'))");
 
-  pgm.createTable('hr_platform.audit_log', {
+  pgm.createTable({ schema: 'hr_platform', name: 'audit_log' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
-    tenant_id: { type: 'uuid', notNull: true, references: 'hr_platform.tenants(id)' },
+    tenant_id: { type: 'uuid', notNull: true, references: { schema: 'hr_platform', name: 'tenants' } },
     actor_type: { type: 'text', notNull: true },
     actor_id: { type: 'uuid', notNull: true },
     action: { type: 'text', notNull: true },
@@ -34,13 +34,13 @@ exports.up = (pgm) => {
     legal_hold_status: { type: 'text' },
     retention_class: { type: 'text' },
   });
-  pgm.createIndex('hr_platform.audit_log', ['tenant_id', 'resource_type', 'resource_id']);
-  pgm.createIndex('hr_platform.audit_log', ['tenant_id', 'occurred_at']);
-  pgm.createIndex('hr_platform.audit_log', ['correlation_id']);
+  pgm.createIndex({ schema: 'hr_platform', name: 'audit_log' }, ['tenant_id', 'resource_type', 'resource_id']);
+  pgm.createIndex({ schema: 'hr_platform', name: 'audit_log' }, ['tenant_id', 'occurred_at']);
+  pgm.createIndex({ schema: 'hr_platform', name: 'audit_log' }, ['correlation_id']);
 
-  pgm.createTable('hr_platform.idempotency_keys', {
+  pgm.createTable({ schema: 'hr_platform', name: 'idempotency_keys' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
-    tenant_id: { type: 'uuid', notNull: true, references: 'hr_platform.tenants(id)' },
+    tenant_id: { type: 'uuid', notNull: true, references: { schema: 'hr_platform', name: 'tenants' } },
     key: { type: 'text', notNull: true },
     hash: { type: 'text', notNull: true },
     status: { type: 'text', notNull: true },
@@ -52,13 +52,13 @@ exports.up = (pgm) => {
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
     expires_at: { type: 'timestamptz', notNull: true },
   });
-  pgm.addConstraint('hr_platform.idempotency_keys', 'idempotency_keys_tenant_key_unique', 'UNIQUE(tenant_id, key)');
-  pgm.addConstraint('hr_platform.idempotency_keys', 'idempotency_keys_status_check', "CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED'))");
-  pgm.createIndex('hr_platform.idempotency_keys', ['expires_at']);
+  pgm.addConstraint({ schema: 'hr_platform', name: 'idempotency_keys' }, 'idempotency_keys_tenant_key_unique', 'UNIQUE(tenant_id, key)');
+  pgm.addConstraint({ schema: 'hr_platform', name: 'idempotency_keys' }, 'idempotency_keys_status_check', "CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED'))");
+  pgm.createIndex({ schema: 'hr_platform', name: 'idempotency_keys' }, ['expires_at']);
 
-  pgm.createTable('hr_platform.transition_ledgers', {
+  pgm.createTable({ schema: 'hr_platform', name: 'transition_ledgers' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
-    tenant_id: { type: 'uuid', notNull: true, references: 'hr_platform.tenants(id)' },
+    tenant_id: { type: 'uuid', notNull: true, references: { schema: 'hr_platform', name: 'tenants' } },
     aggregate_type: { type: 'text', notNull: true },
     aggregate_id: { type: 'uuid', notNull: true },
     from_state: { type: 'text', notNull: true },
@@ -70,12 +70,12 @@ exports.up = (pgm) => {
     decision_record_id: { type: 'uuid' },
     command_id: { type: 'uuid', notNull: true },
   });
-  pgm.createIndex('hr_platform.transition_ledgers', ['tenant_id', 'aggregate_type', 'aggregate_id']);
-  pgm.createIndex('hr_platform.transition_ledgers', ['tenant_id', 'occurred_at']);
+  pgm.createIndex({ schema: 'hr_platform', name: 'transition_ledgers' }, ['tenant_id', 'aggregate_type', 'aggregate_id']);
+  pgm.createIndex({ schema: 'hr_platform', name: 'transition_ledgers' }, ['tenant_id', 'occurred_at']);
 
-  pgm.createTable('hr_platform.outbox_events', {
+  pgm.createTable({ schema: 'hr_platform', name: 'outbox_events' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
-    tenant_id: { type: 'uuid', notNull: true, references: 'hr_platform.tenants(id)' },
+    tenant_id: { type: 'uuid', notNull: true, references: { schema: 'hr_platform', name: 'tenants' } },
     event_name: { type: 'text', notNull: true },
     aggregate_type: { type: 'text', notNull: true },
     aggregate_id: { type: 'uuid', notNull: true },
@@ -87,12 +87,12 @@ exports.up = (pgm) => {
     published_at: { type: 'timestamptz' },
     publish_attempt_count: { type: 'integer', default: 0 },
   });
-  pgm.sql('CREATE INDEX outbox_events_published_at_idx ON hr_platform.outbox_events (published_at NULLS FIRST);');
-  pgm.createIndex('hr_platform.outbox_events', ['tenant_id', 'created_at']);
+  pgm.sql('CREATE INDEX outbox_events_published_at_idx ON "hr_platform"."outbox_events" (published_at NULLS FIRST);');
+  pgm.createIndex({ schema: 'hr_platform', name: 'outbox_events' }, ['tenant_id', 'created_at']);
 
-  pgm.createTable('hr_platform.inbox_events', {
+  pgm.createTable({ schema: 'hr_platform', name: 'inbox_events' }, {
     id: { type: 'uuid', primaryKey: true, default: pgm.func('gen_random_uuid()') },
-    tenant_id: { type: 'uuid', notNull: true, references: 'hr_platform.tenants(id)' },
+    tenant_id: { type: 'uuid', notNull: true, references: { schema: 'hr_platform', name: 'tenants' } },
     consumer_name: { type: 'text', notNull: true },
     consumer_version: { type: 'text', notNull: true },
     source_event_id: { type: 'uuid', notNull: true },
@@ -109,17 +109,17 @@ exports.up = (pgm) => {
     processed_at: { type: 'timestamptz' },
     created_at: { type: 'timestamptz', default: pgm.func('now()') },
   });
-  pgm.addConstraint('hr_platform.inbox_events', 'inbox_events_consumer_source_unique', 'UNIQUE(consumer_name, consumer_version, source_event_id)');
-  pgm.addConstraint('hr_platform.inbox_events', 'inbox_events_processing_status_check', "CHECK (processing_status IN ('IN_PROGRESS', 'SUCCESS', 'FAILED_RETRYABLE', 'FAILED_NON_RETRYABLE', 'SKIPPED'))");
-  pgm.createIndex('hr_platform.inbox_events', ['tenant_id', 'processing_status', 'next_retry_at']);
-  pgm.createIndex('hr_platform.inbox_events', ['tenant_id', 'consumer_name', 'created_at']);
+  pgm.addConstraint({ schema: 'hr_platform', name: 'inbox_events' }, 'inbox_events_consumer_source_unique', 'UNIQUE(consumer_name, consumer_version, source_event_id)');
+  pgm.addConstraint({ schema: 'hr_platform', name: 'inbox_events' }, 'inbox_events_processing_status_check', "CHECK (processing_status IN ('IN_PROGRESS', 'SUCCESS', 'FAILED_RETRYABLE', 'FAILED_NON_RETRYABLE', 'SKIPPED'))");
+  pgm.createIndex({ schema: 'hr_platform', name: 'inbox_events' }, ['tenant_id', 'processing_status', 'next_retry_at']);
+  pgm.createIndex({ schema: 'hr_platform', name: 'inbox_events' }, ['tenant_id', 'consumer_name', 'created_at']);
 };
 
 exports.down = (pgm) => {
-  pgm.dropTable('hr_platform.inbox_events', { cascade: true });
-  pgm.dropTable('hr_platform.outbox_events', { cascade: true });
-  pgm.dropTable('hr_platform.transition_ledgers', { cascade: true });
-  pgm.dropTable('hr_platform.idempotency_keys', { cascade: true });
-  pgm.dropTable('hr_platform.audit_log', { cascade: true });
-  pgm.dropTable('hr_platform.tenants', { cascade: true });
+  pgm.dropTable({ schema: 'hr_platform', name: 'inbox_events' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_platform', name: 'outbox_events' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_platform', name: 'transition_ledgers' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_platform', name: 'idempotency_keys' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_platform', name: 'audit_log' }, { cascade: true });
+  pgm.dropTable({ schema: 'hr_platform', name: 'tenants' }, { cascade: true });
 };

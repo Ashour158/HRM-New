@@ -41,7 +41,7 @@ export function loadAppConfig(): AppConfig {
     jwtSecret: process.env.JWT_SECRET ?? 'change-me-in-production',
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
     apiKeyHeader: process.env.API_KEY_HEADER ?? 'X-API-Key',
-    corsOrigins: (process.env.CORS_ORIGINS ?? '*')
+    corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173')
       .split(',')
       .map((o) => o.trim())
       .filter(Boolean),

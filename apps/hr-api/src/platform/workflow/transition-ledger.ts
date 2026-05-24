@@ -42,6 +42,7 @@ export class TransitionLedgerService {
         occurred_at: entry.occurredAt,
         correlation_id: entry.correlationId.value,
         decision_record_id: entry.decisionRecordId?.value ?? null,
+        command_id: entry.commandId.value,
       })
       .execute();
   }
