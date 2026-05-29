@@ -21,7 +21,7 @@ import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { Uuid } from '@hcm/shared-kernel';
-import { OptionalAuthGuard } from '../../../guards/optional-auth.guard.js';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { WorkerProfile } from '../aggregates/worker-profile.aggregate.js';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
@@ -73,7 +73,7 @@ function toCsv(rows: Array<Record<string, string | number | null | undefined>>):
 }
 
 @ApiTags('HR Core')
-@UseGuards(OptionalAuthGuard)
+@UseGuards(AuthGuard)
 @Controller('hr/core')
 export class HrCoreController {
   constructor(
@@ -103,13 +103,10 @@ export class HrCoreController {
     const tenantId = new Uuid(
       (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001',
     );
-    const actor = req.actor ?? {
-      actorType: 'SYSTEM' as const,
-      actorId: Uuid.generate(),
-      roles: ['HR_ADMIN'],
-      permissions: ['WORKER_CREATE', 'WORKER_UPDATE', 'WORKER_READ', 'WORKER_TERMINATE'],
-      mfaAuthenticated: true,
-    };
+    if (!req.actor) {
+      throw new ForbiddenException('Authenticated actor is required');
+    }
+    const actor = req.actor;
     return {
       commandId: Uuid.generate(),
       commandName,

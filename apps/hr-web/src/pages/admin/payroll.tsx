@@ -207,6 +207,7 @@ function cloneSetup(setup: Partial<HcmSetupConfig>): HcmSetupConfig {
       ...defaults.attendancePolicy,
       ...(incoming.attendancePolicy ?? {}),
     },
+    leavePolicies: incoming.leavePolicies ?? defaults.leavePolicies,
     earningPolicies: incoming.earningPolicies ?? defaults.earningPolicies,
     deductionPolicies: incoming.deductionPolicies ?? defaults.deductionPolicies,
     payrollBlockingRules: incoming.payrollBlockingRules ?? defaults.payrollBlockingRules,

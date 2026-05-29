@@ -84,7 +84,7 @@ export class CountryPolicyPackRepository {
     } else {
       await this.db
         .insertInto('hr_country_policy.policy_packs')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

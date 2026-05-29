@@ -7,6 +7,8 @@ export const CreateAbsenceRequestDtoSchema = z.object({
   absenceType: z.string().min(1),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   reason: z.string().optional(),
 });
 
@@ -15,6 +17,8 @@ export class CreateAbsenceRequestDto {
   @ApiProperty() absenceType!: string;
   @ApiProperty() startDate!: Date;
   @ApiProperty() endDate!: Date;
+  @ApiPropertyOptional() startTime?: string;
+  @ApiPropertyOptional() endTime?: string;
   @ApiPropertyOptional() reason?: string;
 }
 

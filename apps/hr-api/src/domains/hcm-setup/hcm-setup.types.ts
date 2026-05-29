@@ -46,6 +46,33 @@ export type FieldRule = {
   active: boolean;
 };
 
+export type LeaveDurationUnit = 'DAYS' | 'HOURS';
+
+export type LeavePayrollImpact = 'PAID_LEAVE' | 'UNPAID_LEAVE' | 'PERMISSION' | 'NO_PAYROLL_IMPACT';
+
+export type LeaveApprovalWorkflow = 'MANAGER' | 'MANAGER_THEN_HR' | 'HR_ONLY' | 'AUTO_APPROVE';
+
+export type LeavePolicy = SetupOption & {
+  unit: LeaveDurationUnit;
+  paid: boolean;
+  deductFromBalance: boolean;
+  requestableByEmployee: boolean;
+  systemManaged?: boolean;
+  payrollImpact: LeavePayrollImpact;
+  approvalWorkflow: LeaveApprovalWorkflow;
+  annualEntitlement?: number;
+  maxPerRequest?: number;
+  allowHalfDay?: boolean;
+  requiresDocumentAfter?: number;
+  minNoticeDays?: number;
+  employeeTypes?: string[];
+  departmentCodes?: string[];
+  locationCodes?: string[];
+  workerIds?: string[];
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+};
+
 export type PayrollCalculationPolicy = {
   taxMode?: 'FLAT_PERCENT' | 'PROGRESSIVE_BRACKETS';
   taxRatePercent: number;
@@ -233,6 +260,7 @@ export interface HcmSetupConfig {
   socialMediaFields: SetupOption[];
   documentRequirements: DocumentRequirement[];
   fieldRules: FieldRule[];
+  leavePolicies: LeavePolicy[];
   payrollCalculationPolicy: PayrollCalculationPolicy;
   statutoryPayrollPacks: StatutoryPayrollPack[];
   attendancePolicy: AttendancePolicy;

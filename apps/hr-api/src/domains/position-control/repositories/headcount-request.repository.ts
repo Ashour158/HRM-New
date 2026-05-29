@@ -136,7 +136,7 @@ export class HeadcountRequestRepository {
     } else {
       await this.db
         .insertInto('hr_position.headcount_requests')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

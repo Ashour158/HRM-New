@@ -9,6 +9,7 @@ import { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { loadAppConfig } from '../config/app.config.js';
 import type { HrActor } from '@hcm/command-contracts';
+import { Uuid } from '@hcm/shared-kernel';
 
 interface JwtPayload {
   sub: string;
@@ -25,15 +26,17 @@ interface JwtPayload {
 
 const API_KEY_ACTORS: Record<
   string,
-  Pick<HrActor, 'actorType' | 'roles' | 'permissions'>
+  Pick<HrActor, 'actorType' | 'actorId' | 'roles' | 'permissions'>
 > = {
   'system-api-key': {
     actorType: 'SYSTEM',
+    actorId: new Uuid('00000000-0000-4000-8000-000000000001'),
     roles: ['SYSTEM_ACTOR'],
     permissions: [],
   },
   'integration-api-key': {
     actorType: 'INTEGRATION',
+    actorId: new Uuid('00000000-0000-4000-8000-000000000002'),
     roles: ['INTEGRATION_ACTOR'],
     permissions: [],
   },
@@ -91,12 +94,12 @@ export class AuthGuard implements CanActivate {
   }
 
   private buildActor(
-    stub: Pick<HrActor, 'actorType' | 'roles' | 'permissions'>,
-    actorId: string,
+    stub: Pick<HrActor, 'actorType' | 'actorId' | 'roles' | 'permissions'>,
+    _apiKey: string,
   ): HrActor {
     return {
       actorType: stub.actorType,
-      actorId: { value: actorId } as unknown as HrActor['actorId'],
+      actorId: stub.actorId,
       roles: stub.roles,
       permissions: stub.permissions,
       mfaAuthenticated: true,

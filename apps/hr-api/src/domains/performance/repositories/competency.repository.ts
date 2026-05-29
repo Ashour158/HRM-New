@@ -4,8 +4,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { Competency, type CompetencyStatus } from '../aggregates/competency.aggregate.js';
 
 @Injectable()
-export class CompetencyRepository extends BaseRepository<any, Competency> {
-  protected readonly tableName = 'competencies' as any;
+export class CompetencyRepository extends BaseRepository<'competencies', Competency> {
+  protected readonly tableName = 'competencies' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -13,30 +13,30 @@ export class CompetencyRepository extends BaseRepository<any, Competency> {
 
   async findById(id: Uuid): Promise<Competency | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByTenant(tenantId: Uuid): Promise<Competency[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByCategory(category: string): Promise<Competency[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('category', '=', category).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Competency): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): Competency {
+  private toAggregate(row: Record<string, never>): Competency {
     return new Competency({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

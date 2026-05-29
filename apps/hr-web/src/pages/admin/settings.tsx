@@ -12,6 +12,7 @@ import type {
   DocumentRequirement,
   FieldRule,
   HcmSetupConfig,
+  LeavePolicy,
   SetupOption,
   WorkLocationOption,
 } from '@/types';
@@ -28,6 +29,10 @@ function flagEmoji(countryCode: string) {
 function emptyOption(prefix: string): SetupOption {
   const suffix = Date.now().toString().slice(-5);
   return { code: `${prefix}_${suffix}`, label: '', active: true };
+}
+
+function splitCsv(value: string): string[] {
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 function OptionRows({
@@ -128,6 +133,17 @@ export function AdminSettings() {
 
   const updateFieldRule = (index: number, patch: Partial<FieldRule>) => {
     updateSetup('fieldRules', setup.fieldRules.map((rule, rowIndex) => rowIndex === index ? { ...rule, ...patch } : rule));
+  };
+
+  const updateLeavePolicy = (index: number, patch: Partial<LeavePolicy>) => {
+    updateSetup('leavePolicies', setup.leavePolicies.map((policy, rowIndex) => rowIndex === index ? { ...policy, ...patch } : policy));
+  };
+
+  const updateHolidayCalendar = (index: number, patch: Partial<NonNullable<HcmSetupConfig['attendancePolicy']['holidayCalendars']>[number]>) => {
+    updateSetup('attendancePolicy', {
+      ...setup.attendancePolicy,
+      holidayCalendars: (setup.attendancePolicy.holidayCalendars ?? []).map((holiday, rowIndex) => rowIndex === index ? { ...holiday, ...patch } : holiday),
+    });
   };
 
   const save = () => mutation.mutate(setup);
@@ -289,6 +305,147 @@ export function AdminSettings() {
                 </SelectContent>
               </Select>
               <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('fieldRules', setup.fieldRules.filter((_, rowIndex) => rowIndex !== index))}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4 border-t py-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold">Leave Policies</h3>
+            <p className="text-sm text-muted-foreground">Controls whether a leave type is day-based or hour-based, paid or unpaid, requestable, and payroll-impacting.</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => updateSetup('leavePolicies', [...setup.leavePolicies, {
+              code: `LEAVE_${Date.now().toString().slice(-5)}`,
+              label: '',
+              active: true,
+              unit: 'DAYS',
+              paid: true,
+              deductFromBalance: true,
+              requestableByEmployee: true,
+              payrollImpact: 'PAID_LEAVE',
+              approvalWorkflow: 'MANAGER',
+            }])}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add
+          </Button>
+        </div>
+        <div className="divide-y border-y">
+          {setup.leavePolicies.map((policy, index) => (
+            <div key={`${policy.code}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.4fr_.75fr_.75fr_.75fr_.75fr_.9fr_.8fr_3rem]">
+              <Input value={policy.code} onChange={(event) => updateLeavePolicy(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
+              <Input value={policy.label} placeholder="Policy name" onChange={(event) => updateLeavePolicy(index, { label: event.target.value })} />
+              <Select value={policy.unit} onValueChange={(value) => updateLeavePolicy(index, { unit: value as LeavePolicy['unit'] })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DAYS">Days</SelectItem>
+                  <SelectItem value="HOURS">Hours</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input
+                type="number"
+                value={policy.annualEntitlement ?? ''}
+                placeholder="Entitlement"
+                onChange={(event) => updateLeavePolicy(index, { annualEntitlement: event.target.value ? Number(event.target.value) : undefined })}
+              />
+              <Input
+                type="number"
+                value={policy.maxPerRequest ?? ''}
+                placeholder="Max/request"
+                onChange={(event) => updateLeavePolicy(index, { maxPerRequest: event.target.value ? Number(event.target.value) : undefined })}
+              />
+              <Select value={policy.paid ? 'PAID' : 'UNPAID'} onValueChange={(value) => updateLeavePolicy(index, {
+                paid: value === 'PAID',
+                payrollImpact: value === 'PAID' ? policy.payrollImpact === 'UNPAID_LEAVE' ? 'PAID_LEAVE' : policy.payrollImpact : 'UNPAID_LEAVE',
+              })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="UNPAID">Unpaid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={policy.requestableByEmployee ? 'REQUESTABLE' : 'SYSTEM'} onValueChange={(value) => updateLeavePolicy(index, { requestableByEmployee: value === 'REQUESTABLE', systemManaged: value === 'SYSTEM' })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="REQUESTABLE">Requestable</SelectItem>
+                  <SelectItem value="SYSTEM">System</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={policy.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updateLeavePolicy(index, { active: value === 'ACTIVE' })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('leavePolicies', setup.leavePolicies.filter((_, rowIndex) => rowIndex !== index))}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4 border-t py-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold">Public Holiday Calendar</h3>
+            <p className="text-sm text-muted-foreground">System-managed paid or unpaid days excluded from day-based leave and consumed by attendance/payroll.</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => updateSetup('attendancePolicy', {
+              ...setup.attendancePolicy,
+              holidayCalendars: [...(setup.attendancePolicy.holidayCalendars ?? []), {
+                date: new Date().toISOString().slice(0, 10),
+                name: 'Public holiday',
+                countryCode: 'EG',
+                paid: true,
+              }],
+            })}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add
+          </Button>
+        </div>
+        <div className="divide-y border-y">
+          {(setup.attendancePolicy.holidayCalendars ?? []).map((holiday, index) => (
+            <div key={`${holiday.date}-${holiday.name}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.5fr_.7fr_1.2fr_.8fr_3rem]">
+              <Input type="date" value={holiday.date} onChange={(event) => updateHolidayCalendar(index, { date: event.target.value })} />
+              <Input value={holiday.name} placeholder="Holiday name" onChange={(event) => updateHolidayCalendar(index, { name: event.target.value })} />
+              <Input value={holiday.countryCode ?? ''} placeholder="Country" maxLength={2} onChange={(event) => updateHolidayCalendar(index, { countryCode: event.target.value.toUpperCase() || undefined })} />
+              <Input value={(holiday.locationCodes ?? []).join(', ')} placeholder="Workplace codes" onChange={(event) => updateHolidayCalendar(index, { locationCodes: splitCsv(event.target.value) })} />
+              <Select value={holiday.paid === false ? 'UNPAID' : 'PAID'} onValueChange={(value) => updateHolidayCalendar(index, { paid: value === 'PAID' })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PAID">Paid</SelectItem>
+                  <SelectItem value="UNPAID">Unpaid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('attendancePolicy', {
+                ...setup.attendancePolicy,
+                holidayCalendars: (setup.attendancePolicy.holidayCalendars ?? []).filter((_, rowIndex) => rowIndex !== index),
+              })}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>

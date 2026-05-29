@@ -12,7 +12,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
     const result = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('id', '=', id.value as any)
+      .where('id', '=', id.value as never)
       .executeTakeFirst();
     return result as unknown as TAggregate | undefined;
   }
@@ -47,8 +47,8 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   async update(id: Uuid, row: Updateable<Database[TTable]>): Promise<TAggregate | undefined> {
     const result = await this.db
       .updateTable(this.tableName)
-      .set(row as any)
-      .where('id', '=', id.value as any)
+      .set(row as never)
+      .where('id', '=', id.value as never)
       .returningAll()
       .executeTakeFirst();
 
@@ -58,7 +58,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   async delete(id: Uuid): Promise<boolean> {
     const result = await this.db
       .deleteFrom(this.tableName)
-      .where('id', '=', id.value as any)
+      .where('id', '=', id.value as never)
       .executeTakeFirst();
 
     return Number((result as unknown as { numDeletedRows: bigint }).numDeletedRows) > 0;

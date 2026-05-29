@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { PerformanceImprovementPlan, type PerformanceImprovementPlanStatus } from '../aggregates/performance-improvement-plan.aggregate.js';
 
 @Injectable()
-export class PerformanceImprovementPlanRepository extends BaseRepository<any, PerformanceImprovementPlan> {
-  protected readonly tableName = 'performance_improvement_plans' as any;
+export class PerformanceImprovementPlanRepository extends BaseRepository<'performance_improvement_plans', PerformanceImprovementPlan> {
+  protected readonly tableName = 'performance_improvement_plans' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,25 +15,25 @@ export class PerformanceImprovementPlanRepository extends BaseRepository<any, Pe
 
   async findById(id: Uuid): Promise<PerformanceImprovementPlan | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByWorker(workerId: Uuid): Promise<PerformanceImprovementPlan[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: PerformanceImprovementPlan): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): PerformanceImprovementPlan {
+  private toAggregate(row: Record<string, never>): PerformanceImprovementPlan {
     return new PerformanceImprovementPlan({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

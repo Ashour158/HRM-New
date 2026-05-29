@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { LearningAssignment, type LearningAssignmentStatus } from '../aggregates/learning-assignment.aggregate.js';
 
 @Injectable()
-export class LearningAssignmentRepository extends BaseRepository<any, LearningAssignment> {
-  protected readonly tableName = 'learning_assignments' as any;
+export class LearningAssignmentRepository extends BaseRepository<'learning_assignments', LearningAssignment> {
+  protected readonly tableName = 'learning_assignments' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,30 +15,30 @@ export class LearningAssignmentRepository extends BaseRepository<any, LearningAs
 
   async findById(id: Uuid): Promise<LearningAssignment | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByWorker(workerId: Uuid): Promise<LearningAssignment[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByCourse(courseId: Uuid): Promise<LearningAssignment[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('course_id', '=', courseId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: LearningAssignment): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): LearningAssignment {
+  private toAggregate(row: Record<string, never>): LearningAssignment {
     return new LearningAssignment({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

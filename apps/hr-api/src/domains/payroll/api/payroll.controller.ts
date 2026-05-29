@@ -739,6 +739,7 @@ export class PayrollController {
     @Query('workLocationCode') workLocationCode: string | undefined,
     @Req() req: Request,
   ) {
+    this.assertCanExportPayroll(req);
     const now = new Date();
     return this.buildMonthlyPreview(
       req,

@@ -14,6 +14,10 @@ import type { AuditLedgerService } from './audit-ledger.js';
  */
 export const AUDIT_ON_ACCESS_KEY = Symbol('AUDIT_ON_ACCESS');
 
+type AuditOnAccessHandler = ((...args: unknown[]) => unknown) & {
+  [AUDIT_ON_ACCESS_KEY]?: string;
+};
+
 /**
  * Marks a handler or method as accessing sensitive HR data that must
  * produce an audit-on-access record.
@@ -27,8 +31,7 @@ export function AuditOnAccess(resourceType: string) {
     _propertyKey: string | symbol,
     descriptor: PropertyDescriptor
   ): PropertyDescriptor {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (descriptor.value as any)[AUDIT_ON_ACCESS_KEY] = resourceType;
+    (descriptor.value as AuditOnAccessHandler)[AUDIT_ON_ACCESS_KEY] = resourceType;
     return descriptor;
   };
 }
@@ -41,8 +44,7 @@ export function AuditOnAccess(resourceType: string) {
 export function getAuditOnAccessResourceType(
   handler: (...args: unknown[]) => unknown
 ): string | undefined {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (handler as any)[AUDIT_ON_ACCESS_KEY] as string | undefined;
+  return (handler as AuditOnAccessHandler)[AUDIT_ON_ACCESS_KEY];
 }
 
 /**
@@ -50,6 +52,7 @@ export function getAuditOnAccessResourceType(
  */
 export interface AuditOnAccessContext {
   actor: HrActor;
+  tenantId: Uuid;
   resourceId: Uuid;
   fieldsAccessed: string[];
   reason: string;
@@ -92,6 +95,7 @@ export class AuditOnAccessInterceptor {
 
     await this.auditService.writeAuditOnAccess(
       context.actor,
+      context.tenantId,
       resourceType,
       context.resourceId,
       context.fieldsAccessed,

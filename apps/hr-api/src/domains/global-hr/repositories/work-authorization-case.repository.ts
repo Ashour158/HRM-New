@@ -76,7 +76,7 @@ export class WorkAuthorizationCaseRepository {
     } else {
       await this.db
         .insertInto('hr_global_hr.work_authorization_cases')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

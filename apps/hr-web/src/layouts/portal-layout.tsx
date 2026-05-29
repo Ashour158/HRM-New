@@ -36,7 +36,7 @@ const portalConfigs: Record<string, PortalConfig> = {
     navItems: [
       { label: 'Dashboard', path: '/employee' },
       { label: 'Profile', path: '/employee/profile' },
-      { label: 'Payslips', path: '/employee/payslip' },
+      { label: 'Payroll', path: '/employee/payslip' },
       { label: 'Benefits', path: '/employee/benefits' },
       { label: 'Leave', path: '/employee/time-off' },
     ],
@@ -73,7 +73,7 @@ const employeeRailItems = [
   { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
   { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
   { label: 'Profile', path: '/employee/profile', icon: Users },
-  { label: 'Payslips', path: '/employee/payslip', icon: FileText },
+  { label: 'Payroll', path: '/employee/payslip', icon: FileText },
   { label: 'Benefits', path: '/employee/benefits', icon: Heart },
 ];
 
@@ -158,7 +158,7 @@ function EmployeeWorkspaceShell({ children }: { children: React.ReactNode }) {
                 { label: 'Overview', path: '/employee' },
                 { label: 'Profile', path: '/employee/profile' },
                 { label: 'Leave', path: '/employee/time-off' },
-                { label: 'Payslips', path: '/employee/payslip' },
+                { label: 'Payroll', path: '/employee/payslip' },
                 { label: 'Benefits', path: '/employee/benefits' },
               ].map((item) => (
                 <Link

@@ -95,6 +95,16 @@ export interface HcmSetupConfigsTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface GeneratedWorkflowTable {
+  id: string;
+  tenant_id: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+  [column: string]: unknown;
+}
+
 export interface WorkersTable {
   id: string;
   tenant_id: string;
@@ -112,6 +122,7 @@ export interface WorkersTable {
   employment_type: string;
   aggregate_version: number;
   data_classification: string;
+  legal_hold_status: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -867,8 +878,19 @@ export interface AbsenceRequestsTable {
   tenant_id: string;
   worker_id: string;
   absence_type: string;
+  policy_code: string | null;
   start_date: Date;
   end_date: Date;
+  duration_unit: string;
+  duration_amount: number;
+  start_time: string | null;
+  end_time: string | null;
+  paid: boolean;
+  deduct_from_balance: boolean;
+  payroll_impact: string;
+  calendar_days: number;
+  working_days: number;
+  excluded_holiday_dates: unknown;
   reason: string | null;
   status: string;
   submitted_at: Date | null;
@@ -1708,4 +1730,31 @@ export interface Database {
   'hr_ai_governance.hr_ai_model_runs': HrAiModelRunsTable;
   'hr_ai_governance.hr_ai_bias_tests': HrAiBiasTestsTable;
   'hr_ai_governance.hr_ai_kill_switches': HrAiKillSwitchesTable;
+  learning_courses: GeneratedWorkflowTable;
+  learning_content_packages: GeneratedWorkflowTable;
+  learning_assignments: GeneratedWorkflowTable;
+  certifications: GeneratedWorkflowTable;
+  engagement_surveys: GeneratedWorkflowTable;
+  survey_responses: GeneratedWorkflowTable;
+  feedback_360_cycles: GeneratedWorkflowTable;
+  recognition_programs: GeneratedWorkflowTable;
+  recognition_records: GeneratedWorkflowTable;
+  skill_profiles: GeneratedWorkflowTable;
+  talent_pools: GeneratedWorkflowTable;
+  career_paths: GeneratedWorkflowTable;
+  succession_plans: GeneratedWorkflowTable;
+  review_templates: GeneratedWorkflowTable;
+  performance_reviews: GeneratedWorkflowTable;
+  performance_review_cycles: GeneratedWorkflowTable;
+  performance_improvement_plans: GeneratedWorkflowTable;
+  development_plans: GeneratedWorkflowTable;
+  objectives: GeneratedWorkflowTable;
+  competencies: GeneratedWorkflowTable;
+  kpis: GeneratedWorkflowTable;
+  kpi_measurements: GeneratedWorkflowTable;
+  calibration_sessions: GeneratedWorkflowTable;
+  key_results: GeneratedWorkflowTable;
+  goals: GeneratedWorkflowTable;
+  performance_feedback_360_responses: GeneratedWorkflowTable;
+  performance_feedback_360_cycles: GeneratedWorkflowTable;
 }

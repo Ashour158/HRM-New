@@ -22,7 +22,7 @@ export class ContingentWorkforceEventsPublisher {
         privacy: this.buildPrivacy(aggregate),
         occurredAt: new Date(),
       };
-      await this.eventBus.publish(envelope as any);
+      await this.eventBus.publish(envelope as never);
     }
   }
 

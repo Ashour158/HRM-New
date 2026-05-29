@@ -3,7 +3,7 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { AbsenceRequest, type AbsenceRequestStatus } from '../aggregates/absence-request.aggregate.js';
+import { AbsenceRequest, type AbsenceDurationUnit, type AbsencePayrollImpact, type AbsenceRequestStatus } from '../aggregates/absence-request.aggregate.js';
 
 @Injectable()
 export class AbsenceRequestRepository extends BaseRepository<'absence_requests', AbsenceRequest> {
@@ -59,6 +59,26 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
     return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
   }
 
+  async findOverlappingByWorker(
+    tenantId: Uuid,
+    workerId: Uuid,
+    startDate: Date,
+    endDate: Date,
+    statuses: AbsenceRequestStatus[],
+  ): Promise<AbsenceRequest[]> {
+    if (statuses.length === 0) return [];
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('worker_id', '=', workerId.value)
+      .where('status', 'in', statuses)
+      .where('start_date', '<=', endDate)
+      .where('end_date', '>=', startDate)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+  }
+
   async save(entity: AbsenceRequest): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
@@ -75,8 +95,19 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       absenceType: row.absence_type,
+      policyCode: row.policy_code ?? undefined,
       startDate: row.start_date,
       endDate: row.end_date,
+      durationUnit: row.duration_unit as AbsenceDurationUnit,
+      durationAmount: Number(row.duration_amount),
+      startTime: row.start_time ?? undefined,
+      endTime: row.end_time ?? undefined,
+      paid: row.paid,
+      deductFromBalance: row.deduct_from_balance,
+      payrollImpact: row.payroll_impact as AbsencePayrollImpact,
+      calendarDays: row.calendar_days,
+      workingDays: Number(row.working_days),
+      excludedHolidayDates: this.parseHolidayDates(row.excluded_holiday_dates),
       reason: row.reason ?? undefined,
       status: row.status as AbsenceRequestStatus,
       submittedAt: row.submitted_at ?? undefined,
@@ -94,8 +125,19 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
       tenant_id: entity.tenantId.value,
       worker_id: entity.workerId.value,
       absence_type: entity.absenceType,
+      policy_code: entity.policyCode ?? null,
       start_date: entity.startDate,
       end_date: entity.endDate,
+      duration_unit: entity.durationUnit,
+      duration_amount: entity.durationAmount,
+      start_time: entity.startTime ?? null,
+      end_time: entity.endTime ?? null,
+      paid: entity.paid,
+      deduct_from_balance: entity.deductFromBalance,
+      payroll_impact: entity.payrollImpact,
+      calendar_days: entity.calendarDays,
+      working_days: entity.workingDays,
+      excluded_holiday_dates: JSON.stringify(entity.excludedHolidayDates),
       reason: entity.reason ?? null,
       status: entity.status,
       submitted_at: entity.submittedAt ?? null,
@@ -105,5 +147,16 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
       created_at: entity.createdAt,
       updated_at: entity.updatedAt,
     };
+  }
+
+  private parseHolidayDates(value: unknown): string[] {
+    if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+    if (typeof value !== 'string') return [];
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+    } catch {
+      return [];
+    }
   }
 }

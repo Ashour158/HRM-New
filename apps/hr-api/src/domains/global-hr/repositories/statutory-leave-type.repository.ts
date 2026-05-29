@@ -78,7 +78,7 @@ export class StatutoryLeaveTypeRepository {
     } else {
       await this.db
         .insertInto('hr_global_hr.statutory_leave_types')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

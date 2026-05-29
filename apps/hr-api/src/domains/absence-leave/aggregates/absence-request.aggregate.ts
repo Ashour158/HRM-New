@@ -1,14 +1,27 @@
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type AbsenceRequestStatus = 'DRAFT' | 'SUBMITTED' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+export type AbsenceDurationUnit = 'DAYS' | 'HOURS';
+export type AbsencePayrollImpact = 'PAID_LEAVE' | 'UNPAID_LEAVE' | 'PERMISSION' | 'NO_PAYROLL_IMPACT';
 
 export interface AbsenceRequestProps {
   id: Uuid;
   tenantId: Uuid;
   workerId: Uuid;
   absenceType: string;
+  policyCode?: string;
   startDate: Date;
   endDate: Date;
+  durationUnit?: AbsenceDurationUnit;
+  durationAmount?: number;
+  startTime?: string;
+  endTime?: string;
+  paid?: boolean;
+  deductFromBalance?: boolean;
+  payrollImpact?: AbsencePayrollImpact;
+  calendarDays?: number;
+  workingDays?: number;
+  excludedHolidayDates?: string[];
   reason?: string;
   status?: AbsenceRequestStatus;
   submittedAt?: Date;
@@ -50,8 +63,19 @@ export class AbsenceRequest extends AggregateRoot {
   readonly tenantId: Uuid;
   workerId: Uuid;
   absenceType: string;
+  policyCode?: string;
   startDate: Date;
   endDate: Date;
+  durationUnit: AbsenceDurationUnit;
+  durationAmount: number;
+  startTime?: string;
+  endTime?: string;
+  paid: boolean;
+  deductFromBalance: boolean;
+  payrollImpact: AbsencePayrollImpact;
+  calendarDays: number;
+  workingDays: number;
+  excludedHolidayDates: string[];
   reason?: string;
   status: AbsenceRequestStatus;
   submittedAt?: Date;
@@ -69,8 +93,19 @@ export class AbsenceRequest extends AggregateRoot {
     this.tenantId = props.tenantId;
     this.workerId = props.workerId;
     this.absenceType = props.absenceType;
+    this.policyCode = props.policyCode;
     this.startDate = props.startDate;
     this.endDate = props.endDate;
+    this.durationUnit = props.durationUnit ?? 'DAYS';
+    this.durationAmount = props.durationAmount ?? 0;
+    this.startTime = props.startTime;
+    this.endTime = props.endTime;
+    this.paid = props.paid ?? true;
+    this.deductFromBalance = props.deductFromBalance ?? true;
+    this.payrollImpact = props.payrollImpact ?? 'PAID_LEAVE';
+    this.calendarDays = props.calendarDays ?? 0;
+    this.workingDays = props.workingDays ?? 0;
+    this.excludedHolidayDates = props.excludedHolidayDates ?? [];
     this.reason = props.reason;
     this.status = props.status ?? 'DRAFT';
     this.submittedAt = props.submittedAt;

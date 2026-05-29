@@ -68,7 +68,7 @@ export class CountryPolicyImpactSimulationRepository {
     } else {
       await this.db
         .insertInto('hr_country_policy.impact_simulations')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

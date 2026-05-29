@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { LearningContentPackage, type LearningContentPackageStatus } from '../aggregates/learning-content-package.aggregate.js';
 
 @Injectable()
-export class LearningContentPackageRepository extends BaseRepository<any, LearningContentPackage> {
-  protected readonly tableName = 'learning_content_packages' as any;
+export class LearningContentPackageRepository extends BaseRepository<'learning_content_packages', LearningContentPackage> {
+  protected readonly tableName = 'learning_content_packages' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,25 +15,25 @@ export class LearningContentPackageRepository extends BaseRepository<any, Learni
 
   async findById(id: Uuid): Promise<LearningContentPackage | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByTenant(tenantId: Uuid): Promise<LearningContentPackage[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: LearningContentPackage): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): LearningContentPackage {
+  private toAggregate(row: Record<string, never>): LearningContentPackage {
     return new LearningContentPackage({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

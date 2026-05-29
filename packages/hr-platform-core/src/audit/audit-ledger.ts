@@ -186,6 +186,7 @@ export class AuditLedgerService {
    */
   async writeAuditOnAccess(
     actor: HrActor,
+    tenantId: Uuid,
     resourceType: string,
     resourceId: Uuid,
     fieldsAccessed: string[],
@@ -193,7 +194,7 @@ export class AuditLedgerService {
   ): Promise<void> {
     const record: AuditRecord = {
       id: Uuid.generate(),
-      tenantId: actor.actorId, // placeholder; real tenant should be injected via context
+      tenantId,
       actorType: actor.actorType,
       actorId: actor.actorId,
       action: 'ACCESS',

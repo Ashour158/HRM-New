@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { AbsenceLeaveController } from './api/absence-leave.controller.js';
 import { EmployeeLeaveController } from './api/employee-leave.controller.js';
@@ -27,13 +28,14 @@ import { StartLeaveEntitlementCalculationHandler } from './commands/start-leave-
 import { CompleteLeaveEntitlementCalculationHandler } from './commands/complete-leave-entitlement-calculation.handler.js';
 import { FailLeaveEntitlementCalculationHandler } from './commands/fail-leave-entitlement-calculation.handler.js';
 import { AbsenceLeaveEventsPublisher } from './events/absence-leave-events.publisher.js';
+import { LeavePolicyService } from './services/leave-policy.service.js';
 import { registerAbsenceRequestFsm } from './fsm/absence-request.fsm.js';
 import { registerLeaveCaseFsm } from './fsm/leave-case.fsm.js';
 import { registerAbsenceAccrualBalanceFsm } from './fsm/absence-accrual-balance.fsm.js';
 import { registerLeaveEntitlementCalculationFsm } from './fsm/leave-entitlement-calculation.fsm.js';
 
 @Module({
-  imports: [PlatformModule, HrCoreModule],
+  imports: [PlatformModule, HrCoreModule, HcmSetupModule],
   controllers: [AbsenceLeaveController, EmployeeLeaveController],
   providers: [
     AbsenceRequestRepository,
@@ -59,8 +61,9 @@ import { registerLeaveEntitlementCalculationFsm } from './fsm/leave-entitlement-
     CompleteLeaveEntitlementCalculationHandler,
     FailLeaveEntitlementCalculationHandler,
     AbsenceLeaveEventsPublisher,
+    LeavePolicyService,
   ],
-  exports: [AbsenceRequestRepository, LeaveCaseRepository, AbsenceAccrualBalanceRepository, LeaveEntitlementCalculationRepository],
+  exports: [AbsenceRequestRepository, LeaveCaseRepository, AbsenceAccrualBalanceRepository, LeaveEntitlementCalculationRepository, LeavePolicyService],
 })
 export class AbsenceLeaveModule implements OnModuleInit {
   constructor(private readonly fsm: FsmFramework) {}

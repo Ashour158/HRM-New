@@ -99,13 +99,13 @@ export class OnboardingTaskRepository {
     if (existing) {
       await this.db
         .updateTable('hr_onboarding.onboarding_tasks')
-        .set(row as any)
+        .set(row as never)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
       await this.db
         .insertInto('hr_onboarding.onboarding_tasks')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

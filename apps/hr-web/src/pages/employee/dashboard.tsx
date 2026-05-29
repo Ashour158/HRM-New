@@ -114,7 +114,7 @@ const activityTabs = [
   { label: 'Attendance', path: '/employee#attendance' },
   { label: 'Leave', path: '/employee/time-off' },
   { label: 'Profile', path: '/employee/profile' },
-  { label: 'Payslips', path: '/employee/payslip' },
+  { label: 'Payroll', path: '/employee/payslip' },
   { label: 'Benefits', path: '/employee/benefits' },
 ];
 

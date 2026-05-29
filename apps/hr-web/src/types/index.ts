@@ -204,6 +204,33 @@ export interface FieldRule {
   active: boolean;
 }
 
+export type LeaveDurationUnit = 'DAYS' | 'HOURS';
+
+export type LeavePayrollImpact = 'PAID_LEAVE' | 'UNPAID_LEAVE' | 'PERMISSION' | 'NO_PAYROLL_IMPACT';
+
+export type LeaveApprovalWorkflow = 'MANAGER' | 'MANAGER_THEN_HR' | 'HR_ONLY' | 'AUTO_APPROVE';
+
+export interface LeavePolicy extends SetupOption {
+  unit: LeaveDurationUnit;
+  paid: boolean;
+  deductFromBalance: boolean;
+  requestableByEmployee: boolean;
+  systemManaged?: boolean;
+  payrollImpact: LeavePayrollImpact;
+  approvalWorkflow: LeaveApprovalWorkflow;
+  annualEntitlement?: number;
+  maxPerRequest?: number;
+  allowHalfDay?: boolean;
+  requiresDocumentAfter?: number;
+  minNoticeDays?: number;
+  employeeTypes?: string[];
+  departmentCodes?: string[];
+  locationCodes?: string[];
+  workerIds?: string[];
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+}
+
 export interface PayrollCalculationPolicy {
   taxMode?: 'FLAT_PERCENT' | 'PROGRESSIVE_BRACKETS';
   taxRatePercent: number;
@@ -389,6 +416,7 @@ export interface HcmSetupConfig {
   socialMediaFields: SetupOption[];
   documentRequirements: DocumentRequirement[];
   fieldRules: FieldRule[];
+  leavePolicies: LeavePolicy[];
   payrollCalculationPolicy: PayrollCalculationPolicy;
   statutoryPayrollPacks: StatutoryPayrollPack[];
   attendancePolicy: AttendancePolicy;
@@ -515,6 +543,16 @@ export interface AbsenceRequest {
   requestedAt: string;
   approvedBy?: string;
   approvedAt?: string;
+  durationAmount?: number;
+  durationUnit?: LeaveDurationUnit;
+  payrollImpact?: LeavePayrollImpact;
+  paid?: boolean;
+  deductFromBalance?: boolean;
+  calendarDays?: number;
+  workingDays?: number;
+  excludedHolidayDates?: string[];
+  startTime?: string;
+  endTime?: string;
 }
 
 /** Benefit enrollment. */

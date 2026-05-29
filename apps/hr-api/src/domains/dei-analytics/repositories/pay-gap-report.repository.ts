@@ -39,7 +39,7 @@ export class PayGapReportRepository {
     if (existing) {
       await this.db.updateTable('hr_dei_analytics.pay_gap_reports').set(row).where('id', '=', entity.id.value).execute();
     } else {
-      await this.db.insertInto('hr_dei_analytics.pay_gap_reports').values({ ...row, created_at: new Date().toISOString() } as any).execute();
+      await this.db.insertInto('hr_dei_analytics.pay_gap_reports').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
   }
 

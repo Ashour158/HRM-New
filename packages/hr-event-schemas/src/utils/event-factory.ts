@@ -7,7 +7,6 @@ import { z } from 'zod';
 import { Uuid, Ok, Err, type Result, type ValidationError } from '@hcm/shared-kernel';
 import { ValidationError as ValidationErrorClass } from '@hcm/shared-kernel';
 import type { HrEventEnvelope } from '../core/event-envelope.js';
-import { HrEventEnvelopeSchema } from '../core/event-envelope.js';
 import type { HrEventPrivacy } from '../core/event-privacy.js';
 
 /** Convenience re-export of the metadata shape. */

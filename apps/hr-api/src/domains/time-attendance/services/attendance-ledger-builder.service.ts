@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { AbsenceRequestRepository } from '../../absence-leave/repositories/absence-request.repository.js';
+import { LeavePolicyService } from '../../absence-leave/services/leave-policy.service.js';
 import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import { AttendanceExceptionRepository } from '../repositories/attendance-exception.repository.js';
@@ -37,11 +38,6 @@ function dateKey(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
-function isUnpaidLeave(absenceType: string): boolean {
-  const normalized = absenceType.toUpperCase().replace(/[\s-]+/g, '_');
-  return normalized.includes('UNPAID') || normalized.includes('NO_PAY') || normalized.includes('WITHOUT_PAY');
-}
-
 @Injectable()
 export class AttendanceLedgerBuilderService {
   constructor(
@@ -54,6 +50,7 @@ export class AttendanceLedgerBuilderService {
     private readonly absenceRequestRepo: AbsenceRequestRepository,
     private readonly attendanceLedger: AttendanceLedgerService,
     private readonly policyResolution: AttendancePolicyResolutionService,
+    private readonly leavePolicyService: LeavePolicyService,
   ) {}
 
   async buildDailyLedger(tenantId: Uuid, filters?: AttendanceLedgerBuildFilters): Promise<AttendanceDailyLedger> {
@@ -129,7 +126,7 @@ export class AttendanceLedgerBuilderService {
         approvedLeave: {
           absenceRequestId: leave.id.value,
           absenceType: leave.absenceType,
-          paid: !isUnpaidLeave(leave.absenceType),
+          paid: this.resolveLeavePaid(setup, leave),
           startDate: dateKey(leave.startDate),
           endDate: dateKey(leave.endDate),
         },
@@ -151,5 +148,13 @@ export class AttendanceLedgerBuilderService {
       holidays: setup.attendancePolicy.holidays ?? [],
       workDays: setup.attendancePolicy.workDays,
     });
+  }
+
+  private resolveLeavePaid(setup: Awaited<ReturnType<HcmSetupService['getSetup']>>, leave: { absenceType: string; paid: boolean }): boolean {
+    try {
+      return this.leavePolicyService.resolvePolicy(setup, leave.absenceType).paid;
+    } catch {
+      return leave.paid;
+    }
   }
 }

@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { SurveyResponse, type SurveyResponseStatus } from '../aggregates/survey-response.aggregate.js';
 
 @Injectable()
-export class SurveyResponseRepository extends BaseRepository<any, SurveyResponse> {
-  protected readonly tableName = 'survey_responses' as any;
+export class SurveyResponseRepository extends BaseRepository<'survey_responses', SurveyResponse> {
+  protected readonly tableName = 'survey_responses' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,25 +15,25 @@ export class SurveyResponseRepository extends BaseRepository<any, SurveyResponse
 
   async findById(id: Uuid): Promise<SurveyResponse | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findBySurvey(surveyId: Uuid): Promise<SurveyResponse[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('survey_id', '=', surveyId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: SurveyResponse): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): SurveyResponse {
+  private toAggregate(row: Record<string, never>): SurveyResponse {
     return new SurveyResponse({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

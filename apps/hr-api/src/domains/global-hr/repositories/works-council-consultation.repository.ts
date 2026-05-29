@@ -78,7 +78,7 @@ export class WorksCouncilConsultationRepository {
     } else {
       await this.db
         .insertInto('hr_global_hr.works_council_consultations')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

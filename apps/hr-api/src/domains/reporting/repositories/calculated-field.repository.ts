@@ -36,7 +36,7 @@ export class CalculatedFieldRepository {
     if (existing) {
       await this.db.updateTable('hr_reporting.calculated_fields').set(row).where('id', '=', entity.id.value).execute();
     } else {
-      await this.db.insertInto('hr_reporting.calculated_fields').values({ ...row, created_at: new Date().toISOString() } as any).execute();
+      await this.db.insertInto('hr_reporting.calculated_fields').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
   }
 

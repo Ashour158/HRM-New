@@ -76,7 +76,7 @@ export class PolicyDocumentRepository {
     } else {
       await this.db
         .insertInto('hr_compliance.policy_documents')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

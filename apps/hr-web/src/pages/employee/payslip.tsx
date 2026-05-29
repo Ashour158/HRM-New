@@ -84,7 +84,7 @@ export function EmployeePayslip() {
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6" />
-            Payslips
+            Payroll
           </h2>
           <p className="text-muted-foreground">View and download your payslips</p>
         </div>

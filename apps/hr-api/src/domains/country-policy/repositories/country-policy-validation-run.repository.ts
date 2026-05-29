@@ -66,7 +66,7 @@ export class CountryPolicyValidationRunRepository {
     } else {
       await this.db
         .insertInto('hr_country_policy.validation_runs')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

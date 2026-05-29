@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { PerformanceReview, type PerformanceReviewStatus } from '../aggregates/performance-review.aggregate.js';
 
 @Injectable()
-export class PerformanceReviewRepository extends BaseRepository<any, PerformanceReview> {
-  protected readonly tableName = 'performance_reviews' as any;
+export class PerformanceReviewRepository extends BaseRepository<'performance_reviews', PerformanceReview> {
+  protected readonly tableName = 'performance_reviews' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,30 +15,30 @@ export class PerformanceReviewRepository extends BaseRepository<any, Performance
 
   async findById(id: Uuid): Promise<PerformanceReview | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByWorker(workerId: Uuid): Promise<PerformanceReview[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<PerformanceReview[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: PerformanceReview): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): PerformanceReview {
+  private toAggregate(row: Record<string, never>): PerformanceReview {
     return new PerformanceReview({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

@@ -4,8 +4,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { KeyPerformanceIndicator, type KpiStatus } from '../aggregates/kpi.aggregate.js';
 
 @Injectable()
-export class KpiRepository extends BaseRepository<any, KeyPerformanceIndicator> {
-  protected readonly tableName = 'kpis' as any;
+export class KpiRepository extends BaseRepository<'kpis', KeyPerformanceIndicator> {
+  protected readonly tableName = 'kpis' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -13,30 +13,30 @@ export class KpiRepository extends BaseRepository<any, KeyPerformanceIndicator> 
 
   async findById(id: Uuid): Promise<KeyPerformanceIndicator | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByOrgUnit(orgUnitId: Uuid): Promise<KeyPerformanceIndicator[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('org_unit_id', '=', orgUnitId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByDepartment(department: string): Promise<KeyPerformanceIndicator[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('department', '=', department).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: KeyPerformanceIndicator): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): KeyPerformanceIndicator {
+  private toAggregate(row: Record<string, never>): KeyPerformanceIndicator {
     return new KeyPerformanceIndicator({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

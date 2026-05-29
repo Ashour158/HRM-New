@@ -83,13 +83,13 @@ export class InterviewPlanRepository {
     if (existing) {
       await this.db
         .updateTable('hr_recruiting.interview_plans')
-        .set(row as any)
+        .set(row as never)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
       await this.db
         .insertInto('hr_recruiting.interview_plans')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

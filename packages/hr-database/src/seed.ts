@@ -33,7 +33,7 @@ async function seed(): Promise<void> {
       status: 'ACTIVE',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    } as any)
+    })
     .execute();
 
   console.log(`Seeded default tenant ${defaultTenantId}.`);

@@ -30,6 +30,13 @@ describe('HcmSetupService', () => {
     expect(setup.documentRequirements).toEqual(
       expect.arrayContaining([expect.objectContaining({ code: 'NATIONAL_ID', required: true })]),
     );
+    expect(setup.leavePolicies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'VACATION', unit: 'DAYS', requestableByEmployee: true }),
+        expect.objectContaining({ code: 'PERMISSION', unit: 'HOURS', requestableByEmployee: true }),
+        expect.objectContaining({ code: 'PUBLIC_HOLIDAY', systemManaged: true, requestableByEmployee: false }),
+      ]),
+    );
   });
 
   it('merges admin updates with defaults and persists the resulting setup', async () => {

@@ -14,13 +14,27 @@ import { HrEventEnvelopeSchema } from '../core/event-envelope.js';
 export interface AbsenceRequestSubmittedPayload {
   absenceRequestId: Uuid;
   workerId: Uuid;
-  absenceTypeId: Uuid;
+  absenceType?: string;
+  absenceTypeId?: Uuid;
+  policyCode?: string;
+  durationUnit?: 'DAYS' | 'HOURS';
+  durationAmount?: number;
+  paid?: boolean;
+  deductFromBalance?: boolean;
+  payrollImpact?: string;
 }
 
 export const AbsenceRequestSubmittedPayloadSchema = z.object({
   absenceRequestId: z.string().uuid(),
   workerId: z.string().uuid(),
-  absenceTypeId: z.string().uuid(),
+  absenceType: z.string().optional(),
+  absenceTypeId: z.string().uuid().optional(),
+  policyCode: z.string().optional(),
+  durationUnit: z.enum(['DAYS', 'HOURS']).optional(),
+  durationAmount: z.number().optional(),
+  paid: z.boolean().optional(),
+  deductFromBalance: z.boolean().optional(),
+  payrollImpact: z.string().optional(),
 });
 
 export const ABSENCE_REQUEST_SUBMITTED = 'AbsenceRequestSubmitted';
@@ -40,12 +54,26 @@ export interface AbsenceRequestApprovedPayload {
   absenceRequestId: Uuid;
   workerId: Uuid;
   approvedBy: Uuid;
+  absenceType?: string;
+  policyCode?: string;
+  durationUnit?: 'DAYS' | 'HOURS';
+  durationAmount?: number;
+  paid?: boolean;
+  deductFromBalance?: boolean;
+  payrollImpact?: string;
 }
 
 export const AbsenceRequestApprovedPayloadSchema = z.object({
   absenceRequestId: z.string().uuid(),
   workerId: z.string().uuid(),
   approvedBy: z.string().uuid(),
+  absenceType: z.string().optional(),
+  policyCode: z.string().optional(),
+  durationUnit: z.enum(['DAYS', 'HOURS']).optional(),
+  durationAmount: z.number().optional(),
+  paid: z.boolean().optional(),
+  deductFromBalance: z.boolean().optional(),
+  payrollImpact: z.string().optional(),
 });
 
 export const ABSENCE_REQUEST_APPROVED = 'AbsenceRequestApproved';
@@ -64,14 +92,14 @@ export function isAbsenceRequestApprovedEvent(event: unknown): event is AbsenceR
 export interface AbsenceRequestRejectedPayload {
   absenceRequestId: Uuid;
   workerId: Uuid;
-  rejectedBy: Uuid;
+  rejectedBy?: Uuid;
   reasonId?: Uuid;
 }
 
 export const AbsenceRequestRejectedPayloadSchema = z.object({
   absenceRequestId: z.string().uuid(),
   workerId: z.string().uuid(),
-  rejectedBy: z.string().uuid(),
+  rejectedBy: z.string().uuid().optional(),
   reasonId: z.string().uuid().optional(),
 });
 
@@ -91,13 +119,13 @@ export function isAbsenceRequestRejectedEvent(event: unknown): event is AbsenceR
 export interface AbsenceRequestCancelledPayload {
   absenceRequestId: Uuid;
   workerId: Uuid;
-  cancelledBy: Uuid;
+  cancelledBy?: Uuid;
 }
 
 export const AbsenceRequestCancelledPayloadSchema = z.object({
   absenceRequestId: z.string().uuid(),
   workerId: z.string().uuid(),
-  cancelledBy: z.string().uuid(),
+  cancelledBy: z.string().uuid().optional(),
 });
 
 export const ABSENCE_REQUEST_CANCELLED = 'AbsenceRequestCancelled';

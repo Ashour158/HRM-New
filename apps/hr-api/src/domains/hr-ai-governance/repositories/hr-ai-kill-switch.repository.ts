@@ -38,7 +38,7 @@ export class HrAiKillSwitchRepository {
     if (existing) {
       await this.db.updateTable('hr_ai_governance.hr_ai_kill_switches').set(row).where('id', '=', entity.id.value).execute();
     } else {
-      await this.db.insertInto('hr_ai_governance.hr_ai_kill_switches').values({ ...row, created_at: new Date().toISOString() } as any).execute();
+      await this.db.insertInto('hr_ai_governance.hr_ai_kill_switches').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
   }
 

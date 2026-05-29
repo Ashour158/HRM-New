@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { Goal, type GoalStatus } from '../aggregates/goal.aggregate.js';
 
 @Injectable()
-export class GoalRepository extends BaseRepository<any, Goal> {
-  protected readonly tableName = 'goals' as any;
+export class GoalRepository extends BaseRepository<'goals', Goal> {
+  protected readonly tableName = 'goals' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,25 +15,25 @@ export class GoalRepository extends BaseRepository<any, Goal> {
 
   async findById(id: Uuid): Promise<Goal | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByWorker(workerId: Uuid): Promise<Goal[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Goal): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): Goal {
+  private toAggregate(row: Record<string, never>): Goal {
     return new Goal({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

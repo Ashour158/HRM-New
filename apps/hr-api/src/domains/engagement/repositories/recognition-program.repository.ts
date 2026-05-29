@@ -6,8 +6,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { RecognitionProgram, type RecognitionProgramStatus } from '../aggregates/recognition-program.aggregate.js';
 
 @Injectable()
-export class RecognitionProgramRepository extends BaseRepository<any, RecognitionProgram> {
-  protected readonly tableName = 'recognition_programs' as any;
+export class RecognitionProgramRepository extends BaseRepository<'recognition_programs', RecognitionProgram> {
+  protected readonly tableName = 'recognition_programs' as const;
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -15,25 +15,25 @@ export class RecognitionProgramRepository extends BaseRepository<any, Recognitio
 
   async findById(id: Uuid): Promise<RecognitionProgram | undefined> {
     const row = await super.findById(id);
-    return row ? this.toAggregate(row as unknown as any) : undefined;
+    return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByTenant(tenantId: Uuid): Promise<RecognitionProgram[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as any));
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: RecognitionProgram): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as any);
+      await this.update(entity.id, row as never);
     } else {
-      await this.insert(row as unknown as any);
+      await this.insert(row as never);
     }
   }
 
-  private toAggregate(row: any): RecognitionProgram {
+  private toAggregate(row: Record<string, never>): RecognitionProgram {
     return new RecognitionProgram({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),

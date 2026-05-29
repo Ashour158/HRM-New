@@ -78,14 +78,22 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
     });
   }
 
-  private async createInputFromAbsence(event: HrEventEnvelope<{ absenceRequestId: Uuid; workerId: Uuid; approvedBy: Uuid }>): Promise<void> {
+  private async createInputFromAbsence(event: HrEventEnvelope<{
+    absenceRequestId: Uuid | string;
+    workerId: Uuid | string;
+    approvedBy: Uuid | string;
+    durationAmount?: number;
+    durationUnit?: string;
+    payrollImpact?: string;
+  }>): Promise<void> {
+    const payrollImpact = this.readString(event.payload, 'payrollImpact') ?? 'PAID_LEAVE';
     await this.createInputFromEvent(event, {
       source: 'AbsenceRequestApproved',
-      workerId: event.payload.workerId,
-      inputType: 'ABSENCE_DEDUCTION',
+      workerId: this.toUuid(event.payload.workerId),
+      inputType: payrollImpact === 'UNPAID_LEAVE' ? 'UNPAID_LEAVE' : 'APPROVED_LEAVE',
       amount: this.readNumber(event.payload, 'amount') ?? 0,
       currency: this.readString(event.payload, 'currency') ?? 'EGP',
-      description: `Absence ${event.payload.absenceRequestId.value}`,
+      description: `Leave ${this.uuidValue(event.payload.absenceRequestId)} ${event.payload.durationAmount ?? ''} ${event.payload.durationUnit ?? ''}`.trim(),
     });
   }
 
@@ -174,5 +182,15 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
   private readString(payload: unknown, key: string): string | undefined {
     const value = (payload as Record<string, unknown>)[key];
     return typeof value === 'string' && value.trim() ? value : undefined;
+  }
+
+  private toUuid(value: Uuid | string | undefined): Uuid | undefined {
+    if (!value) return undefined;
+    return value instanceof Uuid ? value : new Uuid(value);
+  }
+
+  private uuidValue(value: Uuid | string | undefined): string {
+    if (!value) return '';
+    return value instanceof Uuid ? value.value : value;
   }
 }

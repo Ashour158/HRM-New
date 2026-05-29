@@ -98,13 +98,13 @@ export class CandidateRepository {
     if (existing) {
       await this.db
         .updateTable('hr_recruiting.candidates')
-        .set(row as any)
+        .set(row as never)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
       await this.db
         .insertInto('hr_recruiting.candidates')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

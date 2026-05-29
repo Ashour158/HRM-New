@@ -76,7 +76,7 @@ export class CountryRuleSetRepository {
     } else {
       await this.db
         .insertInto('hr_global_hr.country_rule_sets')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

@@ -164,7 +164,7 @@ export class PositionRepository {
     } else {
       await this.db
         .insertInto('hr_position.positions')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

@@ -79,7 +79,7 @@ export class LegalHoldRepository {
     } else {
       await this.db
         .insertInto('hr_compliance.legal_holds')
-        .values({ ...row, created_at: new Date().toISOString() } as any)
+        .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
     }
   }

@@ -38,7 +38,7 @@ export class ReportDefinitionRepository {
     if (existing) {
       await this.db.updateTable('hr_reporting.report_definitions').set(row).where('id', '=', entity.id.value).execute();
     } else {
-      await this.db.insertInto('hr_reporting.report_definitions').values({ ...row, created_at: new Date().toISOString() } as any).execute();
+      await this.db.insertInto('hr_reporting.report_definitions').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
   }
 

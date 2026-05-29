@@ -10,23 +10,35 @@ import {
   LeaveEntitlementCalculationStarted, LeaveEntitlementCalculated, LeaveEntitlementCalculationFailed,
 } from '../aggregates/index.js';
 
+type AbsenceEventAggregate = {
+  id: Uuid;
+  tenantId: Uuid;
+  status: string;
+  workerId?: Uuid;
+  absenceType?: string;
+  policyCode?: string;
+  durationUnit?: string;
+  durationAmount?: number;
+  paid?: boolean;
+  deductFromBalance?: boolean;
+  payrollImpact?: string;
+  domainEvents: DomainEvent[];
+};
+
 @Injectable()
 export class AbsenceLeaveEventsPublisher {
   constructor(private readonly eventBus: EventBus) {}
 
-  async publishFromAggregate(aggregate: {
-    id: Uuid;
-    tenantId: Uuid;
-    status: string;
-    domainEvents: DomainEvent[];
-  }): Promise<void> {
+  async publishFromAggregate(aggregate: AbsenceEventAggregate): Promise<void> {
     const events = aggregate.domainEvents
-      .map((e) => this.toEnvelope(e, aggregate.id, aggregate.tenantId))
+      .map((e) => this.toEnvelope(e, aggregate))
       .filter((e): e is HrEventEnvelope<unknown> => !!e);
     await Promise.all(events.map((e) => this.eventBus.publish(e)));
   }
 
-  private toEnvelope(event: DomainEvent, aggregateId: Uuid, tenantId: Uuid): HrEventEnvelope<unknown> | undefined {
+  private toEnvelope(event: DomainEvent, aggregate: AbsenceEventAggregate): HrEventEnvelope<unknown> | undefined {
+    const aggregateId = aggregate.id;
+    const tenantId = aggregate.tenantId;
     const base = {
       eventId: event.eventId,
       eventName: event.eventName,
@@ -41,13 +53,13 @@ export class AbsenceLeaveEventsPublisher {
     };
     switch (true) {
       case event instanceof AbsenceRequestSubmitted:
-        return { ...base, payload: { absenceRequestId: aggregateId.value } };
+        return { ...base, payload: this.absenceRequestPayload(aggregate) };
       case event instanceof AbsenceRequestApproved:
-        return { ...base, payload: { absenceRequestId: aggregateId.value, approvedBy: event.approvedBy } };
+        return { ...base, payload: { ...this.absenceRequestPayload(aggregate), approvedBy: event.approvedBy } };
       case event instanceof AbsenceRequestRejected:
-        return { ...base, payload: { absenceRequestId: aggregateId.value } };
+        return { ...base, payload: this.absenceRequestPayload(aggregate) };
       case event instanceof AbsenceRequestCancelled:
-        return { ...base, payload: { absenceRequestId: aggregateId.value } };
+        return { ...base, payload: this.absenceRequestPayload(aggregate) };
       case event instanceof LeaveCaseOpened:
         return { ...base, payload: { leaveCaseId: aggregateId.value } };
       case event instanceof LeaveCaseApproved:
@@ -81,5 +93,19 @@ export class AbsenceLeaveEventsPublisher {
 
   private buildPrivacy(_event: DomainEvent, aggregateId: Uuid): HrEventPrivacy {
     return createPrivacyForEvent('NONE', aggregateId.value, 'PROFILE');
+  }
+
+  private absenceRequestPayload(aggregate: AbsenceEventAggregate): Record<string, unknown> {
+    return {
+      absenceRequestId: aggregate.id.value,
+      workerId: aggregate.workerId?.value,
+      absenceType: aggregate.absenceType,
+      policyCode: aggregate.policyCode,
+      durationUnit: aggregate.durationUnit,
+      durationAmount: aggregate.durationAmount,
+      paid: aggregate.paid,
+      deductFromBalance: aggregate.deductFromBalance,
+      payrollImpact: aggregate.payrollImpact,
+    };
   }
 }

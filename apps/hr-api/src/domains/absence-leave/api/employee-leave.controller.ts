@@ -10,9 +10,12 @@ import { AuthGuard } from '../../../guards/auth.guard.js';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import type { WorkerProfile } from '../../hr-core/aggregates/worker-profile.aggregate.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import type { LeavePolicy } from '../../hcm-setup/hcm-setup.types.js';
 import { AbsenceRequest, type AbsenceRequestStatus } from '../aggregates/absence-request.aggregate.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
+import { LeavePolicyService } from '../services/leave-policy.service.js';
 import { ZodValidationPipe } from './dtos.js';
 
 const EmployeeLeaveRequestDtoSchema = z.object({
@@ -20,6 +23,8 @@ const EmployeeLeaveRequestDtoSchema = z.object({
   absenceType: z.string().min(1).optional(),
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   reason: z.string().optional(),
 }).refine((value) => value.type || value.absenceType, {
   message: 'Leave type is required',
@@ -51,6 +56,8 @@ export class EmployeeLeaveController {
     private readonly workerRepo: WorkerRepository,
     private readonly absenceRequestRepo: AbsenceRequestRepository,
     private readonly accrualBalanceRepo: AbsenceAccrualBalanceRepository,
+    private readonly hcmSetupService: HcmSetupService,
+    private readonly leavePolicyService: LeavePolicyService,
   ) {}
 
   private getTenantId(req: Request): Uuid {
@@ -162,6 +169,16 @@ export class EmployeeLeaveController {
       requestedAt: (request.submittedAt ?? request.createdAt).toISOString(),
       approvedBy: request.approvedBy?.value,
       approvedAt: request.approvedAt?.toISOString(),
+      durationAmount: request.durationAmount,
+      durationUnit: request.durationUnit,
+      payrollImpact: request.payrollImpact,
+      paid: request.paid,
+      deductFromBalance: request.deductFromBalance,
+      calendarDays: request.calendarDays,
+      workingDays: request.workingDays,
+      excludedHolidayDates: request.excludedHolidayDates,
+      startTime: request.startTime,
+      endTime: request.endTime,
     };
   }
 
@@ -183,21 +200,45 @@ export class EmployeeLeaveController {
   async getEmployeeLeaveBalance(@Req() req: Request) {
     const worker = await this.resolveSelfWorker(req);
     if (!worker) throw new ForbiddenException('No employee profile is linked to the authenticated user');
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
     const balances = await this.accrualBalanceRepo.findByWorker(worker.id);
     if (balances.length === 0) {
-      return [
-        { type: 'VACATION', total: 120, used: 0, remaining: 120, unit: 'hours' },
-        { type: 'SICK', total: 56, used: 0, remaining: 56, unit: 'hours' },
-        { type: 'PERSONAL', total: 24, used: 0, remaining: 24, unit: 'hours' },
-      ];
+      return setup.leavePolicies
+        .filter((policy) => policy.active && policy.requestableByEmployee && policy.deductFromBalance && policy.annualEntitlement !== undefined)
+        .map((policy) => ({
+          type: policy.code,
+          label: policy.label,
+          total: policy.annualEntitlement ?? 0,
+          used: 0,
+          remaining: policy.annualEntitlement ?? 0,
+          unit: policy.unit.toLowerCase(),
+        }));
     }
-    return balances.map((balance) => ({
-      type: balance.leaveType,
-      total: balance.accruedHours + balance.carriedOverHours,
-      used: balance.usedHours,
-      remaining: balance.balanceHours,
-      unit: 'hours',
-    }));
+    return balances.map((balance) => {
+      const policy = this.resolvePolicyOrFallback(setup.leavePolicies, balance.leaveType);
+      return {
+        type: balance.leaveType,
+        label: policy.label,
+        total: this.leavePolicyService.amountFromStoredHours(setup, policy, balance.accruedHours + balance.carriedOverHours),
+        used: this.leavePolicyService.amountFromStoredHours(setup, policy, balance.usedHours),
+        remaining: this.leavePolicyService.amountFromStoredHours(setup, policy, balance.balanceHours),
+        unit: policy.unit.toLowerCase(),
+      };
+    });
+  }
+
+  @Get('employee/absences/policies')
+  async getEmployeeLeavePolicies(@Req() req: Request) {
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    return {
+      policies: setup.leavePolicies.filter((policy) => policy.active && policy.requestableByEmployee),
+      publicHolidays: [
+        ...(setup.attendancePolicy.holidayCalendars ?? []),
+        ...(setup.attendancePolicy.holidays ?? []).map((holiday) => ({ ...holiday })),
+      ].sort((left, right) => left.date.localeCompare(right.date)),
+      standardDailyMinutes: setup.attendancePolicy.standardDailyMinutes,
+      workDays: setup.attendancePolicy.workDays ?? [0, 1, 2, 3, 4],
+    };
   }
 
   @Post('employee/absences')
@@ -213,6 +254,8 @@ export class EmployeeLeaveController {
       absenceType: dto.absenceType ?? dto.type as string,
       startDate: dto.startDate,
       endDate: dto.endDate,
+      startTime: dto.startTime,
+      endTime: dto.endTime,
       reason: dto.reason,
     };
     const created = await this.commandBus.execute(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', payload, req, {
@@ -313,5 +356,23 @@ export class EmployeeLeaveController {
     if (!outcome.success) return outcome;
     const updated = await this.absenceRequestRepo.findById(request.id);
     return this.toAbsenceDto(updated ?? request, await this.workerRepo.findById(request.workerId));
+  }
+
+  private resolvePolicyOrFallback(policies: LeavePolicy[], leaveType: string): LeavePolicy {
+    try {
+      return this.leavePolicyService.resolvePolicy({ leavePolicies: policies }, leaveType);
+    } catch {
+      return {
+        code: leaveType,
+        label: leaveType,
+        active: true,
+        unit: 'HOURS',
+        paid: true,
+        deductFromBalance: true,
+        requestableByEmployee: true,
+        payrollImpact: 'PAID_LEAVE',
+        approvalWorkflow: 'MANAGER',
+      };
+    }
   }
 }

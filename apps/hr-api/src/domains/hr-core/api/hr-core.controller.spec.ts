@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Request } from 'express';
 import { HrCoreController } from './hr-core.controller.js';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
@@ -50,7 +51,17 @@ describe('HrCoreController smoke test', () => {
       lastName: 'Smith',
       email: 'alice@example.com',
     };
-    const req = { headers: {}, tenantId: '550e8400-e29b-41d4-a716-446655440001' } as any;
+    const req = {
+      headers: {},
+      tenantId: '550e8400-e29b-41d4-a716-446655440001',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440010'),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_CREATE'],
+        mfaAuthenticated: true,
+      },
+    } as unknown as Request;
     (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, data: { workerId: dto.workerId, status: 'DRAFT' } });
 
     const result = await controller.createWorker(dto, req);
@@ -59,9 +70,32 @@ describe('HrCoreController smoke test', () => {
     expect(result.success).toBe(true);
   });
 
+  it('createWorker rejects unauthenticated requests instead of falling back to a system HR admin actor', async () => {
+    const req = { headers: {}, tenantId: '550e8400-e29b-41d4-a716-446655440001' } as unknown as Request;
+
+    await expect(controller.createWorker({
+      firstName: 'No',
+      lastName: 'Actor',
+      email: 'no.actor@example.com',
+    }, req)).rejects.toMatchObject({
+      message: 'Authenticated actor is required',
+    });
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
   it('activateWorker delegates to commandBus', async () => {
     const workerId = '550e8400-e29b-41d4-a716-446655440001';
-    const req = { headers: {}, tenantId: workerId } as any;
+    const req = {
+      headers: {},
+      tenantId: workerId,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440010'),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_UPDATE'],
+        mfaAuthenticated: true,
+      },
+    } as unknown as Request;
     (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: { value: workerId }, status: 'DRAFT', aggregateVersion: 1 });
     (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, data: { workerId, status: 'ACTIVE' } });
 
