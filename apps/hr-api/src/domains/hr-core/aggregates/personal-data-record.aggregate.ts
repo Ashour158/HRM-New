@@ -9,6 +9,13 @@ export type DataCategory =
   | 'MEDICAL'
   | 'EMERGENCY_CONTACT'
   | 'DEPENDENT'
+  | 'BACKGROUND'
+  | 'COMPENSATION'
+  | 'DOCUMENT'
+  | 'WORK_AUTHORIZATION'
+  | 'ASSET_ACCESS'
+  | 'SKILLS'
+  | 'CONSENT'
   | 'SPECIAL_CATEGORY';
 
 export interface PersonalDataRecordProps {

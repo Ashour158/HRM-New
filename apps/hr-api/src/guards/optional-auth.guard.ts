@@ -12,6 +12,7 @@ import type { HrActor } from '@hcm/command-contracts';
 
 interface JwtPayload {
   sub: string;
+  email?: string;
   roles?: string[];
   permissions?: string[];
   tenant_id?: string;
@@ -50,6 +51,7 @@ export class OptionalAuthGuard implements CanActivate {
         permissions: payload.permissions ?? [],
         mfaAuthenticated: payload.mfa_authenticated ?? false,
       };
+      (request.actor as HrActor & { email?: string }).email = payload.email;
       return true;
     } catch {
       // Invalid token — let the request proceed without an actor.

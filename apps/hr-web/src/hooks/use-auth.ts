@@ -6,6 +6,17 @@ import type { User } from '@/types';
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
+const AUTH_VALIDATION_TIMEOUT_MS = 5000;
+
+let validatedAuthToken: string | null = null;
+let validatingAuthToken: string | null = null;
+let authValidationPromise: Promise<void> | null = null;
+
+function resetAuthValidation() {
+  validatedAuthToken = null;
+  validatingAuthToken = null;
+  authValidationPromise = null;
+}
 
 const LOCAL_BYPASS_USER: User = {
   id: '00000000-0000-0000-0000-000000000999',
@@ -45,6 +56,7 @@ export function useAuth() {
         if (AUTH_BYPASS_ENABLED) {
           const user = { ...LOCAL_BYPASS_USER, email: email || LOCAL_BYPASS_USER.email, tenantId: tenantId || DEFAULT_TENANT_ID };
           login(user, LOCAL_BYPASS_TOKEN);
+          validatedAuthToken = LOCAL_BYPASS_TOKEN;
           return { success: true };
         }
 
@@ -57,6 +69,9 @@ export function useAuth() {
         );
         if (response.data.success) {
           login(response.data.data.user, response.data.data.token);
+          validatedAuthToken = response.data.data.token;
+          validatingAuthToken = null;
+          authValidationPromise = null;
           return { success: true };
         }
         return { success: false, error: 'Login failed' };
@@ -78,6 +93,7 @@ export function useAuth() {
     } catch {
       // Ignore logout errors
     } finally {
+      resetAuthValidation();
       logout();
     }
   }, [logout]);
@@ -95,25 +111,53 @@ export function useAuth() {
       return;
     }
 
-    if (token && !user) {
-      setLoading(true);
-      apiClient
-        .get<{ success: boolean; data: User }>('/auth/me')
-        .then((res) => {
-          if (res.data.success) {
-            useAuthStore.getState().updateUser(res.data.data);
-          }
-        })
-        .catch(() => {
-          logout();
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    } else {
-      setLoading(false);
+    if (!token) {
+      if (isAuthenticated || user) {
+        logout();
+        resetAuthValidation();
+      } else {
+        setLoading(false);
+      }
+      return;
     }
-  }, [token, user, login, logout, setLoading]);
+
+    if (validatedAuthToken === token) {
+      setLoading(false);
+      return;
+    }
+
+    if (validatingAuthToken === token && authValidationPromise) {
+      return;
+    }
+
+    validatingAuthToken = token;
+    setLoading(true);
+
+    authValidationPromise = apiClient
+      .get<{ success: boolean; data: User }>('/auth/me', {
+        signal: AbortSignal.timeout(AUTH_VALIDATION_TIMEOUT_MS),
+      })
+      .then((res) => {
+        if (res.data.success) {
+          validatedAuthToken = token;
+          useAuthStore.getState().updateUser(res.data.data);
+        } else {
+          resetAuthValidation();
+          logout();
+        }
+      })
+      .catch(() => {
+        resetAuthValidation();
+        logout();
+      })
+      .finally(() => {
+        if (validatingAuthToken === token) {
+          validatingAuthToken = null;
+          authValidationPromise = null;
+        }
+        setLoading(false);
+      });
+  }, [isAuthenticated, token, user, login, logout, setLoading]);
 
   return {
     user,

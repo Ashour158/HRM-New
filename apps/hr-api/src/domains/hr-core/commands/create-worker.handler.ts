@@ -12,6 +12,9 @@ import { WorkerRepository } from '../repositories/worker.repository.js';
 import { EmploymentRelationshipRepository } from '../repositories/employment-relationship.repository.js';
 import { PersonalDataRecordRepository } from '../repositories/personal-data-record.repository.js';
 import { WorkerEventsPublisher } from '../events/worker-events.publisher.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import type { DataCategory } from '../aggregates/personal-data-record.aggregate.js';
+import type { DocumentRequirement, HcmSetupConfig, SetupOption } from '../../hcm-setup/hcm-setup.types.js';
 
 function mapFieldDecision(decision: FieldAccessDecision): 'VISIBLE' | 'MASKED' | 'HIDDEN' | 'DENIED' {
   switch (decision) {
@@ -24,6 +27,17 @@ function mapFieldDecision(decision: FieldAccessDecision): 'VISIBLE' | 'MASKED' |
     default:
       return 'DENIED';
   }
+}
+
+function hasValue(value: unknown): boolean {
+  if (value === undefined || value === null || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
+  return true;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 export function buildFieldAccessDecisions(
@@ -54,20 +68,57 @@ export class CreateWorkerHandler {
     private readonly personalDataRepo: PersonalDataRecordRepository,
     private readonly fsm: FsmFramework,
     private readonly eventPublisher: WorkerEventsPublisher,
+    private readonly hcmSetup: HcmSetupService,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CreateWorkerPayload;
+    const setup = await this.hcmSetup.getSetup(command.tenantId);
+    this.validateSetupGovernedFields(payload, setup);
 
-    if (payload.email) {
-      const existing = await this.workerRepo.findByEmail(payload.email);
+    const emailCandidates = [payload.workEmail, payload.email, payload.personalEmail].filter(
+      (value): value is string => Boolean(value),
+    );
+    for (const candidate of emailCandidates) {
+      const existing = await this.workerRepo.findByEmail(candidate);
       if (existing) {
         throw new ValidationError('Email already in use');
       }
     }
 
-    const employeeNumber = `EMP-${command.tenantId.value.slice(0, 8)}-${Date.now()}`;
-    const email = payload.email ? new Email(payload.email) : new Email('unknown@example.com');
+    if (payload.employeeNumber && !this.canSetEmployeeNumber(command.actor.roles, setup.employeeIdPolicy.mode)) {
+      if (setup.employeeIdPolicy.mode === 'AUTO') {
+        throw new ValidationError('Manual Employee ID assignment is disabled by the current employee ID policy');
+      }
+      throw new ValidationError('Manual Employee ID assignment requires an app admin role');
+    }
+
+    if (payload.employeeNumber) {
+      const existing = await this.workerRepo.findByEmployeeNumber(payload.employeeNumber);
+      if (existing) {
+        throw new ValidationError('Employee ID already in use');
+      }
+    }
+
+    if (payload.phoneNumber) {
+      const existing = await this.personalDataRepo.findByPayloadField('BASIC', 'phoneNumber', payload.phoneNumber);
+      if (existing) {
+        throw new ValidationError('Phone number already in use');
+      }
+    }
+
+    if (payload.workPhoneNumber) {
+      const existing = await this.personalDataRepo.findByPayloadField('BASIC', 'workPhoneNumber', payload.workPhoneNumber);
+      if (existing) {
+        throw new ValidationError('Work phone number already in use');
+      }
+    }
+
+    const employeeNumber = payload.employeeNumber ?? this.generateEmployeeNumber(command.tenantId, setup.employeeIdPolicy);
+    const primaryEmail = payload.workEmail ?? payload.email ?? payload.personalEmail ?? 'unknown@example.com';
+    const email = new Email(primaryEmail);
+    const hireDate = payload.hireDate ?? command.effectiveDate ?? new Date();
+    const compensation = this.calculateCompensation(payload, setup);
 
     const worker = WorkerProfile.create(
       {
@@ -78,8 +129,12 @@ export class CreateWorkerHandler {
         firstName: payload.firstName,
         lastName: payload.lastName,
         email,
-        hireDate: command.effectiveDate ?? new Date(),
-        employmentType: 'FULL_TIME',
+        hireDate,
+        employmentType: payload.employmentType ?? 'FULL_TIME',
+        legalEntityId: payload.legalEntityId ? new Uuid(payload.legalEntityId) : undefined,
+        departmentId: payload.departmentId ? new Uuid(payload.departmentId) : undefined,
+        managerId: payload.managerId ? new Uuid(payload.managerId) : undefined,
+        jobTitle: payload.jobTitle,
       },
       command.correlationId,
     );
@@ -101,25 +156,79 @@ export class CreateWorkerHandler {
       await this.employmentRelationshipRepo.save(relationship);
     }
 
-    if (payload.dateOfBirth || (payload as unknown as Record<string, unknown>).phoneNumber) {
-      const record = PersonalDataRecord.create(
-        {
-          id: Uuid.generate(),
-          tenantId: command.tenantId,
-          workerId: worker.id,
-          dataCategory: 'BASIC',
-          dataClassification: 'CONFIDENTIAL',
-          payload: {
-            dateOfBirth: payload.dateOfBirth?.toISOString(),
-            phoneNumber: (payload as unknown as Record<string, unknown>).phoneNumber,
-          },
-          consentStatus: 'GRANTED',
-          state: 'DRAFT',
-        },
-        command.correlationId,
-      );
-      await this.personalDataRepo.save(record);
-    }
+    await this.saveProfileRecord(command, worker.id, 'BASIC', {
+      dateOfBirth: payload.dateOfBirth?.toISOString(),
+      gender: payload.gender,
+      personalEmail: payload.personalEmail,
+      workEmail: payload.workEmail,
+      phoneNumber: payload.phoneNumber,
+      workPhoneNumber: payload.workPhoneNumber,
+      photoUrl: payload.photoUrl,
+      photoAttachment: payload.photoAttachment,
+    });
+    await this.saveProfileRecord(command, worker.id, 'CONTACT', {
+      address: payload.address,
+      workLocation: payload.workLocation,
+      socialLinks: payload.socialLinks,
+      departmentName: payload.departmentName,
+      dottedLineManagerId: payload.dottedLineManagerId,
+      hrbpId: payload.hrbpId,
+      mentorId: payload.mentorId,
+      colleagueIds: payload.colleagueIds,
+    });
+    await this.saveProfileRecord(command, worker.id, 'EMERGENCY_CONTACT', {
+      emergencyContact: payload.emergencyContact,
+      emergencyContacts: payload.emergencyContacts,
+    });
+    await this.saveProfileRecord(command, worker.id, 'BACKGROUND', {
+      education: payload.education,
+      experience: payload.experience,
+      certifications: payload.certifications,
+    });
+    await this.saveProfileRecord(command, worker.id, 'WORK_AUTHORIZATION', {
+      workAuthorization: payload.workAuthorization,
+    });
+    await this.saveProfileRecord(command, worker.id, 'COMPENSATION', {
+      salaryAmount: compensation.salaryAmount,
+      grossSalaryAmount: compensation.grossSalaryAmount,
+      taxAmount: compensation.taxAmount,
+      insuranceAmount: compensation.insuranceAmount,
+      netSalaryAmount: compensation.netSalaryAmount,
+      medicalInsuranceAmount: payload.medicalInsuranceAmount,
+      otherBenefitsAmount: payload.otherBenefitsAmount,
+      salaryCurrency: payload.salaryCurrency,
+      salaryBasis: payload.salaryBasis,
+      payFrequency: payload.payFrequency,
+      benefitsPackage: payload.benefitsPackage,
+    });
+    await this.saveProfileRecord(command, worker.id, 'TAX', {
+      taxProfile: payload.taxProfile,
+    });
+    await this.saveProfileRecord(command, worker.id, 'BANKING', {
+      bankAccount: payload.bankAccount,
+    });
+    await this.saveProfileRecord(command, worker.id, 'DEPENDENT', {
+      dependents: payload.dependents,
+      beneficiaries: payload.beneficiaries,
+    });
+    await this.saveProfileRecord(command, worker.id, 'ASSET_ACCESS', {
+      assets: payload.assets,
+      accessBadges: payload.accessBadges,
+    });
+    await this.saveProfileRecord(command, worker.id, 'SKILLS', {
+      skills: payload.skills,
+      licenses: payload.licenses,
+      careerPreferences: payload.careerPreferences,
+    });
+    await this.saveProfileRecord(command, worker.id, 'CONSENT', {
+      consents: payload.consents,
+      privacyNotices: payload.privacyNotices,
+      retentionHolds: payload.retentionHolds,
+    });
+    await this.saveProfileRecord(command, worker.id, 'DOCUMENT', {
+      documents: payload.documents,
+      employmentContract: payload.employmentContract,
+    });
 
     await this.eventPublisher.publishFromAggregate(worker);
 
@@ -151,5 +260,156 @@ export class CreateWorkerHandler {
       eventsEmitted: worker.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
     } as CommandResult<unknown>;
+  }
+
+  private async saveProfileRecord(
+    command: HrCommandEnvelope<unknown>,
+    workerId: Uuid,
+    dataCategory: DataCategory,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const cleaned = Object.fromEntries(
+      Object.entries(payload).filter(([, value]) => {
+        if (value === undefined || value === null || value === '') return false;
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
+        return true;
+      }),
+    );
+    if (Object.keys(cleaned).length === 0) return;
+
+    const record = PersonalDataRecord.create(
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        workerId,
+        dataCategory,
+        dataClassification: this.classifyDataCategory(dataCategory),
+        payload: cleaned,
+        consentStatus: 'GRANTED',
+        state: 'DRAFT',
+      },
+      command.correlationId,
+    );
+    await this.personalDataRepo.save(record);
+  }
+
+  private validateSetupGovernedFields(payload: CreateWorkerPayload, setup: HcmSetupConfig): void {
+    this.validateRequiredFieldRules(payload, setup);
+
+    if (payload.departmentName && !payload.departmentId) {
+      this.assertActiveSetupOption('Department', payload.departmentName, setup.departments);
+    }
+
+    if (payload.jobTitle) {
+      this.assertActiveSetupOption('Job title', payload.jobTitle, setup.jobTitles);
+    }
+
+    this.validateDocumentRequirements(payload.documents, setup.documentRequirements);
+  }
+
+  private validateRequiredFieldRules(payload: CreateWorkerPayload, setup: HcmSetupConfig): void {
+    for (const rule of setup.fieldRules.filter((fieldRule) => fieldRule.active && fieldRule.required)) {
+      if (!hasValue(this.readFieldRuleValue(payload, rule.fieldKey))) {
+        throw new ValidationError(`${rule.label} is required by Admin Settings`);
+      }
+    }
+  }
+
+  private readFieldRuleValue(payload: CreateWorkerPayload, fieldKey: string): unknown {
+    if (fieldKey === 'department') {
+      return payload.departmentId ?? payload.departmentName;
+    }
+    return (payload as unknown as Record<string, unknown>)[fieldKey];
+  }
+
+  private calculateCompensation(payload: CreateWorkerPayload, setup: HcmSetupConfig) {
+    const grossSalaryAmount = payload.grossSalaryAmount ?? payload.salaryAmount;
+    if (grossSalaryAmount === undefined) {
+      return {
+        salaryAmount: payload.salaryAmount,
+        grossSalaryAmount: payload.grossSalaryAmount,
+        taxAmount: payload.taxAmount,
+        insuranceAmount: payload.insuranceAmount,
+        netSalaryAmount: payload.netSalaryAmount,
+      };
+    }
+
+    const taxAmount = payload.taxAmount ?? roundMoney(grossSalaryAmount * (setup.payrollCalculationPolicy.taxRatePercent / 100));
+    const insuranceAmount = payload.insuranceAmount ?? roundMoney(grossSalaryAmount * (setup.payrollCalculationPolicy.employeeInsuranceRatePercent / 100));
+    const netSalaryAmount = payload.netSalaryAmount ?? roundMoney(Math.max(grossSalaryAmount - taxAmount - insuranceAmount, 0));
+
+    return {
+      salaryAmount: payload.salaryAmount ?? grossSalaryAmount,
+      grossSalaryAmount,
+      taxAmount,
+      insuranceAmount,
+      netSalaryAmount,
+    };
+  }
+
+  private classifyDataCategory(dataCategory: DataCategory): 'LOW' | 'CONFIDENTIAL' | 'HIGH_SENSITIVITY' | 'SPECIAL_CATEGORY' | 'LEGAL_HOLD' {
+    if (dataCategory === 'CONSENT') return 'LEGAL_HOLD';
+    if (['BACKGROUND', 'COMPENSATION', 'DOCUMENT', 'TAX', 'BANKING', 'DEPENDENT'].includes(dataCategory)) {
+      return 'HIGH_SENSITIVITY';
+    }
+    return 'CONFIDENTIAL';
+  }
+
+  private assertActiveSetupOption(label: string, value: string, options: SetupOption[] = []): void {
+    const normalized = value.trim().toLowerCase();
+    const exists = options.some((option) =>
+      option.active && [option.code, option.label].some((candidate) => candidate.trim().toLowerCase() === normalized),
+    );
+
+    if (!exists) {
+      throw new ValidationError(`${label} must be configured in Admin Settings`);
+    }
+  }
+
+  private validateDocumentRequirements(
+    documents: Array<Record<string, unknown>> | undefined,
+    requirements: DocumentRequirement[] = [],
+  ): void {
+    if (!documents?.length) return;
+
+    const activeRequirements = requirements.filter((requirement) => requirement.active);
+    const countsByCode = new Map<string, number>();
+
+    for (const document of documents) {
+      const code = typeof document.requirementCode === 'string' ? document.requirementCode.trim() : '';
+      const requirement = activeRequirements.find(
+        (candidate) => candidate.code.trim().toLowerCase() === code.toLowerCase(),
+      );
+
+      if (!requirement) {
+        throw new ValidationError('Document attachments must use a hiring credential slot configured in Admin Settings');
+      }
+
+      const count = (countsByCode.get(requirement.code) ?? 0) + 1;
+      countsByCode.set(requirement.code, count);
+
+      if (!requirement.allowMultiple && count > 1) {
+        throw new ValidationError(`${requirement.label} allows only one attachment`);
+      }
+    }
+  }
+
+  private canSetEmployeeNumber(roles: string[], mode: 'MANUAL_ONLY' | 'AUTO' | 'MANUAL_WITH_APP_ADMIN'): boolean {
+    if (mode === 'MANUAL_ONLY') {
+      return roles.some((role) => ['HR_ADMIN', 'APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'SYSTEM_ACTOR'].includes(role));
+    }
+    return roles.some((role) => ['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'SYSTEM_ACTOR'].includes(role));
+  }
+
+  private generateEmployeeNumber(
+    tenantId: Uuid,
+    policy: { mode: 'MANUAL_ONLY' | 'AUTO' | 'MANUAL_WITH_APP_ADMIN'; prefix?: string; nextNumber?: number },
+  ): string {
+    const prefix = policy.prefix?.trim() || 'EMP';
+    if (policy.mode === 'AUTO' && policy.nextNumber !== undefined) {
+      return `${prefix}-${String(policy.nextNumber).padStart(5, '0')}-${Date.now()}`;
+    }
+    return `${prefix}-${tenantId.value.slice(0, 8)}-${Date.now()}`;
   }
 }

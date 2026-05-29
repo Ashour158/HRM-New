@@ -326,15 +326,73 @@ export class CommandBus implements OnModuleInit {
       }
     }
 
+    if (command.aggregateType === 'AttendanceCorrectionRequest') {
+      const row = await tx
+        .selectFrom('attendance_correction_requests')
+        .select(['id', 'aggregate_version', 'status'])
+        .where('id', '=', command.aggregateId.value)
+        .executeTakeFirst();
+
+      if (row) {
+        const aggregate = new LoadedAggregate(new Uuid(row.id));
+        aggregate.restoreVersion(Number(row.aggregate_version));
+        return aggregate;
+      }
+    }
+
     // TODO(Phase 3): Add loaders for EmploymentRelationship, JobAssignment,
     // Position, JobRequisition, Candidate, Offer, etc.
     return undefined;
   }
 
-  private async stepValidateSubjectWorkerAccess(_command: HrCommandEnvelope<unknown>): Promise<void> {
-    // Phase 3: Verify the actor has a legitimate managerial or delegated
-    // relationship to the subject worker before allowing mutating commands.
-    return;
+  private async stepValidateSubjectWorkerAccess(command: HrCommandEnvelope<unknown>): Promise<void> {
+    if (!command.subjectWorkerId) return;
+    if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT' || command.actor.actorType === 'INTEGRATION') return;
+    if (command.actor.roles.some((role) => ['HR_ADMIN', 'HRBP', 'PAYROLL_ADMIN', 'SUPER_ADMIN'].includes(role))) return;
+    if (command.actor.actorId.value === command.subjectWorkerId.value) return;
+    if (command.actor.roles.includes('MANAGER')) {
+      const report = await this.db
+        .selectFrom('workers')
+        .select(['id'])
+        .where('id', '=', command.subjectWorkerId.value)
+        .where('manager_id', '=', command.actor.actorId.value)
+        .executeTakeFirst();
+      if (report) return;
+    }
+    const actorEmail = (command.actor as { email?: string }).email;
+    if (actorEmail && command.actor.roles.includes('MANAGER')) {
+      const manager = await this.db
+        .selectFrom('workers')
+        .select(['id'])
+        .where('email', '=', actorEmail)
+        .executeTakeFirst();
+      if (manager) {
+        const report = await this.db
+          .selectFrom('workers')
+          .select(['id'])
+          .where('id', '=', command.subjectWorkerId.value)
+          .where('manager_id', '=', manager.id)
+          .executeTakeFirst();
+        if (report) return;
+      }
+    }
+    if (actorEmail) {
+      const self = await this.db
+        .selectFrom('workers')
+        .select(['id'])
+        .where('id', '=', command.subjectWorkerId.value)
+        .where('email', '=', actorEmail)
+        .executeTakeFirst();
+      if (self) return;
+    }
+
+    throw this.makeError(
+      command,
+      CommandPipelineStep.VALIDATE_TENANT_SUBJECT_WORKER_ACCESS,
+      'SUBJECT_WORKER_ACCESS_DENIED',
+      'Employee self-service commands can only target the authenticated employee',
+      false,
+    );
   }
 
   private async stepEvaluateFieldPolicy(_command: HrCommandEnvelope<unknown>): Promise<void> {

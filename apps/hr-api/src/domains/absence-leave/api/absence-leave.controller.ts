@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
 import { LeaveCaseRepository } from '../repositories/leave-case.repository.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
@@ -17,6 +18,7 @@ import {
 } from './dtos.js';
 
 @ApiTags('Absence & Leave')
+@UseGuards(AuthGuard)
 @Controller('absence/leave')
 export class AbsenceLeaveController {
   constructor(
@@ -35,12 +37,13 @@ export class AbsenceLeaveController {
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['ABSENCE_LEAVE_WRITE'], mfaAuthenticated: true },
+      actor: req.actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -57,35 +60,37 @@ export class AbsenceLeaveController {
   /* Absence Requests */
   @Post('absence-requests')
   async createAbsenceRequest(@Body(new ZodValidationPipe(CreateAbsenceRequestDtoSchema)) dto: dtos.CreateAbsenceRequestDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', dto, req));
+    return this.commandBus.execute(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', { ...dto, workerId: new Uuid(dto.workerId) }, req, {
+      subjectWorkerId: new Uuid(dto.workerId),
+    }));
   }
 
   @Post('absence-requests/:id/commands/submit')
   async submitAbsenceRequest(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.absenceRequestRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Absence request not found');
-    return this.commandBus.execute(this.buildCommand('SubmitAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.commandBus.execute(this.buildCommand('SubmitAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('absence-requests/:id/commands/approve')
   async approveAbsenceRequest(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.absenceRequestRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Absence request not found');
-    return this.commandBus.execute(this.buildCommand('ApproveAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id), approvedBy: Uuid.generate() }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.commandBus.execute(this.buildCommand('ApproveAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id), approvedBy: Uuid.generate() }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('absence-requests/:id/commands/reject')
   async rejectAbsenceRequest(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.absenceRequestRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Absence request not found');
-    return this.commandBus.execute(this.buildCommand('RejectAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.commandBus.execute(this.buildCommand('RejectAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('absence-requests/:id/commands/cancel')
   async cancelAbsenceRequest(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.absenceRequestRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Absence request not found');
-    return this.commandBus.execute(this.buildCommand('CancelAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.commandBus.execute(this.buildCommand('CancelAbsenceRequest', 'AbsenceRequest', { absenceRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Get('absence-requests/:id')
@@ -101,7 +106,9 @@ export class AbsenceLeaveController {
   /* Leave Cases */
   @Post('leave-cases')
   async openLeaveCase(@Body(new ZodValidationPipe(OpenLeaveCaseDtoSchema)) dto: dtos.OpenLeaveCaseDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('OpenLeaveCase', 'LeaveCase', dto, req));
+    return this.commandBus.execute(this.buildCommand('OpenLeaveCase', 'LeaveCase', { ...dto, workerId: new Uuid(dto.workerId) }, req, {
+      subjectWorkerId: new Uuid(dto.workerId),
+    }));
   }
 
   @Post('leave-cases/:id/commands/approve')
@@ -152,7 +159,9 @@ export class AbsenceLeaveController {
   /* Accrual Balances */
   @Post('accrual-balances')
   async createAccrualBalance(@Body(new ZodValidationPipe(CreateAbsenceAccrualBalanceDtoSchema)) dto: dtos.CreateAbsenceAccrualBalanceDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateAbsenceAccrualBalance', 'AbsenceAccrualBalance', dto, req));
+    return this.commandBus.execute(this.buildCommand('CreateAbsenceAccrualBalance', 'AbsenceAccrualBalance', { ...dto, workerId: new Uuid(dto.workerId) }, req, {
+      subjectWorkerId: new Uuid(dto.workerId),
+    }));
   }
 
   @Post('accrual-balances/:id/commands/update')
@@ -189,7 +198,9 @@ export class AbsenceLeaveController {
   /* Entitlement Calculations */
   @Post('entitlement-calculations')
   async startEntitlementCalculation(@Body(new ZodValidationPipe(StartLeaveEntitlementCalculationDtoSchema)) dto: dtos.StartLeaveEntitlementCalculationDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('StartLeaveEntitlementCalculation', 'LeaveEntitlementCalculation', dto, req));
+    return this.commandBus.execute(this.buildCommand('StartLeaveEntitlementCalculation', 'LeaveEntitlementCalculation', { ...dto, workerId: new Uuid(dto.workerId) }, req, {
+      subjectWorkerId: new Uuid(dto.workerId),
+    }));
   }
 
   @Post('entitlement-calculations/:id/commands/complete')

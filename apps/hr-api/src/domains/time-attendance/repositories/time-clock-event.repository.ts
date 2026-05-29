@@ -23,6 +23,19 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
     return rows.map((r) => this.toAggregate(r as unknown as Database['time_clock_events']));
   }
 
+  async findByWorkersBetween(workerIds: Uuid[], startAt: Date, endAt: Date): Promise<TimeClockEvent[]> {
+    if (workerIds.length === 0) return [];
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('worker_id', 'in', workerIds.map((id) => id.value))
+      .where('timestamp', '>=', startAt)
+      .where('timestamp', '<', endAt)
+      .orderBy('timestamp', 'asc')
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['time_clock_events']));
+  }
+
   async save(entity: TimeClockEvent): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

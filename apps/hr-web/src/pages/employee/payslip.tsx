@@ -151,6 +151,15 @@ export function EmployeePayslip() {
               </div>
 
               <div className="space-y-2">
+                {(selectedPayslip.lines ?? []).map((line) => (
+                  <div key={line.id} className="flex justify-between gap-4 py-2 border-b">
+                    <div>
+                      <span className="text-sm font-medium">{line.description}</span>
+                      {line.explanation ? <p className="text-xs text-muted-foreground">{line.explanation}</p> : null}
+                    </div>
+                    <span className="text-sm font-medium">{formatCurrency(line.amount, line.currency)}</span>
+                  </div>
+                ))}
                 <div className="flex justify-between py-2 border-b">
                   <span className="text-sm">Taxes</span>
                   <span className="text-sm font-medium">{formatCurrency(selectedPayslip.taxes, selectedPayslip.currency)}</span>

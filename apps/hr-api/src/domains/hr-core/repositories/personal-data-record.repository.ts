@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
-import type { Insertable, Updateable } from 'kysely';
+import { sql, type Insertable, type Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import {
   PersonalDataRecord,
@@ -41,6 +41,20 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .where('data_category', '=', dataCategory)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
+  }
+
+  async findByPayloadField(
+    dataCategory: DataCategory,
+    fieldName: string,
+    value: string,
+  ): Promise<PersonalDataRecord | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('data_category', '=', dataCategory)
+      .where(sql<string>`payload ->> ${fieldName}`, '=', value)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
   }

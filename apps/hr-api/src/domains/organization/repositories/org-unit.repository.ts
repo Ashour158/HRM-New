@@ -63,8 +63,12 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
     return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.org_units']));
   }
 
-  async findTree(): Promise<OrgUnitNode[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().execute();
+  async findTree(tenantId: Uuid): Promise<OrgUnitNode[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
     const entities = rows.map((r) => this.toEntity(r as unknown as Database['hr_org.org_units']));
     const map = new Map<string, OrgUnitNode>();
     const roots: OrgUnitNode[] = [];

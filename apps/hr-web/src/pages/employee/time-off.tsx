@@ -95,7 +95,7 @@ export function EmployeeTimeOff() {
             <Calendar className="h-6 w-6" />
             Time Off
           </h2>
-          <p className="text-muted-foreground">Submit and track your absence requests</p>
+          <p className="text-muted-foreground">Submit and track your leave requests</p>
         </div>
         <AllowedActions
           aggregateType="ABSENCE"
@@ -135,14 +135,14 @@ export function EmployeeTimeOff() {
       {showForm && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Submit Absence Request</CardTitle>
-            <CardDescription>Fill in the details for your time off request</CardDescription>
+            <CardTitle className="text-lg">Submit Leave Request</CardTitle>
+            <CardDescription>Fill in the details for your leave request</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="type">Absence Type</Label>
+                  <Label htmlFor="type">Leave Type</Label>
                   <select
                     id="type"
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -182,7 +182,7 @@ export function EmployeeTimeOff() {
                 <Label htmlFor="reason">Reason</Label>
                 <Input
                   id="reason"
-                  placeholder="Optional reason for absence"
+                  placeholder="Optional reason for leave"
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
                 />
@@ -209,7 +209,7 @@ export function EmployeeTimeOff() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Request History</CardTitle>
-          <CardDescription>Your past and pending absence requests</CardDescription>
+          <CardDescription>Your past and pending leave requests</CardDescription>
         </CardHeader>
         <CardContent>
           <DataTable
@@ -217,7 +217,7 @@ export function EmployeeTimeOff() {
             data={requests ?? []}
             keyExtractor={(row) => row.id}
             isLoading={requestsLoading}
-            emptyMessage="No absence requests found"
+            emptyMessage="No leave requests found"
           />
         </CardContent>
       </Card>

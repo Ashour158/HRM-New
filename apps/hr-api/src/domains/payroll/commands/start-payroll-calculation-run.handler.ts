@@ -17,9 +17,23 @@ export class StartPayrollCalculationRunHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { payrollCycleId: Uuid; currency: string };
+    const payload = command.payload as {
+      payrollCycleId: Uuid;
+      currency: string;
+      totalWorkers?: number;
+      totalGrossPay?: number;
+      totalNetPay?: number;
+    };
     const run = PayrollCalculationRun.start(
-      { id: Uuid.generate(), tenantId: command.tenantId, payrollCycleId: payload.payrollCycleId, currency: payload.currency },
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        payrollCycleId: payload.payrollCycleId,
+        currency: payload.currency,
+        totalWorkers: payload.totalWorkers,
+        totalGrossPay: payload.totalGrossPay,
+        totalNetPay: payload.totalNetPay,
+      },
       command.correlationId,
     );
     await this.repo.save(run);

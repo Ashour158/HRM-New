@@ -33,6 +33,7 @@ export class RejectOvertimeHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ot.status, 'OvertimeApproval'),
       eventsEmitted: ot.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
+    fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

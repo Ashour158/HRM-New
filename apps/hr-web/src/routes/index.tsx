@@ -1,6 +1,8 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppLayout } from '@/layouts/app-layout';
 import { PortalLayout } from '@/layouts/portal-layout';
+import { useAuth } from '@/hooks/use-auth';
 import { LoginPage } from '@/pages/login';
 import { EmployeeDashboard } from '@/pages/employee/dashboard';
 import { EmployeeProfile } from '@/pages/employee/profile';
@@ -9,12 +11,32 @@ import { EmployeeBenefits } from '@/pages/employee/benefits';
 import { EmployeeTimeOff } from '@/pages/employee/time-off';
 import { ManagerDashboard } from '@/pages/manager/dashboard';
 import { ManagerTeam } from '@/pages/manager/team';
+import { ManagerApprovals } from '@/pages/manager/approvals';
 import { AdminDashboard } from '@/pages/admin/dashboard';
 import { AdminWorkers } from '@/pages/admin/workers';
+import { AdminEmployeeCreate } from '@/pages/admin/employee-create';
+import { AdminEmployeeProfile } from '@/pages/admin/employee-profile';
 import { AdminOrganization } from '@/pages/admin/organization';
+import { AdminAttendance } from '@/pages/admin/attendance';
 import { AdminPayroll } from '@/pages/admin/payroll';
 import { AdminCompliance } from '@/pages/admin/compliance';
 import { AdminCountryPolicy } from '@/pages/admin/country-policy';
+import { AdminSettings } from '@/pages/admin/settings';
+
+function RequireAuth({ children }: { children: ReactNode }) {
+  const location = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  return <>{children}</>;
+}
 
 /**
  * Application route definitions.
@@ -29,18 +51,20 @@ export function AppRoutes() {
       <Route
         path="/employee/*"
         element={
-          <AppLayout>
-            <PortalLayout>
-              <Routes>
-                <Route index element={<EmployeeDashboard />} />
-                <Route path="profile" element={<EmployeeProfile />} />
-                <Route path="payslip" element={<EmployeePayslip />} />
-                <Route path="benefits" element={<EmployeeBenefits />} />
-                <Route path="time-off" element={<EmployeeTimeOff />} />
-                <Route path="*" element={<Navigate to="/employee" replace />} />
-              </Routes>
-            </PortalLayout>
-          </AppLayout>
+          <RequireAuth>
+            <AppLayout>
+              <PortalLayout>
+                <Routes>
+                  <Route index element={<EmployeeDashboard />} />
+                  <Route path="profile" element={<EmployeeProfile />} />
+                  <Route path="payslip" element={<EmployeePayslip />} />
+                  <Route path="benefits" element={<EmployeeBenefits />} />
+                  <Route path="time-off" element={<EmployeeTimeOff />} />
+                  <Route path="*" element={<Navigate to="/employee" replace />} />
+                </Routes>
+              </PortalLayout>
+            </AppLayout>
+          </RequireAuth>
         }
       />
 
@@ -48,18 +72,18 @@ export function AppRoutes() {
       <Route
         path="/manager/*"
         element={
-          <AppLayout>
-            <PortalLayout>
-              <Routes>
-                <Route index element={<ManagerDashboard />} />
-                <Route path="team" element={<ManagerTeam />} />
-                <Route path="approvals" element={<div className="p-4">Approvals Page - Coming Soon</div>} />
-                <Route path="performance" element={<div className="p-4">Performance Page - Coming Soon</div>} />
-                <Route path="requisitions" element={<div className="p-4">Requisitions Page - Coming Soon</div>} />
-                <Route path="*" element={<Navigate to="/manager" replace />} />
-              </Routes>
-            </PortalLayout>
-          </AppLayout>
+          <RequireAuth>
+            <AppLayout>
+              <PortalLayout>
+                <Routes>
+                  <Route index element={<ManagerDashboard />} />
+                  <Route path="team" element={<ManagerTeam />} />
+                  <Route path="approvals" element={<ManagerApprovals />} />
+                  <Route path="*" element={<Navigate to="/manager" replace />} />
+                </Routes>
+              </PortalLayout>
+            </AppLayout>
+          </RequireAuth>
         }
       />
 
@@ -67,59 +91,41 @@ export function AppRoutes() {
       <Route
         path="/admin/*"
         element={
-          <AppLayout>
-            <PortalLayout>
-              <Routes>
-                <Route index element={<AdminDashboard />} />
-                <Route path="workers" element={<AdminWorkers />} />
-                <Route path="organization" element={<AdminOrganization />} />
-                <Route path="payroll" element={<AdminPayroll />} />
-                <Route path="compliance" element={<AdminCompliance />} />
-                <Route path="country-policy" element={<AdminCountryPolicy />} />
-                <Route path="*" element={<Navigate to="/admin" replace />} />
-              </Routes>
-            </PortalLayout>
-          </AppLayout>
+          <RequireAuth>
+            <AppLayout>
+              <PortalLayout>
+                <Routes>
+                  <Route index element={<AdminDashboard />} />
+                  <Route path="employees/new" element={<AdminEmployeeCreate />} />
+                  <Route path="employees/:id" element={<AdminEmployeeProfile />} />
+                  <Route path="employees" element={<AdminWorkers />} />
+                  <Route path="workers" element={<Navigate to="/admin/employees" replace />} />
+                  <Route path="organization" element={<AdminOrganization />} />
+                  <Route path="attendance" element={<AdminAttendance />} />
+                  <Route path="payroll" element={<AdminPayroll />} />
+                  <Route path="compliance" element={<AdminCompliance />} />
+                  <Route path="country-policy" element={<AdminCountryPolicy />} />
+                  <Route path="settings" element={<AdminSettings />} />
+                  <Route path="*" element={<Navigate to="/admin" replace />} />
+                </Routes>
+              </PortalLayout>
+            </AppLayout>
+          </RequireAuth>
         }
       />
 
-      {/* Recruiter Workspace */}
-      <Route
-        path="/recruiter/*"
-        element={
-          <AppLayout>
-            <PortalLayout>
-              <Routes>
-                <Route index element={<div className="p-4">Recruiter Dashboard - Coming Soon</div>} />
-                <Route path="*" element={<Navigate to="/recruiter" replace />} />
-              </Routes>
-            </PortalLayout>
-          </AppLayout>
-        }
-      />
-
-      {/* Payroll Console */}
-      <Route
-        path="/payroll/*"
-        element={
-          <AppLayout>
-            <PortalLayout>
-              <Routes>
-                <Route index element={<div className="p-4">Payroll Console - Coming Soon</div>} />
-                <Route path="*" element={<Navigate to="/payroll" replace />} />
-              </Routes>
-            </PortalLayout>
-          </AppLayout>
-        }
-      />
+      <Route path="/recruiter/*" element={<Navigate to="/employee" replace />} />
+      <Route path="/payroll/*" element={<Navigate to="/admin/payroll" replace />} />
 
       {/* Settings */}
       <Route
         path="/settings"
         element={
-          <AppLayout>
-            <div className="p-4">Settings Page - Coming Soon</div>
-          </AppLayout>
+          <RequireAuth>
+            <AppLayout>
+              <Navigate to="/admin/settings" replace />
+            </AppLayout>
+          </RequireAuth>
         }
       />
 

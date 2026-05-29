@@ -127,7 +127,7 @@ export function EmployeeProfile() {
     <div className="space-y-6">
       {isDemo && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
-          <strong>Development Mode:</strong> Showing demo profile data because <code>/employee/profile</code> is not yet wired to an authenticated user endpoint. Create a worker in the Admin Workers page to see real data.
+          <strong>Development Mode:</strong> Showing demo profile data because <code>/employee/profile</code> is not yet wired to an authenticated user endpoint. Create an employee in the Admin Employees page to see real data.
         </div>
       )}
       {/* Header */}

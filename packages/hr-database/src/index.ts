@@ -12,4 +12,5 @@ export type {
   TransitionLedgersTable,
   OutboxEventsTable,
   InboxEventsTable,
+  HcmSetupConfigsTable,
 } from './types/platform-tables.js';

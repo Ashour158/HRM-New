@@ -23,6 +23,42 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
     return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
   }
 
+  async findByTenant(tenantId: Uuid, status?: AbsenceRequestStatus): Promise<AbsenceRequest[]> {
+    let query = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value);
+
+    if (status) {
+      query = query.where('status', '=', status);
+    }
+
+    const rows = await query.orderBy('created_at', 'desc').execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+  }
+
+  async findApprovedOverlapping(
+    tenantId: Uuid,
+    startDate: string,
+    endDate: string,
+    workerIds?: string[],
+  ): Promise<AbsenceRequest[]> {
+    let query = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('status', '=', 'APPROVED')
+      .where('start_date', '<=', new Date(`${endDate}T00:00:00.000Z`))
+      .where('end_date', '>=', new Date(`${startDate}T00:00:00.000Z`));
+
+    if (workerIds && workerIds.length > 0) {
+      query = query.where('worker_id', 'in', workerIds);
+    }
+
+    const rows = await query.orderBy('start_date', 'asc').execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+  }
+
   async save(entity: AbsenceRequest): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

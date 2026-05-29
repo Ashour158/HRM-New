@@ -33,6 +33,7 @@ export class EscalateAttendanceExceptionHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ex.status, 'AttendanceException'),
       eventsEmitted: ex.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
+    fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

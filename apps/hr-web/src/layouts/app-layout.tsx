@@ -20,8 +20,6 @@ import {
   X,
   Home,
   Users,
-  Briefcase,
-  DollarSign,
   Bell,
   ChevronDown,
   LogOut,
@@ -41,8 +39,6 @@ const navItems: NavItem[] = [
   { label: 'Employee Portal', path: '/employee', icon: <UserCircle className="h-5 w-5" />, roles: ['EMPLOYEE'] },
   { label: 'Manager Hub', path: '/manager', icon: <Users className="h-5 w-5" />, roles: ['MANAGER'] },
   { label: 'HR Admin', path: '/admin', icon: <Shield className="h-5 w-5" />, roles: ['HR_ADMIN'] },
-  { label: 'Recruiter', path: '/recruiter', icon: <Briefcase className="h-5 w-5" />, roles: ['RECRUITER'] },
-  { label: 'Payroll', path: '/payroll', icon: <DollarSign className="h-5 w-5" />, roles: ['PAYROLL_ADMIN'] },
 ];
 
 /**
@@ -56,6 +52,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  if (location.pathname.startsWith('/employee')) {
+    return <div className="min-h-screen bg-[#e9eef5]">{children}</div>;
+  }
 
   const accessibleNavItems = navItems.filter((item) => {
     if (!item.roles) return true;

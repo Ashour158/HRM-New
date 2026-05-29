@@ -22,8 +22,8 @@ export class CreateWorkScheduleHandler {
       scheduleType: string;
       startDate: Date;
       endDate?: Date;
-      daysOfWeek: string[];
-      hoursPerDay: number;
+      daysOfWeek?: string[];
+      hoursPerDay?: number;
       timezone: string;
     };
     const ws = WorkSchedule.create(
@@ -34,8 +34,8 @@ export class CreateWorkScheduleHandler {
         scheduleType: payload.scheduleType,
         startDate: payload.startDate,
         endDate: payload.endDate,
-        daysOfWeek: payload.daysOfWeek,
-        hoursPerDay: payload.hoursPerDay,
+        daysOfWeek: payload.daysOfWeek ?? [],
+        hoursPerDay: payload.hoursPerDay ?? 0,
         timezone: payload.timezone,
       },
       command.correlationId,
@@ -53,6 +53,7 @@ export class CreateWorkScheduleHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ws.status, 'WorkSchedule'),
       eventsEmitted: ws.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
+    fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

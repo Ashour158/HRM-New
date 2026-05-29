@@ -2,13 +2,12 @@
 import { useApiQuery } from '@/hooks/use-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
-import { Heart, Users, Calendar, Plus } from 'lucide-react';
+import { Heart, Users, Calendar } from 'lucide-react';
 import type { BenefitEnrollment } from '@/types';
 
 interface BenefitsData {
@@ -81,10 +80,6 @@ export function EmployeeBenefits() {
                 Deadline: {formatDate(data.openEnrollmentDeadline)}
               </p>
             </div>
-            <Button size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Enroll Now
-            </Button>
           </div>
         </div>
       )}

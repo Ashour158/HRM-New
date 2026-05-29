@@ -3,20 +3,16 @@ import { useApiQuery, useApiMutation } from '@/hooks/use-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
-import { Upload, CheckCircle2, Globe, FileText, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Globe, AlertCircle } from 'lucide-react';
 import type { CountryPolicyPack, ValidationResult } from '@/types';
 
 /**
  * Country Policy v1.4 management page with packs, validation, simulation, and approval.
  */
 export function AdminCountryPolicy() {
-  const [uploadOpen, setUploadOpen] = React.useState(false);
-
   const [simulationResult, setSimulationResult] = React.useState<ValidationResult | null>(null);
 
   const { data: policyPacks, isLoading } = useApiQuery<CountryPolicyPack[]>(
@@ -116,10 +112,6 @@ export function AdminCountryPolicy() {
           </h2>
           <p className="text-muted-foreground">Manage country-specific policy packs</p>
         </div>
-        <Button onClick={() => setUploadOpen(true)}>
-          <Upload className="mr-2 h-4 w-4" />
-          Upload Pack
-        </Button>
       </div>
 
       {/* Validation/Simulation Result */}
@@ -181,33 +173,6 @@ export function AdminCountryPolicy() {
         </CardContent>
       </Card>
 
-      {/* Upload Dialog */}
-      <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Upload Policy Pack</DialogTitle>
-            <DialogDescription>Upload a new country policy pack file</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-lg border border-dashed p-8 text-center">
-              <FileText className="mx-auto h-8 w-8 text-muted-foreground" />
-              <p className="mt-2 text-sm text-muted-foreground">
-                Drag and drop your policy pack file here, or click to browse
-              </p>
-              <input type="file" className="hidden" accept=".json,.yaml,.yml" />
-              <Button variant="outline" className="mt-4">
-                Browse Files
-              </Button>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setUploadOpen(false)}>
-                Cancel
-              </Button>
-              <Button>Upload</Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

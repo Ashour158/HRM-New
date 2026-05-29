@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { HrCoreController } from './api/hr-core.controller.js';
 import { WorkerRepository } from './repositories/worker.repository.js';
@@ -22,7 +23,7 @@ import { registerJobAssignmentFsm } from './fsm/job-assignment.fsm.js';
 import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js';
 
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HcmSetupModule],
   controllers: [HrCoreController],
   providers: [
     WorkerRepository,
@@ -40,7 +41,7 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     WorkerEventsPublisher,
     WorkerViewProjectionBuilder,
   ],
-  exports: [WorkerRepository, EmploymentRelationshipRepository, JobAssignmentRepository],
+  exports: [WorkerRepository, EmploymentRelationshipRepository, JobAssignmentRepository, PersonalDataRecordRepository],
 })
 export class HrCoreModule implements OnModuleInit {
   constructor(private readonly fsm: FsmFramework) {}

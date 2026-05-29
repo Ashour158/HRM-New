@@ -1,21 +1,27 @@
-import { useCallback, useMemo } from 'react';
-import { apiClient } from '@/lib/api-client';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState } from 'react';
 import type { Tenant, TenantConfig } from '@/types';
+
+const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
+const DEFAULT_TENANT: Tenant = {
+  id: DEFAULT_TENANT_ID,
+  name: 'Default Tenant',
+  config: {
+    currency: 'USD',
+    dateFormat: 'MM/DD/YYYY',
+    timezone: 'UTC',
+    features: [],
+  },
+};
 
 /**
  * Fetches the list of available tenants.
  * @returns Query result for tenants list
  */
 function useTenantsQuery() {
-  return useQuery({
-    queryKey: ['tenants'],
-    queryFn: async () => {
-      const response = await apiClient.get<{ success: boolean; data: Tenant[] }>('/tenants');
-      return response.data.data;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+  return {
+    data: [DEFAULT_TENANT],
+    isLoading: false,
+  };
 }
 
 /**
@@ -23,7 +29,7 @@ function useTenantsQuery() {
  * @returns Tenant state, config, and selection methods
  */
 export function useTenant() {
-  const tenantId = localStorage.getItem('tenant_id') || '';
+  const [tenantId, setTenantIdState] = useState(() => localStorage.getItem('tenant_id') || DEFAULT_TENANT_ID);
 
   const { data: tenants = [], isLoading } = useTenantsQuery();
 
@@ -47,7 +53,7 @@ export function useTenant() {
    */
   const setTenantId = useCallback((id: string) => {
     localStorage.setItem('tenant_id', id);
-    window.location.reload();
+    setTenantIdState(id);
   }, []);
 
   return {

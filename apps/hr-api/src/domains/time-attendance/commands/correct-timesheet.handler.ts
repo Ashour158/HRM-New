@@ -33,6 +33,7 @@ export class CorrectTimesheetHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ts.status, 'Timesheet'),
       eventsEmitted: ts.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
+    fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

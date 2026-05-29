@@ -66,7 +66,7 @@ export function AdminCompliance() {
   ];
 
   const ackColumns = [
-    { key: 'worker', header: 'Worker', cell: (row: Acknowledgement) => row.workerName },
+    { key: 'worker', header: 'Employee', cell: (row: Acknowledgement) => row.workerName },
     { key: 'policy', header: 'Policy', cell: (row: Acknowledgement) => row.policyTitle },
     {
       key: 'status',

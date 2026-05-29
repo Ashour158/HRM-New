@@ -87,6 +87,14 @@ export interface InboxEventsTable {
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
+export interface HcmSetupConfigsTable {
+  id: string;
+  tenant_id: string;
+  config: unknown;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface WorkersTable {
   id: string;
   tenant_id: string;
@@ -781,6 +789,64 @@ export interface AttendanceExceptionsTable {
   updated_at: Date;
 }
 
+export interface AttendanceDailyLedgersTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  employee_id: string;
+  worker_name: string;
+  work_date: Date;
+  status: string;
+  scheduled: boolean;
+  holiday_name: string | null;
+  first_check_in_at: Date | null;
+  latest_check_out_at: Date | null;
+  location_status: string;
+  worked_minutes: number;
+  payable_minutes: number;
+  deduction_minutes: number;
+  overtime_minutes: number;
+  late_minutes: number;
+  undertime_minutes: number;
+  exception_count: number;
+  ready_for_payroll: boolean;
+  locked: boolean;
+  locked_at: Date | null;
+  locked_by: string | null;
+  payroll_cycle_id: string | null;
+  source_hash: string;
+  ledger_payload: unknown;
+  payroll_payload: unknown;
+  governance: unknown;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AttendanceCorrectionRequestsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  work_date: Date;
+  correction_type: string;
+  requested_event_type: string | null;
+  requested_timestamp: Date | null;
+  target_event_id: string | null;
+  reason: string;
+  status: string;
+  requested_by: string;
+  requested_at: Date;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  applied_by: string | null;
+  applied_at: Date | null;
+  applied_event_id: string | null;
+  audit_trail: unknown;
+  aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
 export interface OvertimeApprovalsTable {
   id: string;
   tenant_id: string;
@@ -921,6 +987,88 @@ export interface PayrollResultLinesTable {
   explanation: string | null;
   status: string;
   aggregate_version: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollPaymentBatchesTable {
+  id: string;
+  tenant_id: string;
+  payroll_cycle_id: string;
+  batch_number: string;
+  status: string;
+  period_start: Date;
+  period_end: Date;
+  pay_date: Date;
+  currency: string;
+  ready_count: number;
+  blocked_count: number;
+  total_net: number;
+  file_hash: string;
+  payload: unknown;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: Date | null;
+  exported_at: Date | null;
+  reconciled_at: Date | null;
+  bank_file_format: string | null;
+  reconciliation_summary: unknown;
+  workflow_events: unknown;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollPayslipArtifactsTable {
+  id: string;
+  tenant_id: string;
+  payroll_cycle_id: string;
+  worker_id: string;
+  employee_id: string;
+  artifact_format: string;
+  status: string;
+  gross_pay: number;
+  net_pay: number;
+  currency: string;
+  content_hash: string;
+  html_content: string;
+  data_classification: string;
+  published_by: string | null;
+  published_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface PayrollExportJobsTable {
+  id: string;
+  tenant_id: string;
+  payroll_cycle_id: string | null;
+  export_type: string;
+  status: string;
+  requested_by: string | null;
+  purpose: string;
+  filters: unknown;
+  row_count: number;
+  file_name: string;
+  file_hash: string;
+  data_classification: string;
+  created_at: Date;
+  completed_at: Date;
+}
+
+export interface PayrollGlPostingsTable {
+  id: string;
+  tenant_id: string;
+  payroll_cycle_id: string;
+  posting_number: string;
+  status: string;
+  total_debits: number;
+  total_credits: number;
+  currency: string;
+  lines: unknown;
+  source_hash: string;
+  created_by: string | null;
+  approved_by: string | null;
+  posted_at: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -1462,6 +1610,7 @@ export interface Database {
   transition_ledgers: TransitionLedgersTable;
   outbox_events: OutboxEventsTable;
   inbox_events: InboxEventsTable;
+  hcm_setup_configs: HcmSetupConfigsTable;
   workers: WorkersTable;
   employment_relationships: EmploymentRelationshipsTable;
   job_assignments: JobAssignmentsTable;
@@ -1506,6 +1655,8 @@ export interface Database {
   timesheets: TimesheetsTable;
   time_clock_events: TimeClockEventsTable;
   attendance_exceptions: AttendanceExceptionsTable;
+  attendance_daily_ledgers: AttendanceDailyLedgersTable;
+  attendance_correction_requests: AttendanceCorrectionRequestsTable;
   overtime_approvals: OvertimeApprovalsTable;
   absence_requests: AbsenceRequestsTable;
   leave_cases: LeaveCasesTable;
@@ -1515,6 +1666,10 @@ export interface Database {
   payroll_inputs: PayrollInputsTable;
   payroll_calculation_runs: PayrollCalculationRunsTable;
   payroll_result_lines: PayrollResultLinesTable;
+  payroll_payment_batches: PayrollPaymentBatchesTable;
+  payroll_payslip_artifacts: PayrollPayslipArtifactsTable;
+  payroll_export_jobs: PayrollExportJobsTable;
+  payroll_gl_postings: PayrollGlPostingsTable;
 
   shift_schedules: ShiftSchedulesTable;
   open_shifts: OpenShiftsTable;

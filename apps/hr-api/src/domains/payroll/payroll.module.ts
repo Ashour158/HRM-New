@@ -1,11 +1,19 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
+import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { TimeAttendanceModule } from '../time-attendance/time-attendance.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { PayrollController } from './api/payroll.controller.js';
+import { EmployeePayrollController } from './api/employee-payroll.controller.js';
 import { PayrollCycleRepository } from './repositories/payroll-cycle.repository.js';
 import { PayrollInputRepository } from './repositories/payroll-input.repository.js';
 import { PayrollCalculationRunRepository } from './repositories/payroll-calculation-run.repository.js';
 import { PayrollResultLineRepository } from './repositories/payroll-result-line.repository.js';
+import { PayrollPaymentBatchRepository } from './repositories/payroll-payment-batch.repository.js';
+import { PayrollPayslipArtifactRepository } from './repositories/payroll-payslip-artifact.repository.js';
+import { PayrollExportJobRepository } from './repositories/payroll-export-job.repository.js';
+import { PayrollGlPostingRepository } from './repositories/payroll-gl-posting.repository.js';
 import { CreatePayrollCycleHandler } from './commands/create-payroll-cycle.handler.js';
 import { OpenPayrollCycleHandler } from './commands/open-payroll-cycle.handler.js';
 import { StartPayrollInputCollectionHandler } from './commands/start-payroll-input-collection.handler.js';
@@ -32,19 +40,32 @@ import { LockPayrollResultLineHandler } from './commands/lock-payroll-result-lin
 import { PayrollEventsPublisher } from './events/payroll-events.publisher.js';
 import { PayrollCalculationSaga } from './sagas/payroll-calculation-saga.js';
 import { PayrollInputBuilderSaga } from './sagas/payroll-input-builder-saga.js';
+import { PayrollCycleCalculationService } from './services/payroll-cycle-calculation.service.js';
+import { PayrollCycleGovernanceService } from './services/payroll-cycle-governance.service.js';
+import { PayrollInputOrchestrationService } from './services/payroll-input-orchestration.service.js';
+import { PayrollApprovedInputProjectionService } from './services/payroll-approved-input-projection.service.js';
+import { PayrollArtifactService } from './services/payroll-artifact.service.js';
+import { PayrollEnterpriseWorkflowService } from './services/payroll-enterprise-workflow.service.js';
+import { PayrollBankFileService } from './services/payroll-bank-file.service.js';
+import { PayrollGlPostingService } from './services/payroll-gl-posting.service.js';
+import { PayrollStatutoryPolicyService } from './services/payroll-statutory-policy.service.js';
 import { registerPayrollCycleFsm } from './fsm/payroll-cycle.fsm.js';
 import { registerPayrollInputFsm } from './fsm/payroll-input.fsm.js';
 import { registerPayrollCalculationRunFsm } from './fsm/payroll-calculation-run.fsm.js';
 import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
 
 @Module({
-  imports: [PlatformModule],
-  controllers: [PayrollController],
+  imports: [PlatformModule, HcmSetupModule, HrCoreModule, TimeAttendanceModule],
+  controllers: [PayrollController, EmployeePayrollController],
   providers: [
     PayrollCycleRepository,
     PayrollInputRepository,
     PayrollCalculationRunRepository,
     PayrollResultLineRepository,
+    PayrollPaymentBatchRepository,
+    PayrollPayslipArtifactRepository,
+    PayrollExportJobRepository,
+    PayrollGlPostingRepository,
     CreatePayrollCycleHandler,
     OpenPayrollCycleHandler,
     StartPayrollInputCollectionHandler,
@@ -71,8 +92,35 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     PayrollEventsPublisher,
     PayrollCalculationSaga,
     PayrollInputBuilderSaga,
+    PayrollCycleCalculationService,
+    PayrollCycleGovernanceService,
+    PayrollInputOrchestrationService,
+    PayrollApprovedInputProjectionService,
+    PayrollArtifactService,
+    PayrollEnterpriseWorkflowService,
+    PayrollBankFileService,
+    PayrollGlPostingService,
+    PayrollStatutoryPolicyService,
   ],
-  exports: [PayrollCycleRepository, PayrollInputRepository, PayrollCalculationRunRepository, PayrollResultLineRepository],
+  exports: [
+    PayrollCycleRepository,
+    PayrollInputRepository,
+    PayrollCalculationRunRepository,
+    PayrollResultLineRepository,
+    PayrollPaymentBatchRepository,
+    PayrollPayslipArtifactRepository,
+    PayrollExportJobRepository,
+    PayrollGlPostingRepository,
+    PayrollCycleCalculationService,
+    PayrollCycleGovernanceService,
+    PayrollInputOrchestrationService,
+    PayrollApprovedInputProjectionService,
+    PayrollArtifactService,
+    PayrollEnterpriseWorkflowService,
+    PayrollBankFileService,
+    PayrollGlPostingService,
+    PayrollStatutoryPolicyService,
+  ],
 })
 export class PayrollModule implements OnModuleInit {
   constructor(private readonly fsm: FsmFramework) {}

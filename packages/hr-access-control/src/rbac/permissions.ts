@@ -46,6 +46,7 @@ export const COMPENSATION_APPROVE = 'COMPENSATION_APPROVE';
 // Performance domain
 export const PERFORMANCE_READ = 'PERFORMANCE_READ';
 export const PERFORMANCE_CREATE = 'PERFORMANCE_CREATE';
+export const PERFORMANCE_WRITE = 'PERFORMANCE_WRITE';
 export const PERFORMANCE_APPROVE = 'PERFORMANCE_APPROVE';
 
 // Learning domain
@@ -93,7 +94,7 @@ export const ALL_PERMISSIONS: readonly string[] = [
   PAYROLL_READ, PAYROLL_CREATE, PAYROLL_APPROVE, PAYROLL_EXPORT,
   BENEFITS_READ, BENEFITS_ENROLL, BENEFITS_APPROVE,
   COMPENSATION_READ, COMPENSATION_CHANGE, COMPENSATION_APPROVE,
-  PERFORMANCE_READ, PERFORMANCE_CREATE, PERFORMANCE_APPROVE,
+  PERFORMANCE_READ, PERFORMANCE_CREATE, PERFORMANCE_WRITE, PERFORMANCE_APPROVE,
   LEARNING_READ, LEARNING_ASSIGN, LEARNING_APPROVE,
   ABSENCE_READ, ABSENCE_APPROVE, ABSENCE_MANAGE,
   TIME_READ, TIME_APPROVE, TIME_MANAGE,
@@ -153,6 +154,7 @@ const PERMISSION_CATALOG: Record<string, PermissionDefinition> = {
 
   [PERFORMANCE_READ]: { code: PERFORMANCE_READ, description: 'Read performance data', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: false },
   [PERFORMANCE_CREATE]: { code: PERFORMANCE_CREATE, description: 'Create performance reviews', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
+  [PERFORMANCE_WRITE]: { code: PERFORMANCE_WRITE, description: 'Write performance data', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
   [PERFORMANCE_APPROVE]: { code: PERFORMANCE_APPROVE, description: 'Approve performance ratings', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
 
   [LEARNING_READ]: { code: LEARNING_READ, description: 'Read learning data', dataClassificationRequired: 'LOW', auditOnAccess: false },

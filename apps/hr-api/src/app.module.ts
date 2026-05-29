@@ -30,12 +30,13 @@ import { HrAiGovernanceModule } from './domains/hr-ai-governance/hr-ai-governanc
 import { IntegrationsModule } from './integrations/integrations.module.js';
 import { OrganizationModule } from './domains/organization/organization.module.js';
 import { PositionControlModule } from './domains/position-control/position-control.module.js';
+import { HcmSetupModule } from './domains/hcm-setup/hcm-setup.module.js';
 import { TenantInterceptor } from './interceptors/tenant.interceptor.js';
 import { TransformInterceptor } from './interceptors/transform.interceptor.js';
 import { AppService } from './app.service.js';
 
 @Module({
-  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule],
+  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule],
   controllers: [AppController],
   providers: [
     AppService,

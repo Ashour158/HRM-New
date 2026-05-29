@@ -12,6 +12,7 @@ import type { HrActor } from '@hcm/command-contracts';
 
 interface JwtPayload {
   sub: string;
+  email?: string;
   roles?: string[];
   permissions?: string[];
   tenant_id?: string;
@@ -82,6 +83,7 @@ export class AuthGuard implements CanActivate {
       }) as JwtPayload;
 
       request.actor = this.buildActorFromJwt(payload);
+      (request.actor as HrActor & { email?: string }).email = payload.email;
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
@@ -102,7 +104,7 @@ export class AuthGuard implements CanActivate {
   }
 
   private buildActorFromJwt(payload: JwtPayload): HrActor {
-    return {
+      return {
       actorType: (payload.actor_type as HrActor['actorType']) ?? 'USER',
       actorId: { value: payload.sub } as unknown as HrActor['actorId'],
       roles: payload.roles ?? [],

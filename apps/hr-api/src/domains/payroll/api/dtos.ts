@@ -37,11 +37,17 @@ export class CreatePayrollInputDto {
 export const StartPayrollCalculationRunDtoSchema = z.object({
   payrollCycleId: z.string().uuid(),
   currency: z.string().length(3),
+  totalWorkers: z.number().int().nonnegative().optional(),
+  totalGrossPay: z.number().nonnegative().optional(),
+  totalNetPay: z.number().nonnegative().optional(),
 });
 
 export class StartPayrollCalculationRunDto {
   @ApiProperty() payrollCycleId!: string;
   @ApiProperty() currency!: string;
+  @ApiPropertyOptional() totalWorkers?: number;
+  @ApiPropertyOptional() totalGrossPay?: number;
+  @ApiPropertyOptional() totalNetPay?: number;
 }
 
 export const CalculatePayrollResultLineDtoSchema = z.object({

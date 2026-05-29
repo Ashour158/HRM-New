@@ -12,7 +12,17 @@ import { Uuid, Email } from '@hcm/shared-kernel';
 
 describe('HrCoreController smoke test', () => {
   const commandBus = { execute: vi.fn() } as unknown as CommandBus;
-  const workerRepo = { findById: vi.fn(), findActive: vi.fn(), search: vi.fn() } as unknown as WorkerRepository;
+  const workerRepo = {
+    findById: vi.fn(),
+    findActive: vi.fn(),
+    search: vi.fn(),
+    findByEmail: vi.fn(),
+    findByEmployeeNumber: vi.fn(),
+  } as unknown as WorkerRepository;
+  const personalDataRepo = {
+    findByWorker: vi.fn(),
+    findByPayloadField: vi.fn(),
+  } as unknown as PersonalDataRecordRepository & { findByPayloadField: ReturnType<typeof vi.fn> };
   const fsm = { getAllowedActionsFromState: vi.fn(() => ['ActivateWorker']) } as unknown as FsmFramework;
 
   beforeEach(() => {
@@ -25,7 +35,7 @@ describe('HrCoreController smoke test', () => {
     {} as EmploymentRelationshipRepository,
     {} as JobAssignmentRepository,
     {} as EmploymentContractRepository,
-    {} as PersonalDataRecordRepository,
+    personalDataRepo,
     fsm,
   );
 
@@ -109,5 +119,42 @@ describe('HrCoreController smoke test', () => {
       lastName: 'Jones',
       status: 'DRAFT',
     });
+  });
+
+  it('checkWorkerDuplicates returns exact and warning matches', async () => {
+    const emailMatch = new WorkerProfile({
+      id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
+      tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+      employeeNumber: 'EMP-001',
+      status: 'ACTIVE',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: new Email('alice@example.com'),
+      hireDate: new Date('2023-01-15'),
+    });
+    const nameMatch = new WorkerProfile({
+      id: new Uuid('550e8400-e29b-41d4-a716-446655440003'),
+      tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+      employeeNumber: 'EMP-002',
+      status: 'DRAFT',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: new Email('alice.smith2@example.com'),
+      hireDate: new Date('2024-01-15'),
+    });
+    (workerRepo.findByEmail as ReturnType<typeof vi.fn>).mockResolvedValue(emailMatch);
+    (workerRepo.findByEmployeeNumber as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    (workerRepo.search as ReturnType<typeof vi.fn>).mockResolvedValue([emailMatch, nameMatch]);
+    (personalDataRepo.findByPayloadField as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    const result = await controller.checkWorkerDuplicates({
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: 'alice@example.com',
+    });
+
+    expect(result.canCreate).toBe(false);
+    expect(result.exactMatches).toContainEqual(expect.objectContaining({ field: 'email', value: 'alice@example.com' }));
+    expect(result.warnings).toContainEqual(expect.objectContaining({ reason: 'Same full name' }));
   });
 });

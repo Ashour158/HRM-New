@@ -9,6 +9,7 @@ export interface HrActor {
   actorId: Uuid;
   roles: string[];
   permissions: string[];
+  email?: string;
   sessionId?: string;
   ipAddress?: string;
   userAgent?: string;
@@ -24,6 +25,7 @@ export const HrActorSchema = z.object({
   actorId: z.string().uuid().transform((v) => new Uuid(v)),
   roles: z.array(z.string()),
   permissions: z.array(z.string()),
+  email: z.string().email().optional(),
   sessionId: z.string().optional(),
   ipAddress: z.string().optional(),
   userAgent: z.string().optional(),

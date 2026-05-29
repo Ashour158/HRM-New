@@ -36,6 +36,20 @@ export class CreateTimesheetDto {
   @ApiPropertyOptional() entries?: Array<{ date: Date; hours: number; projectCode?: string }>;
 }
 
+export const CreateTimesheetFromLedgerDtoSchema = z.object({
+  workerId: z.string().uuid(),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  submit: z.boolean().optional(),
+});
+
+export class CreateTimesheetFromLedgerDto {
+  @ApiProperty() workerId!: string;
+  @ApiProperty() periodStart!: string;
+  @ApiProperty() periodEnd!: string;
+  @ApiPropertyOptional() submit?: boolean;
+}
+
 export const RecordTimeClockEventDtoSchema = z.object({
   workerId: z.string().uuid(),
   eventType: z.enum(['CLOCK_IN', 'CLOCK_OUT', 'BREAK_START', 'BREAK_END']),
@@ -50,6 +64,112 @@ export class RecordTimeClockEventDto {
   @ApiProperty() timestamp!: Date;
   @ApiPropertyOptional() location?: string;
   @ApiPropertyOptional() deviceId?: string;
+}
+
+export const CheckInOutDtoSchema = z.object({
+  workerId: z.string().uuid(),
+  workplaceCode: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  accuracyMeters: z.number().optional(),
+  deviceId: z.string().optional(),
+  timestamp: z.coerce.date().optional(),
+});
+
+export class CheckInOutDto {
+  @ApiProperty() workerId!: string;
+  @ApiPropertyOptional() workplaceCode?: string;
+  @ApiPropertyOptional() latitude?: number;
+  @ApiPropertyOptional() longitude?: number;
+  @ApiPropertyOptional() accuracyMeters?: number;
+  @ApiPropertyOptional() deviceId?: string;
+  @ApiPropertyOptional() timestamp?: Date;
+}
+
+export const OnDutyRequestDtoSchema = z.object({
+  workerId: z.string().uuid(),
+  startAt: z.coerce.date(),
+  endAt: z.coerce.date(),
+  reason: z.string().min(1),
+  location: z.string().optional(),
+});
+
+export class OnDutyRequestDto {
+  @ApiProperty() workerId!: string;
+  @ApiProperty() startAt!: Date;
+  @ApiProperty() endAt!: Date;
+  @ApiProperty() reason!: string;
+  @ApiPropertyOptional() location?: string;
+}
+
+export const FinalizeDailyLedgerDtoSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  payrollCycleId: z.string().uuid().optional(),
+  workplaceCode: z.string().optional(),
+});
+
+export class FinalizeDailyLedgerDto {
+  @ApiProperty() date!: string;
+  @ApiPropertyOptional() payrollCycleId?: string;
+  @ApiPropertyOptional() workplaceCode?: string;
+}
+
+export const AttendancePeriodCloseQueryDtoSchema = z.object({
+  year: z.coerce.number().int().min(1900).max(2200).optional(),
+  month: z.coerce.number().int().min(1).max(12).optional(),
+  periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  workplaceCode: z.string().optional(),
+});
+
+export class AttendancePeriodCloseQueryDto {
+  @ApiPropertyOptional() year?: number;
+  @ApiPropertyOptional() month?: number;
+  @ApiPropertyOptional() periodStart?: string;
+  @ApiPropertyOptional() periodEnd?: string;
+  @ApiPropertyOptional() workplaceCode?: string;
+}
+
+export const FinalizeAttendancePeriodDtoSchema = AttendancePeriodCloseQueryDtoSchema.extend({
+  payrollCycleId: z.string().uuid().optional(),
+  overrideReadiness: z.boolean().optional(),
+  overrideReason: z.string().optional(),
+});
+
+export class FinalizeAttendancePeriodDto extends AttendancePeriodCloseQueryDto {
+  @ApiPropertyOptional() payrollCycleId?: string;
+  @ApiPropertyOptional() overrideReadiness?: boolean;
+  @ApiPropertyOptional() overrideReason?: string;
+}
+
+export const CreateAttendanceCorrectionRequestDtoSchema = z.object({
+  workerId: z.string().uuid(),
+  workDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  correctionType: z.enum(['ADD_CLOCK_EVENT', 'EDIT_CLOCK_EVENT', 'DELETE_CLOCK_EVENT']),
+  requestedEventType: z.enum(['CLOCK_IN', 'CLOCK_OUT', 'BREAK_START', 'BREAK_END']).optional(),
+  requestedTimestamp: z.coerce.date().optional(),
+  targetEventId: z.string().uuid().optional(),
+  reason: z.string().min(1),
+});
+
+export class CreateAttendanceCorrectionRequestDto {
+  @ApiProperty() workerId!: string;
+  @ApiProperty() workDate!: string;
+  @ApiProperty() correctionType!: 'ADD_CLOCK_EVENT' | 'EDIT_CLOCK_EVENT' | 'DELETE_CLOCK_EVENT';
+  @ApiPropertyOptional() requestedEventType?: 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_START' | 'BREAK_END';
+  @ApiPropertyOptional() requestedTimestamp?: Date;
+  @ApiPropertyOptional() targetEventId?: string;
+  @ApiProperty() reason!: string;
+}
+
+export const ReviewAttendanceCorrectionRequestDtoSchema = z.object({
+  decision: z.enum(['APPROVE', 'REJECT']),
+  note: z.string().optional(),
+});
+
+export class ReviewAttendanceCorrectionRequestDto {
+  @ApiProperty() decision!: 'APPROVE' | 'REJECT';
+  @ApiPropertyOptional() note?: string;
 }
 
 export const CreateAttendanceExceptionDtoSchema = z.object({

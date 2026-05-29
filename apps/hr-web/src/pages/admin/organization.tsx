@@ -55,7 +55,7 @@ export function AdminOrganization() {
   const relationshipColumns = [
     {
       key: 'worker',
-      header: 'Worker',
+      header: 'Employee',
       cell: (row: OrganizationData['managerRelationships'][0]) => row.workerName,
     },
     {
@@ -168,7 +168,7 @@ export function AdminOrganization() {
                 <Users className="h-5 w-5" />
                 Manager Relationships
               </CardTitle>
-              <CardDescription>Worker-to-manager assignments</CardDescription>
+              <CardDescription>Employee-to-manager assignments</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable

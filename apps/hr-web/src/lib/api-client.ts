@@ -14,6 +14,45 @@ const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
 
+function readPersistedAuthState(): { token?: string; tenantId?: string } {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as { state?: { token?: unknown; user?: { tenantId?: unknown } } };
+    return {
+      token: typeof parsed.state?.token === 'string' ? parsed.state.token : undefined,
+      tenantId: typeof parsed.state?.user?.tenantId === 'string' ? parsed.state.user.tenantId : undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function readAuthToken(): string | null {
+  const token = localStorage.getItem('auth_token');
+  if (token) return token;
+
+  const persistedToken = readPersistedAuthState().token;
+  if (persistedToken) {
+    localStorage.setItem('auth_token', persistedToken);
+    return persistedToken;
+  }
+
+  return null;
+}
+
+function readTenantId(): string {
+  return localStorage.getItem('tenant_id')
+    || readPersistedAuthState().tenantId
+    || (AUTH_BYPASS_ENABLED ? DEFAULT_TENANT_ID : '');
+}
+
+function clearAuthSession(): void {
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('tenant_id');
+  localStorage.removeItem('auth-storage');
+}
+
 /**
  * Creates and configures the Axios API client.
  */
@@ -29,12 +68,12 @@ function createApiClient(): AxiosInstance {
   // Request interceptor: attach auth, tenant, and correlation headers
   client.interceptors.request.use(
     (config: InternalAxiosRequestConfig) => {
-      const token = localStorage.getItem('auth_token');
+      const token = readAuthToken();
       if (token && !(AUTH_BYPASS_ENABLED && token === LOCAL_BYPASS_TOKEN)) {
         config.headers.set('Authorization', `Bearer ${token}`);
       }
 
-      const tenantId = localStorage.getItem('tenant_id') || (AUTH_BYPASS_ENABLED ? DEFAULT_TENANT_ID : '');
+      const tenantId = readTenantId();
       if (tenantId) {
         config.headers.set('X-Tenant-ID', tenantId);
       }
@@ -57,8 +96,10 @@ function createApiClient(): AxiosInstance {
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
         if (!AUTH_BYPASS_ENABLED) {
-          localStorage.removeItem('auth_token');
-          window.location.href = '/login?reason=session_expired';
+          clearAuthSession();
+          if (window.location.pathname !== '/login') {
+            window.location.replace('/login?reason=session_expired');
+          }
         }
         return Promise.reject(error);
       }

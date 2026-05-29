@@ -28,6 +28,11 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
     return rows.map((r) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
+  async findByWorker(workerId: Uuid): Promise<PayrollResultLine[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
+  }
+
   async save(entity: PayrollResultLine): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

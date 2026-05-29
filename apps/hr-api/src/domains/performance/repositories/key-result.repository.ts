@@ -1,0 +1,75 @@
+import { Injectable } from '@nestjs/common';
+import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { Uuid } from '@hcm/shared-kernel';
+import { KeyResult, type KeyResultStatus } from '../aggregates/key-result.aggregate.js';
+
+@Injectable()
+export class KeyResultRepository extends BaseRepository<any, KeyResult> {
+  protected readonly tableName = 'key_results' as any;
+
+  constructor() {
+    super(createKyselyInstance(getPool()));
+  }
+
+  async findById(id: Uuid): Promise<KeyResult | undefined> {
+    const row = await super.findById(id);
+    return row ? this.toAggregate(row as unknown as any) : undefined;
+  }
+
+  async findByObjective(objectiveId: Uuid): Promise<KeyResult[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('objective_id', '=', objectiveId.value).execute();
+    return rows.map((r) => this.toAggregate(r as unknown as any));
+  }
+
+  async save(entity: KeyResult): Promise<void> {
+    const row = this.toRow(entity);
+    const existing = await this.findById(entity.id);
+    if (existing) {
+      await this.update(entity.id, row as unknown as any);
+    } else {
+      await this.insert(row as unknown as any);
+    }
+  }
+
+  private toAggregate(row: any): KeyResult {
+    return new KeyResult({
+      id: new Uuid(row.id),
+      tenantId: new Uuid(row.tenant_id),
+      objectiveId: new Uuid(row.objective_id),
+      title: row.title,
+      description: row.description ?? undefined,
+      targetValue: row.target_value,
+      currentValue: row.current_value ?? 0,
+      startValue: row.start_value ?? 0,
+      unit: row.unit ?? undefined,
+      scoringMethod: row.scoring_method ?? 'LINEAR',
+      progress: row.progress ?? 0,
+      status: (row.status as KeyResultStatus) ?? 'DRAFT',
+      dueDate: row.due_date ?? undefined,
+      aggregateVersion: row.aggregate_version,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    });
+  }
+
+  private toRow(entity: KeyResult): Record<string, unknown> {
+    return {
+      id: entity.id.value,
+      tenant_id: entity.tenantId.value,
+      objective_id: entity.objectiveId.value,
+      title: entity.title,
+      description: entity.description ?? null,
+      target_value: entity.targetValue,
+      current_value: entity.currentValue,
+      start_value: entity.startValue,
+      unit: entity.unit ?? null,
+      scoring_method: entity.scoringMethod,
+      progress: entity.progress,
+      status: entity.status,
+      due_date: entity.dueDate ?? null,
+      aggregate_version: entity.aggregateVersion,
+      created_at: entity.createdAt,
+      updated_at: entity.updatedAt,
+    };
+  }
+}

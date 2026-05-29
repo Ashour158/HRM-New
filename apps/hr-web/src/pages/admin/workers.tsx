@@ -1,24 +1,34 @@
 import * as React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useApiQuery, useApiMutation } from '@/hooks/use-api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-
 import { DataTable } from '@/components/common/data-table';
-import { FieldMask } from '@/components/common/field-mask';
-import { AllowedActions } from '@/components/common/allowed-actions';
-import { AuditTrail } from '@/components/common/audit-trail';
 import { formatDate } from '@/lib/utils';
-import { Search, Plus, UserMinus, UserCheck, Eye } from 'lucide-react';
+import { Download, FileSpreadsheet, Search, Plus, Upload, UserMinus, UserCheck, Eye } from 'lucide-react';
 import type { Worker } from '@/types';
 
-interface CreateWorkerForm {
-  firstName: string;
-  lastName: string;
-  email?: string;
+interface EmployeeMassUpdateRow {
+  employeeId?: string;
+  firstName?: string;
+  lastName?: string;
+  workEmail?: string;
+  personalEmail?: string;
+  phoneNumber?: string;
+  workPhoneNumber?: string;
+  department?: string;
+  jobTitle?: string;
+  workLocationCode?: string;
+  grossSalary?: number;
+  currency?: string;
+}
+
+interface EmployeeMassUpdatePreview {
+  accepted: boolean;
+  rowCount: number;
+  errors: Array<{ row: number; field: string; message: string }>;
 }
 
 function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -36,15 +46,37 @@ function getStatusVariant(status: string): 'default' | 'secondary' | 'destructiv
   }
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseSimpleCsv(text: string): EmployeeMassUpdateRow[] {
+  const [headerLine, ...lines] = text.trim().split(/\r?\n/);
+  const headers = headerLine.split(',').map((item) => item.trim());
+  return lines.filter(Boolean).map((line) => {
+    const values = line.split(',').map((item) => item.trim());
+    return headers.reduce<EmployeeMassUpdateRow>((row, header, index) => {
+      const value = values[index];
+      if (!value) return row;
+      if (header === 'grossSalary') return { ...row, grossSalary: Number(value) };
+      return { ...row, [header]: value };
+    }, {});
+  });
+}
+
 /**
- * Worker management page with search, filters, pagination, and lifecycle actions.
+ * Employee management list with search, pagination, and lifecycle shortcuts.
  */
 export function AdminWorkers() {
+  const navigate = useNavigate();
   const [search, setSearch] = React.useState('');
   const [page, setPage] = React.useState(1);
-  const [selectedWorker, setSelectedWorker] = React.useState<Worker | null>(null);
-  const [createOpen, setCreateOpen] = React.useState(false);
-  const [createForm, setCreateForm] = React.useState<CreateWorkerForm>({ firstName: '', lastName: '', email: '' });
+  const [uploadPreview, setUploadPreview] = React.useState<EmployeeMassUpdatePreview | null>(null);
 
   const { data: workersData, isLoading, refetch } = useApiQuery<Worker[]>(
     ['admin-workers', search, page],
@@ -53,22 +85,21 @@ export function AdminWorkers() {
 
   const data = workersData ? { items: workersData, total: workersData.length } : undefined;
 
-  const createMutation = useApiMutation<Worker, CreateWorkerForm & { workerId: string }>(
-    '/hr/core/workers',
-    'post',
-    [['admin-workers']]
-  );
-
   const activateMutation = useApiMutation<void, { workerId: string }>(
     (vars) => `/hr/core/workers/${vars.workerId}/commands/activate`,
     'post',
     [['admin-workers']]
   );
 
-  const terminateMutation = useApiMutation<void, { workerId: string; reason: string }>(
+  const terminateMutation = useApiMutation<void, { workerId: string; reason: string; terminationDate: string }>(
     (vars) => `/hr/core/workers/${vars.workerId}/commands/terminate`,
     'post',
     [['admin-workers']]
+  );
+
+  const massPreviewMutation = useApiMutation<EmployeeMassUpdatePreview, { rows: EmployeeMassUpdateRow[] }>(
+    '/hr/core/workers/mass-update-preview',
+    'post',
   );
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,28 +107,28 @@ export function AdminWorkers() {
     setPage(1);
   };
 
-  const handleCreate = async () => {
-    const workerId = crypto.randomUUID();
-    await createMutation.mutateAsync({
-      workerId,
-      firstName: createForm.firstName,
-      lastName: createForm.lastName,
-      email: createForm.email,
-    });
-    setCreateOpen(false);
-    setCreateForm({ firstName: '', lastName: '', email: '' });
-    refetch();
-  };
-
   const handleActivate = async (workerId: string) => {
     await activateMutation.mutateAsync({ workerId });
+    refetch();
   };
 
   const handleTerminate = async (workerId: string) => {
     const reason = window.prompt('Enter termination reason:');
     if (reason) {
-      await terminateMutation.mutateAsync({ workerId, reason });
+      await terminateMutation.mutateAsync({ workerId, reason, terminationDate: new Date().toISOString() });
+      refetch();
     }
+  };
+
+  const downloadCsv = async (url: string, filename: string) => {
+    const response = await apiClient.get(url, { responseType: 'blob' });
+    downloadBlob(response.data as Blob, filename);
+  };
+
+  const handleUpload = async (file: File | undefined) => {
+    if (!file) return;
+    const result = await massPreviewMutation.mutateAsync({ rows: parseSimpleCsv(await file.text()) });
+    setUploadPreview(result);
   };
 
   const columns = [
@@ -106,8 +137,8 @@ export function AdminWorkers() {
       header: 'Name',
       cell: (row: Worker) => (
         <button
-          className="text-sm font-medium text-primary hover:underline text-left"
-          onClick={() => setSelectedWorker(row)}
+          className="text-left text-sm font-medium text-primary hover:underline"
+          onClick={() => navigate(`/admin/employees/${row.id}`)}
         >
           {row.firstName} {row.lastName}
         </button>
@@ -120,9 +151,7 @@ export function AdminWorkers() {
     {
       key: 'status',
       header: 'Status',
-      cell: (row: Worker) => (
-        <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>
-      ),
+      cell: (row: Worker) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge>,
     },
     {
       key: 'hireDate',
@@ -134,7 +163,7 @@ export function AdminWorkers() {
       header: 'Actions',
       cell: (row: Worker) => (
         <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setSelectedWorker(row)} aria-label="View worker">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/admin/employees/${row.id}`)} aria-label="View employee">
             <Eye className="h-4 w-4" />
           </Button>
           {(row.status === 'DRAFT' || row.status === 'PENDING_ACTIVATION') && (
@@ -142,7 +171,7 @@ export function AdminWorkers() {
               variant="ghost"
               size="sm"
               onClick={() => handleActivate(row.id)}
-              aria-label="Activate worker"
+              aria-label="Activate employee"
               className="text-green-600 hover:text-green-700"
             >
               <UserCheck className="h-4 w-4" />
@@ -153,7 +182,7 @@ export function AdminWorkers() {
               variant="ghost"
               size="sm"
               onClick={() => handleTerminate(row.id)}
-              aria-label="Terminate worker"
+              aria-label="Terminate employee"
               className="text-destructive hover:text-destructive"
             >
               <UserMinus className="h-4 w-4" />
@@ -164,111 +193,39 @@ export function AdminWorkers() {
     },
   ];
 
-  if (selectedWorker) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => setSelectedWorker(null)}>
-              ← Back to Workers
-            </Button>
-            <div>
-              <h2 className="text-2xl font-bold">{selectedWorker.firstName} {selectedWorker.lastName}</h2>
-              <p className="text-muted-foreground">{selectedWorker.employeeId}</p>
-            </div>
-          </div>
-          <AllowedActions
-            aggregateType="WORKER"
-            aggregateId={selectedWorker.id}
-            onAction={(action) => console.log('Action:', action)}
-          />
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-lg">Worker Details</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Email</p>
-                <FieldMask
-                  value={selectedWorker.email}
-                  decision="VISIBLE"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Phone</p>
-                <FieldMask
-                  value={selectedWorker.phone}
-                  decision="MASKED"
-                  maskingRule="PHONE_MASK"
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Hire Date</p>
-                <p className="text-sm font-medium">{formatDate(selectedWorker.hireDate)}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Department</p>
-                <p className="text-sm font-medium">{selectedWorker.departmentName}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Manager</p>
-                <p className="text-sm font-medium">{selectedWorker.managerName}</p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">Legal Entity</p>
-                <p className="text-sm font-medium">{selectedWorker.legalEntityName}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <AllowedActions
-                aggregateType="WORKER"
-                aggregateId={selectedWorker.id}
-                onAction={(action) => console.log('Action:', action)}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Audit Trail</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AuditTrail resourceType="WORKER" resourceId={selectedWorker.id} />
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Workers</h2>
+          <h2 className="text-2xl font-bold">Employees</h2>
           <p className="text-muted-foreground">Manage employee records and lifecycle</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Worker
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => downloadCsv('/hr/core/workers/export.csv', 'employees.csv')}>
+            <Download className="mr-2 h-4 w-4" />
+            Export
+          </Button>
+          <Button variant="outline" onClick={() => downloadCsv('/hr/core/workers/mass-update-template.csv', 'employee-template.csv')}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Template
+          </Button>
+          <label className="inline-flex cursor-pointer items-center rounded-md border px-4 py-2 text-sm font-medium">
+            <Upload className="mr-2 h-4 w-4" />
+            Upload
+            <Input className="hidden" type="file" accept=".csv,text/csv" onChange={(event) => handleUpload(event.target.files?.[0])} />
+          </label>
+          <Button onClick={() => navigate('/admin/employees/new')}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Employee
+          </Button>
+        </div>
       </div>
 
-      {/* Search */}
       <div className="flex gap-4">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Search workers..."
+            placeholder="Search employees..."
             value={search}
             onChange={handleSearch}
             className="pl-9"
@@ -276,69 +233,33 @@ export function AdminWorkers() {
         </div>
       </div>
 
-      <Card>
-        <CardContent className="p-6">
-          <DataTable
-            columns={columns}
-            data={data?.items ?? []}
-            keyExtractor={(row) => row.id}
-            isLoading={isLoading}
-            emptyMessage="No workers found"
-            page={page}
-            pageSize={10}
-            total={data?.total ?? 0}
-            onPageChange={setPage}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Create Worker Dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Worker</DialogTitle>
-            <DialogDescription>Create a new worker record.</DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="firstName">First Name</Label>
-              <Input
-                id="firstName"
-                value={createForm.firstName}
-                onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })}
-                placeholder="Jane"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="lastName">Last Name</Label>
-              <Input
-                id="lastName"
-                value={createForm.lastName}
-                onChange={(e) => setCreateForm({ ...createForm, lastName: e.target.value })}
-                placeholder="Doe"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={createForm.email}
-                onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                placeholder="jane.doe@example.com"
-              />
-            </div>
+      <section className="border-y py-6">
+        {uploadPreview ? (
+          <div className="mb-4 rounded-md border p-3 text-sm">
+            <Badge variant={uploadPreview.accepted ? 'default' : 'destructive'}>
+              {uploadPreview.accepted ? `${uploadPreview.rowCount} rows accepted` : `${uploadPreview.errors.length} validation errors`}
+            </Badge>
+            {uploadPreview.errors.length > 0 ? (
+              <div className="mt-3 space-y-1">
+                {uploadPreview.errors.slice(0, 5).map((error) => (
+                  <p key={`${error.row}-${error.field}-${error.message}`}>Row {error.row}: {error.field} - {error.message}</p>
+                ))}
+              </div>
+            ) : null}
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleCreate} disabled={!createForm.firstName || !createForm.lastName || createMutation.isPending}>
-              {createMutation.isPending ? 'Creating...' : 'Create Worker'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        ) : null}
+        <DataTable
+          columns={columns}
+          data={data?.items ?? []}
+          keyExtractor={(row) => row.id}
+          isLoading={isLoading}
+          emptyMessage="No employees found"
+          page={page}
+          pageSize={10}
+          total={data?.total ?? 0}
+          onPageChange={setPage}
+        />
+      </section>
     </div>
   );
 }

@@ -33,6 +33,7 @@ export class ValidateTimeClockEventHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ev.status, 'TimeClockEvent'),
       eventsEmitted: ev.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
+    fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

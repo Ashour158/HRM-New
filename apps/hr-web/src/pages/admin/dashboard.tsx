@@ -172,11 +172,11 @@ export function AdminDashboard() {
 
       {/* Quick Links */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link to="/admin/workers">
+        <Link to="/admin/employees">
           <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
             <CardContent className="p-4 flex items-center gap-3">
               <Users className="h-5 w-5 text-primary" />
-              <span className="text-sm font-medium">Worker Management</span>
+              <span className="text-sm font-medium">Employee Management</span>
             </CardContent>
           </Card>
         </Link>

@@ -7,6 +7,7 @@ import {
   Param,
   Query,
   Req,
+  Res,
   BadRequestException,
   NotFoundException,
   ConflictException,
@@ -15,7 +16,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
@@ -33,6 +34,7 @@ import { PersonalDataRecordRepository } from '../repositories/personal-data-reco
 import type * as dtos from './dtos.js';
 import {
   CreateWorkerDtoSchema,
+  WorkerDuplicateCheckDtoSchema,
   UpdateWorkerDtoSchema,
   TerminateWorkerDtoSchema,
   CreateJobAssignmentDtoSchema,
@@ -40,6 +42,35 @@ import {
   CreateEmploymentContractDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
+
+type EmployeeMassUpdateRow = {
+  employeeId?: string;
+  firstName?: string;
+  lastName?: string;
+  workEmail?: string;
+  personalEmail?: string;
+  phoneNumber?: string;
+  workPhoneNumber?: string;
+  department?: string;
+  jobTitle?: string;
+  workLocationCode?: string;
+  grossSalary?: number;
+  currency?: string;
+};
+
+function csvEscape(value: string | number | null | undefined): string {
+  const text = value === null || value === undefined ? '' : String(value);
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function toCsv(rows: Array<Record<string, string | number | null | undefined>>): string {
+  const headers = Object.keys(rows[0] ?? {});
+  return [
+    headers.join(','),
+    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(',')),
+  ].join('\n');
+}
 
 @ApiTags('HR Core')
 @UseGuards(OptionalAuthGuard)
@@ -146,6 +177,88 @@ export class HrCoreController {
   /* ---------------------------------------------------------------- */
   /*  Workers                                                           */
   /* ---------------------------------------------------------------- */
+
+  @Post('workers/duplicate-check')
+  async checkWorkerDuplicates(
+    @Body(new ZodValidationPipe(WorkerDuplicateCheckDtoSchema)) dto: dtos.WorkerDuplicateCheckDto,
+  ) {
+    const exactMatches: Array<{ field: string; value: string; workerId?: string; employeeId?: string }> = [];
+    const warnings: Array<{ reason: string; workerId: string; employeeId: string; name: string }> = [];
+
+    const emailChecks = [
+      ['email', dto.email],
+      ['personalEmail', dto.personalEmail],
+      ['workEmail', dto.workEmail],
+    ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+
+    for (const [field, value] of emailChecks) {
+      const worker = await this.workerRepo.findByEmail(value);
+      if (worker) {
+        exactMatches.push({
+          field,
+          value,
+          workerId: worker.id.value,
+          employeeId: worker.employeeNumber,
+        });
+      }
+    }
+
+    if (dto.employeeNumber) {
+      const worker = await this.workerRepo.findByEmployeeNumber(dto.employeeNumber);
+      if (worker) {
+        exactMatches.push({
+          field: 'employeeId',
+          value: dto.employeeNumber,
+          workerId: worker.id.value,
+          employeeId: worker.employeeNumber,
+        });
+      }
+    }
+
+    if (dto.phoneNumber) {
+      const record = await this.personalDataRepo.findByPayloadField('BASIC', 'phoneNumber', dto.phoneNumber);
+      if (record) {
+        exactMatches.push({
+          field: 'phone',
+          value: dto.phoneNumber,
+          workerId: record.workerId.value,
+        });
+      }
+    }
+
+    if (dto.workPhoneNumber) {
+      const record = await this.personalDataRepo.findByPayloadField('BASIC', 'workPhoneNumber', dto.workPhoneNumber);
+      if (record) {
+        exactMatches.push({
+          field: 'workPhone',
+          value: dto.workPhoneNumber,
+          workerId: record.workerId.value,
+        });
+      }
+    }
+
+    if (dto.firstName && dto.lastName) {
+      const normalizedName = `${dto.firstName} ${dto.lastName}`.trim().toLowerCase();
+      const nameMatches = await this.workerRepo.search(`${dto.firstName} ${dto.lastName}`, { limit: 10 });
+      for (const worker of nameMatches) {
+        const workerName = `${worker.firstName} ${worker.lastName}`.trim();
+        if (workerName.toLowerCase() === normalizedName) {
+          warnings.push({
+            reason: 'Same full name',
+            workerId: worker.id.value,
+            employeeId: worker.employeeNumber,
+            name: workerName,
+          });
+        }
+      }
+    }
+
+    return {
+      canCreate: exactMatches.length === 0,
+      exactMatches,
+      warnings,
+    };
+  }
 
   @Post('workers')
   async createWorker(
@@ -292,11 +405,126 @@ export class HrCoreController {
     return workers.map((w) => this.toWorkerDto(w));
   }
 
+  @Get('workers/export.csv')
+  async exportWorkersCsv(@Res() res: Response) {
+    const workers = await this.workerRepo.search('', { limit: 1000 });
+    const rows = await Promise.all(workers.map(async (worker) => {
+      const records = await this.personalDataRepo.findByWorker(worker.id);
+      const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
+      const basic = payloadByCategory.BASIC ?? {};
+      const contact = payloadByCategory.CONTACT ?? {};
+      const workLocation = contact.workLocation as Record<string, unknown> | undefined;
+
+      return {
+        employeeId: worker.employeeNumber,
+        firstName: worker.firstName,
+        lastName: worker.lastName,
+        workEmail: String(basic.workEmail ?? worker.email.toString()),
+        personalEmail: String(basic.personalEmail ?? ''),
+        phoneNumber: String(basic.phoneNumber ?? ''),
+        workPhoneNumber: String(basic.workPhoneNumber ?? ''),
+        department: String(contact.departmentName ?? ''),
+        jobTitle: worker.jobTitle ?? '',
+        workLocationCode: String(workLocation?.code ?? ''),
+        status: worker.status,
+      };
+    }));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="employees.csv"');
+    res.send(toCsv(rows));
+  }
+
+  @Get('workers/mass-update-template.csv')
+  async employeeMassUpdateTemplate(@Res() res: Response) {
+    const csv = toCsv([{
+      employeeId: 'EMP-001',
+      firstName: 'Mona',
+      lastName: 'Hassan',
+      workEmail: 'mona.hassan@example.com',
+      personalEmail: 'mona.personal@example.com',
+      phoneNumber: '+201000000000',
+      workPhoneNumber: '+202000000000',
+      department: 'FINANCE',
+      jobTitle: 'PAYROLL_SPECIALIST',
+      workLocationCode: 'CAIRO_HQ',
+      grossSalary: 10000,
+      currency: 'EGP',
+    }]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="employee-mass-update-template.csv"');
+    res.send(csv);
+  }
+
+  @Post('workers/mass-update-preview')
+  async employeeMassUpdatePreview(@Body() body: { rows?: EmployeeMassUpdateRow[] }) {
+    const rows = body.rows ?? [];
+    const seenEmployeeIds = new Set<string>();
+    const seenEmails = new Set<string>();
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+
+    for (const [index, row] of rows.entries()) {
+      if (!row.employeeId) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee ID is required' });
+      if (row.employeeId && seenEmployeeIds.has(row.employeeId)) errors.push({ row: index + 1, field: 'employeeId', message: 'Duplicate employee ID in upload' });
+      if (row.employeeId) {
+        seenEmployeeIds.add(row.employeeId);
+        const existing = await this.workerRepo.findByEmployeeNumber(row.employeeId);
+        if (!existing) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee does not exist for mass update' });
+      }
+      const email = row.workEmail ?? row.personalEmail;
+      if (email && seenEmails.has(email.toLowerCase())) errors.push({ row: index + 1, field: 'email', message: 'Duplicate email in upload' });
+      if (email) seenEmails.add(email.toLowerCase());
+      if (row.grossSalary !== undefined && Number(row.grossSalary) < 0) errors.push({ row: index + 1, field: 'grossSalary', message: 'Gross salary cannot be negative' });
+      if (row.currency && row.currency.length !== 3) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
+    }
+
+    return {
+      accepted: errors.length === 0,
+      rowCount: rows.length,
+      errors,
+      events: errors.length === 0 ? ['EmployeeMassUpdateValidated'] : ['EmployeeMassUpdateRejected'],
+    };
+  }
+
   @Get('workers/:id')
   async getWorker(@Param('id') id: string) {
     const worker = await this.workerRepo.findById(new Uuid(id));
     if (!worker) throw new BadRequestException('Worker not found');
     return this.toWorkerDto(worker);
+  }
+
+  @Get('workers/:id/profile')
+  async getWorkerProfile(@Param('id') id: string) {
+    const worker = await this.workerRepo.findById(new Uuid(id));
+    if (!worker) throw new BadRequestException('Worker not found');
+    const records = await this.personalDataRepo.findByWorker(worker.id);
+    const byCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record]));
+
+    return {
+      worker: this.toWorkerDto(worker),
+      basic: byCategory.BASIC?.payload ?? {},
+      contact: byCategory.CONTACT?.payload ?? {},
+      emergencyContact: byCategory.EMERGENCY_CONTACT?.payload ?? {},
+      background: byCategory.BACKGROUND?.payload ?? {},
+      compensation: byCategory.COMPENSATION?.payload ?? {},
+      documents: byCategory.DOCUMENT?.payload ?? {},
+      workAuthorization: byCategory.WORK_AUTHORIZATION?.payload ?? {},
+      tax: byCategory.TAX?.payload ?? {},
+      banking: byCategory.BANKING?.payload ?? {},
+      dependents: byCategory.DEPENDENT?.payload ?? {},
+      assetAccess: byCategory.ASSET_ACCESS?.payload ?? {},
+      skills: byCategory.SKILLS?.payload ?? {},
+      consents: byCategory.CONSENT?.payload ?? {},
+      governance: {
+        dataClassification: worker.dataClassification,
+        personalDataRecords: records.map((record) => ({
+          id: record.id.value,
+          dataCategory: record.dataCategory,
+          dataClassification: record.dataClassification,
+          consentStatus: record.consentStatus,
+          state: record.state,
+        })),
+      },
+    };
   }
 
   @Get('workers/:id/allowed-actions')

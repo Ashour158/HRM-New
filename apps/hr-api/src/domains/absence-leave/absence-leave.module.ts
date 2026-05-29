@@ -1,7 +1,9 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HrCoreModule } from '../hr-core/hr-core.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { AbsenceLeaveController } from './api/absence-leave.controller.js';
+import { EmployeeLeaveController } from './api/employee-leave.controller.js';
 import { AbsenceRequestRepository } from './repositories/absence-request.repository.js';
 import { LeaveCaseRepository } from './repositories/leave-case.repository.js';
 import { AbsenceAccrualBalanceRepository } from './repositories/absence-accrual-balance.repository.js';
@@ -31,8 +33,8 @@ import { registerAbsenceAccrualBalanceFsm } from './fsm/absence-accrual-balance.
 import { registerLeaveEntitlementCalculationFsm } from './fsm/leave-entitlement-calculation.fsm.js';
 
 @Module({
-  imports: [PlatformModule],
-  controllers: [AbsenceLeaveController],
+  imports: [PlatformModule, HrCoreModule],
+  controllers: [AbsenceLeaveController, EmployeeLeaveController],
   providers: [
     AbsenceRequestRepository,
     LeaveCaseRepository,

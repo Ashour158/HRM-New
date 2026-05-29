@@ -159,16 +159,18 @@ export class OrganizationController {
     return entities.map((e) => this.toOrgUnitView(e));
   }
 
+  @Get('org-units/tree')
+  async getOrgUnitTree(@Req() req: Request) {
+    const tenantId = req.tenantId;
+    if (!tenantId) throw new BadRequestException('Tenant ID missing');
+    return this.orgUnitRepo.findTree(new Uuid(tenantId));
+  }
+
   @Get('org-units/:id')
   async getOrgUnit(@Param('id') id: string) {
     const entity = await this.orgUnitRepo.findById(new Uuid(id));
     if (!entity) throw new NotFoundException('OrgUnit not found');
     return this.toOrgUnitView(entity);
-  }
-
-  @Get('org-units/tree')
-  async getOrgUnitTree() {
-    return this.orgUnitRepo.findTree();
   }
 
   // ------------------------------------------------------------------

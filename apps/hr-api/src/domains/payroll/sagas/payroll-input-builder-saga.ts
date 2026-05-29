@@ -1,14 +1,18 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
 import {
-  isTimesheetApprovedEvent, isOvertimeApprovedEvent,
-  isAbsenceRequestApprovedEvent, isBenefitsEnrollmentFinalizedEvent,
+  isAbsenceRequestApprovedEvent,
+  isBenefitsEnrollmentFinalizedEvent,
+  isOvertimeApprovedEvent,
+  isTimesheetApprovedEvent,
 } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
 import { PayrollInputRepository } from '../repositories/payroll-input.repository.js';
 import { PayrollInput } from '../aggregates/payroll-input.aggregate.js';
 import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
+import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
+import type { PayrollCycle } from '../aggregates/payroll-cycle.aggregate.js';
 
 @Injectable()
 export class PayrollInputBuilderSaga implements OnModuleInit {
@@ -18,6 +22,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
     private readonly eventBus: EventBus,
     private readonly payrollInputRepo: PayrollInputRepository,
     private readonly eventsPublisher: PayrollEventsPublisher,
+    private readonly payrollCycleRepo: PayrollCycleRepository,
   ) {}
 
   onModuleInit(): void {
@@ -52,98 +57,122 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
   }
 
   private async createInputFromTimesheet(event: HrEventEnvelope<{ timesheetId: Uuid; workerId: Uuid; approvedBy: Uuid }>): Promise<void> {
-    const input = PayrollInput.create(
-      {
-        id: Uuid.generate(),
-        tenantId: event.tenantId,
-        workerId: event.payload.workerId,
-        payrollCycleId: Uuid.generate(), // placeholder; in production resolve active cycle
-        inputType: 'TIMESHEET_HOURS',
-        amount: 0,
-        currency: 'USD',
-        description: `Timesheet ${event.payload.timesheetId.value}`,
-      },
-      event.metadata.correlationId,
-    );
-    await this.payrollInputRepo.save(input);
-    await this.eventsPublisher.publishFromAggregate(input);
-    this.logger.log({ type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT', source: 'TimesheetApproved', inputId: input.id.value });
+    await this.createInputFromEvent(event, {
+      source: 'TimesheetApproved',
+      workerId: event.payload.workerId,
+      inputType: 'TIMESHEET_HOURS',
+      amount: this.readNumber(event.payload, 'amount') ?? 0,
+      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      description: `Timesheet ${event.payload.timesheetId.value}`,
+    });
   }
 
   private async createInputFromOvertime(event: HrEventEnvelope<{ overtimeRequestId: Uuid; workerId: Uuid; approvedBy: Uuid }>): Promise<void> {
-    const input = PayrollInput.create(
-      {
-        id: Uuid.generate(),
-        tenantId: event.tenantId,
-        workerId: event.payload.workerId,
-        payrollCycleId: Uuid.generate(),
-        inputType: 'OVERTIME_PAY',
-        amount: 0,
-        currency: 'USD',
-        description: `Overtime ${event.payload.overtimeRequestId.value}`,
-      },
-      event.metadata.correlationId,
-    );
-    await this.payrollInputRepo.save(input);
-    await this.eventsPublisher.publishFromAggregate(input);
-    this.logger.log({ type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT', source: 'OvertimeApproved', inputId: input.id.value });
+    await this.createInputFromEvent(event, {
+      source: 'OvertimeApproved',
+      workerId: event.payload.workerId,
+      inputType: 'OVERTIME_PAY',
+      amount: this.readNumber(event.payload, 'amount') ?? 0,
+      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      description: `Overtime ${event.payload.overtimeRequestId.value}`,
+    });
   }
 
   private async createInputFromAbsence(event: HrEventEnvelope<{ absenceRequestId: Uuid; workerId: Uuid; approvedBy: Uuid }>): Promise<void> {
-    const input = PayrollInput.create(
-      {
-        id: Uuid.generate(),
-        tenantId: event.tenantId,
-        workerId: event.payload.workerId,
-        payrollCycleId: Uuid.generate(),
-        inputType: 'ABSENCE_DEDUCTION',
-        amount: 0,
-        currency: 'USD',
-        description: `Absence ${event.payload.absenceRequestId.value}`,
-      },
-      event.metadata.correlationId,
-    );
-    await this.payrollInputRepo.save(input);
-    await this.eventsPublisher.publishFromAggregate(input);
-    this.logger.log({ type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT', source: 'AbsenceRequestApproved', inputId: input.id.value });
+    await this.createInputFromEvent(event, {
+      source: 'AbsenceRequestApproved',
+      workerId: event.payload.workerId,
+      inputType: 'ABSENCE_DEDUCTION',
+      amount: this.readNumber(event.payload, 'amount') ?? 0,
+      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      description: `Absence ${event.payload.absenceRequestId.value}`,
+    });
   }
 
   private async createInputFromBenefits(event: HrEventEnvelope<{ enrollmentId: Uuid; workerId: Uuid; finalizedBy: Uuid }>): Promise<void> {
-    const input = PayrollInput.create(
-      {
-        id: Uuid.generate(),
-        tenantId: event.tenantId,
-        workerId: event.payload.workerId,
-        payrollCycleId: Uuid.generate(),
-        inputType: 'BENEFITS_DEDUCTION',
-        amount: 0,
-        currency: 'USD',
-        description: `Benefits ${event.payload.enrollmentId.value}`,
-      },
-      event.metadata.correlationId,
-    );
-    await this.payrollInputRepo.save(input);
-    await this.eventsPublisher.publishFromAggregate(input);
-    this.logger.log({ type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT', source: 'BenefitsEnrollmentFinalized', inputId: input.id.value });
+    await this.createInputFromEvent(event, {
+      source: 'BenefitsEnrollmentFinalized',
+      workerId: event.payload.workerId,
+      inputType: 'BENEFITS_DEDUCTION',
+      amount: this.readNumber(event.payload, 'amount') ?? 0,
+      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      description: `Benefits ${event.payload.enrollmentId.value}`,
+    });
   }
 
   private async createInputFromCompensation(event: HrEventEnvelope<unknown>): Promise<void> {
-    const payload = event.payload as { workerId?: Uuid; changeId?: Uuid };
-    const input = PayrollInput.create(
+    const payload = event.payload as { workerId?: Uuid; changeId?: Uuid; amount?: number; currency?: string };
+    await this.createInputFromEvent(event, {
+      source: event.eventName,
+      workerId: payload.workerId,
+      inputType: 'COMPENSATION_CHANGE',
+      amount: this.readNumber(payload, 'amount') ?? 0,
+      currency: this.readString(payload, 'currency') ?? 'EGP',
+      description: `Compensation ${event.eventName}`,
+    });
+  }
+
+  private async createInputFromEvent(
+    event: HrEventEnvelope<unknown>,
+    input: {
+      source: string;
+      workerId?: Uuid;
+      inputType: string;
+      amount: number;
+      currency: string;
+      description: string;
+    },
+  ): Promise<void> {
+    if (!input.workerId) {
+      this.logger.warn({ type: 'SAGA_PAYROLL_INPUT_SKIPPED', source: input.source, reason: 'MISSING_WORKER_ID' });
+      return;
+    }
+    const payrollCycle = await this.resolveActivePayrollCycle(event.tenantId, event.occurredAt);
+    if (!payrollCycle) {
+      this.logger.warn({ type: 'SAGA_PAYROLL_INPUT_SKIPPED', source: input.source, reason: 'NO_ACTIVE_PAYROLL_CYCLE' });
+      return;
+    }
+
+    const payrollInput = PayrollInput.create(
       {
         id: Uuid.generate(),
         tenantId: event.tenantId,
-        workerId: payload.workerId ?? Uuid.generate(),
-        payrollCycleId: Uuid.generate(),
-        inputType: 'COMPENSATION_CHANGE',
-        amount: 0,
-        currency: 'USD',
-        description: `Compensation ${event.eventName}`,
+        workerId: input.workerId,
+        payrollCycleId: payrollCycle.id,
+        inputType: input.inputType,
+        amount: input.amount,
+        currency: input.currency,
+        description: input.description,
       },
       event.metadata.correlationId,
     );
-    await this.payrollInputRepo.save(input);
-    await this.eventsPublisher.publishFromAggregate(input);
-    this.logger.log({ type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT', source: event.eventName, inputId: input.id.value });
+    await this.payrollInputRepo.save(payrollInput);
+    await this.eventsPublisher.publishFromAggregate(payrollInput);
+    this.logger.log({
+      type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT',
+      source: input.source,
+      inputId: payrollInput.id.value,
+      payrollCycleId: payrollCycle.id.value,
+    });
+  }
+
+  private async resolveActivePayrollCycle(tenantId: Uuid, occurredAt: Date): Promise<PayrollCycle | undefined> {
+    const eventDate = occurredAt instanceof Date ? occurredAt : new Date(occurredAt);
+    const cycles = await this.payrollCycleRepo.findByTenant(tenantId);
+    return cycles.find((cycle) => (
+      cycle.payPeriodStart.getTime() <= eventDate.getTime()
+      && cycle.payPeriodEnd.getTime() >= eventDate.getTime()
+      && !['CLOSED', 'EXPORTED', 'CANCELLED'].includes(cycle.status)
+    ));
+  }
+
+  private readNumber(payload: unknown, key: string): number | undefined {
+    const value = (payload as Record<string, unknown>)[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+  }
+
+  private readString(payload: unknown, key: string): string | undefined {
+    const value = (payload as Record<string, unknown>)[key];
+    return typeof value === 'string' && value.trim() ? value : undefined;
   }
 }

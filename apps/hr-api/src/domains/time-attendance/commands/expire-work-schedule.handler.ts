@@ -33,6 +33,7 @@ export class ExpireWorkScheduleHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ws.status, 'WorkSchedule'),
       eventsEmitted: ws.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
+    fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

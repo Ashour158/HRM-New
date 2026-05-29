@@ -63,6 +63,8 @@ export const useAuthStore = create<AuthState>()(
       updateUser: (userUpdate: Partial<User>) =>
         set((state) => ({
           user: state.user ? { ...state.user, ...userUpdate } : null,
+          roles: userUpdate.roles ?? state.roles,
+          permissions: userUpdate.permissions ?? state.permissions,
         })),
     }),
     {

@@ -1,31 +1,155 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Req, Res, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
-import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
+import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
+import { AttendanceCalculationService, type AttendanceSession } from '../../time-attendance/services/attendance-calculation.service.js';
+import { TimeClockEventRepository } from '../../time-attendance/repositories/time-clock-event.repository.js';
+import { AttendanceDailyLedgerRepository } from '../../time-attendance/repositories/attendance-daily-ledger.repository.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
 import { PayrollInputRepository } from '../repositories/payroll-input.repository.js';
 import { PayrollCalculationRunRepository } from '../repositories/payroll-calculation-run.repository.js';
 import { PayrollResultLineRepository } from '../repositories/payroll-result-line.repository.js';
+import { PayrollPaymentBatchRepository } from '../repositories/payroll-payment-batch.repository.js';
+import { PayrollPayslipArtifactRepository } from '../repositories/payroll-payslip-artifact.repository.js';
+import { PayrollExportJobRepository } from '../repositories/payroll-export-job.repository.js';
+import { PayrollGlPostingRepository } from '../repositories/payroll-gl-posting.repository.js';
+import {
+  PayrollCycleCalculationService,
+  type PayrollBankAccount,
+  type PayrollCycleEmployeeInput,
+  type PayrollCyclePreview,
+} from '../services/payroll-cycle-calculation.service.js';
+import {
+  PayrollCycleGovernanceService,
+  type ExistingPayrollCycleSummary,
+  type PayrollCloseToPayReadiness,
+  type PayrollReadinessIssue,
+} from '../services/payroll-cycle-governance.service.js';
+import { PayrollInputOrchestrationService, type PayrollInputDraft } from '../services/payroll-input-orchestration.service.js';
+import { PayrollApprovedInputProjectionService, type PayrollApprovedInputRecord } from '../services/payroll-approved-input-projection.service.js';
+import { PayrollArtifactService } from '../services/payroll-artifact.service.js';
+import { PayrollEnterpriseWorkflowService, type PayrollReconciliationRow } from '../services/payroll-enterprise-workflow.service.js';
+import { PayrollBankFileService, type PayrollBankFileFormat } from '../services/payroll-bank-file.service.js';
+import { PayrollGlPostingService } from '../services/payroll-gl-posting.service.js';
 import type * as dtos from './dtos.js';
 import {
   CreatePayrollCycleDtoSchema, CreatePayrollInputDtoSchema,
   StartPayrollCalculationRunDtoSchema, CalculatePayrollResultLineDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 
+type PayrollCsvRow = {
+  employeeId?: string;
+  workEmail?: string;
+  grossSalary?: number;
+  currency?: string;
+  taxOverride?: number;
+  insuranceOverride?: number;
+  deductionCode?: string;
+  deductionAmount?: number;
+  effectiveMonth?: string;
+};
+
+type PayrollOffCycleRow = {
+  employeeId?: string;
+  inputType?: 'OFF_CYCLE_EARNING' | 'RETRO_ADJUSTMENT' | 'OFF_CYCLE_DEDUCTION' | 'RETRO_DEDUCTION';
+  amount?: number;
+  currency?: string;
+  description?: string;
+};
+
+type ClockLocationPayload = {
+  distanceMeters?: number;
+};
+
+const PAYROLL_VISIBILITY_ROLES = new Set(['HR_ADMIN', 'PAYROLL_ADMIN', 'SUPER_ADMIN']);
+
+function csvEscape(value: string | number | null | undefined): string {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (/^[=+\-@]/.test(text)) text = `'${text}`;
+  if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
+function toCsv(rows: Array<Record<string, string | number | null | undefined>>): string {
+  const headers = Object.keys(rows[0] ?? {
+    employeeId: '',
+    name: '',
+    workEmail: '',
+    department: '',
+    workLocationCode: '',
+    taxIdentifier: '',
+    insuranceIdentifier: '',
+    baseGrossSalary: '',
+    earningAmount: '',
+    taxableEarningAmount: '',
+    nonTaxableEarningAmount: '',
+    grossSalary: '',
+    taxAmount: '',
+    employeeInsuranceAmount: '',
+    policyDeductionAmount: '',
+    netSalary: '',
+    currency: '',
+  });
+  return [
+    headers.join(','),
+    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(',')),
+  ].join('\n');
+}
+
+function parseClockLocation(value?: string): ClockLocationPayload {
+  if (!value) return {};
+  try {
+    return JSON.parse(value) as ClockLocationPayload;
+  } catch {
+    return {};
+  }
+}
+
+function readString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 @ApiTags('Payroll')
+@UseGuards(AuthGuard)
 @Controller('payroll')
 export class PayrollController {
   constructor(
     private readonly commandBus: CommandBus,
+    private readonly hcmSetupService: HcmSetupService,
+    private readonly workerRepo: WorkerRepository,
+    private readonly personalDataRepo: PersonalDataRecordRepository,
+    private readonly timeClockEventRepo: TimeClockEventRepository,
+    private readonly attendanceDailyLedgerRepo: AttendanceDailyLedgerRepository,
+    private readonly attendanceCalculation: AttendanceCalculationService,
+    private readonly payrollCalculation: PayrollCycleCalculationService,
+    private readonly payrollGovernance: PayrollCycleGovernanceService,
     private readonly payrollCycleRepo: PayrollCycleRepository,
     private readonly payrollInputRepo: PayrollInputRepository,
     private readonly calculationRunRepo: PayrollCalculationRunRepository,
     private readonly resultLineRepo: PayrollResultLineRepository,
+    private readonly paymentBatchRepo: PayrollPaymentBatchRepository,
+    private readonly payslipArtifactRepo: PayrollPayslipArtifactRepository,
+    private readonly exportJobRepo: PayrollExportJobRepository,
+    private readonly glPostingRepo: PayrollGlPostingRepository,
+    private readonly payrollInputOrchestration: PayrollInputOrchestrationService,
+    private readonly payrollApprovedInputProjection: PayrollApprovedInputProjectionService,
+    private readonly payrollArtifact: PayrollArtifactService,
+    private readonly payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
+    private readonly payrollBankFile: PayrollBankFileService,
+    private readonly payrollGlPosting: PayrollGlPostingService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -36,12 +160,13 @@ export class PayrollController {
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['PAYROLL_WRITE'], mfaAuthenticated: true },
+      actor: req.actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -53,6 +178,1169 @@ export class PayrollController {
       payload,
       metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
     };
+  }
+
+  private getTenantId(req: Request): Uuid {
+    return new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+  }
+
+  private hasPayrollVisibility(req: Request): boolean {
+    return (req.actor?.roles ?? []).some((role) => PAYROLL_VISIBILITY_ROLES.has(role));
+  }
+
+  private getActorId(req: Request): string {
+    const actorId = req.actor?.actorId;
+    if (actorId instanceof Uuid) return actorId.value;
+    const actorIdLike = actorId as { value?: unknown } | undefined;
+    if (typeof actorIdLike?.value === 'string') return actorIdLike.value;
+    throw new ForbiddenException('Authenticated actor is required');
+  }
+
+  private getActorUuid(req: Request): Uuid {
+    try {
+      return new Uuid(this.getActorId(req));
+    } catch {
+      return Uuid.generate();
+    }
+  }
+
+  private getActorUuidString(req: Request): string | undefined {
+    try {
+      return new Uuid(this.getActorId(req)).value;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async executeOrThrow<T>(command: HrCommandEnvelope<unknown>): Promise<CommandResult<T>> {
+    const result = await this.commandBus.execute(command) as CommandResult<T>;
+    const maybeFailure = result as { success?: boolean; errorMessage?: string; errorCode?: string };
+    if (maybeFailure.success === false) {
+      const failure = result as CommandResult<T> & { errorMessage?: string; errorCode?: string };
+      throw new BadRequestException(failure.errorMessage ?? failure.errorCode ?? 'Payroll command failed');
+    }
+    return result;
+  }
+
+  private readResultId(result: CommandResult<unknown>, key: string): string {
+    const data = result.data as Record<string, unknown> | undefined;
+    const value = data?.[key];
+    if (typeof value !== 'string') throw new BadRequestException(`Payroll command did not return ${key}`);
+    return value;
+  }
+
+  private async advancePayrollCycle(commandName: string, payrollCycleId: string, req: Request): Promise<CommandResult<unknown>> {
+    const cycle = await this.payrollCycleRepo.findById(new Uuid(payrollCycleId));
+    if (!cycle) throw new BadRequestException('Payroll cycle not found');
+    const payload = commandName === 'ApprovePayrollCycle'
+      ? { payrollCycleId: new Uuid(payrollCycleId), approvedBy: this.getActorUuid(req) }
+      : { payrollCycleId: new Uuid(payrollCycleId) };
+    return this.executeOrThrow(this.buildCommand(commandName, 'PayrollCycle', payload, req, {
+      aggregateId: new Uuid(payrollCycleId),
+      expectedState: cycle.status,
+      expectedVersion: cycle.aggregateVersion,
+    }));
+  }
+
+  private async advanceCalculationRun(commandName: string, calculationRunId: string, req: Request): Promise<CommandResult<unknown>> {
+    const run = await this.calculationRunRepo.findById(new Uuid(calculationRunId));
+    if (!run) throw new BadRequestException('Payroll calculation run not found');
+    return this.executeOrThrow(this.buildCommand(commandName, 'PayrollCalculationRun', {
+      payrollCalculationRunId: new Uuid(calculationRunId),
+    }, req, {
+      aggregateId: new Uuid(calculationRunId),
+      expectedState: run.status,
+      expectedVersion: run.aggregateVersion,
+    }));
+  }
+
+  private async lockResultLineThroughWorkflow(payrollResultLineId: string, explanation: string, req: Request): Promise<void> {
+    let line = await this.resultLineRepo.findById(new Uuid(payrollResultLineId));
+    if (!line) throw new BadRequestException('Payroll result line not found');
+    await this.executeOrThrow(this.buildCommand('ExplainPayrollResultLine', 'PayrollResultLine', {
+      payrollResultLineId: new Uuid(payrollResultLineId),
+      explanation,
+    }, req, {
+      aggregateId: new Uuid(payrollResultLineId),
+      expectedState: line.status,
+      expectedVersion: line.aggregateVersion,
+      subjectWorkerId: line.workerId,
+    }));
+
+    line = await this.resultLineRepo.findById(new Uuid(payrollResultLineId));
+    if (!line) throw new BadRequestException('Payroll result line not found');
+    await this.executeOrThrow(this.buildCommand('ReviewPayrollResultLine', 'PayrollResultLine', {
+      payrollResultLineId: new Uuid(payrollResultLineId),
+    }, req, {
+      aggregateId: new Uuid(payrollResultLineId),
+      expectedState: line.status,
+      expectedVersion: line.aggregateVersion,
+      subjectWorkerId: line.workerId,
+    }));
+
+    line = await this.resultLineRepo.findById(new Uuid(payrollResultLineId));
+    if (!line) throw new BadRequestException('Payroll result line not found');
+    await this.executeOrThrow(this.buildCommand('LockPayrollResultLine', 'PayrollResultLine', {
+      payrollResultLineId: new Uuid(payrollResultLineId),
+    }, req, {
+      aggregateId: new Uuid(payrollResultLineId),
+      expectedState: line.status,
+      expectedVersion: line.aggregateVersion,
+      subjectWorkerId: line.workerId,
+    }));
+  }
+
+  private async approvePayrollInputThroughWorkflow(draft: PayrollInputDraft, req: Request): Promise<string> {
+    const inputResult = await this.executeOrThrow(this.buildCommand('CreatePayrollInput', 'PayrollInput', {
+      workerId: new Uuid(draft.workerId),
+      payrollCycleId: new Uuid(draft.payrollCycleId),
+      inputType: draft.inputType,
+      amount: draft.amount,
+      currency: draft.currency,
+      description: draft.description,
+    }, req, {
+      subjectWorkerId: new Uuid(draft.workerId),
+    }));
+    const payrollInputId = this.readResultId(inputResult, 'payrollInputId');
+
+    let input = await this.payrollInputRepo.findById(new Uuid(payrollInputId));
+    if (!input) throw new BadRequestException('Payroll input not found after creation');
+    await this.executeOrThrow(this.buildCommand('SubmitPayrollInput', 'PayrollInput', {
+      payrollInputId: new Uuid(payrollInputId),
+    }, req, {
+      aggregateId: new Uuid(payrollInputId),
+      expectedState: input.status,
+      expectedVersion: input.aggregateVersion,
+      subjectWorkerId: input.workerId,
+    }));
+
+    input = await this.payrollInputRepo.findById(new Uuid(payrollInputId));
+    if (!input) throw new BadRequestException('Payroll input not found after submission');
+    await this.executeOrThrow(this.buildCommand('ApprovePayrollInput', 'PayrollInput', {
+      payrollInputId: new Uuid(payrollInputId),
+    }, req, {
+      aggregateId: new Uuid(payrollInputId),
+      expectedState: input.status,
+      expectedVersion: input.aggregateVersion,
+      subjectWorkerId: input.workerId,
+    }));
+
+    return payrollInputId;
+  }
+
+  private validateMassUpdateRows(rows: PayrollCsvRow[]): Array<{ row: number; field: string; message: string }> {
+    const seenEmployeeIds = new Set<string>();
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+
+    rows.forEach((row, index) => {
+      if (!row.employeeId) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee ID is required' });
+      if (row.employeeId && seenEmployeeIds.has(row.employeeId)) errors.push({ row: index + 1, field: 'employeeId', message: 'Duplicate employee ID in upload' });
+      if (row.employeeId) seenEmployeeIds.add(row.employeeId);
+      if (row.grossSalary !== undefined && Number(row.grossSalary) < 0) errors.push({ row: index + 1, field: 'grossSalary', message: 'Gross salary cannot be negative' });
+      if (row.taxOverride !== undefined && Number(row.taxOverride) < 0) errors.push({ row: index + 1, field: 'taxOverride', message: 'Tax override cannot be negative' });
+      if (row.insuranceOverride !== undefined && Number(row.insuranceOverride) < 0) errors.push({ row: index + 1, field: 'insuranceOverride', message: 'Insurance override cannot be negative' });
+      if (row.deductionAmount !== undefined && Number(row.deductionAmount) < 0) errors.push({ row: index + 1, field: 'deductionAmount', message: 'Deduction amount cannot be negative' });
+      if (row.currency && row.currency.length !== 3) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
+    });
+
+    return errors;
+  }
+
+  private validateOffCycleRows(rows: PayrollOffCycleRow[]): Array<{ row: number; field: string; message: string }> {
+    const errors: Array<{ row: number; field: string; message: string }> = [];
+    rows.forEach((row, index) => {
+      if (!row.employeeId) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee ID is required' });
+      if (!row.inputType) errors.push({ row: index + 1, field: 'inputType', message: 'Input type is required' });
+      if (row.amount === undefined || Number(row.amount) <= 0) errors.push({ row: index + 1, field: 'amount', message: 'Amount must be greater than zero' });
+      if (row.currency && row.currency.length !== 3) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
+    });
+    return errors;
+  }
+
+  private async applyMassUpdateRowsToInputCollection(payrollCycleId: string, rows: PayrollCsvRow[], req: Request) {
+    const applied: Array<{ employeeId: string; workerId: string; inputTypes: string[] }> = [];
+    for (const row of rows) {
+      if (!row.employeeId) continue;
+      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      if (!worker) {
+        throw new BadRequestException(`Employee ${row.employeeId} was not found`);
+      }
+      const inputTypes: string[] = [];
+      const baseDescription = `${row.employeeId} payroll mass update`;
+      const drafts: PayrollInputDraft[] = [];
+      if (row.grossSalary !== undefined) {
+        drafts.push({
+          workerId: worker.id.value,
+          payrollCycleId,
+          inputType: 'MASS_UPDATE_GROSS_PAY',
+          amount: Number(row.grossSalary),
+          currency: row.currency ?? 'EGP',
+          description: `${baseDescription} gross salary`,
+        });
+      }
+      if (row.taxOverride !== undefined) {
+        drafts.push({
+          workerId: worker.id.value,
+          payrollCycleId,
+          inputType: 'MASS_UPDATE_TAX_OVERRIDE',
+          amount: Number(row.taxOverride),
+          currency: row.currency ?? 'EGP',
+          description: `${baseDescription} tax override`,
+        });
+      }
+      if (row.insuranceOverride !== undefined) {
+        drafts.push({
+          workerId: worker.id.value,
+          payrollCycleId,
+          inputType: 'MASS_UPDATE_INSURANCE_OVERRIDE',
+          amount: Number(row.insuranceOverride),
+          currency: row.currency ?? 'EGP',
+          description: `${baseDescription} insurance override`,
+        });
+      }
+      if (row.deductionAmount !== undefined) {
+        drafts.push({
+          workerId: worker.id.value,
+          payrollCycleId,
+          inputType: row.deductionCode ? `MASS_UPDATE_DEDUCTION_${row.deductionCode}` : 'MASS_UPDATE_DEDUCTION',
+          amount: Number(row.deductionAmount),
+          currency: row.currency ?? 'EGP',
+          description: `${baseDescription} deduction ${row.deductionCode ?? ''}`.trim(),
+        });
+      }
+      for (const draft of drafts) {
+        await this.approvePayrollInputThroughWorkflow(draft, req);
+        inputTypes.push(draft.inputType);
+      }
+      applied.push({ employeeId: row.employeeId, workerId: worker.id.value, inputTypes });
+    }
+
+    return {
+      appliedRows: applied,
+      inputCount: applied.reduce((total, row) => total + row.inputTypes.length, 0),
+    };
+  }
+
+  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[]): Promise<PayrollApprovedInputRecord[]> {
+    const inputs: PayrollApprovedInputRecord[] = [];
+    for (const row of rows) {
+      if (!row.employeeId) continue;
+      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      if (!worker) {
+        throw new BadRequestException(`Employee ${row.employeeId} was not found`);
+      }
+      const currency = row.currency ?? 'EGP';
+      if (row.grossSalary !== undefined) inputs.push({
+        workerId: worker.id.value,
+        inputType: 'MASS_UPDATE_GROSS_PAY',
+        amount: Number(row.grossSalary),
+        currency,
+        status: 'APPROVED',
+        description: `${row.employeeId} projected gross salary`,
+      });
+      if (row.taxOverride !== undefined) inputs.push({
+        workerId: worker.id.value,
+        inputType: 'MASS_UPDATE_TAX_OVERRIDE',
+        amount: Number(row.taxOverride),
+        currency,
+        status: 'APPROVED',
+        description: `${row.employeeId} projected tax override`,
+      });
+      if (row.insuranceOverride !== undefined) inputs.push({
+        workerId: worker.id.value,
+        inputType: 'MASS_UPDATE_INSURANCE_OVERRIDE',
+        amount: Number(row.insuranceOverride),
+        currency,
+        status: 'APPROVED',
+        description: `${row.employeeId} projected insurance override`,
+      });
+      if (row.deductionAmount !== undefined) inputs.push({
+        workerId: worker.id.value,
+        inputType: row.deductionCode ? `MASS_UPDATE_DEDUCTION_${row.deductionCode}` : 'MASS_UPDATE_DEDUCTION',
+        amount: Number(row.deductionAmount),
+        currency,
+        status: 'APPROVED',
+        description: `${row.employeeId} projected deduction ${row.deductionCode ?? ''}`.trim(),
+      });
+    }
+    return inputs;
+  }
+
+  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[]): Promise<PayrollApprovedInputRecord[]> {
+    const inputs: PayrollApprovedInputRecord[] = [];
+    for (const row of rows) {
+      if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
+      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      if (!worker) throw new BadRequestException(`Employee ${row.employeeId} was not found`);
+      inputs.push({
+        workerId: worker.id.value,
+        inputType: row.inputType,
+        amount: Number(row.amount),
+        currency: row.currency ?? 'EGP',
+        status: 'APPROVED',
+        description: row.description ?? `${row.employeeId} ${row.inputType.toLowerCase().replace(/_/g, ' ')}`,
+      });
+    }
+    return inputs;
+  }
+
+  private toApprovedInputRecords(inputs: Awaited<ReturnType<PayrollInputRepository['findByPayrollCycle']>>): PayrollApprovedInputRecord[] {
+    return inputs.map((input) => ({
+      workerId: input.workerId.value,
+      inputType: input.inputType,
+      amount: input.amount,
+      currency: input.currency,
+      status: input.status,
+      description: input.description,
+    }));
+  }
+
+  private async findWorkerByEmployeeId(employeeId: string) {
+    const activeWorkers = await this.workerRepo.findActive();
+    const fallbackWorkers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.search('', { limit: 1000 });
+    return fallbackWorkers.find((worker) => worker.employeeNumber === employeeId);
+  }
+
+  private toSessions(events: Array<{ eventType: string; timestamp: Date; location?: string }>): AttendanceSession[] {
+    const sorted = [...events].sort((left, right) => left.timestamp.getTime() - right.timestamp.getTime());
+    const sessions: AttendanceSession[] = [];
+    let checkIn: { timestamp: Date; location?: string } | undefined;
+
+    for (const event of sorted) {
+      if (event.eventType === 'CLOCK_IN') {
+        checkIn = { timestamp: event.timestamp, location: event.location };
+      } else if (event.eventType === 'CLOCK_OUT' && checkIn) {
+        sessions.push({
+          checkInAt: checkIn.timestamp,
+          checkOutAt: event.timestamp,
+          distanceMeters: parseClockLocation(checkIn.location).distanceMeters,
+        });
+        checkIn = undefined;
+      }
+    }
+
+    return sessions;
+  }
+
+  private async buildAttendanceSummary(workerId: Uuid, year: number, month: number, req: Request) {
+    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const periodEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    const lockedSnapshots = await this.attendanceDailyLedgerRepo.findByWorker(this.getTenantId(req), workerId, {
+      dateFrom: periodStart,
+      dateTo: periodEnd,
+    });
+    if (lockedSnapshots.some((snapshot) => snapshot.locked)) {
+      const locked = lockedSnapshots.filter((snapshot) => snapshot.locked);
+      return {
+        ...this.payrollCalculation.summarizeLockedAttendanceSnapshots(locked),
+        source: 'LOCKED_LEDGER',
+        lockedLedgerDays: new Set(locked.map((snapshot) => snapshot.workDate)).size,
+        estimated: false,
+      };
+    }
+
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const events = await this.timeClockEventRepo.findByWorker(workerId);
+    const days = new Map<string, typeof events>();
+
+    for (const event of events) {
+      if (event.timestamp.getUTCFullYear() !== year || event.timestamp.getUTCMonth() + 1 !== month) continue;
+      const day = event.timestamp.toISOString().slice(0, 10);
+      days.set(day, [...(days.get(day) ?? []), event]);
+    }
+
+    const dayCalculations = [...days.entries()].map(([workDate, dayEvents]) => this.attendanceCalculation.calculateDay({
+      workDate,
+      sessions: this.toSessions(dayEvents.map((event) => ({
+        eventType: event.eventType,
+        timestamp: event.timestamp,
+        location: event.location,
+      }))),
+      policy: setup.attendancePolicy,
+      timezoneOffsetMinutes: setup.attendancePolicy.timezoneOffsetMinutes,
+    }));
+
+    return {
+      ...this.attendanceCalculation.summarizeMonth(dayCalculations),
+      source: 'RAW_ESTIMATE',
+      lockedLedgerDays: 0,
+      estimated: true,
+    };
+  }
+
+  private async buildPayrollEmployees(year: number, month: number, req: Request): Promise<PayrollCycleEmployeeInput[]> {
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const activeWorkers = await this.workerRepo.findActive();
+    const workers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.search('', { limit: 1000 });
+
+    return Promise.all(workers.map(async (worker) => {
+      const records = await this.personalDataRepo.findByWorker(worker.id);
+      const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
+      const compensation = payloadByCategory.COMPENSATION ?? {};
+      const contact = payloadByCategory.CONTACT ?? {};
+      const basic = payloadByCategory.BASIC ?? {};
+      const banking = payloadByCategory.BANKING ?? {};
+      const tax = payloadByCategory.TAX ?? {};
+      const bankAccountPayload = banking.bankAccount as Record<string, unknown> | undefined;
+      const taxProfile = tax.taxProfile as Record<string, unknown> | undefined;
+      const workLocation = contact.workLocation as Record<string, unknown> | undefined;
+      const locationCode = typeof workLocation?.code === 'string' ? workLocation.code : undefined;
+      const locationCurrency = setup.locations.find((location) => location.code === locationCode)?.currency;
+      const grossSalary = Number(compensation.grossSalaryAmount ?? compensation.salaryAmount ?? 0);
+      const salaryCurrency = String(compensation.salaryCurrency ?? locationCurrency ?? 'EGP');
+      const salaryBasis = readString(compensation.salaryBasis)?.toUpperCase();
+      const hourlyRate = Number(compensation.hourlyRateAmount ?? compensation.hourlyRate ?? 0);
+      const bankAccount: PayrollBankAccount | undefined = bankAccountPayload ? {
+        bankName: readString(bankAccountPayload.bankName),
+        accountHolderName: readString(bankAccountPayload.accountHolderName),
+        accountNumber: readString(bankAccountPayload.accountNumber ?? bankAccountPayload.bankAccountNumber),
+        iban: readString(bankAccountPayload.iban),
+        routingNumber: readString(bankAccountPayload.routingNumber),
+        swiftCode: readString(bankAccountPayload.swiftCode ?? bankAccountPayload.swift),
+      } : undefined;
+
+      return {
+        workerId: worker.id.value,
+        employeeId: worker.employeeNumber,
+        name: `${worker.firstName} ${worker.lastName}`.trim(),
+        email: String(basic.workEmail ?? basic.personalEmail ?? worker.email.toString()),
+        department: String(contact.departmentName ?? ''),
+        workLocationCode: locationCode,
+        employmentType: worker.employmentType,
+        salaryBasis: salaryBasis === 'HOURLY' ? 'HOURLY' : 'MONTHLY',
+        hourlyRate: hourlyRate > 0 ? hourlyRate : undefined,
+        grossSalary,
+        currency: salaryCurrency,
+        bankAccount,
+        taxIdentifier: readString(taxProfile?.taxIdentifier ?? tax.taxIdentifier ?? tax.payrollTaxIdentifier),
+        insuranceIdentifier: readString(
+          taxProfile?.socialInsuranceNumber
+            ?? taxProfile?.insuranceIdentifier
+            ?? tax.socialInsuranceNumber
+            ?? tax.insuranceIdentifier,
+        ),
+        attendanceSummary: await this.buildAttendanceSummary(worker.id, year, month, req),
+      };
+    }));
+  }
+
+  private async buildMonthlyPreview(req: Request, year: number, month: number, workLocationCode?: string): Promise<PayrollCyclePreview> {
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const employees = await this.buildPayrollEmployees(year, month, req);
+    const preview = this.payrollCalculation.buildMonthlyCycle({ year, month, employees, setup, workLocationCode });
+    const actor = { roles: req.actor?.roles ?? ['HR_ADMIN'], workerId: req.actor?.actorId?.value };
+    return {
+      ...preview,
+      rows: preview.rows.map((row) => this.payrollCalculation.maskRowForActor(row, actor)),
+    };
+  }
+
+  private async buildPersistedCyclePreview(req: Request, payrollCycleId: string): Promise<PayrollCyclePreview> {
+    const cycle = await this.payrollCycleRepo.findById(new Uuid(payrollCycleId));
+    if (!cycle) throw new BadRequestException('Payroll cycle not found');
+    const resultLines = (await this.resultLineRepo.findByPayrollCycle(new Uuid(payrollCycleId)))
+      .filter((line) => line.status === 'LOCKED');
+    const paymentBatch = await this.paymentBatchRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(payrollCycleId));
+    const gross = roundMoney(resultLines
+      .filter((line) => line.lineType === 'GROSS' || line.ruleSetId === 'EARNING' || line.lineType === 'OFF_CYCLE_EARNING' || line.lineType === 'RETRO_ADJUSTMENT')
+      .reduce((total, line) => total + line.amount, 0));
+    const tax = roundMoney(resultLines
+      .filter((line) => line.lineType === 'TAX' || (line.explanation ?? '').toLowerCase().includes('taxable base'))
+      .reduce((total, line) => total + line.amount, 0));
+    const employeeInsurance = roundMoney(resultLines
+      .filter((line) => line.lineType === 'EMPLOYEE_INSURANCE')
+      .reduce((total, line) => total + line.amount, 0));
+    const employerInsurance = roundMoney(resultLines
+      .filter((line) => line.lineType === 'EMPLOYER_INSURANCE')
+      .reduce((total, line) => total + line.amount, 0));
+    const net = roundMoney(paymentBatch?.totalNet ?? resultLines
+      .filter((line) => line.lineType === 'NET_PAY')
+      .reduce((total, line) => total + line.amount, 0));
+    const deductions = roundMoney(Math.max(gross + employerInsurance - tax - employeeInsurance - employerInsurance - net, 0));
+    return {
+      id: `${cycle.payPeriodStart.getUTCFullYear()}-${String(cycle.payPeriodStart.getUTCMonth() + 1).padStart(2, '0')}`,
+      name: cycle.cycleName,
+      year: cycle.payPeriodStart.getUTCFullYear(),
+      month: cycle.payPeriodStart.getUTCMonth() + 1,
+      calendarDays: cycle.payPeriodEnd.getUTCDate(),
+      periodStart: cycle.payPeriodStart.toISOString().slice(0, 10),
+      periodEnd: cycle.payPeriodEnd.toISOString().slice(0, 10),
+      payDate: (cycle.payDate ?? cycle.payPeriodEnd).toISOString().slice(0, 10),
+      employeeCount: new Set(resultLines.map((line) => line.workerId.value)).size,
+      totalGross: gross,
+      totalTax: tax,
+      totalEmployeeInsurance: employeeInsurance,
+      totalEmployerInsurance: employerInsurance,
+      totalPolicyDeductions: deductions,
+      totalNet: net,
+      currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? 'EGP',
+      rows: [],
+    };
+  }
+
+  private async buildAttendanceLockIssues(preview: PayrollCyclePreview, req: Request): Promise<PayrollReadinessIssue[]> {
+    const tenantId = this.getTenantId(req);
+    const issues: PayrollReadinessIssue[] = [];
+    for (const row of preview.rows) {
+      const ledgers = await this.attendanceDailyLedgerRepo.findByWorker(tenantId, new Uuid(row.workerId), {
+        dateFrom: preview.periodStart,
+        dateTo: preview.periodEnd,
+      });
+      const readyLocked = ledgers.filter((ledger) => ledger.locked && ledger.readyForPayroll);
+      if (readyLocked.length === 0) {
+        issues.push({
+          code: 'ATTENDANCE_LEDGER_NOT_LOCKED',
+          condition: 'ATTENDANCE_BLOCKER',
+          severity: 'ERROR',
+          blocking: true,
+          employeeId: row.employeeId,
+          workerId: row.workerId,
+          message: `Employee ${row.employeeId} has no locked attendance ledger for ${preview.periodStart} to ${preview.periodEnd}.`,
+        });
+        continue;
+      }
+      const unreadyCount = ledgers.filter((ledger) => !ledger.locked || !ledger.readyForPayroll).length;
+      if (unreadyCount > 0) {
+        issues.push({
+          code: 'ATTENDANCE_LEDGER_PARTIALLY_UNLOCKED',
+          condition: 'ATTENDANCE_BLOCKER',
+          severity: 'ERROR',
+          blocking: true,
+          employeeId: row.employeeId,
+          workerId: row.workerId,
+          message: `Employee ${row.employeeId} has ${unreadyCount} attendance ledger rows not locked for payroll.`,
+        });
+      }
+    }
+    return issues;
+  }
+
+  private mergeReadiness(readiness: PayrollCloseToPayReadiness, additionalIssues: PayrollReadinessIssue[]): PayrollCloseToPayReadiness {
+    const issues = [...readiness.issues, ...additionalIssues];
+    const blockingIssueCount = issues.filter((issue) => issue.blocking).length;
+    return {
+      canClose: blockingIssueCount === 0,
+      blockingIssueCount,
+      warningIssueCount: issues.filter((issue) => !issue.blocking).length,
+      issues,
+    };
+  }
+
+  private assertCanExportPayroll(req: Request): void {
+    if (!this.hasPayrollVisibility(req)) {
+      throw new ForbiddenException('Only HR or Payroll administrators can export tenant payroll data');
+    }
+  }
+
+  @Get('monthly-cycle-preview')
+  async monthlyCyclePreview(
+    @Query('year') year: string | undefined,
+    @Query('month') month: string | undefined,
+    @Query('workLocationCode') workLocationCode: string | undefined,
+    @Req() req: Request,
+  ) {
+    const now = new Date();
+    return this.buildMonthlyPreview(
+      req,
+      year ? Number(year) : now.getUTCFullYear(),
+      month ? Number(month) : now.getUTCMonth() + 1,
+      workLocationCode,
+    );
+  }
+
+  @Get('export.csv')
+  async exportMonthlyPayrollCsv(
+    @Query('year') year: string | undefined,
+    @Query('month') month: string | undefined,
+    @Query('workLocationCode') workLocationCode: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    this.assertCanExportPayroll(req);
+    const now = new Date();
+    const preview = await this.buildMonthlyPreview(
+      req,
+      year ? Number(year) : now.getUTCFullYear(),
+      month ? Number(month) : now.getUTCMonth() + 1,
+      workLocationCode,
+    );
+    const rows = preview.rows.map((row) => ({
+      employeeId: row.employeeId,
+      name: row.name,
+      workEmail: row.email,
+      department: row.department,
+      workLocationCode: row.workLocationCode,
+      taxIdentifier: row.taxIdentifier,
+      insuranceIdentifier: row.insuranceIdentifier,
+      baseGrossSalary: row.baseGrossSalary,
+      earningAmount: row.earningAmount,
+      taxableEarningAmount: row.taxableEarningAmount,
+      nonTaxableEarningAmount: row.nonTaxableEarningAmount,
+      grossSalary: row.grossSalary,
+      taxAmount: row.taxAmount,
+      employeeInsuranceAmount: row.employeeInsuranceAmount,
+      policyDeductionAmount: row.policyDeductionAmount,
+      netSalary: row.netSalary,
+      currency: row.currency,
+    }));
+    const csv = toCsv(rows);
+    const fileName = `payroll-${preview.id}.csv`;
+    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+      tenantId: this.getTenantId(req).value,
+      requestedBy: this.getActorUuidString(req),
+      exportType: 'PAYROLL_SUMMARY_CSV',
+      fileName,
+      content: csv,
+      rowCount: rows.length,
+      filters: { year: preview.year, month: preview.month, workLocationCode },
+      purpose: 'Payroll summary export',
+    }));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('X-Data-Classification', 'HIGH_SENSITIVITY');
+    res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
+    res.send(csv);
+  }
+
+  @Get('bank-sheet.csv')
+  async exportBankSheetCsv(
+    @Query('year') year: string | undefined,
+    @Query('month') month: string | undefined,
+    @Query('workLocationCode') workLocationCode: string | undefined,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    this.assertCanExportPayroll(req);
+    const now = new Date();
+    const preview = await this.buildMonthlyPreview(
+      req,
+      year ? Number(year) : now.getUTCFullYear(),
+      month ? Number(month) : now.getUTCMonth() + 1,
+      workLocationCode,
+    );
+    const rows = this.payrollCalculation.buildBankTransferRows(preview.rows).map((row) => ({
+      employeeId: row.employeeId,
+      name: row.name,
+      workEmail: row.workEmail,
+      bankName: row.bankName,
+      accountHolderName: row.accountHolderName,
+      accountNumber: row.accountNumber,
+      iban: row.iban,
+      routingNumber: row.routingNumber,
+      swiftCode: row.swiftCode,
+      netSalary: row.netSalary,
+      currency: row.currency,
+      bankReady: row.bankReady ? 'YES' : 'NO',
+      readinessReason: row.readinessReason,
+    }));
+    const csv = toCsv(rows);
+    const fileName = `bank-sheet-${preview.id}.csv`;
+    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+      tenantId: this.getTenantId(req).value,
+      requestedBy: this.getActorUuidString(req),
+      exportType: 'BANK_SHEET_CSV',
+      fileName,
+      content: csv,
+      rowCount: rows.length,
+      filters: { year: preview.year, month: preview.month, workLocationCode },
+      purpose: 'Bank transfer sheet export',
+    }));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('X-Data-Classification', 'HIGH_SENSITIVITY');
+    res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
+    res.send(csv);
+  }
+
+  @Get('payment-batch-preview')
+  async paymentBatchPreview(
+    @Query('year') year: string | undefined,
+    @Query('month') month: string | undefined,
+    @Query('workLocationCode') workLocationCode: string | undefined,
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const now = new Date();
+    const preview = await this.buildMonthlyPreview(
+      req,
+      year ? Number(year) : now.getUTCFullYear(),
+      month ? Number(month) : now.getUTCMonth() + 1,
+      workLocationCode,
+    );
+    return this.payrollInputOrchestration.buildPaymentBatch(
+      preview,
+      this.payrollCalculation.buildBankTransferRows(preview.rows),
+    );
+  }
+
+  @Get('export-jobs')
+  async getPayrollExportJobs(@Query('limit') limit: string | undefined, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    return this.exportJobRepo.findByTenant(this.getTenantId(req), limit ? Number(limit) : 20);
+  }
+
+  private async findExistingCycleSummaries(req: Request): Promise<ExistingPayrollCycleSummary[]> {
+    const cycles = await this.payrollCycleRepo.findByTenant(this.getTenantId(req));
+    return cycles.map((cycle) => ({
+      payrollCycleId: cycle.id.value,
+      periodStart: cycle.payPeriodStart.toISOString().slice(0, 10),
+      periodEnd: cycle.payPeriodEnd.toISOString().slice(0, 10),
+      status: cycle.status,
+    }));
+  }
+
+  @Post('monthly-cycle/close-to-pay')
+  async closeMonthlyCycleToPay(
+    @Body() body: {
+      year?: number;
+      month?: number;
+      workLocationCode?: string;
+      closeCycle?: boolean;
+      overrideReadiness?: boolean;
+      overrideReason?: string;
+      massUpdateRows?: PayrollCsvRow[];
+    },
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const now = new Date();
+    const year = Number(body.year ?? now.getUTCFullYear());
+    const month = Number(body.month ?? now.getUTCMonth() + 1);
+    if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+      throw new BadRequestException('A valid year and month are required');
+    }
+    const massUpdateRows = body.massUpdateRows ?? [];
+    const massUpdateErrors = this.validateMassUpdateRows(massUpdateRows);
+    if (massUpdateErrors.length > 0) {
+      throw new BadRequestException({
+        message: 'Payroll mass update has validation errors',
+        errors: massUpdateErrors,
+      });
+    }
+
+    const preview = await this.buildMonthlyPreview(req, year, month, body.workLocationCode);
+    if (preview.employeeCount === 0) throw new BadRequestException('No employees are available for this payroll cycle');
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const projectedReadinessPreview = this.payrollApprovedInputProjection.applyApprovedInputs(
+      preview,
+      await this.buildMassUpdateProjectionInputs(massUpdateRows),
+    );
+    const readinessBankRows = this.payrollCalculation.buildBankTransferRows(projectedReadinessPreview.rows);
+    const readiness = this.mergeReadiness(this.payrollGovernance.evaluateCloseToPayReadiness({
+      preview: projectedReadinessPreview,
+      bankRows: readinessBankRows,
+      existingCycles: await this.findExistingCycleSummaries(req),
+      workLocationCode: body.workLocationCode,
+      setup,
+    }), await this.buildAttendanceLockIssues(projectedReadinessPreview, req));
+    if (!readiness.canClose) {
+      if (!body.overrideReadiness) {
+        throw new BadRequestException({
+          message: 'Payroll cycle has blocking readiness issues',
+          readiness,
+        });
+      }
+      if (!body.overrideReason?.trim()) {
+        throw new BadRequestException('Override reason is required when bypassing payroll readiness blockers');
+      }
+    }
+
+    const cycleResult = await this.executeOrThrow(this.buildCommand('CreatePayrollCycle', 'PayrollCycle', {
+      cycleName: preview.name,
+      payPeriodStart: new Date(`${preview.periodStart}T00:00:00.000Z`),
+      payPeriodEnd: new Date(`${preview.periodEnd}T00:00:00.000Z`),
+      payDate: new Date(`${preview.payDate}T00:00:00.000Z`),
+    }, req));
+    const payrollCycleId = this.readResultId(cycleResult, 'payrollCycleId');
+
+    await this.advancePayrollCycle('OpenPayrollCycle', payrollCycleId, req);
+    await this.advancePayrollCycle('StartPayrollInputCollection', payrollCycleId, req);
+
+    let payrollInputCount = 0;
+    for (const row of preview.rows) {
+      for (const draft of this.payrollInputOrchestration.buildInputDrafts(row, { payrollCycleId })) {
+        await this.approvePayrollInputThroughWorkflow(draft, req);
+        payrollInputCount += 1;
+      }
+    }
+    const massUpdateResult = await this.applyMassUpdateRowsToInputCollection(payrollCycleId, massUpdateRows, req);
+    payrollInputCount += massUpdateResult.inputCount;
+    const approvedInputs = await this.payrollInputRepo.findByPayrollCycle(new Uuid(payrollCycleId));
+    const calculationPreview = this.payrollApprovedInputProjection.applyApprovedInputs(
+      preview,
+      this.toApprovedInputRecords(approvedInputs),
+    );
+    const calculationBankRows = this.payrollCalculation.buildBankTransferRows(calculationPreview.rows);
+
+    await this.advancePayrollCycle('StartPayrollValidation', payrollCycleId, req);
+    await this.advancePayrollCycle('StartPayrollCalculation', payrollCycleId, req);
+
+    const runResult = await this.executeOrThrow(this.buildCommand('StartPayrollCalculationRun', 'PayrollCalculationRun', {
+      payrollCycleId: new Uuid(payrollCycleId),
+      currency: calculationPreview.currency,
+      totalWorkers: calculationPreview.employeeCount,
+      totalGrossPay: calculationPreview.totalGross,
+      totalNetPay: calculationPreview.totalNet,
+    }, req));
+    const payrollCalculationRunId = this.readResultId(runResult, 'payrollCalculationRunId');
+
+    let resultLineCount = 0;
+    for (const row of calculationPreview.rows) {
+      for (const draft of this.payrollCalculation.buildResultLineDrafts(row, { payrollCycleId, calculationRunId: payrollCalculationRunId })) {
+        const lineResult = await this.executeOrThrow(this.buildCommand('CalculatePayrollResultLine', 'PayrollResultLine', {
+          workerId: new Uuid(draft.workerId),
+          payrollCycleId: new Uuid(draft.payrollCycleId),
+          calculationRunId: new Uuid(draft.calculationRunId),
+          lineType: draft.lineType,
+          description: draft.description,
+          amount: draft.amount,
+          currency: draft.currency,
+          ruleSetId: draft.ruleSetId,
+          ruleId: draft.ruleId,
+          calculationStep: draft.calculationStep,
+          inputSnapshotHash: draft.inputSnapshotHash,
+        }, req, {
+          subjectWorkerId: new Uuid(draft.workerId),
+        }));
+        const payrollResultLineId = this.readResultId(lineResult, 'payrollResultLineId');
+        await this.lockResultLineThroughWorkflow(payrollResultLineId, draft.explanation, req);
+        resultLineCount += 1;
+      }
+    }
+
+    await this.advanceCalculationRun('ValidatePayrollCalculationRun', payrollCalculationRunId, req);
+    await this.advanceCalculationRun('FinalizePayrollCalculationRun', payrollCalculationRunId, req);
+    await this.advancePayrollCycle('StartPayrollReview', payrollCycleId, req);
+
+    const lockedResultLines = (await this.resultLineRepo.findByPayrollCycle(new Uuid(payrollCycleId)))
+      .filter((line) => line.status === 'LOCKED')
+      .map((line) => ({
+        id: line.id.value,
+        workerId: line.workerId.value,
+        lineType: line.lineType,
+        description: line.description,
+        amount: line.amount,
+        currency: line.currency,
+        ruleSetId: line.ruleSetId,
+        explanation: line.explanation,
+        status: line.status,
+      }));
+    const employees = await this.buildPayrollEmployees(year, month, req);
+    const payslips = this.payrollCalculation.buildPayslipsFromResultLines({
+      payrollCycle: {
+        id: payrollCycleId,
+        periodStart: calculationPreview.periodStart,
+        periodEnd: calculationPreview.periodEnd,
+        payDate: calculationPreview.payDate,
+      },
+      employees,
+      resultLines: lockedResultLines,
+    });
+    const payslipArtifacts = payslips.map((payslip) => this.payrollArtifact.buildPayslipArtifactRecord({
+      tenantId: this.getTenantId(req).value,
+      payrollCycleId,
+      payslip,
+      htmlContent: this.payrollInputOrchestration.renderPayslipHtml(payslip),
+    }));
+    await this.payslipArtifactRepo.saveMany(payslipArtifacts);
+
+    const persistedPaymentBatch = {
+      ...this.payrollInputOrchestration.buildPaymentBatch(calculationPreview, calculationBankRows),
+      payrollCycleId,
+    };
+    const paymentBatchRecord = this.payrollArtifact.buildPaymentBatchRecord({
+      tenantId: this.getTenantId(req).value,
+      payrollCycleId,
+      batch: persistedPaymentBatch,
+      createdBy: this.getActorUuidString(req),
+    });
+    await this.paymentBatchRepo.save(paymentBatchRecord);
+
+    let finalCycleStatus = 'REVIEW';
+    if (body.closeCycle ?? true) {
+      await this.advancePayrollCycle('ApprovePayrollCycle', payrollCycleId, req);
+      const closeResult = await this.advancePayrollCycle('ClosePayrollCycle', payrollCycleId, req);
+      finalCycleStatus = String(closeResult.newState ?? 'CLOSED');
+    }
+
+    return {
+      payrollCycleId,
+      payrollCalculationRunId,
+      paymentBatchId: paymentBatchRecord.id,
+      status: finalCycleStatus,
+      employeeCount: calculationPreview.employeeCount,
+      payrollInputCount,
+      massUpdateInputCount: massUpdateResult.inputCount,
+      resultLineCount,
+      payslipArtifactCount: payslipArtifacts.length,
+      periodStart: calculationPreview.periodStart,
+      periodEnd: calculationPreview.periodEnd,
+      totalGross: calculationPreview.totalGross,
+      totalNet: calculationPreview.totalNet,
+      currency: calculationPreview.currency,
+      bankReadyCount: calculationBankRows.filter((row) => row.bankReady).length,
+      bankMissingCount: calculationBankRows.filter((row) => !row.bankReady).length,
+      readiness,
+      events: ['PayrollCycleClosedToPay', 'PayrollInputsApproved', 'PayrollResultLinesLocked', 'PaymentBatchPersisted', 'PayslipArtifactsGenerated'],
+    };
+  }
+
+  @Get('mass-update-template.csv')
+  async massUpdateTemplate(@Req() req: Request, @Res() res: Response) {
+    this.assertCanExportPayroll(req);
+    const csv = toCsv([{
+      employeeId: 'EMP-001',
+      workEmail: 'employee@example.com',
+      grossSalary: 10000,
+      currency: 'EGP',
+      taxOverride: '',
+      insuranceOverride: '',
+      deductionCode: 'LATE_PER_MINUTE',
+      deductionAmount: '',
+      effectiveMonth: '2026-05',
+    }]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="payroll-mass-update-template.csv"');
+    res.setHeader('X-Data-Classification', 'CONFIDENTIAL');
+    res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
+    res.send(csv);
+  }
+
+  @Post('mass-update-preview')
+  async massUpdatePreview(@Body() body: { rows?: PayrollCsvRow[] }, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const rows = body.rows ?? [];
+    const errors = this.validateMassUpdateRows(rows);
+
+    return {
+      accepted: errors.length === 0,
+      rowCount: rows.length,
+      errors,
+      events: errors.length === 0 ? ['PayrollMassUpdateValidated'] : ['PayrollMassUpdateRejected'],
+    };
+  }
+
+  @Post('mass-update-apply')
+  async massUpdateApply(@Body() body: { payrollCycleId?: string; rows?: PayrollCsvRow[] }, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const rows = body.rows ?? [];
+    const errors = this.validateMassUpdateRows(rows);
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Payroll mass update has validation errors',
+        errors,
+      });
+    }
+    if (!body.payrollCycleId) throw new BadRequestException('payrollCycleId is required to apply a payroll mass update');
+    const cycle = await this.payrollCycleRepo.findById(new Uuid(body.payrollCycleId));
+    if (!cycle) throw new BadRequestException('Payroll cycle not found');
+    if (cycle.status !== 'INPUT_COLLECTION') {
+      throw new BadRequestException(`Cannot apply mass update while payroll cycle is ${cycle.status}`);
+    }
+
+    const result = await this.applyMassUpdateRowsToInputCollection(body.payrollCycleId, rows, req);
+
+    return {
+      applied: true,
+      payrollCycleId: body.payrollCycleId,
+      rowCount: rows.length,
+      inputCount: result.inputCount,
+      appliedRows: result.appliedRows,
+      events: ['PayrollMassUpdateApplied', 'PayrollInputsApproved'],
+    };
+  }
+
+  @Post('off-cycle-preview')
+  async offCyclePreview(
+    @Body() body: { year?: number; month?: number; workLocationCode?: string; rows?: PayrollOffCycleRow[] },
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const now = new Date();
+    const rows = body.rows ?? [];
+    const errors = this.validateOffCycleRows(rows);
+    if (errors.length > 0) {
+      return {
+        accepted: false,
+        rowCount: rows.length,
+        errors,
+      };
+    }
+    const preview = await this.buildMonthlyPreview(
+      req,
+      Number(body.year ?? now.getUTCFullYear()),
+      Number(body.month ?? now.getUTCMonth() + 1),
+      body.workLocationCode,
+    );
+    return {
+      accepted: true,
+      rowCount: rows.length,
+      preview: this.payrollApprovedInputProjection.applyApprovedInputs(
+        preview,
+        await this.buildOffCycleProjectionInputs(rows),
+      ),
+      events: ['PayrollOffCyclePreviewBuilt'],
+    };
+  }
+
+  @Post('cycles/:id/off-cycle-inputs')
+  async applyOffCycleInputs(
+    @Param('id') id: string,
+    @Body() body: { rows?: PayrollOffCycleRow[] },
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const cycle = await this.payrollCycleRepo.findById(new Uuid(id));
+    if (!cycle) throw new BadRequestException('Payroll cycle not found');
+    if (cycle.status !== 'INPUT_COLLECTION') {
+      throw new BadRequestException(`Off-cycle inputs can only be applied while payroll cycle is INPUT_COLLECTION, current status is ${cycle.status}`);
+    }
+    const rows = body.rows ?? [];
+    const errors = this.validateOffCycleRows(rows);
+    if (errors.length > 0) {
+      throw new BadRequestException({
+        message: 'Off-cycle payroll rows have validation errors',
+        errors,
+      });
+    }
+    const applied: Array<{ employeeId: string; workerId: string; inputType: string }> = [];
+    for (const row of rows) {
+      if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
+      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      if (!worker) throw new BadRequestException(`Employee ${row.employeeId} was not found`);
+      await this.approvePayrollInputThroughWorkflow({
+        workerId: worker.id.value,
+        payrollCycleId: id,
+        inputType: row.inputType,
+        amount: Number(row.amount),
+        currency: row.currency ?? 'EGP',
+        description: row.description ?? `${row.employeeId} ${row.inputType.toLowerCase().replace(/_/g, ' ')}`,
+      }, req);
+      applied.push({ employeeId: row.employeeId, workerId: worker.id.value, inputType: row.inputType });
+    }
+    return {
+      applied: true,
+      payrollCycleId: id,
+      inputCount: applied.length,
+      appliedRows: applied,
+      events: ['PayrollOffCycleInputsApplied', 'PayrollInputsApproved'],
+    };
+  }
+
+  @Post('payment-batches/:id/approve')
+  async approvePaymentBatch(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
+    if (!batch) throw new BadRequestException('Payment batch not found');
+    const approved = this.payrollEnterpriseWorkflow.approvePaymentBatch(batch, this.getActorUuidString(req) ?? this.getActorId(req));
+    await this.paymentBatchRepo.save(approved);
+    return approved;
+  }
+
+  @Post('payment-batches/:id/export')
+  async exportPaymentBatch(
+    @Param('id') id: string,
+    @Body() body: { format?: PayrollBankFileFormat },
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
+    if (!batch) throw new BadRequestException('Payment batch not found');
+    const format = body.format ?? 'CSV';
+    const bankFile = this.payrollBankFile.render(batch, format);
+    const exported = this.payrollEnterpriseWorkflow.markPaymentBatchExported(batch, format, this.getActorUuidString(req) ?? this.getActorId(req));
+    await this.paymentBatchRepo.save(exported);
+    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+      tenantId: this.getTenantId(req).value,
+      payrollCycleId: batch.payrollCycleId,
+      requestedBy: this.getActorUuidString(req),
+      exportType: `BANK_PAYMENT_${format}`,
+      fileName: bankFile.fileName,
+      content: bankFile.content,
+      rowCount: bankFile.rowCount,
+      filters: { paymentBatchId: id, format },
+      purpose: 'Approved bank payment file export',
+    }));
+    return {
+      paymentBatch: exported,
+      fileName: bankFile.fileName,
+      contentType: bankFile.contentType,
+      content: bankFile.content,
+      rowCount: bankFile.rowCount,
+      events: ['PaymentBatchExported', 'PayrollBankFileRendered'],
+    };
+  }
+
+  @Post('payment-batches/:id/reconcile')
+  async reconcilePaymentBatch(
+    @Param('id') id: string,
+    @Body() body: { rows?: PayrollReconciliationRow[] },
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
+    if (!batch) throw new BadRequestException('Payment batch not found');
+    const reconciled = this.payrollEnterpriseWorkflow.reconcilePaymentBatch(
+      batch,
+      body.rows ?? [],
+      this.getActorUuidString(req) ?? this.getActorId(req),
+    );
+    await this.paymentBatchRepo.save(reconciled);
+    return reconciled;
+  }
+
+  @Post('cycles/:id/payslips/publish')
+  async publishPayrollCyclePayslips(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const artifacts = await this.payslipArtifactRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
+    const actorId = this.getActorUuidString(req) ?? this.getActorId(req);
+    const published = artifacts.map((artifact) => (
+      artifact.status === 'GENERATED'
+        ? this.payrollEnterpriseWorkflow.publishPayslip(artifact, actorId)
+        : artifact
+    ));
+    await this.payslipArtifactRepo.saveMany(published);
+    return {
+      payrollCycleId: id,
+      publishedCount: published.filter((artifact) => artifact.status === 'PUBLISHED').length,
+      artifacts: published.map((artifact) => ({
+        id: artifact.id,
+        workerId: artifact.workerId,
+        employeeId: artifact.employeeId,
+        status: artifact.status,
+        publishedAt: artifact.publishedAt,
+      })),
+      events: ['PayrollPayslipsPublished'],
+    };
+  }
+
+  @Post('cycles/:id/gl-posting')
+  async createPayrollGlPosting(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const preview = await this.buildPersistedCyclePreview(req, id);
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const location = setup.locations.find((item) => item.code === preview.rows[0]?.workLocationCode);
+    const pack = (setup.statutoryPayrollPacks ?? []).find((item) => item.active && (!location || item.countryCode === location.countryCode));
+    const posting = this.payrollGlPosting.buildPosting({
+      tenantId: this.getTenantId(req).value,
+      payrollCycleId: id,
+      preview,
+      createdBy: this.getActorUuidString(req),
+      accountMapping: pack?.glAccountMapping,
+    });
+    await this.glPostingRepo.save(posting);
+    return {
+      ...posting,
+      events: ['PayrollGlPostingBuilt'],
+    };
+  }
+
+  @Get('cycles/:id/gl-posting')
+  async getPayrollGlPosting(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const posting = await this.glPostingRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
+    if (!posting) throw new BadRequestException('No GL posting found for this payroll cycle');
+    return posting;
   }
 
   /* Payroll Cycles */
@@ -129,10 +1417,136 @@ export class PayrollController {
     return this.payrollCycleRepo.findById(new Uuid(id));
   }
 
+  @Get('cycles/:id/payment-batch')
+  async getPayrollCyclePaymentBatch(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const batch = await this.paymentBatchRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
+    if (!batch) throw new BadRequestException('No persisted payment batch found for this payroll cycle');
+    return batch;
+  }
+
+  @Get('cycles/:id/export-jobs')
+  async getPayrollCycleExportJobs(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    return this.exportJobRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
+  }
+
+  @Get('cycles/:id/payslips')
+  async getPayrollCyclePayslips(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    const artifacts = await this.payslipArtifactRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
+    if (artifacts.length > 0) {
+      return artifacts.map((artifact) => ({
+        id: artifact.id,
+        workerId: artifact.workerId,
+        employeeId: artifact.employeeId,
+        grossPay: artifact.grossPay,
+        netPay: artifact.netPay,
+        currency: artifact.currency,
+        status: artifact.status,
+        contentHash: artifact.contentHash,
+        dataClassification: artifact.dataClassification,
+        generatedAt: artifact.createdAt,
+      }));
+    }
+    const cycle = await this.payrollCycleRepo.findById(new Uuid(id));
+    if (!cycle) throw new BadRequestException('Payroll cycle not found');
+    const resultLines = (await this.resultLineRepo.findByPayrollCycle(new Uuid(id)))
+      .filter((line) => line.status === 'LOCKED')
+      .map((line) => ({
+        id: line.id.value,
+        workerId: line.workerId.value,
+        lineType: line.lineType,
+        description: line.description,
+        amount: line.amount,
+        currency: line.currency,
+        ruleSetId: line.ruleSetId,
+        explanation: line.explanation,
+        status: line.status,
+      }));
+    const employees = await this.buildPayrollEmployees(
+      cycle.payPeriodStart.getUTCFullYear(),
+      cycle.payPeriodStart.getUTCMonth() + 1,
+      req,
+    );
+    return this.payrollCalculation.buildPayslipsFromResultLines({
+      payrollCycle: {
+        id: cycle.id.value,
+        periodStart: cycle.payPeriodStart.toISOString().slice(0, 10),
+        periodEnd: cycle.payPeriodEnd.toISOString().slice(0, 10),
+        payDate: (cycle.payDate ?? cycle.payPeriodEnd).toISOString().slice(0, 10),
+      },
+      employees,
+      resultLines,
+    });
+  }
+
+  @Get('cycles/:id/payslips/:workerId.html')
+  async getPayrollCyclePayslipHtml(
+    @Param('id') id: string,
+    @Param('workerId') workerId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    this.assertCanExportPayroll(req);
+    const artifact = await this.payslipArtifactRepo.findByCycleAndWorker(this.getTenantId(req), new Uuid(id), new Uuid(workerId));
+    if (artifact) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Disposition', `inline; filename="payslip-${artifact.employeeId}.html"`);
+      res.setHeader('X-Data-Classification', artifact.dataClassification);
+      res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
+      res.setHeader('X-Content-Hash', artifact.contentHash);
+      res.send(artifact.htmlContent);
+      return;
+    }
+    const cycle = await this.payrollCycleRepo.findById(new Uuid(id));
+    if (!cycle) throw new BadRequestException('Payroll cycle not found');
+    const resultLines = (await this.resultLineRepo.findByPayrollCycle(new Uuid(id)))
+      .filter((line) => line.status === 'LOCKED' && line.workerId.value === workerId)
+      .map((line) => ({
+        id: line.id.value,
+        workerId: line.workerId.value,
+        lineType: line.lineType,
+        description: line.description,
+        amount: line.amount,
+        currency: line.currency,
+        ruleSetId: line.ruleSetId,
+        explanation: line.explanation,
+        status: line.status,
+      }));
+    if (resultLines.length === 0) throw new BadRequestException('No locked payslip result lines found for this employee');
+    const employees = await this.buildPayrollEmployees(
+      cycle.payPeriodStart.getUTCFullYear(),
+      cycle.payPeriodStart.getUTCMonth() + 1,
+      req,
+    );
+    const payslip = this.payrollCalculation.buildPayslipsFromResultLines({
+      payrollCycle: {
+        id: cycle.id.value,
+        periodStart: cycle.payPeriodStart.toISOString().slice(0, 10),
+        periodEnd: cycle.payPeriodEnd.toISOString().slice(0, 10),
+        payDate: (cycle.payDate ?? cycle.payPeriodEnd).toISOString().slice(0, 10),
+      },
+      employees,
+      resultLines,
+    })[0];
+    if (!payslip) throw new BadRequestException('Payslip could not be generated');
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Content-Disposition', `inline; filename="payslip-${payslip.employeeId}-${cycle.payPeriodStart.toISOString().slice(0, 7)}.html"`);
+    res.setHeader('X-Data-Classification', 'HIGH_SENSITIVITY');
+    res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
+    res.send(this.payrollInputOrchestration.renderPayslipHtml(payslip));
+  }
+
   /* Payroll Inputs */
   @Post('inputs')
   async createPayrollInput(@Body(new ZodValidationPipe(CreatePayrollInputDtoSchema)) dto: dtos.CreatePayrollInputDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreatePayrollInput', 'PayrollInput', dto, req));
+    return this.commandBus.execute(this.buildCommand('CreatePayrollInput', 'PayrollInput', {
+      ...dto,
+      workerId: new Uuid(dto.workerId),
+      payrollCycleId: new Uuid(dto.payrollCycleId),
+    }, req, { subjectWorkerId: new Uuid(dto.workerId) }));
   }
 
   @Post('inputs/:id/commands/submit')
@@ -171,7 +1585,10 @@ export class PayrollController {
   /* Calculation Runs */
   @Post('calculation-runs')
   async startCalculationRun(@Body(new ZodValidationPipe(StartPayrollCalculationRunDtoSchema)) dto: dtos.StartPayrollCalculationRunDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('StartPayrollCalculationRun', 'PayrollCalculationRun', dto, req));
+    return this.commandBus.execute(this.buildCommand('StartPayrollCalculationRun', 'PayrollCalculationRun', {
+      ...dto,
+      payrollCycleId: new Uuid(dto.payrollCycleId),
+    }, req));
   }
 
   @Post('calculation-runs/:id/commands/validate')
@@ -203,7 +1620,12 @@ export class PayrollController {
   /* Result Lines */
   @Post('result-lines')
   async calculateResultLine(@Body(new ZodValidationPipe(CalculatePayrollResultLineDtoSchema)) dto: dtos.CalculatePayrollResultLineDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CalculatePayrollResultLine', 'PayrollResultLine', dto, req));
+    return this.commandBus.execute(this.buildCommand('CalculatePayrollResultLine', 'PayrollResultLine', {
+      ...dto,
+      workerId: new Uuid(dto.workerId),
+      payrollCycleId: new Uuid(dto.payrollCycleId),
+      calculationRunId: new Uuid(dto.calculationRunId),
+    }, req, { subjectWorkerId: new Uuid(dto.workerId) }));
   }
 
   @Post('result-lines/:id/commands/explain')

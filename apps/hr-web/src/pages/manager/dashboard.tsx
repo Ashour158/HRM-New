@@ -124,13 +124,13 @@ export function ManagerDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Pending Absences */}
+        {/* Pending Leave */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-lg">Pending Absences</CardTitle>
-                <CardDescription>Absence requests awaiting your approval</CardDescription>
+                <CardTitle className="text-lg">Pending Leave</CardTitle>
+                <CardDescription>Leave requests awaiting your approval</CardDescription>
               </div>
               <Badge variant="secondary">{data?.pendingApprovals.absences.length ?? 0}</Badge>
             </div>
@@ -143,12 +143,12 @@ export function ManagerDashboard() {
                 columns={absenceColumns}
                 data={data.pendingApprovals.absences}
                 keyExtractor={(row) => row.id}
-                emptyMessage="No pending absences"
+                emptyMessage="No pending leave requests"
               />
             ) : (
               <div className="flex items-center gap-2 text-sm text-muted-foreground py-8">
                 <CheckCircle2 className="h-4 w-4 text-green-500" />
-                All absences reviewed
+                All leave requests reviewed
               </div>
             )}
           </CardContent>
@@ -171,12 +171,6 @@ export function ManagerDashboard() {
               <Button variant="outline" className="w-full justify-start">
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Review Approvals
-              </Button>
-            </Link>
-            <Link to="/manager/requisitions">
-              <Button variant="outline" className="w-full justify-start">
-                <TrendingUp className="mr-2 h-4 w-4" />
-                Submit Requisition
               </Button>
             </Link>
           </CardContent>

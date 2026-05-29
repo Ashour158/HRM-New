@@ -179,6 +179,38 @@ export class AccessControlService {
   private inferPermissions(command: HrCommandEnvelope): string[] {
     const perms: string[] = [];
     const prefix = this.mapAggregateTypeToPermissionPrefix(command.aggregateType);
+    const commandName = command.commandName.toUpperCase();
+
+    if (prefix === 'TIME') {
+      if (commandName === 'RECORDTIMECLOCKEVENT' || commandName === 'CREATEATTENDANCECORRECTIONREQUEST' || commandName === 'CREATEATTENDANCEEXCEPTION') return ['TIME_READ'];
+      if (commandName === 'REVIEWATTENDANCECORRECTIONREQUEST') return ['TIME_APPROVE'];
+      if (commandName === 'FINALIZEATTENDANCEDAILYLEDGER') return ['PAYROLL_CREATE'];
+      if (commandName.includes('APPROVE')) return ['TIME_APPROVE'];
+      if (commandName.includes('GET') || commandName.includes('READ')) return ['TIME_READ'];
+      return ['TIME_MANAGE'];
+    }
+
+    if (prefix === 'PAYROLL') {
+      if (commandName.includes('EXPORT')) return ['PAYROLL_EXPORT'];
+      if (commandName.includes('APPROVE')) return ['PAYROLL_APPROVE'];
+      if (commandName.includes('GET') || commandName.includes('READ')) return ['PAYROLL_READ'];
+      return ['PAYROLL_CREATE'];
+    }
+
+    if (prefix === 'ABSENCE') {
+      if (commandName === 'CREATEABSENCEREQUEST' || commandName === 'SUBMITABSENCEREQUEST' || commandName === 'CANCELABSENCEREQUEST') return ['ABSENCE_READ', 'ABSENCE_MANAGE'];
+      if (commandName === 'APPROVEABSENCEREQUEST' || commandName === 'REJECTABSENCEREQUEST') return ['ABSENCE_APPROVE', 'ABSENCE_MANAGE'];
+      if (commandName.includes('APPROVE') || commandName.includes('REJECT')) return ['ABSENCE_APPROVE', 'ABSENCE_MANAGE'];
+      return ['ABSENCE_MANAGE', 'ABSENCE_READ'];
+    }
+
+    if (prefix === 'PERFORMANCE') {
+      if (commandName.includes('APPROVE')) return ['PERFORMANCE_APPROVE'];
+      if (commandName.includes('CREATE') || commandName.includes('ADD')) return ['PERFORMANCE_CREATE'];
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['PERFORMANCE_READ'];
+      return ['PERFORMANCE_WRITE'];
+    }
+
     switch (command.commandType) {
       case 'CREATE':
         perms.push(`${prefix}_CREATE`);
@@ -208,6 +240,34 @@ export class AccessControlService {
       JobAssignment: 'WORKER',
       EmploymentContract: 'WORKER',
       PersonalDataRecord: 'WORKER',
+      WorkSchedule: 'TIME',
+      Timesheet: 'TIME',
+      TimeClockEvent: 'TIME',
+      AttendanceException: 'TIME',
+      AttendanceCorrectionRequest: 'TIME',
+      AttendanceDailyLedger: 'TIME',
+      OvertimeApproval: 'TIME',
+      AbsenceRequest: 'ABSENCE',
+      LeaveCase: 'ABSENCE',
+      AbsenceAccrualBalance: 'ABSENCE',
+      LeaveEntitlementCalculation: 'ABSENCE',
+      PayrollCycle: 'PAYROLL',
+      PayrollInput: 'PAYROLL',
+      PayrollCalculationRun: 'PAYROLL',
+      PayrollResultLine: 'PAYROLL',
+      PerformanceReview: 'PERFORMANCE',
+      Goal: 'PERFORMANCE',
+      PerformanceFeedback360Cycle: 'PERFORMANCE',
+      PerformanceFeedback360Response: 'PERFORMANCE',
+      Objective: 'PERFORMANCE',
+      KeyResult: 'PERFORMANCE',
+      KeyPerformanceIndicator: 'PERFORMANCE',
+      KpiMeasurement: 'PERFORMANCE',
+      ReviewTemplate: 'PERFORMANCE',
+      Competency: 'PERFORMANCE',
+      DevelopmentPlan: 'PERFORMANCE',
+      CalibrationSession: 'PERFORMANCE',
+      PerformanceImprovementPlan: 'PERFORMANCE',
     };
     return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }
@@ -221,7 +281,7 @@ export class AccessControlService {
       PAYROLL: ['Payroll', 'PayrollRun', 'Payslip'],
       BENEFITS: ['Benefit', 'Enrollment', 'Carrier'],
       COMPENSATION: ['Compensation', 'Salary', 'Bonus', 'Equity'],
-      PERFORMANCE: ['PerformanceReview', 'Goal'],
+      PERFORMANCE: ['PerformanceReview', 'Goal', 'PerformanceFeedback360Cycle', 'PerformanceFeedback360Response', 'Objective', 'KeyResult', 'KeyPerformanceIndicator', 'KpiMeasurement', 'ReviewTemplate', 'Competency', 'DevelopmentPlan', 'CalibrationSession', 'PerformanceImprovementPlan'],
       LEARNING: ['Learning', 'Course', 'Certification'],
       ABSENCE: ['Absence', 'Leave', 'TimeOff'],
       TIME: ['Timesheet', 'TimeEntry'],
