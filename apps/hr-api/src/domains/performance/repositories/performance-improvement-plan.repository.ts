@@ -57,7 +57,7 @@ export class PerformanceImprovementPlanRepository extends BaseRepository<'perfor
       tenant_id: entity.tenantId.value,
       worker_id: entity.workerId.value,
       manager_id: entity.managerId.value,
-      objectives: entity.objectives,
+      objectives: JSON.stringify(entity.objectives),
       start_date: entity.startDate ?? null,
       review_date: entity.reviewDate ?? null,
       end_date: entity.endDate ?? null,

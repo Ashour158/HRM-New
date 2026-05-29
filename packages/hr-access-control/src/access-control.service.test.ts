@@ -45,4 +45,18 @@ describe('AccessControlService time and attendance self-service commands', () =>
 
     expect(decision.allowed).toBe(false);
   });
+
+  it('allows HR admins to create performance review cycles', () => {
+    const decision = service.evaluateCommandAccess({
+      commandName: 'CreatePerformanceReviewCycle',
+      commandType: 'CREATE',
+      aggregateType: 'PerformanceReviewCycle',
+      payload: {},
+    }, {
+      actorType: 'HR_ADMIN',
+      roles: ['HR_ADMIN'],
+    });
+
+    expect(decision.allowed).toBe(true);
+  });
 });

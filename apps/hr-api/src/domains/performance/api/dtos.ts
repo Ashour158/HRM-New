@@ -327,6 +327,8 @@ export class CreateCompetencyDto {
 export const CreateDevelopmentPlanDtoSchema = z.object({
   workerId: z.string().uuid(),
   managerId: z.string().uuid(),
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
   objectives: z.array(z.object({
     title: z.string(),
     description: z.string().optional(),
@@ -343,6 +345,8 @@ export const CreateDevelopmentPlanDtoSchema = z.object({
 export class CreateDevelopmentPlanDto {
   @ApiProperty() workerId!: string;
   @ApiProperty() managerId!: string;
+  @ApiPropertyOptional() title?: string;
+  @ApiPropertyOptional() description?: string;
   @ApiProperty() objectives!: Array<{ title: string; description?: string; targetDate?: Date; status: string }>;
   @ApiProperty() skillsToDevelop!: string[];
   @ApiProperty() resources!: string[];

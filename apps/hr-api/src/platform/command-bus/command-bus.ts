@@ -3,7 +3,7 @@ import { DiscoveryService, Reflector } from '@nestjs/core';
 import { Kysely, Transaction } from 'kysely';
 import { Uuid, AggregateRoot } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, runWithTransaction } from '@hcm/database';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import type {
@@ -332,7 +332,7 @@ export class CommandBus implements OnModuleInit {
             false,
           );
         }
-        const result = await handler.handle(command as HrCommandEnvelope<unknown>);
+        const result = await runWithTransaction(_tx, () => handler.handle(command as HrCommandEnvelope<unknown>));
 
         step = CommandPipelineStep.WRITE_AUTHORITATIVE_STATE;
         await this.stepWriteState(_tx, command, result);

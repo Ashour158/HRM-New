@@ -59,7 +59,7 @@ export class DevelopmentPlanRepository extends BaseRepository<'development_plans
       manager_id: entity.managerId?.value ?? null,
       title: entity.title,
       description: entity.description ?? null,
-      objectives: entity.objectives ?? [],
+      objectives: JSON.stringify(entity.objectives ?? []),
       start_date: entity.startDate ?? null,
       target_completion_date: entity.targetCompletionDate ?? null,
       actual_completion_date: entity.actualCompletionDate ?? null,

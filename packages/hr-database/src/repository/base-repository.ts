@@ -1,15 +1,20 @@
-import { Kysely, Insertable, Updateable } from 'kysely';
+import type { Kysely, Insertable, Transaction, Updateable } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '../kysely/database.js';
 import { getCurrentTenantId } from '../connection/tenant-context.js';
+import { getCurrentTransaction } from '../connection/transaction-context.js';
 
 export abstract class BaseRepository<TTable extends keyof Database, TAggregate = Database[TTable]> {
   protected abstract readonly tableName: TTable;
 
   constructor(protected readonly db: Kysely<Database>) {}
 
+  protected get executor(): Kysely<Database> | Transaction<Database> {
+    return getCurrentTransaction() ?? this.db;
+  }
+
   async findById(id: Uuid): Promise<TAggregate | undefined> {
-    const result = await this.db
+    const result = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('id', '=', id.value as never)
@@ -18,7 +23,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   }
 
   async findAll(options?: { limit?: number; offset?: number }): Promise<TAggregate[]> {
-    let query = this.db.selectFrom(this.tableName).selectAll();
+    let query = this.executor.selectFrom(this.tableName).selectAll();
     if (options?.limit !== undefined) {
       query = query.limit(options.limit);
     }
@@ -35,7 +40,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
       throw new Error('Tenant context required for insert');
     }
 
-    const result = await this.db
+    const result = await this.executor
       .insertInto(this.tableName)
       .values({ ...(row as unknown as Record<string, unknown>), tenant_id: tenantId.value } as unknown as Insertable<Database[TTable]>)
       .returningAll()
@@ -45,7 +50,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   }
 
   async update(id: Uuid, row: Updateable<Database[TTable]>): Promise<TAggregate | undefined> {
-    const result = await this.db
+    const result = await this.executor
       .updateTable(this.tableName)
       .set(row as never)
       .where('id', '=', id.value as never)
@@ -56,7 +61,7 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   }
 
   async delete(id: Uuid): Promise<boolean> {
-    const result = await this.db
+    const result = await this.executor
       .deleteFrom(this.tableName)
       .where('id', '=', id.value as never)
       .executeTakeFirst();

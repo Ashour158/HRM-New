@@ -1,5 +1,6 @@
 export { getPool } from './connection/pool.js';
 export { runWithTenant, getCurrentTenantId } from './connection/tenant-context.js';
+export { runWithTransaction, getCurrentTransaction } from './connection/transaction-context.js';
 export { createKyselyInstance, type Database } from './kysely/database.js';
 export { TenantFilterPlugin } from './plugins/tenant-plugin.js';
 export { BaseRepository } from './repository/base-repository.js';

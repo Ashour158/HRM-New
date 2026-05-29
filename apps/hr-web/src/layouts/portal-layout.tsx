@@ -61,6 +61,7 @@ const portalConfigs: Record<string, PortalConfig> = {
       { label: 'Organization', path: '/admin/organization' },
       { label: 'Attendance', path: '/admin/attendance' },
       { label: 'Payroll', path: '/admin/payroll' },
+      { label: 'Performance', path: '/admin/performance' },
       { label: 'Compliance', path: '/admin/compliance' },
       { label: 'Country Policy', path: '/admin/country-policy' },
       { label: 'Settings', path: '/admin/settings' },
@@ -222,7 +223,8 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
       {/* Portal Navigation */}
       <nav className="flex flex-wrap gap-2 border-b pb-2">
         {config.navItems.map((item) => {
-          const isActive = location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+          const isPortalRoot = item.path === `/${portalType}`;
+          const isActive = location.pathname === item.path || (!isPortalRoot && location.pathname.startsWith(`${item.path}/`));
           return (
             <Link key={item.path} to={item.path}>
               <Button

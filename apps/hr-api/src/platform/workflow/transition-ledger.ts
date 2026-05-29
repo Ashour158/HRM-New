@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { Kysely } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, getCurrentTransaction } from '@hcm/database';
 
 export interface TransitionLedgerEntry {
   id: Uuid;
@@ -27,8 +27,12 @@ export class TransitionLedgerService {
     this.db = createKyselyInstance(getPool());
   }
 
+  private get executor(): Kysely<Database> | Transaction<Database> {
+    return getCurrentTransaction() ?? this.db;
+  }
+
   async recordTransition(entry: TransitionLedgerEntry): Promise<void> {
-    await this.db
+    await this.executor
       .insertInto('transition_ledgers')
       .values({
         id: entry.id.value,
@@ -51,7 +55,7 @@ export class TransitionLedgerService {
     aggregateType: string,
     aggregateId: Uuid,
   ): Promise<TransitionLedgerEntry[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('transition_ledgers')
       .selectAll()
       .where('aggregate_type', '=', aggregateType)
@@ -66,7 +70,7 @@ export class TransitionLedgerService {
     aggregateType: string,
     aggregateId: Uuid,
   ): Promise<TransitionLedgerEntry | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom('transition_ledgers')
       .selectAll()
       .where('aggregate_type', '=', aggregateType)

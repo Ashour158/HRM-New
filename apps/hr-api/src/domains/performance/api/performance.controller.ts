@@ -1,4 +1,17 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Req,
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +19,8 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
+import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 
 // Repositories — existing
 import { PerformanceReviewCycleRepository } from '../repositories/performance-review-cycle.repository.js';
@@ -47,6 +62,7 @@ import {
 } from './dtos.js';
 
 @ApiTags('Performance')
+@UseGuards(AuthGuard)
 @Controller('performance')
 export class PerformanceController {
   constructor(
@@ -65,6 +81,7 @@ export class PerformanceController {
     private readonly reviewTemplateRepo: ReviewTemplateRepository,
     private readonly competencyRepo: CompetencyRepository,
     private readonly developmentPlanRepo: DevelopmentPlanRepository,
+    private readonly workerRepo: WorkerRepository,
   ) {}
 
   private buildCommand<TPayload>(
@@ -75,12 +92,16 @@ export class PerformanceController {
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    if (!req.actor) {
+      throw new ForbiddenException('Authenticated actor is required');
+    }
+    const actor = req.actor;
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'USER', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['PERFORMANCE_WRITE'], mfaAuthenticated: true },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -90,8 +111,131 @@ export class PerformanceController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: this.mapRoleToClientType(actor.roles[0]) },
     };
+  }
+
+  private mapRoleToClientType(role?: string): 'HR_ADMIN' | 'MANAGER_PORTAL' | 'EMPLOYEE_PORTAL' | 'SYSTEM' {
+    switch (role) {
+      case 'HR_ADMIN':
+      case 'HRBP':
+      case 'PERFORMANCE_ADMIN':
+      case 'SUPER_ADMIN':
+        return 'HR_ADMIN';
+      case 'MANAGER':
+        return 'MANAGER_PORTAL';
+      case 'EMPLOYEE':
+        return 'EMPLOYEE_PORTAL';
+      default:
+        return 'SYSTEM';
+    }
+  }
+
+  private async executeCommand(command: HrCommandEnvelope<unknown>): Promise<unknown> {
+    const result = await this.commandBus.execute(command);
+    if (result && typeof result === 'object' && 'success' in result && result.success === false) {
+      const errorResult = result as { errorCode: string; errorMessage: string };
+      switch (errorResult.errorCode) {
+        case 'COMMAND_HANDLER_NOT_FOUND':
+          throw new NotFoundException(errorResult.errorMessage);
+        case 'TENANT_RESOLUTION_FAILED':
+        case 'TENANT_NOT_FOUND':
+        case 'UNAUTHORIZED':
+        case 'UNAUTHENTICATED_ACTOR':
+          throw new UnauthorizedException(errorResult.errorMessage);
+        case 'ACCESS_CONTROL_DENIED':
+        case 'SOD_VIOLATION':
+          throw new ForbiddenException(errorResult.errorMessage);
+        case 'FSM_TRANSITION_NOT_ALLOWED':
+        case 'INVALID_PAYLOAD':
+        case 'IDEMPOTENCY_HASH_MISMATCH':
+          throw new BadRequestException(errorResult.errorMessage);
+        case 'MODULE_DISABLED':
+        case 'TENANT_INACTIVE':
+          throw new ConflictException(errorResult.errorMessage);
+        default:
+          throw new BadRequestException(errorResult.errorMessage);
+      }
+    }
+    return result;
+  }
+
+  private subjectWorkerId(workerId?: string): { subjectWorkerId?: Uuid } {
+    return workerId ? { subjectWorkerId: new Uuid(workerId) } : {};
+  }
+
+  private requireActor(req: Request) {
+    if (!req.actor) {
+      throw new ForbiddenException('Authenticated actor is required');
+    }
+    return req.actor;
+  }
+
+  private isPrivilegedPerformanceActor(req: Request): boolean {
+    const actor = this.requireActor(req);
+    return actor.actorType === 'SYSTEM'
+      || actor.actorType === 'SERVICE_ACCOUNT'
+      || actor.roles.some((role) => ['HR_ADMIN', 'HRBP', 'PERFORMANCE_ADMIN', 'SUPER_ADMIN'].includes(role));
+  }
+
+  private getWorkerEmail(worker: unknown): string | undefined {
+    const email = (worker as { email?: unknown }).email;
+    if (typeof email === 'string') return email;
+    if (email && typeof email === 'object' && 'value' in email && typeof email.value === 'string') return email.value;
+    if (email && typeof (email as { toString?: unknown }).toString === 'function') {
+      const value = (email as { toString: () => string }).toString();
+      return value === '[object Object]' ? undefined : value;
+    }
+    return undefined;
+  }
+
+  private async assertCanAccessWorker(req: Request, workerId: string): Promise<void> {
+    const actor = this.requireActor(req);
+    if (this.isPrivilegedPerformanceActor(req)) return;
+
+    const worker = await this.workerRepo.findById(new Uuid(workerId));
+    if (!worker) throw new NotFoundException('Worker not found');
+
+    if ((worker as { id?: Uuid }).id?.value === actor.actorId.value) return;
+
+    const workerEmail = this.getWorkerEmail(worker);
+    if (actor.email && workerEmail?.toLowerCase() === actor.email.toLowerCase()) return;
+
+    const managerId = (worker as { managerId?: Uuid }).managerId?.value;
+    if (actor.roles.includes('MANAGER')) {
+      if (managerId === actor.actorId.value) return;
+      if (actor.email) {
+        const managerWorker = await this.workerRepo.findByEmail(actor.email);
+        if (managerWorker?.id.value === managerId) return;
+      }
+    }
+
+    throw new ForbiddenException('Performance records are scoped to self, reporting line, or HR performance roles');
+  }
+
+  private assertCanAccessTenant(req: Request, tenantId: string): void {
+    const actor = this.requireActor(req);
+    const requestTenantId = (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001';
+    if (requestTenantId !== tenantId) {
+      throw new ForbiddenException('Tenant scope mismatch');
+    }
+    const hasPerformanceScope =
+      actor.permissions.some((permission) => ['PERFORMANCE_CREATE', 'PERFORMANCE_WRITE', 'PERFORMANCE_APPROVE'].includes(permission)) ||
+      actor.roles.some((role) => ['HR_ADMIN', 'HRBP', 'PERFORMANCE_ADMIN', 'SUPER_ADMIN', 'MANAGER'].includes(role));
+    if (!hasPerformanceScope) {
+      throw new ForbiddenException('Performance query access denied');
+    }
+  }
+
+  private assertCanReadOrganizationalPerformance(req: Request): void {
+    const actor = this.requireActor(req);
+    const hasOrganizationalScope =
+      this.isPrivilegedPerformanceActor(req) ||
+      actor.roles.includes('MANAGER') ||
+      actor.permissions.some((permission) => ['PERFORMANCE_WRITE', 'PERFORMANCE_APPROVE'].includes(permission));
+    if (!hasOrganizationalScope) {
+      throw new ForbiddenException('Organizational performance data requires manager or HR performance scope');
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -99,583 +243,732 @@ export class PerformanceController {
      ═══════════════════════════════════════════════════════════════ */
   @Post('review-cycles')
   async createReviewCycle(@Body(new ZodValidationPipe(CreatePerformanceReviewCycleDtoSchema)) dto: dtos.CreatePerformanceReviewCycleDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreatePerformanceReviewCycle', 'PerformanceReviewCycle', dto, req));
+    return this.executeCommand(this.buildCommand('CreatePerformanceReviewCycle', 'PerformanceReviewCycle', dto, req));
   }
 
   @Post('review-cycles/:id/commands/setup')
   async setupReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
-    return this.commandBus.execute(this.buildCommand('SetupPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('SetupPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('review-cycles/:id/commands/activate')
   async activateReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
-    return this.commandBus.execute(this.buildCommand('ActivatePerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivatePerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('review-cycles/:id/commands/start')
   async startReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
-    return this.commandBus.execute(this.buildCommand('StartPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('StartPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('review-cycles/:id/commands/enter-calibration')
   async enterCalibrationReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
-    return this.commandBus.execute(this.buildCommand('EnterCalibrationPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('EnterCalibrationPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('review-cycles/:id/commands/enter-review')
   async enterReviewReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
-    return this.commandBus.execute(this.buildCommand('EnterReviewPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('EnterReviewPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('review-cycles/:id/commands/close')
   async closeReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
-    return this.commandBus.execute(this.buildCommand('ClosePerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ClosePerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('review-cycles/:id')
-  async getReviewCycle(@Param('id') id: string) { return this.cycleRepo.findById(new Uuid(id)); }
+  async getReviewCycle(@Param('id') id: string, @Req() req: Request) {
+    const cycle = await this.cycleRepo.findById(new Uuid(id));
+    if (!cycle) throw new NotFoundException('Review cycle not found');
+    this.assertCanAccessTenant(req, cycle.tenantId.value);
+    return cycle;
+  }
 
   @Get('review-cycles/tenant/:tenantId')
-  async getReviewCyclesByTenant(@Param('tenantId') tenantId: string) { return this.cycleRepo.findByTenant(new Uuid(tenantId)); }
+  async getReviewCyclesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertCanAccessTenant(req, tenantId);
+    return this.cycleRepo.findByTenant(new Uuid(tenantId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Performance Reviews
      ═══════════════════════════════════════════════════════════════ */
   @Post('reviews')
   async createReview(@Body(new ZodValidationPipe(CreatePerformanceReviewDtoSchema)) dto: dtos.CreatePerformanceReviewDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreatePerformanceReview', 'PerformanceReview', dto, req));
+    return this.executeCommand(this.buildCommand('CreatePerformanceReview', 'PerformanceReview', dto, req, this.subjectWorkerId(dto.workerId)));
   }
 
   @Post('reviews/:id/commands/submit-self')
   async submitSelfReview(@Param('id') id: string, @Body(new ZodValidationPipe(SubmitSelfReviewDtoSchema)) dto: dtos.SubmitSelfReviewDto, @Req() req: Request) {
     const ar = await this.reviewRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review not found');
-    return this.commandBus.execute(this.buildCommand('SubmitSelfReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), content: dto.content }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('SubmitSelfReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), content: dto.content }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('reviews/:id/commands/submit-manager')
   async submitManagerReview(@Param('id') id: string, @Body(new ZodValidationPipe(SubmitManagerReviewDtoSchema)) dto: dtos.SubmitManagerReviewDto, @Req() req: Request) {
     const ar = await this.reviewRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review not found');
-    return this.commandBus.execute(this.buildCommand('SubmitManagerReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), content: dto.content }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('SubmitManagerReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), content: dto.content }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('reviews/:id/commands/calibrate')
   async calibrateReview(@Param('id') id: string, @Body(new ZodValidationPipe(CalibratePerformanceReviewDtoSchema)) dto: dtos.CalibratePerformanceReviewDto, @Req() req: Request) {
     const ar = await this.reviewRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review not found');
-    return this.commandBus.execute(this.buildCommand('CalibratePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), rating: dto.rating }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CalibratePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), rating: dto.rating }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('reviews/:id/commands/finalize')
   async finalizeReview(@Param('id') id: string, @Body(new ZodValidationPipe(FinalizePerformanceReviewDtoSchema)) dto: dtos.FinalizePerformanceReviewDto, @Req() req: Request) {
     const ar = await this.reviewRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review not found');
-    return this.commandBus.execute(this.buildCommand('FinalizePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), rating: dto.rating }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('FinalizePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id), rating: dto.rating }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('reviews/:id/commands/acknowledge')
   async acknowledgeReview(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.reviewRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review not found');
-    return this.commandBus.execute(this.buildCommand('AcknowledgePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('AcknowledgePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('reviews/:id/commands/dispute')
   async disputeReview(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.reviewRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review not found');
-    return this.commandBus.execute(this.buildCommand('DisputePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('DisputePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('reviews/:id')
-  async getReview(@Param('id') id: string) { return this.reviewRepo.findById(new Uuid(id)); }
+  async getReview(@Param('id') id: string, @Req() req: Request) {
+    const review = await this.reviewRepo.findById(new Uuid(id));
+    if (!review) throw new NotFoundException('Review not found');
+    await this.assertCanAccessWorker(req, review.workerId.value);
+    return review;
+  }
 
   @Get('reviews/worker/:workerId')
-  async getReviewsByWorker(@Param('workerId') workerId: string) { return this.reviewRepo.findByWorker(new Uuid(workerId)); }
+  async getReviewsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.reviewRepo.findByWorker(new Uuid(workerId));
+  }
 
   @Get('reviews/cycle/:cycleId')
-  async getReviewsByCycle(@Param('cycleId') cycleId: string) { return this.reviewRepo.findByReviewCycle(new Uuid(cycleId)); }
+  async getReviewsByCycle(@Param('cycleId') cycleId: string, @Req() req: Request) {
+    const cycle = await this.cycleRepo.findById(new Uuid(cycleId));
+    if (!cycle) throw new NotFoundException('Review cycle not found');
+    this.assertCanAccessTenant(req, cycle.tenantId.value);
+    return this.reviewRepo.findByReviewCycle(new Uuid(cycleId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Goals
      ═══════════════════════════════════════════════════════════════ */
   @Post('goals')
   async createGoal(@Body(new ZodValidationPipe(CreateGoalDtoSchema)) dto: dtos.CreateGoalDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateGoal', 'Goal', dto, req));
+    return this.executeCommand(this.buildCommand('CreateGoal', 'Goal', dto, req, this.subjectWorkerId(dto.workerId)));
   }
 
   @Post('goals/:id/commands/activate')
   async activateGoal(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.goalRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Goal not found');
-    return this.commandBus.execute(this.buildCommand('ActivateGoal', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivateGoal', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('goals/:id/commands/update-progress')
   async updateGoalProgress(@Param('id') id: string, @Body(new ZodValidationPipe(UpdateGoalProgressDtoSchema)) dto: dtos.UpdateGoalProgressDto, @Req() req: Request) {
     const ar = await this.goalRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Goal not found');
-    return this.commandBus.execute(this.buildCommand('UpdateGoalProgress', 'Goal', { goalId: new Uuid(id), currentValue: dto.currentValue }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('UpdateGoalProgress', 'Goal', { goalId: new Uuid(id), currentValue: dto.currentValue }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('goals/:id/commands/mark-achieved')
   async markGoalAchieved(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.goalRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Goal not found');
-    return this.commandBus.execute(this.buildCommand('MarkGoalAchieved', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('MarkGoalAchieved', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('goals/:id/commands/mark-missed')
   async markGoalMissed(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.goalRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Goal not found');
-    return this.commandBus.execute(this.buildCommand('MarkGoalMissed', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('MarkGoalMissed', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('goals/:id/commands/cancel')
   async cancelGoal(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.goalRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Goal not found');
-    return this.commandBus.execute(this.buildCommand('CancelGoal', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CancelGoal', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('goals/:id')
-  async getGoal(@Param('id') id: string) { return this.goalRepo.findById(new Uuid(id)); }
+  async getGoal(@Param('id') id: string, @Req() req: Request) {
+    const goal = await this.goalRepo.findById(new Uuid(id));
+    if (!goal) throw new NotFoundException('Goal not found');
+    await this.assertCanAccessWorker(req, goal.workerId.value);
+    return goal;
+  }
 
   @Get('goals/worker/:workerId')
-  async getGoalsByWorker(@Param('workerId') workerId: string) { return this.goalRepo.findByWorker(new Uuid(workerId)); }
+  async getGoalsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.goalRepo.findByWorker(new Uuid(workerId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Calibration Sessions
      ═══════════════════════════════════════════════════════════════ */
   @Post('calibration-sessions')
   async createCalibrationSession(@Body(new ZodValidationPipe(CreateCalibrationSessionDtoSchema)) dto: dtos.CreateCalibrationSessionDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateCalibrationSession', 'CalibrationSession', dto, req));
+    return this.executeCommand(this.buildCommand('CreateCalibrationSession', 'CalibrationSession', dto, req));
   }
 
   @Post('calibration-sessions/:id/commands/schedule')
   async scheduleCalibrationSession(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.calibrationRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Calibration session not found');
-    return this.commandBus.execute(this.buildCommand('ScheduleCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ScheduleCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('calibration-sessions/:id/commands/start')
   async startCalibrationSession(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.calibrationRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Calibration session not found');
-    return this.commandBus.execute(this.buildCommand('StartCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('StartCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('calibration-sessions/:id/commands/complete')
   async completeCalibrationSession(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.calibrationRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Calibration session not found');
-    return this.commandBus.execute(this.buildCommand('CompleteCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CompleteCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('calibration-sessions/:id/commands/finalize')
   async finalizeCalibrationSession(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.calibrationRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Calibration session not found');
-    return this.commandBus.execute(this.buildCommand('FinalizeCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('FinalizeCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('calibration-sessions/:id')
-  async getCalibrationSession(@Param('id') id: string) { return this.calibrationRepo.findById(new Uuid(id)); }
+  async getCalibrationSession(@Param('id') id: string, @Req() req: Request) {
+    const session = await this.calibrationRepo.findById(new Uuid(id));
+    if (!session) throw new NotFoundException('Calibration session not found');
+    this.assertCanAccessTenant(req, session.tenantId.value);
+    return session;
+  }
 
   @Get('calibration-sessions/cycle/:cycleId')
-  async getCalibrationSessionsByCycle(@Param('cycleId') cycleId: string) { return this.calibrationRepo.findByReviewCycle(new Uuid(cycleId)); }
+  async getCalibrationSessionsByCycle(@Param('cycleId') cycleId: string, @Req() req: Request) {
+    const cycle = await this.cycleRepo.findById(new Uuid(cycleId));
+    if (!cycle) throw new NotFoundException('Review cycle not found');
+    this.assertCanAccessTenant(req, cycle.tenantId.value);
+    return this.calibrationRepo.findByReviewCycle(new Uuid(cycleId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Performance Improvement Plans
      ═══════════════════════════════════════════════════════════════ */
   @Post('improvement-plans')
   async createPIP(@Body(new ZodValidationPipe(CreatePerformanceImprovementPlanDtoSchema)) dto: dtos.CreatePerformanceImprovementPlanDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreatePerformanceImprovementPlan', 'PerformanceImprovementPlan', dto, req));
+    return this.executeCommand(this.buildCommand('CreatePerformanceImprovementPlan', 'PerformanceImprovementPlan', dto, req, this.subjectWorkerId(dto.workerId)));
   }
 
   @Post('improvement-plans/:id/commands/activate')
   async activatePIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.commandBus.execute(this.buildCommand('ActivatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('improvement-plans/:id/commands/enter-review')
   async enterReviewPIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.commandBus.execute(this.buildCommand('EnterReviewPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('EnterReviewPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('improvement-plans/:id/commands/complete')
   async completePIP(@Param('id') id: string, @Body(new ZodValidationPipe(CompletePerformanceImprovementPlanDtoSchema)) dto: dtos.CompletePerformanceImprovementPlanDto, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.commandBus.execute(this.buildCommand('CompletePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), outcome: dto.outcome }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CompletePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), outcome: dto.outcome }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('improvement-plans/:id/commands/close')
   async closePIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.commandBus.execute(this.buildCommand('ClosePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ClosePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('improvement-plans/:id/commands/extend')
   async extendPIP(@Param('id') id: string, @Body(new ZodValidationPipe(ExtendPerformanceImprovementPlanDtoSchema)) dto: dtos.ExtendPerformanceImprovementPlanDto, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.commandBus.execute(this.buildCommand('ExtendPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), newEndDate: dto.newEndDate }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ExtendPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), newEndDate: dto.newEndDate }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('improvement-plans/:id/commands/terminate')
   async terminatePIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.commandBus.execute(this.buildCommand('TerminatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('TerminatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('improvement-plans/:id')
-  async getPIP(@Param('id') id: string) { return this.pipRepo.findById(new Uuid(id)); }
+  async getPIP(@Param('id') id: string, @Req() req: Request) {
+    const pip = await this.pipRepo.findById(new Uuid(id));
+    if (!pip) throw new NotFoundException('Performance improvement plan not found');
+    await this.assertCanAccessWorker(req, pip.workerId.value);
+    return pip;
+  }
 
   @Get('improvement-plans/worker/:workerId')
-  async getPIPsByWorker(@Param('workerId') workerId: string) { return this.pipRepo.findByWorker(new Uuid(workerId)); }
+  async getPIPsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.pipRepo.findByWorker(new Uuid(workerId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Feedback 360 Cycles
      ═══════════════════════════════════════════════════════════════ */
   @Post('feedback-360-cycles')
   async createFeedback360Cycle(@Body(new ZodValidationPipe(CreateFeedback360CycleDtoSchema)) dto: dtos.CreateFeedback360CycleDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreatePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', dto, req));
+    return this.executeCommand(this.buildCommand('CreatePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', dto, req));
   }
 
   @Post('feedback-360-cycles/:id/commands/activate')
   async activateFeedback360Cycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.feedback360CycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
-    return this.commandBus.execute(this.buildCommand('ActivatePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivatePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('feedback-360-cycles/:id/commands/launch')
   async launchFeedback360Cycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.feedback360CycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
-    return this.commandBus.execute(this.buildCommand('LaunchPerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('LaunchPerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('feedback-360-cycles/:id/commands/close')
   async closeFeedback360Cycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.feedback360CycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
-    return this.commandBus.execute(this.buildCommand('ClosePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ClosePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('feedback-360-cycles/:id/commands/archive')
   async archiveFeedback360Cycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.feedback360CycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
-    return this.commandBus.execute(this.buildCommand('ArchivePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ArchivePerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('feedback-360-cycles/:id')
-  async getFeedback360Cycle(@Param('id') id: string) { return this.feedback360CycleRepo.findById(new Uuid(id)); }
+  async getFeedback360Cycle(@Param('id') id: string, @Req() req: Request) {
+    const cycle = await this.feedback360CycleRepo.findById(new Uuid(id));
+    if (!cycle) throw new NotFoundException('Feedback 360 cycle not found');
+    this.assertCanAccessTenant(req, cycle.tenantId.value);
+    return cycle;
+  }
 
   @Get('feedback-360-cycles/tenant/:tenantId')
-  async getFeedback360CyclesByTenant(@Param('tenantId') tenantId: string) { return this.feedback360CycleRepo.findByTenant(new Uuid(tenantId)); }
+  async getFeedback360CyclesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertCanAccessTenant(req, tenantId);
+    return this.feedback360CycleRepo.findByTenant(new Uuid(tenantId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Feedback 360 Responses
      ═══════════════════════════════════════════════════════════════ */
   @Post('feedback-360-responses')
   async createFeedback360Response(@Body(new ZodValidationPipe(CreateFeedback360ResponseDtoSchema)) dto: dtos.CreateFeedback360ResponseDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreatePerformanceFeedback360Response', 'PerformanceFeedback360Response', dto, req));
+    return this.executeCommand(this.buildCommand('CreatePerformanceFeedback360Response', 'PerformanceFeedback360Response', dto, req, this.subjectWorkerId(dto.revieweeId)));
   }
 
   @Post('feedback-360-responses/:id/commands/submit')
   async submitFeedback360Response(@Param('id') id: string, @Body(new ZodValidationPipe(SubmitFeedback360ResponseDtoSchema)) dto: dtos.SubmitFeedback360ResponseDto, @Req() req: Request) {
     const ar = await this.feedback360ResponseRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Feedback 360 response not found');
-    return this.commandBus.execute(this.buildCommand('SubmitPerformanceFeedback360Response', 'PerformanceFeedback360Response', { feedback360ResponseId: id, ...dto }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('SubmitPerformanceFeedback360Response', 'PerformanceFeedback360Response', { feedback360ResponseId: id, ...dto }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('feedback-360-responses/:id')
-  async getFeedback360Response(@Param('id') id: string) { return this.feedback360ResponseRepo.findById(new Uuid(id)); }
+  async getFeedback360Response(@Param('id') id: string, @Req() req: Request) {
+    const response = await this.feedback360ResponseRepo.findById(new Uuid(id));
+    if (!response) throw new NotFoundException('Feedback 360 response not found');
+    await this.assertCanAccessWorker(req, response.revieweeId.value);
+    return response;
+  }
 
   @Get('feedback-360-responses/cycle/:cycleId')
-  async getFeedback360ResponsesByCycle(@Param('cycleId') cycleId: string) { return this.feedback360ResponseRepo.findByCycle(new Uuid(cycleId)); }
+  async getFeedback360ResponsesByCycle(@Param('cycleId') cycleId: string, @Req() req: Request) {
+    const cycle = await this.feedback360CycleRepo.findById(new Uuid(cycleId));
+    if (!cycle) throw new NotFoundException('Feedback 360 cycle not found');
+    this.assertCanAccessTenant(req, cycle.tenantId.value);
+    return this.feedback360ResponseRepo.findByCycle(new Uuid(cycleId));
+  }
 
   @Get('feedback-360-responses/reviewee/:revieweeId')
-  async getFeedback360ResponsesByReviewee(@Param('revieweeId') revieweeId: string) { return this.feedback360ResponseRepo.findByReviewee(new Uuid(revieweeId)); }
+  async getFeedback360ResponsesByReviewee(@Param('revieweeId') revieweeId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, revieweeId);
+    return this.feedback360ResponseRepo.findByReviewee(new Uuid(revieweeId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Objectives (OKR)
      ═══════════════════════════════════════════════════════════════ */
   @Post('objectives')
   async createObjective(@Body(new ZodValidationPipe(CreateObjectiveDtoSchema)) dto: dtos.CreateObjectiveDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateObjective', 'Objective', dto, req));
+    return this.executeCommand(this.buildCommand('CreateObjective', 'Objective', dto, req, this.subjectWorkerId(dto.ownerId)));
   }
 
   @Post('objectives/:id/commands/activate')
   async activateObjective(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.objectiveRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Objective not found');
-    return this.commandBus.execute(this.buildCommand('ActivateObjective', 'Objective', { objectiveId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivateObjective', 'Objective', { objectiveId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('objectives/:id/commands/update-progress')
   async updateObjectiveProgress(@Param('id') id: string, @Body(new ZodValidationPipe(UpdateObjectiveProgressDtoSchema)) dto: dtos.UpdateObjectiveProgressDto, @Req() req: Request) {
     const ar = await this.objectiveRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Objective not found');
-    return this.commandBus.execute(this.buildCommand('UpdateObjectiveProgress', 'Objective', { objectiveId: id, progress: dto.progress, confidenceScore: dto.confidenceScore }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('UpdateObjectiveProgress', 'Objective', { objectiveId: id, progress: dto.progress, confidenceScore: dto.confidenceScore }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('objectives/:id/commands/mark-achieved')
   async markObjectiveAchieved(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.objectiveRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Objective not found');
-    return this.commandBus.execute(this.buildCommand('MarkObjectiveAchieved', 'Objective', { objectiveId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('MarkObjectiveAchieved', 'Objective', { objectiveId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('objectives/:id/commands/cancel')
   async cancelObjective(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.objectiveRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Objective not found');
-    return this.commandBus.execute(this.buildCommand('CancelObjective', 'Objective', { objectiveId: id, reason: 'Cancelled via API' }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CancelObjective', 'Objective', { objectiveId: id, reason: 'Cancelled via API' }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('objectives/:id')
-  async getObjective(@Param('id') id: string) { return this.objectiveRepo.findById(new Uuid(id)); }
+  async getObjective(@Param('id') id: string, @Req() req: Request) {
+    const objective = await this.objectiveRepo.findById(new Uuid(id));
+    if (!objective) throw new NotFoundException('Objective not found');
+    await this.assertCanAccessWorker(req, objective.ownerId.value);
+    return objective;
+  }
 
   @Get('objectives/owner/:ownerId')
-  async getObjectivesByOwner(@Param('ownerId') ownerId: string) { return this.objectiveRepo.findByOwner(new Uuid(ownerId)); }
+  async getObjectivesByOwner(@Param('ownerId') ownerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, ownerId);
+    return this.objectiveRepo.findByOwner(new Uuid(ownerId));
+  }
 
   @Get('objectives/org-unit/:orgUnitId')
-  async getObjectivesByOrgUnit(@Param('orgUnitId') orgUnitId: string) { return this.objectiveRepo.findByOrgUnit(new Uuid(orgUnitId)); }
+  async getObjectivesByOrgUnit(@Param('orgUnitId') orgUnitId: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.objectiveRepo.findByOrgUnit(new Uuid(orgUnitId));
+  }
 
   @Get('objectives/parent/:parentObjectiveId')
-  async getObjectivesByParent(@Param('parentObjectiveId') parentObjectiveId: string) { return this.objectiveRepo.findByReviewCycle(new Uuid(parentObjectiveId)); }
+  async getObjectivesByParent(@Param('parentObjectiveId') parentObjectiveId: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.objectiveRepo.findByReviewCycle(new Uuid(parentObjectiveId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Key Results (OKR)
      ═══════════════════════════════════════════════════════════════ */
   @Post('key-results')
   async createKeyResult(@Body(new ZodValidationPipe(CreateKeyResultDtoSchema)) dto: dtos.CreateKeyResultDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateKeyResult', 'KeyResult', dto, req));
+    const objective = await this.objectiveRepo.findById(new Uuid(dto.objectiveId));
+    if (!objective) throw new NotFoundException('Objective not found');
+    await this.assertCanAccessWorker(req, objective.ownerId.value);
+    return this.executeCommand(this.buildCommand('CreateKeyResult', 'KeyResult', dto, req, this.subjectWorkerId(objective.ownerId.value)));
   }
 
   @Post('key-results/:id/commands/activate')
   async activateKeyResult(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.keyResultRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Key result not found');
-    return this.commandBus.execute(this.buildCommand('ActivateKeyResult', 'KeyResult', { keyResultId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivateKeyResult', 'KeyResult', { keyResultId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('key-results/:id/commands/update-progress')
   async updateKeyResultProgress(@Param('id') id: string, @Body(new ZodValidationPipe(UpdateKeyResultProgressDtoSchema)) dto: dtos.UpdateKeyResultProgressDto, @Req() req: Request) {
     const ar = await this.keyResultRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Key result not found');
-    return this.commandBus.execute(this.buildCommand('UpdateKeyResultProgress', 'KeyResult', { keyResultId: id, currentValue: dto.currentValue }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('UpdateKeyResultProgress', 'KeyResult', { keyResultId: id, currentValue: dto.currentValue }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('key-results/:id/commands/complete')
   async completeKeyResult(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.keyResultRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Key result not found');
-    return this.commandBus.execute(this.buildCommand('CompleteKeyResult', 'KeyResult', { keyResultId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CompleteKeyResult', 'KeyResult', { keyResultId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('key-results/:id/commands/cancel')
   async cancelKeyResult(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.keyResultRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Key result not found');
-    return this.commandBus.execute(this.buildCommand('CancelKeyResult', 'KeyResult', { keyResultId: id, reason: 'Cancelled via API' }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CancelKeyResult', 'KeyResult', { keyResultId: id, reason: 'Cancelled via API' }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('key-results/:id')
-  async getKeyResult(@Param('id') id: string) { return this.keyResultRepo.findById(new Uuid(id)); }
+  async getKeyResult(@Param('id') id: string, @Req() req: Request) {
+    const keyResult = await this.keyResultRepo.findById(new Uuid(id));
+    if (!keyResult) throw new NotFoundException('Key result not found');
+    const objective = await this.objectiveRepo.findById(keyResult.objectiveId);
+    if (objective) {
+      await this.assertCanAccessWorker(req, objective.ownerId.value);
+    } else {
+      this.assertCanReadOrganizationalPerformance(req);
+    }
+    return keyResult;
+  }
 
   @Get('key-results/objective/:objectiveId')
-  async getKeyResultsByObjective(@Param('objectiveId') objectiveId: string) { return this.keyResultRepo.findByObjective(new Uuid(objectiveId)); }
+  async getKeyResultsByObjective(@Param('objectiveId') objectiveId: string, @Req() req: Request) {
+    const objective = await this.objectiveRepo.findById(new Uuid(objectiveId));
+    if (!objective) throw new NotFoundException('Objective not found');
+    await this.assertCanAccessWorker(req, objective.ownerId.value);
+    return this.keyResultRepo.findByObjective(new Uuid(objectiveId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      KPIs
      ═══════════════════════════════════════════════════════════════ */
   @Post('kpis')
   async createKpi(@Body(new ZodValidationPipe(CreateKpiDtoSchema)) dto: dtos.CreateKpiDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateKpi', 'KeyPerformanceIndicator', dto, req));
+    return this.executeCommand(this.buildCommand('CreateKpi', 'KeyPerformanceIndicator', dto, req, this.subjectWorkerId(dto.ownerId)));
   }
 
   @Post('kpis/:id/commands/activate')
   async activateKpi(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.kpiRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('KPI not found');
-    return this.commandBus.execute(this.buildCommand('ActivateKpi', 'KeyPerformanceIndicator', { kpiId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivateKpi', 'KeyPerformanceIndicator', { kpiId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('kpis/:id/commands/update-actual')
   async updateKpiActual(@Param('id') id: string, @Body(new ZodValidationPipe(UpdateKpiActualDtoSchema)) dto: dtos.UpdateKpiActualDto, @Req() req: Request) {
     const ar = await this.kpiRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('KPI not found');
-    return this.commandBus.execute(this.buildCommand('UpdateKpiActual', 'KeyPerformanceIndicator', { kpiId: id, actualValue: dto.actualValue }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('UpdateKpiActual', 'KeyPerformanceIndicator', { kpiId: id, actualValue: dto.actualValue }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('kpis/:id/commands/assign-owner')
   async assignKpiOwner(@Param('id') id: string, @Body(new ZodValidationPipe(AssignKpiOwnerDtoSchema)) dto: dtos.AssignKpiOwnerDto, @Req() req: Request) {
     const ar = await this.kpiRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('KPI not found');
-    return this.commandBus.execute(this.buildCommand('AssignKpiOwner', 'KeyPerformanceIndicator', { kpiId: id, ownerId: dto.ownerId }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('AssignKpiOwner', 'KeyPerformanceIndicator', { kpiId: id, ownerId: dto.ownerId }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('kpis/:id/commands/archive')
   async archiveKpi(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.kpiRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('KPI not found');
-    return this.commandBus.execute(this.buildCommand('ArchiveKpi', 'KeyPerformanceIndicator', { kpiId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ArchiveKpi', 'KeyPerformanceIndicator', { kpiId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('kpis/:id')
-  async getKpi(@Param('id') id: string) { return this.kpiRepo.findById(new Uuid(id)); }
+  async getKpi(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    const kpi = await this.kpiRepo.findById(new Uuid(id));
+    if (!kpi) throw new NotFoundException('KPI not found');
+    return kpi;
+  }
 
   @Get('kpis/org-unit/:orgUnitId')
-  async getKpisByOrgUnit(@Param('orgUnitId') orgUnitId: string) { return this.kpiRepo.findByOrgUnit(new Uuid(orgUnitId)); }
+  async getKpisByOrgUnit(@Param('orgUnitId') orgUnitId: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.kpiRepo.findByOrgUnit(new Uuid(orgUnitId));
+  }
 
   @Get('kpis/department/:category')
-  async getKpisByDepartment(@Param('category') category: string) { return this.kpiRepo.findByDepartment(category); }
+  async getKpisByDepartment(@Param('category') category: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.kpiRepo.findByDepartment(category);
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      KPI Measurements
      ═══════════════════════════════════════════════════════════════ */
   @Post('kpi-measurements')
   async recordKpiMeasurement(@Body(new ZodValidationPipe(RecordKpiMeasurementDtoSchema)) dto: dtos.RecordKpiMeasurementDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('RecordKpiMeasurement', 'KpiMeasurement', dto, req));
+    this.assertCanReadOrganizationalPerformance(req);
+    const kpi = await this.kpiRepo.findById(new Uuid(dto.kpiId));
+    if (!kpi) throw new NotFoundException('KPI not found');
+    return this.executeCommand(this.buildCommand('RecordKpiMeasurement', 'KpiMeasurement', dto, req, this.subjectWorkerId(kpi.ownerId?.value)));
   }
 
   @Post('kpi-measurements/:id/commands/validate')
   async validateKpiMeasurement(@Param('id') id: string, @Body(new ZodValidationPipe(ValidateKpiMeasurementDtoSchema)) dto: dtos.ValidateKpiMeasurementDto, @Req() req: Request) {
     const ar = await this.kpiMeasurementRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('KPI measurement not found');
-    return this.commandBus.execute(this.buildCommand('ValidateKpiMeasurement', 'KpiMeasurement', { kpiMeasurementId: id, validatedBy: dto.validatedBy }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ValidateKpiMeasurement', 'KpiMeasurement', { kpiMeasurementId: id, validatedBy: dto.validatedBy }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('kpi-measurements/:id')
-  async getKpiMeasurement(@Param('id') id: string) { return this.kpiMeasurementRepo.findById(new Uuid(id)); }
+  async getKpiMeasurement(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    const measurement = await this.kpiMeasurementRepo.findById(new Uuid(id));
+    if (!measurement) throw new NotFoundException('KPI measurement not found');
+    return measurement;
+  }
 
   @Get('kpi-measurements/kpi/:kpiId')
-  async getKpiMeasurementsByKpi(@Param('kpiId') kpiId: string) { return this.kpiMeasurementRepo.findByKpi(new Uuid(kpiId)); }
+  async getKpiMeasurementsByKpi(@Param('kpiId') kpiId: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.kpiMeasurementRepo.findByKpi(new Uuid(kpiId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Review Templates
      ═══════════════════════════════════════════════════════════════ */
   @Post('review-templates')
   async createReviewTemplate(@Body(new ZodValidationPipe(CreateReviewTemplateDtoSchema)) dto: dtos.CreateReviewTemplateDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateReviewTemplate', 'ReviewTemplate', dto, req));
+    return this.executeCommand(this.buildCommand('CreateReviewTemplate', 'ReviewTemplate', dto, req));
   }
 
   @Post('review-templates/:id/commands/publish')
   async publishReviewTemplate(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.reviewTemplateRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review template not found');
-    return this.commandBus.execute(this.buildCommand('PublishReviewTemplate', 'ReviewTemplate', { reviewTemplateId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('PublishReviewTemplate', 'ReviewTemplate', { reviewTemplateId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('review-templates/:id/commands/archive')
   async archiveReviewTemplate(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.reviewTemplateRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review template not found');
-    return this.commandBus.execute(this.buildCommand('ArchiveReviewTemplate', 'ReviewTemplate', { reviewTemplateId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ArchiveReviewTemplate', 'ReviewTemplate', { reviewTemplateId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('review-templates/:id')
-  async getReviewTemplate(@Param('id') id: string) { return this.reviewTemplateRepo.findById(new Uuid(id)); }
+  async getReviewTemplate(@Param('id') id: string, @Req() req: Request) {
+    const template = await this.reviewTemplateRepo.findById(new Uuid(id));
+    if (!template) throw new NotFoundException('Review template not found');
+    this.assertCanAccessTenant(req, template.tenantId.value);
+    return template;
+  }
 
   @Get('review-templates/tenant/:tenantId')
-  async getReviewTemplatesByTenant(@Param('tenantId') tenantId: string) { return this.reviewTemplateRepo.findByTenant(new Uuid(tenantId)); }
+  async getReviewTemplatesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertCanAccessTenant(req, tenantId);
+    return this.reviewTemplateRepo.findByTenant(new Uuid(tenantId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Competencies
      ═══════════════════════════════════════════════════════════════ */
   @Post('competencies')
   async createCompetency(@Body(new ZodValidationPipe(CreateCompetencyDtoSchema)) dto: dtos.CreateCompetencyDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateCompetency', 'Competency', dto, req));
+    return this.executeCommand(this.buildCommand('CreateCompetency', 'Competency', dto, req));
   }
 
   @Post('competencies/:id/commands/activate')
   async activateCompetency(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.competencyRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Competency not found');
-    return this.commandBus.execute(this.buildCommand('ActivateCompetency', 'Competency', { competencyId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivateCompetency', 'Competency', { competencyId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('competencies/:id/commands/deactivate')
   async deactivateCompetency(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.competencyRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Competency not found');
-    return this.commandBus.execute(this.buildCommand('DeactivateCompetency', 'Competency', { competencyId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('DeactivateCompetency', 'Competency', { competencyId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('competencies/:id')
-  async getCompetency(@Param('id') id: string) { return this.competencyRepo.findById(new Uuid(id)); }
+  async getCompetency(@Param('id') id: string, @Req() req: Request) {
+    const competency = await this.competencyRepo.findById(new Uuid(id));
+    if (!competency) throw new NotFoundException('Competency not found');
+    this.assertCanAccessTenant(req, competency.tenantId.value);
+    return competency;
+  }
 
   @Get('competencies/category/:category')
-  async getCompetenciesByCategory(@Param('category') category: string) { return this.competencyRepo.findByCategory(category); }
+  async getCompetenciesByCategory(@Param('category') category: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.competencyRepo.findByCategory(category);
+  }
 
   @Get('competencies/tenant/:tenantId')
-  async getCompetenciesByTenant(@Param('tenantId') tenantId: string) { return this.competencyRepo.findByTenant(new Uuid(tenantId)); }
+  async getCompetenciesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertCanAccessTenant(req, tenantId);
+    return this.competencyRepo.findByTenant(new Uuid(tenantId));
+  }
 
   /* ═══════════════════════════════════════════════════════════════
      Development Plans
      ═══════════════════════════════════════════════════════════════ */
   @Post('development-plans')
   async createDevelopmentPlan(@Body(new ZodValidationPipe(CreateDevelopmentPlanDtoSchema)) dto: dtos.CreateDevelopmentPlanDto, @Req() req: Request) {
-    return this.commandBus.execute(this.buildCommand('CreateDevelopmentPlan', 'DevelopmentPlan', dto, req));
+    return this.executeCommand(this.buildCommand('CreateDevelopmentPlan', 'DevelopmentPlan', dto, req, this.subjectWorkerId(dto.workerId)));
   }
 
   @Post('development-plans/:id/commands/activate')
   async activateDevelopmentPlan(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.developmentPlanRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Development plan not found');
-    return this.commandBus.execute(this.buildCommand('ActivateDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('ActivateDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('development-plans/:id/commands/record-milestone')
   async recordDevelopmentMilestone(@Param('id') id: string, @Body(new ZodValidationPipe(RecordDevelopmentMilestoneDtoSchema)) dto: dtos.RecordDevelopmentMilestoneDto, @Req() req: Request) {
     const ar = await this.developmentPlanRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Development plan not found');
-    return this.commandBus.execute(this.buildCommand('RecordDevelopmentMilestone', 'DevelopmentPlan', { developmentPlanId: id, objectiveTitle: dto.objectiveTitle, status: dto.status }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('RecordDevelopmentMilestone', 'DevelopmentPlan', { developmentPlanId: id, objectiveTitle: dto.objectiveTitle, status: dto.status }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('development-plans/:id/commands/complete')
   async completeDevelopmentPlan(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.developmentPlanRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Development plan not found');
-    return this.commandBus.execute(this.buildCommand('CompleteDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CompleteDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('development-plans/:id/commands/close')
   async closeDevelopmentPlan(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.developmentPlanRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Development plan not found');
-    return this.commandBus.execute(this.buildCommand('CloseDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    return this.executeCommand(this.buildCommand('CloseDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Get('development-plans/:id')
-  async getDevelopmentPlan(@Param('id') id: string) { return this.developmentPlanRepo.findById(new Uuid(id)); }
+  async getDevelopmentPlan(@Param('id') id: string, @Req() req: Request) {
+    const plan = await this.developmentPlanRepo.findById(new Uuid(id));
+    if (!plan) throw new NotFoundException('Development plan not found');
+    await this.assertCanAccessWorker(req, plan.workerId.value);
+    return plan;
+  }
 
   @Get('development-plans/worker/:workerId')
-  async getDevelopmentPlansByWorker(@Param('workerId') workerId: string) { return this.developmentPlanRepo.findByWorker(new Uuid(workerId)); }
+  async getDevelopmentPlansByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.developmentPlanRepo.findByWorker(new Uuid(workerId));
+  }
 }

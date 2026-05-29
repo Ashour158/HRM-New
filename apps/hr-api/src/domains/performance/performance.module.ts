@@ -20,6 +20,7 @@ import { KpiMeasurementRepository } from './repositories/kpi-measurement.reposit
 import { ReviewTemplateRepository } from './repositories/review-template.repository.js';
 import { CompetencyRepository } from './repositories/competency.repository.js';
 import { DevelopmentPlanRepository } from './repositories/development-plan.repository.js';
+import { WorkerRepository } from '../hr-core/repositories/worker.repository.js';
 
 // Handlers — existing Performance Review Cycle
 import { CreatePerformanceReviewCycleHandler } from './commands/create-performance-review-cycle.handler.js';
@@ -147,6 +148,7 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     ReviewTemplateRepository,
     CompetencyRepository,
     DevelopmentPlanRepository,
+    WorkerRepository,
 
     // Handlers — existing Performance Review Cycle
     CreatePerformanceReviewCycleHandler,

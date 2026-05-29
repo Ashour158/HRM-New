@@ -19,6 +19,7 @@ import { AdminEmployeeProfile } from '@/pages/admin/employee-profile';
 import { AdminOrganization } from '@/pages/admin/organization';
 import { AdminAttendance } from '@/pages/admin/attendance';
 import { AdminPayroll } from '@/pages/admin/payroll';
+import { AdminPerformance } from '@/pages/admin/performance';
 import { AdminCompliance } from '@/pages/admin/compliance';
 import { AdminCountryPolicy } from '@/pages/admin/country-policy';
 import { AdminSettings } from '@/pages/admin/settings';
@@ -103,6 +104,7 @@ export function AppRoutes() {
                   <Route path="organization" element={<AdminOrganization />} />
                   <Route path="attendance" element={<AdminAttendance />} />
                   <Route path="payroll" element={<AdminPayroll />} />
+                  <Route path="performance" element={<AdminPerformance />} />
                   <Route path="compliance" element={<AdminCompliance />} />
                   <Route path="country-policy" element={<AdminCountryPolicy />} />
                   <Route path="settings" element={<AdminSettings />} />

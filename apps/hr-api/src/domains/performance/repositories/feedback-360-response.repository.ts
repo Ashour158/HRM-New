@@ -68,7 +68,7 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
       reviewer_id: entity.reviewerId.value,
       relationship_type: entity.relationshipType,
       status: entity.status,
-      competency_scores: entity.competencyScores ?? null,
+      competency_scores: entity.competencyScores ? JSON.stringify(entity.competencyScores) : null,
       overall_rating: entity.overallRating ?? null,
       strengths: entity.strengths ?? null,
       improvements: entity.improvements ?? null,

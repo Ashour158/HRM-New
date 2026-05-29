@@ -165,4 +165,59 @@ describe('PerformanceController', () => {
       })),
     )).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it('scopes key result creation to the parent objective owner', async () => {
+    (objectiveRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid('00000000-0000-0000-0000-000000000040'),
+      ownerId: new Uuid(workerId),
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    await controller.createKeyResult({
+      objectiveId: '00000000-0000-0000-0000-000000000040',
+      title: 'Reduce cycle time',
+      targetValue: 10,
+    }, requestWithActor(actor()));
+
+    const command = (commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(command.subjectWorkerId.value).toBe(workerId);
+  });
+
+  it('blocks employee key result creation for another worker objective', async () => {
+    (objectiveRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid('00000000-0000-0000-0000-000000000040'),
+      ownerId: new Uuid(workerId),
+    });
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(workerId),
+      email: { value: 'someone.else@example.com' },
+      managerId: undefined,
+    });
+
+    await expect(controller.createKeyResult({
+      objectiveId: '00000000-0000-0000-0000-000000000040',
+      title: 'Reduce cycle time',
+      targetValue: 10,
+    }, requestWithActor(actor({
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_CREATE'],
+      email: 'employee@example.com',
+    })))).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('blocks employee KPI measurement recording', async () => {
+    await expect(controller.recordKpiMeasurement({
+      kpiId: '00000000-0000-0000-0000-000000000050',
+      period: '2026-05',
+      measuredValue: 97,
+    }, requestWithActor(actor({
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_CREATE'],
+      email: 'employee@example.com',
+    })))).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
 });

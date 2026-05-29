@@ -106,8 +106,23 @@ export class PerformanceEventsPublisher {
       case event instanceof PIPTerminated:
         return { ...base, payload: { performanceImprovementPlanId: aggregateId.value } };
       default:
-        return undefined;
+        return { ...base, payload: { [this.payloadIdField(base.aggregateType)]: aggregateId.value } };
     }
+  }
+
+  private payloadIdField(aggregateType: string): string {
+    const fields: Record<string, string> = {
+      PerformanceFeedback360Cycle: 'feedback360CycleId',
+      PerformanceFeedback360Response: 'feedback360ResponseId',
+      Objective: 'objectiveId',
+      KeyResult: 'keyResultId',
+      KeyPerformanceIndicator: 'kpiId',
+      KpiMeasurement: 'kpiMeasurementId',
+      ReviewTemplate: 'reviewTemplateId',
+      Competency: 'competencyId',
+      DevelopmentPlan: 'developmentPlanId',
+    };
+    return fields[aggregateType] ?? `${aggregateType.charAt(0).toLowerCase()}${aggregateType.slice(1)}Id`;
   }
 
   private buildPrivacy(_event: DomainEvent, aggregateId: Uuid): HrEventPrivacy {
