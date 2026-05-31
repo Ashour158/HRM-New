@@ -116,6 +116,7 @@ const activityTabs = [
   { label: 'Profile', path: '/employee/profile' },
   { label: 'Payroll', path: '/employee/payslip' },
   { label: 'Benefits', path: '/employee/benefits' },
+  { label: 'Performance', path: '/employee/performance' },
 ];
 
 const statusCopy: Record<AttendanceClockStatus, { label: string; tone: string; helper: string }> = {

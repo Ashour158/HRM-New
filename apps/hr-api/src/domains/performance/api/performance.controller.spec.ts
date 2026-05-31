@@ -20,6 +20,9 @@ import type { ReviewTemplateRepository } from '../repositories/review-template.r
 import type { CompetencyRepository } from '../repositories/competency.repository.js';
 import type { DevelopmentPlanRepository } from '../repositories/development-plan.repository.js';
 import type { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
+import type { PerformanceNotificationService } from '../services/performance-notification.service.js';
+import type { PerformanceAnalyticsService } from '../services/performance-analytics.service.js';
+import type { PerformanceNotificationRepository } from '../repositories/performance-notification.repository.js';
 
 const tenantId = '00000000-0000-0000-0000-000000000001';
 const actorId = '00000000-0000-0000-0000-000000000010';
@@ -53,7 +56,7 @@ describe('PerformanceController', () => {
   const calibrationRepo = { findById: vi.fn(), findByReviewCycle: vi.fn() } as unknown as CalibrationSessionRepository;
   const pipRepo = { findById: vi.fn(), findByWorker: vi.fn() } as unknown as PerformanceImprovementPlanRepository;
   const feedback360CycleRepo = { findById: vi.fn(), findByTenant: vi.fn() } as unknown as Feedback360CycleRepository;
-  const feedback360ResponseRepo = { findById: vi.fn(), findByCycle: vi.fn(), findByReviewee: vi.fn() } as unknown as Feedback360ResponseRepository;
+  const feedback360ResponseRepo = { findById: vi.fn(), findByCycle: vi.fn(), findByReviewee: vi.fn(), findByReviewer: vi.fn() } as unknown as Feedback360ResponseRepository;
   const objectiveRepo = { findById: vi.fn(), findByOwner: vi.fn(), findByOrgUnit: vi.fn(), findByReviewCycle: vi.fn() } as unknown as ObjectiveRepository;
   const keyResultRepo = { findById: vi.fn(), findByObjective: vi.fn() } as unknown as KeyResultRepository;
   const kpiRepo = { findById: vi.fn(), findByOrgUnit: vi.fn(), findByDepartment: vi.fn() } as unknown as KpiRepository;
@@ -62,6 +65,9 @@ describe('PerformanceController', () => {
   const competencyRepo = { findById: vi.fn(), findByCategory: vi.fn(), findByTenant: vi.fn() } as unknown as CompetencyRepository;
   const developmentPlanRepo = { findById: vi.fn(), findByWorker: vi.fn() } as unknown as DevelopmentPlanRepository;
   const workerRepo = { findById: vi.fn(), findByEmail: vi.fn() } as unknown as WorkerRepository;
+  const performanceNotificationService = { notifyReviewCycleSetup: vi.fn(), notifyPeerReviewRequest: vi.fn() } as unknown as PerformanceNotificationService;
+  const performanceAnalyticsService = { buildCycleAnalytics: vi.fn() } as unknown as PerformanceAnalyticsService;
+  const performanceNotificationRepo = { findByWorker: vi.fn(), markRead: vi.fn() } as unknown as PerformanceNotificationRepository;
 
   const controller = new PerformanceController(
     commandBus,
@@ -80,6 +86,9 @@ describe('PerformanceController', () => {
     competencyRepo,
     developmentPlanRepo,
     workerRepo,
+    performanceNotificationService,
+    performanceAnalyticsService,
+    performanceNotificationRepo,
   );
 
   beforeEach(() => {
@@ -118,6 +127,58 @@ describe('PerformanceController', () => {
     const command = (commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(command.actor).toBe(managerActor);
     expect(command.metadata.clientType).toBe('MANAGER_PORTAL');
+  });
+
+  it('notifies active employees after review cycle setup succeeds', async () => {
+    (cycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid('00000000-0000-0000-0000-000000000100'),
+      tenantId: new Uuid(tenantId),
+      name: 'FY26 Annual Review',
+      status: 'DRAFT',
+      aggregateVersion: 0,
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+    (performanceNotificationService.notifyReviewCycleSetup as ReturnType<typeof vi.fn>).mockResolvedValue(2);
+
+    const result = await controller.setupReviewCycle('00000000-0000-0000-0000-000000000100', requestWithActor(actor()));
+
+    expect(performanceNotificationService.notifyReviewCycleSetup).toHaveBeenCalledWith({
+      tenantId: new Uuid(tenantId),
+      cycleId: new Uuid('00000000-0000-0000-0000-000000000100'),
+      cycleName: 'FY26 Annual Review',
+      actorId: new Uuid(actorId),
+    });
+    expect(result).toEqual({ success: true, notificationsCreated: 2 });
+  });
+
+  it('notifies the reviewer after a peer feedback assignment is created', async () => {
+    (feedback360CycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid('00000000-0000-0000-0000-000000000200'),
+      tenantId: new Uuid(tenantId),
+      name: 'FY26 360 Feedback',
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({
+      success: true,
+      data: { feedback360ResponseId: '00000000-0000-0000-0000-000000000300' },
+    });
+    (performanceNotificationService.notifyPeerReviewRequest as ReturnType<typeof vi.fn>).mockResolvedValue(1);
+
+    await controller.createFeedback360Response({
+      cycleId: '00000000-0000-0000-0000-000000000200',
+      revieweeId: workerId,
+      reviewerId: '00000000-0000-0000-0000-000000000202',
+      relationshipType: 'PEER',
+      isAnonymous: true,
+    }, requestWithActor(actor()));
+
+    expect(performanceNotificationService.notifyPeerReviewRequest).toHaveBeenCalledWith(expect.objectContaining({
+      cycleId: new Uuid('00000000-0000-0000-0000-000000000200'),
+      cycleName: 'FY26 360 Feedback',
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid('00000000-0000-0000-0000-000000000202'),
+      feedback360ResponseId: '00000000-0000-0000-0000-000000000300',
+      isAnonymous: true,
+    }));
   });
 
   it('adds subject worker scope to worker-targeted performance commands', async () => {
@@ -219,5 +280,38 @@ describe('PerformanceController', () => {
     })))).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('scopes feedback submission to the assigned reviewer', async () => {
+    (feedback360ResponseRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid('00000000-0000-0000-0000-000000000300'),
+      cycleId: new Uuid('00000000-0000-0000-0000-000000000200'),
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid(actorId),
+      status: 'PENDING',
+      aggregateVersion: 0,
+      isAnonymous: true,
+    });
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(actorId),
+      email: { value: 'employee@example.com' },
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    await controller.submitFeedback360Response('00000000-0000-0000-0000-000000000300', {
+      competencyScores: { communication: 4 },
+      dimensionScores: { communication: 4, professionalism: 5 },
+      areaComments: { communication: 'Clear and direct' },
+      overallRating: 4,
+      strengths: 'Collaborative',
+      improvements: 'Share earlier updates',
+      comments: 'Useful teammate',
+      isAnonymous: false,
+    }, requestWithActor(actor({ roles: ['EMPLOYEE'], permissions: ['PERFORMANCE_WRITE'], email: 'employee@example.com' })));
+
+    const command = (commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(command.subjectWorkerId.value).toBe(actorId);
+    expect(command.payload.dimensionScores).toEqual({ communication: 4, professionalism: 5 });
+    expect(command.payload.isAnonymous).toBe(false);
   });
 });

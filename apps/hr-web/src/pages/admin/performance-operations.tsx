@@ -12,14 +12,19 @@ import { DataTable, type DataTableColumn } from '@/components/common/data-table'
 import { formatDate } from '@/lib/utils';
 import {
   Activity,
+  Award,
   BarChart3,
+  Bell,
   CheckCircle2,
   ClipboardCheck,
   Gauge,
   GitBranch,
+  Grid3X3,
   MessageSquare,
+  PieChart,
   RefreshCw,
   ShieldCheck,
+  Star,
   Target,
   TrendingUp,
   UserCheck,
@@ -70,6 +75,9 @@ interface Feedback360Response {
   status: string;
   overallRating?: number;
   isAnonymous?: boolean;
+  visibility?: 'NAMED' | 'ANONYMOUS';
+  dimensionScores?: Record<string, number>;
+  areaComments?: Record<string, string>;
 }
 
 interface CalibrationSession {
@@ -88,6 +96,17 @@ interface PerformanceImprovementPlan {
   startDate?: string;
   reviewDate?: string;
   endDate?: string;
+  currentPerformance?: {
+    summary?: string;
+    latestRating?: number | null;
+    goalProgress?: number;
+    peerFeedbackRating?: number | null;
+  };
+  planDurationDays?: number;
+  milestones?: Array<{ day: number; title: string; target: string; status?: string }>;
+  trackingMetrics?: Array<{ metric: string; current: number; target: number; unit?: string }>;
+  checkInCadence?: string;
+  successCriteria?: string[];
   outcome?: string;
   status: string;
 }
@@ -151,11 +170,130 @@ interface KpiMeasurement {
   status: string;
 }
 
+interface RatingBucket {
+  rating: number;
+  count: number;
+}
+
+interface NineBoxPlacement {
+  workerId: string;
+  employeeName: string;
+  performanceScore: number;
+  potentialScore: number;
+  performanceBand: 'LOW' | 'MEDIUM' | 'HIGH';
+  potentialBand: 'LOW' | 'MEDIUM' | 'HIGH';
+  box: string;
+}
+
+interface PerformanceRecognition {
+  workerId: string;
+  employeeName: string;
+  score: number;
+  reason: string;
+}
+
+interface FeedbackSummary {
+  workerId: string;
+  responseCount: number;
+  anonymousResponseCount: number;
+  averageRating: number | null;
+  dimensionAverages: Record<string, number>;
+  areaThemes: Record<string, string[]>;
+  conciseFeedback: string;
+  anonymitySuppressionApplied: boolean;
+}
+
+interface PerformanceActionPlan {
+  workerId: string;
+  employeeName: string;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  currentPerformance: {
+    latestRating: number | null;
+    goalProgress: number;
+    peerFeedbackRating: number | null;
+    reviewCompletionStatus: string;
+  };
+  timeline: {
+    durationDays: number;
+    startDate: string;
+    targetReviewDate: string;
+  };
+  checkInCadence: string;
+  trackingMetrics: Array<{ metric: string; current: number; target: number; unit: string }>;
+  successCriteria: string[];
+  progressTrend: 'IMPROVING' | 'STABLE' | 'DECLINING' | 'INSUFFICIENT_DATA';
+  recommendedActions: string[];
+}
+
+interface PerformanceAnalyticsSummary {
+  ratingDistribution: RatingBucket[];
+  reviewCompletion: Record<string, number>;
+  goalMetrics: {
+    total: number;
+    active: number;
+    achieved: number;
+    atRisk: number;
+    averageProgress: number;
+  };
+  peerFeedback: {
+    submitted: number;
+    anonymousSubmitted: number;
+    averageRating: number | null;
+    relationshipMix: Record<string, number>;
+    dimensionAverages: Record<string, number>;
+  };
+  calibrationHeatmap: Array<{ calibratedRating: number; finalRating: number; count: number }>;
+  nineBox: NineBoxPlacement[];
+  recognitions: PerformanceRecognition[];
+  feedbackSummaries: Record<string, FeedbackSummary>;
+  actionPlans: PerformanceActionPlan[];
+}
+
 function splitValues(value: string): string[] {
   return value
     .split(/\r?\n|,/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+const PEER_REVIEW_AREAS = [
+  { key: 'communication', label: 'Communication' },
+  { key: 'professionalism', label: 'Professionalism' },
+  { key: 'ethics', label: 'Ethics' },
+  { key: 'teamwork', label: 'Teamwork' },
+  { key: 'ownership', label: 'Ownership' },
+] as const;
+
+function parseMilestones(value: string): Array<{ day: number; title: string; target: string; status: string }> {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line, index) => {
+      const [day, title, target] = line.split('|').map((item) => item.trim());
+      return {
+        day: Number(day) || (index + 1) * 30,
+        title: title || `Checkpoint ${index + 1}`,
+        target: target || 'Manager and employee review progress evidence',
+        status: 'PLANNED',
+      };
+    });
+}
+
+function parseTrackingMetrics(value: string): Array<{ metric: string; current: number; target: number; unit: string }> {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [metric, current, target, unit] = line.split('|').map((item) => item.trim());
+      return {
+        metric: metric || 'Performance metric',
+        current: Number(current) || 0,
+        target: Number(target) || 100,
+        unit: unit || '%',
+      };
+    });
 }
 
 function workerName(worker?: Worker): string {
@@ -275,7 +413,7 @@ function EmptyNote({ text }: { text: string }) {
 export function AdminPerformanceOperations() {
   const { user } = useAuth();
   const tenantId = user?.tenantId ?? '00000000-0000-0000-0000-000000000001';
-  const [section, setSection] = React.useState<'reviews' | 'feedback' | 'calibration' | 'growth' | 'okr'>('reviews');
+  const [section, setSection] = React.useState<'analytics' | 'reviews' | 'feedback' | 'calibration' | 'growth' | 'okr'>('analytics');
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -296,9 +434,23 @@ export function AdminPerformanceOperations() {
     minPeerReviews: '3',
     maxPeerReviews: '5',
   });
-  const [feedbackResponseForm, setFeedbackResponseForm] = React.useState({ cycleId: '', revieweeId: '', reviewerId: '', relationshipType: 'PEER' });
+  const [feedbackResponseForm, setFeedbackResponseForm] = React.useState({ cycleId: '', revieweeId: '', reviewerId: '', relationshipType: 'PEER', isAnonymous: false });
   const [calibrationForm, setCalibrationForm] = React.useState({ reviewCycleId: '', facilitatorId: '', participants: '' });
-  const [pipForm, setPipForm] = React.useState({ workerId: '', managerId: '', objectives: '', endDate: '' });
+  const [pipForm, setPipForm] = React.useState({
+    workerId: '',
+    managerId: '',
+    objectives: 'Improve delivery predictability\nIncrease stakeholder communication quality',
+    currentPerformanceSummary: '',
+    latestRating: '2',
+    goalProgress: '45',
+    peerFeedbackRating: '3',
+    planDurationDays: '90',
+    milestones: '30 | Baseline review | Agree expectations and remove blockers\n60 | Progress review | Show measurable improvement\n90 | Final review | Sustain target performance',
+    trackingMetrics: 'Goal progress | 45 | 80 | %\nPeer review average | 3 | 4 | rating\nMissed commitments | 4 | 1 | count',
+    checkInCadence: 'WEEKLY',
+    successCriteria: 'At least 80% goal progress\nNo repeated missed critical commitments\nManager confirms sustained improvement',
+    endDate: '',
+  });
   const [developmentForm, setDevelopmentForm] = React.useState({ workerId: '', managerId: '', title: '', description: '', objective: '', skill: '', resource: '', endDate: '' });
   const [objectiveForm, setObjectiveForm] = React.useState({ ownerId: '', orgUnitId: '', reviewCycleId: '', title: '', period: '2026-Q2' });
   const [keyResultForm, setKeyResultForm] = React.useState({ objectiveId: '', title: '', targetValue: '100', unit: '%' });
@@ -332,6 +484,11 @@ export function AdminPerformanceOperations() {
   const { data: calibrationSessions = [], refetch: refetchCalibration, isLoading: calibrationLoading } = useApiQuery<CalibrationSession[]>(
     ['performance-ops-calibration', effectiveCycleId],
     `/performance/calibration-sessions/cycle/${effectiveCycleId}`,
+    { enabled: Boolean(effectiveCycleId) },
+  );
+  const { data: analytics, refetch: refetchAnalytics, isLoading: analyticsLoading } = useApiQuery<PerformanceAnalyticsSummary>(
+    ['performance-ops-analytics', effectiveCycleId],
+    `/performance/analytics/cycle/${effectiveCycleId}`,
     { enabled: Boolean(effectiveCycleId) },
   );
   const { data: pips = [], refetch: refetchPips, isLoading: pipsLoading } = useApiQuery<PerformanceImprovementPlan[]>(
@@ -616,9 +773,16 @@ export function AdminPerformanceOperations() {
 
   const feedbackResponseColumns = React.useMemo<DataTableColumn<Feedback360Response>[]>(() => [
     { key: 'reviewee', header: 'Reviewee', cell: (response) => workerName(workers.find((worker) => worker.id === response.revieweeId)) },
-    { key: 'reviewer', header: 'Reviewer', cell: (response) => response.isAnonymous ? 'Anonymous' : workerName(workers.find((worker) => worker.id === response.reviewerId)) },
+    { key: 'reviewer', header: 'Reviewer', cell: (response) => response.isAnonymous || response.visibility === 'ANONYMOUS' ? 'Anonymous' : workerName(workers.find((worker) => worker.id === response.reviewerId)) },
     { key: 'relationship', header: 'Relationship', cell: (response) => response.relationshipType },
     { key: 'rating', header: 'Rating', cell: (response) => response.overallRating ?? '-' },
+    {
+      key: 'areas',
+      header: 'Areas',
+      cell: (response) => Object.entries(response.dimensionScores ?? {}).length
+        ? Object.entries(response.dimensionScores ?? {}).slice(0, 2).map(([area, score]) => `${area}: ${score}`).join(', ')
+        : '-',
+    },
     { key: 'status', header: 'Status', cell: (response) => <Badge variant={statusVariant(response.status)}>{response.status}</Badge> },
     {
       key: 'action',
@@ -633,10 +797,13 @@ export function AdminPerformanceOperations() {
             if (Number.isFinite(rating)) {
               runCommand(`feedback-360-responses/${response.id}/commands/submit`, {
                 competencyScores: { overall: rating },
+                dimensionScores: PEER_REVIEW_AREAS.reduce<Record<string, number>>((scores, area) => ({ ...scores, [area.key]: rating }), {}),
+                areaComments: PEER_REVIEW_AREAS.reduce<Record<string, string>>((comments, area) => ({ ...comments, [area.key]: 'Captured through HR admin workspace' }), {}),
                 overallRating: rating,
                 strengths: 'Submitted through HR admin workspace',
                 improvements: 'Captured for calibration',
                 comments: 'Feedback response submitted',
+                isAnonymous: response.isAnonymous || response.visibility === 'ANONYMOUS',
               }, refetchFeedbackResponses);
             }
           }}
@@ -668,8 +835,18 @@ export function AdminPerformanceOperations() {
   ], [busyKey, refetchCalibration, runCommand, workers]);
 
   const pipColumns = React.useMemo<DataTableColumn<PerformanceImprovementPlan>[]>(() => [
-    { key: 'objectives', header: 'Objectives', cell: (pip) => pip.objectives?.join(', ') || '-' },
+    {
+      key: 'objectives',
+      header: 'Objectives',
+      cell: (pip) => (
+        <div>
+          <p className="font-medium">{pip.objectives?.slice(0, 2).join(', ') || '-'}</p>
+          <p className="text-xs text-muted-foreground">{pip.currentPerformance?.summary || 'No current-performance summary'}</p>
+        </div>
+      ),
+    },
     { key: 'period', header: 'Period', cell: (pip) => `${formatDate(pip.startDate)} - ${formatDate(pip.endDate)}` },
+    { key: 'plan', header: 'Plan', cell: (pip) => `${pip.planDurationDays ?? '-'} days - ${pip.checkInCadence ?? 'cadence n/a'}` },
     { key: 'status', header: 'Status', cell: (pip) => <Badge variant={statusVariant(pip.status)}>{pip.status}</Badge> },
     { key: 'action', header: 'Workflow', cell: (pip) => <Button size="sm" variant="outline" disabled={busyKey?.includes(pip.id)} onClick={() => runPipAction(pip)}>Next</Button> },
   ], [busyKey, runPipAction]);
@@ -722,6 +899,7 @@ export function AdminPerformanceOperations() {
 
   const sectionButtons = [
     { id: 'reviews', label: 'Reviews', icon: UserCheck },
+    { id: 'analytics', label: 'Analytics', icon: PieChart },
     { id: 'feedback', label: '360 Feedback', icon: MessageSquare },
     { id: 'calibration', label: 'Calibration', icon: ClipboardCheck },
     { id: 'growth', label: 'PIP & Development', icon: TrendingUp },
@@ -751,6 +929,7 @@ export function AdminPerformanceOperations() {
               refetchFeedbackCycles();
               refetchFeedbackResponses();
               refetchCalibration();
+              refetchAnalytics();
               refetchPips();
               refetchDevelopmentPlans();
               refetchObjectives();
@@ -785,6 +964,184 @@ export function AdminPerformanceOperations() {
           );
         })}
       </div>
+
+      {section === 'analytics' ? (
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <Card className="rounded-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm"><UserCheck className="h-4 w-4 text-[#0b76d1]" /> Reviews</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{analytics?.reviewCompletion.total ?? 0}</p>
+                <p className="text-xs text-muted-foreground">records in selected cycle</p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm"><Target className="h-4 w-4 text-[#0b76d1]" /> Goals</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{analytics?.goalMetrics.averageProgress ?? 0}%</p>
+                <p className="text-xs text-muted-foreground">{analytics?.goalMetrics.atRisk ?? 0} at risk</p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm"><MessageSquare className="h-4 w-4 text-[#0b76d1]" /> Peer Feedback</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{analytics?.peerFeedback.submitted ?? 0}</p>
+                <p className="text-xs text-muted-foreground">{analytics?.peerFeedback.anonymousSubmitted ?? 0} anonymous</p>
+              </CardContent>
+            </Card>
+            <Card className="rounded-md">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm"><Award className="h-4 w-4 text-[#0b76d1]" /> Recognition</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{analytics?.recognitions.length ?? 0}</p>
+                <p className="text-xs text-muted-foreground">top contributors</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-[#0b76d1]" /> Rating Distribution</CardTitle>
+                <CardDescription>Final/calibrated ratings across the cycle.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {analyticsLoading ? <EmptyNote text="Loading analytics" /> : analytics?.ratingDistribution.map((bucket) => {
+                  const maxCount = Math.max(...analytics.ratingDistribution.map((item) => item.count), 1);
+                  return (
+                    <div key={bucket.rating} className="grid grid-cols-[44px_1fr_32px] items-center gap-2 text-sm">
+                      <span>{bucket.rating} star</span>
+                      <div className="h-2 rounded-full bg-slate-100">
+                        <div className="h-2 rounded-full bg-[#0b76d1]" style={{ width: `${(bucket.count / maxCount) * 100}%` }} />
+                      </div>
+                      <span className="text-right font-medium">{bucket.count}</span>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Grid3X3 className="h-5 w-5 text-[#0b76d1]" /> Talent Grid / 9-Box</CardTitle>
+                <CardDescription>Performance and potential bands from ratings, goals, OKRs, and peer signal.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {['HIGH', 'MEDIUM', 'LOW'].map((potential) => (
+                    ['LOW', 'MEDIUM', 'HIGH'].map((performance) => {
+                      const people = analytics?.nineBox.filter((item) => item.potentialBand === potential && item.performanceBand === performance) ?? [];
+                      return (
+                        <div key={`${potential}-${performance}`} className="min-h-[112px] rounded-md border bg-slate-50 p-3">
+                          <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
+                            <span>{potential} potential</span>
+                            <span>{performance} perf.</span>
+                          </div>
+                          <div className="mt-2 space-y-1">
+                            {people.length ? people.slice(0, 4).map((person) => (
+                              <div key={person.workerId} className="rounded border bg-white px-2 py-1 text-xs">
+                                <p className="font-medium">{person.employeeName}</p>
+                                <p className="text-muted-foreground">{person.box} - {Math.round(person.performanceScore)}%</p>
+                              </div>
+                            )) : <p className="text-xs text-muted-foreground">No employees</p>}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-3">
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-[#0b76d1]" /> Best Employee Recognition</CardTitle>
+                <CardDescription>Computed from ratings, goals, and feedback.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {analytics?.recognitions.length ? analytics.recognitions.map((recognition) => (
+                  <div key={recognition.workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                    <p className="font-medium">{recognition.employeeName}</p>
+                    <p className="text-xs text-muted-foreground">{recognition.reason}</p>
+                  </div>
+                )) : <EmptyNote text="No recognition candidates yet" />}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><TrendingUp className="h-5 w-5 text-[#0b76d1]" /> Action Plans</CardTitle>
+                <CardDescription>Employee-level next actions from review and goal signals.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {analytics?.actionPlans.slice(0, 6).map((plan) => (
+                  <div key={plan.workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{plan.employeeName}</p>
+                      <Badge variant={plan.riskLevel === 'HIGH' ? 'destructive' : plan.riskLevel === 'MEDIUM' ? 'secondary' : 'outline'}>{plan.riskLevel}</Badge>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded border bg-white px-2 py-1">
+                        <span className="text-muted-foreground">Duration</span>
+                        <p className="font-medium">{plan.timeline.durationDays} days</p>
+                      </div>
+                      <div className="rounded border bg-white px-2 py-1">
+                        <span className="text-muted-foreground">Cadence</span>
+                        <p className="font-medium">{plan.checkInCadence}</p>
+                      </div>
+                      <div className="rounded border bg-white px-2 py-1">
+                        <span className="text-muted-foreground">Goal progress</span>
+                        <p className="font-medium">{Math.round(plan.currentPerformance.goalProgress)}%</p>
+                      </div>
+                      <div className="rounded border bg-white px-2 py-1">
+                        <span className="text-muted-foreground">Trend</span>
+                        <p className="font-medium">{plan.progressTrend}</p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">{plan.recommendedActions[0]}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{plan.successCriteria[0]}</p>
+                  </div>
+                )) ?? <EmptyNote text="No action plans yet" />}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-[#0b76d1]" /> Feedback Synthesis</CardTitle>
+                <CardDescription>Concise feedback summary, with anonymous reviewer masking.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {Object.values(analytics?.feedbackSummaries ?? {}).filter((item) => item.responseCount > 0).slice(0, 5).map((summary) => (
+                  <div key={summary.workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{workerName(workers.find((worker) => worker.id === summary.workerId))}</p>
+                      <Badge variant="outline">{summary.anonymousResponseCount} anon.</Badge>
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">{summary.conciseFeedback}</p>
+                    {Object.entries(summary.dimensionAverages ?? {}).length ? (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {Object.entries(summary.dimensionAverages).map(([area, score]) => (
+                          <Badge key={area} variant="outline" className="text-[11px]">{area}: {score.toFixed(1)}</Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {!Object.values(analytics?.feedbackSummaries ?? {}).some((item) => item.responseCount > 0) ? <EmptyNote text="No submitted peer feedback yet" /> : null}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      ) : null}
 
       {section === 'reviews' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -918,6 +1275,14 @@ export function AdminPerformanceOperations() {
                   <div className="space-y-2"><Label>Reviewee</Label><EmployeeSelect value={feedbackResponseForm.revieweeId} workers={workers} onChange={(value) => setFeedbackResponseForm({ ...feedbackResponseForm, revieweeId: value })} /></div>
                   <div className="space-y-2"><Label>Reviewer</Label><EmployeeSelect value={feedbackResponseForm.reviewerId} workers={workers} onChange={(value) => setFeedbackResponseForm({ ...feedbackResponseForm, reviewerId: value })} /></div>
                   <div className="space-y-2"><Label>Relationship</Label><Select value={feedbackResponseForm.relationshipType} onValueChange={(value) => setFeedbackResponseForm({ ...feedbackResponseForm, relationshipType: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PEER">Peer</SelectItem><SelectItem value="MANAGER">Manager</SelectItem><SelectItem value="DIRECT_REPORT">Direct report</SelectItem><SelectItem value="STAKEHOLDER">Stakeholder</SelectItem></SelectContent></Select></div>
+                  <label className="flex items-center gap-2 rounded-md border bg-slate-50 px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={feedbackResponseForm.isAnonymous}
+                      onChange={(event) => setFeedbackResponseForm({ ...feedbackResponseForm, isAnonymous: event.target.checked })}
+                    />
+                    Allow anonymous submission for this response
+                  </label>
                   <Button className="w-full" disabled={busyKey === 'feedback-360-responses'}><Users className="mr-2 h-4 w-4" />Create Response</Button>
                 </form>
               </CardContent>
@@ -992,20 +1357,57 @@ export function AdminPerformanceOperations() {
                   className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
+                    const planDurationDays = Number(pipForm.planDurationDays) || 90;
+                    const computedEndDate = new Date();
+                    computedEndDate.setDate(computedEndDate.getDate() + planDurationDays);
                     createEntity('improvement-plans', {
                       workerId: pipForm.workerId,
                       managerId: pipForm.managerId,
                       objectives: splitValues(pipForm.objectives),
                       startDate: new Date().toISOString(),
-                      endDate: pipForm.endDate || undefined,
+                      endDate: pipForm.endDate || computedEndDate.toISOString().slice(0, 10),
+                      currentPerformance: {
+                        summary: pipForm.currentPerformanceSummary,
+                        latestRating: Number(pipForm.latestRating) || null,
+                        goalProgress: Number(pipForm.goalProgress) || 0,
+                        peerFeedbackRating: Number(pipForm.peerFeedbackRating) || null,
+                      },
+                      planDurationDays,
+                      milestones: parseMilestones(pipForm.milestones),
+                      trackingMetrics: parseTrackingMetrics(pipForm.trackingMetrics),
+                      checkInCadence: pipForm.checkInCadence,
+                      successCriteria: splitValues(pipForm.successCriteria),
                     }, refetchPips);
                   }}
                 >
                   <div className="space-y-2"><Label>Employee</Label><EmployeeSelect value={pipForm.workerId} workers={workers} onChange={(value) => setPipForm({ ...pipForm, workerId: value })} /></div>
                   <div className="space-y-2"><Label>Manager</Label><EmployeeSelect value={pipForm.managerId} workers={workers} onChange={(value) => setPipForm({ ...pipForm, managerId: value })} /></div>
-                  <div className="space-y-2 md:col-span-2"><Label htmlFor="pip-objectives">Objectives</Label><Input id="pip-objectives" value={pipForm.objectives} onChange={(event) => setPipForm({ ...pipForm, objectives: event.target.value })} placeholder="Improve punctuality, deliver weekly updates" required /></div>
-                  <div className="space-y-2"><Label htmlFor="pip-end">End date</Label><Input id="pip-end" type="date" value={pipForm.endDate} onChange={(event) => setPipForm({ ...pipForm, endDate: event.target.value })} /></div>
-                  <div className="flex items-end"><Button className="w-full" disabled={busyKey === 'improvement-plans'}>Create PIP</Button></div>
+                  <FieldTextarea id="pip-current-summary" label="Current Performance Details" value={pipForm.currentPerformanceSummary} onChange={(value) => setPipForm({ ...pipForm, currentPerformanceSummary: value })} rows={3} />
+                  <FieldTextarea id="pip-objectives" label="Improvement Objectives" value={pipForm.objectives} onChange={(value) => setPipForm({ ...pipForm, objectives: value })} rows={3} />
+                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                    <div className="space-y-2"><Label htmlFor="pip-rating">Latest Rating</Label><Input id="pip-rating" type="number" min="1" max="5" step="0.1" value={pipForm.latestRating} onChange={(event) => setPipForm({ ...pipForm, latestRating: event.target.value })} /></div>
+                    <div className="space-y-2"><Label htmlFor="pip-goal-progress">Goal Progress %</Label><Input id="pip-goal-progress" type="number" min="0" max="100" value={pipForm.goalProgress} onChange={(event) => setPipForm({ ...pipForm, goalProgress: event.target.value })} /></div>
+                    <div className="space-y-2"><Label htmlFor="pip-peer-rating">Peer Rating</Label><Input id="pip-peer-rating" type="number" min="1" max="5" step="0.1" value={pipForm.peerFeedbackRating} onChange={(event) => setPipForm({ ...pipForm, peerFeedbackRating: event.target.value })} /></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                    <div className="space-y-2"><Label htmlFor="pip-duration">Duration Days</Label><Input id="pip-duration" type="number" min="7" value={pipForm.planDurationDays} onChange={(event) => setPipForm({ ...pipForm, planDurationDays: event.target.value })} /></div>
+                    <div className="space-y-2">
+                      <Label>Check-in Cadence</Label>
+                      <Select value={pipForm.checkInCadence} onValueChange={(value) => setPipForm({ ...pipForm, checkInCadence: value })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="WEEKLY">Weekly</SelectItem>
+                          <SelectItem value="BIWEEKLY">Biweekly</SelectItem>
+                          <SelectItem value="MONTHLY">Monthly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2"><Label htmlFor="pip-end">End Date</Label><Input id="pip-end" type="date" value={pipForm.endDate} onChange={(event) => setPipForm({ ...pipForm, endDate: event.target.value })} /></div>
+                  </div>
+                  <FieldTextarea id="pip-milestones" label="Milestones (day | title | target)" value={pipForm.milestones} onChange={(value) => setPipForm({ ...pipForm, milestones: value })} rows={4} />
+                  <FieldTextarea id="pip-tracking-metrics" label="Tracking Metrics (metric | current | target | unit)" value={pipForm.trackingMetrics} onChange={(value) => setPipForm({ ...pipForm, trackingMetrics: value })} rows={4} />
+                  <FieldTextarea id="pip-success" label="Success Criteria" value={pipForm.successCriteria} onChange={(value) => setPipForm({ ...pipForm, successCriteria: value })} rows={3} />
+                  <div className="md:col-span-2"><Button className="w-full" disabled={busyKey === 'improvement-plans'}>Create Action Plan</Button></div>
                 </form>
               </CardContent>
             </Card>

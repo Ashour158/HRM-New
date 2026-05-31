@@ -8,6 +8,17 @@ export interface PerformanceImprovementPlanProps {
   workerId: Uuid;
   managerId: Uuid;
   objectives?: string[];
+  currentPerformance?: {
+    summary?: string;
+    latestRating?: number;
+    goalProgress?: number;
+    peerFeedbackRating?: number;
+  };
+  planDurationDays?: number;
+  milestones?: Array<{ day: number; title: string; target: string; status?: string }>;
+  trackingMetrics?: Array<{ metric: string; current?: number; target: number; unit?: string }>;
+  checkInCadence?: string;
+  successCriteria?: string[];
   startDate?: Date;
   reviewDate?: Date;
   endDate?: Date;
@@ -69,6 +80,17 @@ export class PerformanceImprovementPlan extends AggregateRoot {
   workerId: Uuid;
   managerId: Uuid;
   objectives: string[];
+  currentPerformance?: {
+    summary?: string;
+    latestRating?: number;
+    goalProgress?: number;
+    peerFeedbackRating?: number;
+  };
+  planDurationDays: number;
+  milestones: Array<{ day: number; title: string; target: string; status?: string }>;
+  trackingMetrics: Array<{ metric: string; current?: number; target: number; unit?: string }>;
+  checkInCadence: string;
+  successCriteria: string[];
   startDate?: Date;
   reviewDate?: Date;
   endDate?: Date;
@@ -87,6 +109,12 @@ export class PerformanceImprovementPlan extends AggregateRoot {
     this.workerId = props.workerId;
     this.managerId = props.managerId;
     this.objectives = props.objectives ?? [];
+    this.currentPerformance = props.currentPerformance;
+    this.planDurationDays = props.planDurationDays ?? 90;
+    this.milestones = props.milestones ?? [];
+    this.trackingMetrics = props.trackingMetrics ?? [];
+    this.checkInCadence = props.checkInCadence ?? 'Weekly manager check-in';
+    this.successCriteria = props.successCriteria ?? [];
     this.startDate = props.startDate;
     this.reviewDate = props.reviewDate;
     this.endDate = props.endDate;

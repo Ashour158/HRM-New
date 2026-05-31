@@ -20,6 +20,7 @@ import { KpiMeasurementRepository } from './repositories/kpi-measurement.reposit
 import { ReviewTemplateRepository } from './repositories/review-template.repository.js';
 import { CompetencyRepository } from './repositories/competency.repository.js';
 import { DevelopmentPlanRepository } from './repositories/development-plan.repository.js';
+import { PerformanceNotificationRepository } from './repositories/performance-notification.repository.js';
 import { WorkerRepository } from '../hr-core/repositories/worker.repository.js';
 
 // Handlers — existing Performance Review Cycle
@@ -108,6 +109,9 @@ import { CompleteDevelopmentPlanHandler } from './commands/complete-development-
 import { CloseDevelopmentPlanHandler } from './commands/close-development-plan.handler.js';
 
 import { PerformanceEventsPublisher } from './events/performance-events.publisher.js';
+import { PerformanceAnalyticsService } from './services/performance-analytics.service.js';
+import { PerformanceNotificationService } from './services/performance-notification.service.js';
+import { PerformanceGoalPolicyService } from './services/performance-goal-policy.service.js';
 
 // FSM registrars — existing
 import { registerPerformanceReviewCycleFsm } from './fsm/performance-review-cycle.fsm.js';
@@ -148,6 +152,7 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     ReviewTemplateRepository,
     CompetencyRepository,
     DevelopmentPlanRepository,
+    PerformanceNotificationRepository,
     WorkerRepository,
 
     // Handlers — existing Performance Review Cycle
@@ -236,6 +241,9 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     CloseDevelopmentPlanHandler,
 
     PerformanceEventsPublisher,
+    PerformanceAnalyticsService,
+    PerformanceNotificationService,
+    PerformanceGoalPolicyService,
   ],
   exports: [
     PerformanceReviewCycleRepository,
@@ -252,6 +260,10 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     ReviewTemplateRepository,
     CompetencyRepository,
     DevelopmentPlanRepository,
+    PerformanceNotificationRepository,
+    PerformanceAnalyticsService,
+    PerformanceNotificationService,
+    PerformanceGoalPolicyService,
   ],
 })
 export class PerformanceModule implements OnModuleInit {

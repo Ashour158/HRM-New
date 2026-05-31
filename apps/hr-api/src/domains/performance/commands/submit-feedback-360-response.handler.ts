@@ -19,15 +19,22 @@ export class SubmitFeedback360ResponseHandler {
     const payload = command.payload as {
       feedback360ResponseId: string;
       competencyScores: Record<string, number>;
+      dimensionScores?: Record<string, number>;
+      areaComments?: Record<string, string>;
       overallRating: number;
       strengths: string;
       improvements: string;
       comments: string;
+      isAnonymous?: boolean;
     };
     const id = new Uuid(payload.feedback360ResponseId);
     const ar = await this.repo.findById(id);
     if (!ar) throw new NotFoundException('Feedback 360 response not found');
-    ar.submit(payload.competencyScores, payload.overallRating, payload.strengths, payload.improvements, payload.comments, command.correlationId);
+    ar.submit(payload.competencyScores, payload.overallRating, payload.strengths, payload.improvements, payload.comments, command.correlationId, {
+      dimensionScores: payload.dimensionScores,
+      areaComments: payload.areaComments,
+      isAnonymous: payload.isAnonymous,
+    });
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {

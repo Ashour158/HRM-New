@@ -21,6 +21,17 @@ export class CreatePerformanceImprovementPlanHandler {
       workerId: Uuid;
       managerId: Uuid;
       objectives?: string[];
+      currentPerformance?: {
+        summary?: string;
+        latestRating?: number;
+        goalProgress?: number;
+        peerFeedbackRating?: number;
+      };
+      planDurationDays?: number;
+      milestones?: Array<{ day: number; title: string; target: string; status?: string }>;
+      trackingMetrics?: Array<{ metric: string; current?: number; target: number; unit?: string }>;
+      checkInCadence?: string;
+      successCriteria?: string[];
       startDate?: Date;
       reviewDate?: Date;
       endDate?: Date;
@@ -32,6 +43,12 @@ export class CreatePerformanceImprovementPlanHandler {
         workerId: payload.workerId,
         managerId: payload.managerId,
         objectives: payload.objectives,
+        currentPerformance: payload.currentPerformance,
+        planDurationDays: payload.planDurationDays,
+        milestones: payload.milestones,
+        trackingMetrics: payload.trackingMetrics,
+        checkInCadence: payload.checkInCadence,
+        successCriteria: payload.successCriteria,
         startDate: payload.startDate,
         reviewDate: payload.reviewDate,
         endDate: payload.endDate,

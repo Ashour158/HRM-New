@@ -83,11 +83,23 @@ interface PerformanceGoal {
   workerId: string;
   title: string;
   description?: string;
+  metricName?: string;
+  smartCriteria?: {
+    specific?: string;
+    measurable?: string;
+    achievable?: string;
+    relevant?: string;
+    timeBound?: string;
+  };
+  baselineValue?: number;
   targetValue?: number;
   currentValue?: number;
   unit?: string;
   startDate?: string;
   dueDate?: string;
+  weight?: number;
+  reviewCadence?: string;
+  evidenceRequired?: boolean;
   status: LifecycleStatus;
 }
 
@@ -118,9 +130,20 @@ interface GoalForm {
   workerId: string;
   title: string;
   description: string;
+  metricName: string;
+  baselineValue: string;
   targetValue: string;
   unit: string;
+  startDate: string;
   dueDate: string;
+  weight: string;
+  reviewCadence: string;
+  evidenceRequired: string;
+  smartSpecific: string;
+  smartMeasurable: string;
+  smartAchievable: string;
+  smartRelevant: string;
+  smartTimeBound: string;
 }
 
 const EMPTY_CYCLE: ReviewCycleForm = {
@@ -150,9 +173,20 @@ const EMPTY_GOAL: GoalForm = {
   workerId: '',
   title: '',
   description: '',
+  metricName: 'Performance outcome',
+  baselineValue: '0',
   targetValue: '100',
   unit: '%',
-  dueDate: '',
+  startDate: new Date().toISOString().slice(0, 10),
+  dueDate: new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
+  weight: '100',
+  reviewCadence: 'MONTHLY',
+  evidenceRequired: 'Manager checkpoint\nWork samples',
+  smartSpecific: '',
+  smartMeasurable: '',
+  smartAchievable: '',
+  smartRelevant: '',
+  smartTimeBound: '',
 };
 
 function splitLines(value: string): string[] {
@@ -370,9 +404,22 @@ export function AdminPerformance() {
     workerId: string;
     title: string;
     description?: string;
-    targetValue?: number;
+    metricName: string;
+    smartCriteria: {
+      specific: string;
+      measurable: string;
+      achievable: string;
+      relevant: string;
+      timeBound: string;
+    };
+    baselineValue?: number;
+    targetValue: number;
     unit?: string;
-    dueDate?: string;
+    startDate: string;
+    dueDate: string;
+    weight?: number;
+    reviewCadence?: string;
+    evidenceRequired?: boolean;
   }>('/performance/goals', 'post', [['performance-goals']]);
 
   const selectedWorker = React.useMemo(
@@ -463,9 +510,22 @@ export function AdminPerformance() {
       workerId: goalForm.workerId,
       title: goalForm.title,
       description: goalForm.description || undefined,
-      targetValue: goalForm.targetValue ? Number(goalForm.targetValue) : undefined,
+      metricName: goalForm.metricName,
+      smartCriteria: {
+        specific: goalForm.smartSpecific,
+        measurable: goalForm.smartMeasurable,
+        achievable: goalForm.smartAchievable,
+        relevant: goalForm.smartRelevant,
+        timeBound: goalForm.smartTimeBound,
+      },
+      baselineValue: goalForm.baselineValue ? Number(goalForm.baselineValue) : undefined,
+      targetValue: Number(goalForm.targetValue),
       unit: goalForm.unit || undefined,
-      dueDate: goalForm.dueDate || undefined,
+      startDate: goalForm.startDate,
+      dueDate: goalForm.dueDate,
+      weight: goalForm.weight ? Number(goalForm.weight) : undefined,
+      reviewCadence: goalForm.reviewCadence || undefined,
+      evidenceRequired: splitLines(goalForm.evidenceRequired).length > 0,
     });
     setGoalForm((current) => ({ ...EMPTY_GOAL, workerId: current.workerId }));
     setMessage('Employee goal created');
@@ -476,8 +536,9 @@ export function AdminPerformance() {
     const commandKey = `${id}:${path}`;
     setBusyCommand(commandKey);
     try {
-      await apiClient.post(`/performance/${path}`);
-      setMessage('Workflow command completed');
+      const response = await apiClient.post(`/performance/${path}`);
+      const notificationsCreated = (response.data?.data as { notificationsCreated?: number } | undefined)?.notificationsCreated;
+      setMessage(notificationsCreated ? `Workflow command completed. ${notificationsCreated} employee notifications sent.` : 'Workflow command completed');
       refetch();
     } finally {
       setBusyCommand(null);
@@ -622,13 +683,24 @@ export function AdminPerformance() {
         <div>
           <p className="font-medium text-slate-950">{goal.title}</p>
           <p className="text-xs text-muted-foreground">{goal.description || 'No description'}</p>
+          <p className="mt-1 text-xs text-slate-500">{goal.metricName || 'Metric not set'}{goal.reviewCadence ? ` - ${goal.reviewCadence}` : ''}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'smart',
+      header: 'SMART',
+      cell: (goal) => (
+        <div className="space-y-1 text-xs text-slate-600">
+          <p>S: {goal.smartCriteria?.specific || '-'}</p>
+          <p>M: {goal.smartCriteria?.measurable || '-'}</p>
         </div>
       ),
     },
     {
       key: 'target',
       header: 'Target',
-      cell: (goal) => goal.targetValue === undefined ? '-' : `${goal.currentValue ?? 0} / ${goal.targetValue} ${goal.unit ?? ''}`.trim(),
+      cell: (goal) => goal.targetValue === undefined ? '-' : `${goal.currentValue ?? goal.baselineValue ?? 0} / ${goal.targetValue} ${goal.unit ?? ''}`.trim(),
     },
     { key: 'progress', header: 'Progress', cell: goalProgress },
     { key: 'dueDate', header: 'Due', cell: (goal) => formatDate(goal.dueDate) },
@@ -941,8 +1013,8 @@ export function AdminPerformance() {
 
           <Card className="rounded-md">
             <CardHeader>
-              <CardTitle className="text-lg">Create Goal</CardTitle>
-              <CardDescription>Assign a measurable goal to the selected employee.</CardDescription>
+              <CardTitle className="text-lg">Create SMART Goal</CardTitle>
+              <CardDescription>Assign a specific, measurable, achievable, relevant, and time-bound goal.</CardDescription>
             </CardHeader>
             <CardContent>
               <form className="space-y-4" onSubmit={submitGoal}>
@@ -950,27 +1022,71 @@ export function AdminPerformance() {
                   <Label htmlFor="goal-title">Title</Label>
                   <Input id="goal-title" value={goalForm.title} onChange={(event) => setGoalForm({ ...goalForm, title: event.target.value })} required />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="goal-description">Description</Label>
-                  <Input id="goal-description" value={goalForm.description} onChange={(event) => setGoalForm({ ...goalForm, description: event.target.value })} />
-                </div>
+                <FieldTextarea
+                  id="goal-description"
+                  label="Goal Description"
+                  value={goalForm.description}
+                  onChange={(value) => setGoalForm({ ...goalForm, description: value })}
+                  rows={3}
+                />
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
+                    <Label htmlFor="goal-metric">Metric Name</Label>
+                    <Input id="goal-metric" value={goalForm.metricName} onChange={(event) => setGoalForm({ ...goalForm, metricName: event.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Review Cadence</Label>
+                    <Select value={goalForm.reviewCadence} onValueChange={(value) => setGoalForm({ ...goalForm, reviewCadence: value })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="WEEKLY">Weekly</SelectItem>
+                        <SelectItem value="BIWEEKLY">Biweekly</SelectItem>
+                        <SelectItem value="MONTHLY">Monthly</SelectItem>
+                        <SelectItem value="QUARTERLY">Quarterly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-3 rounded-md border bg-slate-50 p-3">
+                  <p className="text-sm font-semibold text-slate-900">SMART Definition</p>
+                  <FieldTextarea id="goal-smart-specific" label="Specific" value={goalForm.smartSpecific} onChange={(value) => setGoalForm({ ...goalForm, smartSpecific: value })} rows={2} />
+                  <FieldTextarea id="goal-smart-measurable" label="Measurable" value={goalForm.smartMeasurable} onChange={(value) => setGoalForm({ ...goalForm, smartMeasurable: value })} rows={2} />
+                  <FieldTextarea id="goal-smart-achievable" label="Achievable" value={goalForm.smartAchievable} onChange={(value) => setGoalForm({ ...goalForm, smartAchievable: value })} rows={2} />
+                  <FieldTextarea id="goal-smart-relevant" label="Relevant" value={goalForm.smartRelevant} onChange={(value) => setGoalForm({ ...goalForm, smartRelevant: value })} rows={2} />
+                  <FieldTextarea id="goal-smart-time-bound" label="Time Bound" value={goalForm.smartTimeBound} onChange={(value) => setGoalForm({ ...goalForm, smartTimeBound: value })} rows={2} />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-baseline">Baseline</Label>
+                    <Input id="goal-baseline" type="number" value={goalForm.baselineValue} onChange={(event) => setGoalForm({ ...goalForm, baselineValue: event.target.value })} />
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="goal-target">Target</Label>
-                    <Input id="goal-target" type="number" value={goalForm.targetValue} onChange={(event) => setGoalForm({ ...goalForm, targetValue: event.target.value })} />
+                    <Input id="goal-target" type="number" value={goalForm.targetValue} onChange={(event) => setGoalForm({ ...goalForm, targetValue: event.target.value })} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="goal-unit">Unit</Label>
                     <Input id="goal-unit" value={goalForm.unit} onChange={(event) => setGoalForm({ ...goalForm, unit: event.target.value })} />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="goal-due">Due Date</Label>
-                  <Input id="goal-due" type="date" value={goalForm.dueDate} onChange={(event) => setGoalForm({ ...goalForm, dueDate: event.target.value })} />
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-start">Start Date</Label>
+                    <Input id="goal-start" type="date" value={goalForm.startDate} onChange={(event) => setGoalForm({ ...goalForm, startDate: event.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-due">Due Date</Label>
+                    <Input id="goal-due" type="date" value={goalForm.dueDate} onChange={(event) => setGoalForm({ ...goalForm, dueDate: event.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="goal-weight">Weight</Label>
+                    <Input id="goal-weight" type="number" value={goalForm.weight} onChange={(event) => setGoalForm({ ...goalForm, weight: event.target.value })} />
+                  </div>
                 </div>
-                <Button className="w-full" disabled={createGoalMutation.isPending || !goalForm.workerId}>
+                <FieldTextarea id="goal-evidence" label="Evidence Required" value={goalForm.evidenceRequired} onChange={(value) => setGoalForm({ ...goalForm, evidenceRequired: value })} rows={3} />
+                <Button className="w-full" disabled={createGoalMutation.isPending || !goalForm.workerId || !goalForm.metricName || !goalForm.targetValue || !goalForm.dueDate}>
                   <Goal className="mr-2 h-4 w-4" />
-                  Create Goal
+                  Create SMART Goal
                 </Button>
               </form>
             </CardContent>

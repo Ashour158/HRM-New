@@ -49,20 +49,38 @@ export const CreateGoalDtoSchema = z.object({
   workerId: z.string().uuid(),
   title: z.string().min(1),
   description: z.string().optional(),
-  targetValue: z.number().optional(),
+  targetValue: z.number(),
+  metricName: z.string().min(1),
   unit: z.string().optional(),
-  startDate: z.coerce.date().optional(),
-  dueDate: z.coerce.date().optional(),
+  startDate: z.coerce.date(),
+  dueDate: z.coerce.date(),
+  smartCriteria: z.object({
+    specific: z.string().min(5),
+    measurable: z.string().min(5),
+    achievable: z.string().min(5),
+    relevant: z.string().min(5),
+    timeBound: z.string().min(5),
+  }),
+  baselineValue: z.number().optional(),
+  weight: z.number().min(0).max(100).optional(),
+  reviewCadence: z.string().optional(),
+  evidenceRequired: z.boolean().optional(),
 });
 
 export class CreateGoalDto {
   @ApiProperty() workerId!: string;
   @ApiProperty() title!: string;
   @ApiPropertyOptional() description?: string;
-  @ApiPropertyOptional() targetValue?: number;
+  @ApiProperty() targetValue!: number;
+  @ApiProperty() metricName!: string;
   @ApiPropertyOptional() unit?: string;
-  @ApiPropertyOptional() startDate?: Date;
-  @ApiPropertyOptional() dueDate?: Date;
+  @ApiProperty() startDate!: Date;
+  @ApiProperty() dueDate!: Date;
+  @ApiProperty() smartCriteria!: { specific: string; measurable: string; achievable: string; relevant: string; timeBound: string };
+  @ApiPropertyOptional() baselineValue?: number;
+  @ApiPropertyOptional() weight?: number;
+  @ApiPropertyOptional() reviewCadence?: string;
+  @ApiPropertyOptional() evidenceRequired?: boolean;
 }
 
 export const UpdateGoalProgressDtoSchema = z.object({ currentValue: z.number() });
@@ -86,6 +104,27 @@ export const CreatePerformanceImprovementPlanDtoSchema = z.object({
   workerId: z.string().uuid(),
   managerId: z.string().uuid(),
   objectives: z.array(z.string()).optional(),
+  currentPerformance: z.object({
+    summary: z.string().optional(),
+    latestRating: z.number().optional(),
+    goalProgress: z.number().optional(),
+    peerFeedbackRating: z.number().optional(),
+  }).optional(),
+  planDurationDays: z.number().int().min(7).max(365).optional(),
+  milestones: z.array(z.object({
+    day: z.number().int().min(1),
+    title: z.string().min(1),
+    target: z.string().min(1),
+    status: z.string().optional(),
+  })).optional(),
+  trackingMetrics: z.array(z.object({
+    metric: z.string().min(1),
+    current: z.number().optional(),
+    target: z.number(),
+    unit: z.string().optional(),
+  })).optional(),
+  checkInCadence: z.string().optional(),
+  successCriteria: z.array(z.string()).optional(),
   startDate: z.coerce.date().optional(),
   reviewDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
@@ -95,6 +134,12 @@ export class CreatePerformanceImprovementPlanDto {
   @ApiProperty() workerId!: string;
   @ApiProperty() managerId!: string;
   @ApiPropertyOptional() objectives?: string[];
+  @ApiPropertyOptional() currentPerformance?: { summary?: string; latestRating?: number; goalProgress?: number; peerFeedbackRating?: number };
+  @ApiPropertyOptional() planDurationDays?: number;
+  @ApiPropertyOptional() milestones?: Array<{ day: number; title: string; target: string; status?: string }>;
+  @ApiPropertyOptional() trackingMetrics?: Array<{ metric: string; current?: number; target: number; unit?: string }>;
+  @ApiPropertyOptional() checkInCadence?: string;
+  @ApiPropertyOptional() successCriteria?: string[];
   @ApiPropertyOptional() startDate?: Date;
   @ApiPropertyOptional() reviewDate?: Date;
   @ApiPropertyOptional() endDate?: Date;
@@ -154,14 +199,48 @@ export class CreateFeedback360ResponseDto {
 
 export const SubmitFeedback360ResponseDtoSchema = z.object({
   competencyScores: z.record(z.number()),
+  dimensionScores: z.record(z.number()).optional(),
+  areaComments: z.record(z.string()).optional(),
+  overallRating: z.number(),
+  strengths: z.string().min(1),
+  improvements: z.string().min(1),
+  comments: z.string().min(1),
+  isAnonymous: z.boolean().optional(),
+});
+
+export class SubmitFeedback360ResponseDto {
+  @ApiProperty() competencyScores!: Record<string, number>;
+  @ApiPropertyOptional() dimensionScores?: Record<string, number>;
+  @ApiPropertyOptional() areaComments?: Record<string, string>;
+  @ApiProperty() overallRating!: number;
+  @ApiProperty() strengths!: string;
+  @ApiProperty() improvements!: string;
+  @ApiProperty() comments!: string;
+  @ApiPropertyOptional() isAnonymous?: boolean;
+}
+
+export const CreateSelfServiceFeedbackDtoSchema = z.object({
+  cycleId: z.string().uuid(),
+  revieweeId: z.string().uuid(),
+  relationshipType: z.string().min(1).default('PEER'),
+  isAnonymous: z.boolean().optional(),
+  competencyScores: z.record(z.number()),
+  dimensionScores: z.record(z.number()).optional(),
+  areaComments: z.record(z.string()).optional(),
   overallRating: z.number(),
   strengths: z.string().min(1),
   improvements: z.string().min(1),
   comments: z.string().min(1),
 });
 
-export class SubmitFeedback360ResponseDto {
+export class CreateSelfServiceFeedbackDto {
+  @ApiProperty() cycleId!: string;
+  @ApiProperty() revieweeId!: string;
+  @ApiProperty() relationshipType!: string;
+  @ApiPropertyOptional() isAnonymous?: boolean;
   @ApiProperty() competencyScores!: Record<string, number>;
+  @ApiPropertyOptional() dimensionScores?: Record<string, number>;
+  @ApiPropertyOptional() areaComments?: Record<string, string>;
   @ApiProperty() overallRating!: number;
   @ApiProperty() strengths!: string;
   @ApiProperty() improvements!: string;

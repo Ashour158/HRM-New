@@ -13,6 +13,18 @@ export interface GoalProps {
   unit?: string;
   startDate?: Date;
   dueDate?: Date;
+  smartCriteria?: {
+    specific?: string;
+    measurable?: string;
+    achievable?: string;
+    relevant?: string;
+    timeBound?: string;
+  };
+  metricName?: string;
+  baselineValue?: number;
+  weight?: number;
+  reviewCadence?: string;
+  evidenceRequired?: boolean;
   status?: GoalStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -69,6 +81,18 @@ export class Goal extends AggregateRoot {
   unit?: string;
   startDate?: Date;
   dueDate?: Date;
+  smartCriteria: {
+    specific?: string;
+    measurable?: string;
+    achievable?: string;
+    relevant?: string;
+    timeBound?: string;
+  };
+  metricName?: string;
+  baselineValue?: number;
+  weight?: number;
+  reviewCadence?: string;
+  evidenceRequired: boolean;
   status: GoalStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -88,6 +112,12 @@ export class Goal extends AggregateRoot {
     this.unit = props.unit;
     this.startDate = props.startDate;
     this.dueDate = props.dueDate;
+    this.smartCriteria = props.smartCriteria ?? {};
+    this.metricName = props.metricName;
+    this.baselineValue = props.baselineValue;
+    this.weight = props.weight;
+    this.reviewCadence = props.reviewCadence;
+    this.evidenceRequired = props.evidenceRequired ?? false;
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();

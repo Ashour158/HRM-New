@@ -31,6 +31,8 @@ describe('PerformanceAnalyticsService', () => {
           revieweeId: 'worker-a',
           reviewerId: 'peer-1',
           relationshipType: 'PEER',
+          dimensionScores: { communication: 5, professionalism: 5, ethics: 4, teamwork: 5 },
+          areaComments: { communication: 'Keeps stakeholders aligned', ethics: 'Acts with fairness' },
           overallRating: 5,
           strengths: 'Clear leadership and strong delivery',
           improvements: 'Delegate more decisions',
@@ -43,6 +45,8 @@ describe('PerformanceAnalyticsService', () => {
           revieweeId: 'worker-b',
           reviewerId: 'peer-2',
           relationshipType: 'PEER',
+          dimensionScores: { communication: 2, professionalism: 3, ethics: 3, teamwork: 2 },
+          areaComments: { communication: 'Updates are often late', teamwork: 'Needs clearer handoffs' },
           overallRating: 2,
           strengths: 'Customer empathy',
           improvements: 'Follow through and planning',
@@ -78,10 +82,31 @@ describe('PerformanceAnalyticsService', () => {
       responseCount: 1,
       anonymousResponseCount: 1,
       conciseFeedback: expect.stringContaining('Clear leadership'),
+      dimensionAverages: expect.objectContaining({ communication: 5, professionalism: 5, ethics: 4, teamwork: 5 }),
+      areaThemes: expect.objectContaining({ communication: ['Keeps stakeholders aligned'] }),
       anonymitySuppressionApplied: true,
     }));
     expect(summary.actionPlans.find((plan) => plan.workerId === 'worker-b')).toEqual(expect.objectContaining({
+      currentPerformance: expect.objectContaining({
+        latestRating: 2,
+        averageGoalProgress: 40,
+        peerAverageRating: 2,
+      }),
+      timeline: expect.objectContaining({
+        durationDays: 90,
+        reviewCheckpoints: expect.arrayContaining([30, 60, 90]),
+      }),
+      trackingMetrics: expect.arrayContaining([
+        expect.objectContaining({ metric: 'Goal progress' }),
+        expect.objectContaining({ metric: 'Peer feedback rating' }),
+      ]),
       recommendedActions: expect.arrayContaining([expect.stringContaining('Improve goal progress')]),
+    }));
+    expect(summary.peerFeedback.dimensionAverages).toEqual(expect.objectContaining({
+      communication: 3.5,
+      professionalism: 4,
+      ethics: 3.5,
+      teamwork: 3.5,
     }));
   });
 });

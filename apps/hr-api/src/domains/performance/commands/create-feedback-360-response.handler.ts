@@ -33,6 +33,7 @@ export class CreateFeedback360ResponseHandler {
         reviewerId: new Uuid(payload.reviewerId),
         relationshipType: payload.relationshipType,
         isAnonymous: payload.isAnonymous,
+        visibility: payload.isAnonymous === false ? 'NAMED' : 'ANONYMOUS',
       },
       command.correlationId,
     );

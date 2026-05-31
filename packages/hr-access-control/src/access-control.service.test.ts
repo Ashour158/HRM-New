@@ -59,4 +59,32 @@ describe('AccessControlService time and attendance self-service commands', () =>
 
     expect(decision.allowed).toBe(true);
   });
+
+  it('allows employees to submit their assigned 360 feedback through self service', () => {
+    const decision = service.evaluateCommandAccess({
+      commandName: 'SubmitPerformanceFeedback360Response',
+      commandType: 'UPDATE',
+      aggregateType: 'PerformanceFeedback360Response',
+      payload: {},
+    }, {
+      actorType: 'EMPLOYEE',
+      roles: ['EMPLOYEE'],
+    });
+
+    expect(decision.allowed).toBe(true);
+  });
+
+  it('allows employees to create self-service 360 feedback for an available cycle', () => {
+    const decision = service.evaluateCommandAccess({
+      commandName: 'CreatePerformanceFeedback360Response',
+      commandType: 'CREATE',
+      aggregateType: 'PerformanceFeedback360Response',
+      payload: {},
+    }, {
+      actorType: 'EMPLOYEE',
+      roles: ['EMPLOYEE'],
+    });
+
+    expect(decision.allowed).toBe(true);
+  });
 });

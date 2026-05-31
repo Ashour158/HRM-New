@@ -9,6 +9,7 @@ import { EmployeeProfile } from '@/pages/employee/profile';
 import { EmployeePayslip } from '@/pages/employee/payslip';
 import { EmployeeBenefits } from '@/pages/employee/benefits';
 import { EmployeeTimeOff } from '@/pages/employee/time-off';
+import { EmployeePerformance } from '@/pages/employee/performance';
 import { ManagerDashboard } from '@/pages/manager/dashboard';
 import { ManagerTeam } from '@/pages/manager/team';
 import { ManagerApprovals } from '@/pages/manager/approvals';
@@ -61,6 +62,7 @@ export function AppRoutes() {
                   <Route path="payslip" element={<EmployeePayslip />} />
                   <Route path="benefits" element={<EmployeeBenefits />} />
                   <Route path="time-off" element={<EmployeeTimeOff />} />
+                  <Route path="performance" element={<EmployeePerformance />} />
                   <Route path="*" element={<Navigate to="/employee" replace />} />
                 </Routes>
               </PortalLayout>

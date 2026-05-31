@@ -15,6 +15,9 @@ export interface Feedback360ResponseProps {
   strengths?: string;
   improvements?: string;
   comments?: string;
+  dimensionScores?: Record<string, number>;
+  areaComments?: Record<string, string>;
+  visibility?: 'NAMED' | 'ANONYMOUS';
   isAnonymous?: boolean;
   submittedAt?: Date;
   withdrawnAt?: Date;
@@ -60,6 +63,9 @@ export class Feedback360Response extends AggregateRoot {
   strengths?: string;
   improvements?: string;
   comments?: string;
+  dimensionScores?: Record<string, number>;
+  areaComments?: Record<string, string>;
+  visibility: 'NAMED' | 'ANONYMOUS';
   isAnonymous: boolean;
   submittedAt?: Date;
   withdrawnAt?: Date;
@@ -83,6 +89,9 @@ export class Feedback360Response extends AggregateRoot {
     this.strengths = props.strengths;
     this.improvements = props.improvements;
     this.comments = props.comments;
+    this.dimensionScores = props.dimensionScores;
+    this.areaComments = props.areaComments;
+    this.visibility = props.visibility ?? (props.isAnonymous === false ? 'NAMED' : 'ANONYMOUS');
     this.isAnonymous = props.isAnonymous ?? true;
     this.submittedAt = props.submittedAt;
     this.withdrawnAt = props.withdrawnAt;
@@ -98,13 +107,27 @@ export class Feedback360Response extends AggregateRoot {
     return ar;
   }
 
-  submit(scores: Record<string, number>, overallRating: number, strengths: string, improvements: string, comments: string, correlationId: Uuid): void {
+  submit(
+    scores: Record<string, number>,
+    overallRating: number,
+    strengths: string,
+    improvements: string,
+    comments: string,
+    correlationId: Uuid,
+    options?: { dimensionScores?: Record<string, number>; areaComments?: Record<string, string>; isAnonymous?: boolean },
+  ): void {
     if (this.status !== 'PENDING') throw new ValidationError(`Cannot submit from ${this.status}`);
     this.competencyScores = scores;
     this.overallRating = overallRating;
     this.strengths = strengths;
     this.improvements = improvements;
     this.comments = comments;
+    this.dimensionScores = options?.dimensionScores ?? scores;
+    this.areaComments = options?.areaComments;
+    if (options?.isAnonymous !== undefined) {
+      this.isAnonymous = options.isAnonymous;
+      this.visibility = options.isAnonymous ? 'ANONYMOUS' : 'NAMED';
+    }
     this.status = 'SUBMITTED';
     this.submittedAt = new Date();
     this.addDomainEvent(new Feedback360ResponseSubmitted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));

@@ -88,7 +88,22 @@ export interface CreateGoalPayload {
   workerId: Uuid;
   title: string;
   description?: string;
+  metricName?: string;
+  smartCriteria?: {
+    specific?: string;
+    measurable?: string;
+    achievable?: string;
+    relevant?: string;
+    timeBound?: string;
+  };
+  baselineValue?: number;
+  targetValue?: number;
+  unit?: string;
+  startDate?: Date;
   dueDate?: Date;
+  weight?: number;
+  reviewCadence?: string;
+  evidenceRequired?: boolean;
 }
 
 export const CreateGoalPayloadSchema = z.object({
@@ -96,7 +111,22 @@ export const CreateGoalPayloadSchema = z.object({
   workerId: z.string().uuid(),
   title: z.string().min(1),
   description: z.string().optional(),
+  metricName: z.string().optional(),
+  smartCriteria: z.object({
+    specific: z.string().optional(),
+    measurable: z.string().optional(),
+    achievable: z.string().optional(),
+    relevant: z.string().optional(),
+    timeBound: z.string().optional(),
+  }).optional(),
+  baselineValue: z.number().optional(),
+  targetValue: z.number().optional(),
+  unit: z.string().optional(),
+  startDate: z.coerce.date().optional(),
   dueDate: z.coerce.date().optional(),
+  weight: z.number().optional(),
+  reviewCadence: z.string().optional(),
+  evidenceRequired: z.boolean().optional(),
 });
 
 export const UpdateGoalCommandName = 'UpdateGoal' as const;

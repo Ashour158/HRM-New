@@ -26,6 +26,11 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
     return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
+  async findByReviewer(reviewerId: Uuid): Promise<Feedback360Response[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('reviewer_id', '=', reviewerId.value).execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: Feedback360Response): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
@@ -50,6 +55,9 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
       strengths: row.strengths ?? undefined,
       improvements: row.improvements ?? undefined,
       comments: row.comments ?? undefined,
+      dimensionScores: row.dimension_scores ?? undefined,
+      areaComments: row.area_comments ?? undefined,
+      visibility: row.visibility ?? undefined,
       isAnonymous: row.is_anonymous ?? true,
       submittedAt: row.submitted_at ?? undefined,
       withdrawnAt: row.withdrawn_at ?? undefined,
@@ -73,6 +81,9 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
       strengths: entity.strengths ?? null,
       improvements: entity.improvements ?? null,
       comments: entity.comments ?? null,
+      dimension_scores: entity.dimensionScores ? JSON.stringify(entity.dimensionScores) : null,
+      area_comments: entity.areaComments ? JSON.stringify(entity.areaComments) : null,
+      visibility: entity.visibility,
       is_anonymous: entity.isAnonymous,
       submitted_at: entity.submittedAt ?? null,
       withdrawn_at: entity.withdrawnAt ?? null,

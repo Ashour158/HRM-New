@@ -13,6 +13,7 @@ import {
   Heart,
   Umbrella,
   Users,
+  TrendingUp,
 } from 'lucide-react';
 
 interface PortalNavItem {
@@ -39,6 +40,7 @@ const portalConfigs: Record<string, PortalConfig> = {
       { label: 'Payroll', path: '/employee/payslip' },
       { label: 'Benefits', path: '/employee/benefits' },
       { label: 'Leave', path: '/employee/time-off' },
+      { label: 'Performance', path: '/employee/performance' },
     ],
   },
   manager: {
@@ -76,6 +78,7 @@ const employeeRailItems = [
   { label: 'Profile', path: '/employee/profile', icon: Users },
   { label: 'Payroll', path: '/employee/payslip', icon: FileText },
   { label: 'Benefits', path: '/employee/benefits', icon: Heart },
+  { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
 ];
 
 function EmployeeWorkspaceShell({ children }: { children: React.ReactNode }) {
@@ -161,6 +164,7 @@ function EmployeeWorkspaceShell({ children }: { children: React.ReactNode }) {
                 { label: 'Leave', path: '/employee/time-off' },
                 { label: 'Payroll', path: '/employee/payslip' },
                 { label: 'Benefits', path: '/employee/benefits' },
+                { label: 'Performance', path: '/employee/performance' },
               ].map((item) => (
                 <Link
                   key={item.label}
