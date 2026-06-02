@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
+import { getTopicForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
 
 export interface EventHandler {
   consumerGroup: string;
@@ -21,7 +21,7 @@ export class InMemoryEventBus extends EventBus {
   private readonly handlers = new Map<string, EventHandler[]>();
 
   async publish(event: HrEventEnvelope<unknown>): Promise<void> {
-    const topic = this.inferTopic(event.eventName);
+    const topic = getTopicForEvent(event);
     this.logger.log({
       type: 'EVENT_PUBLISHED',
       topic,
@@ -60,10 +60,5 @@ export class InMemoryEventBus extends EventBus {
         });
     }
     this.handlers.get(key)!.push(handler);
-  }
-
-  private inferTopic(eventName: string): string {
-    const prefix = eventName.split(/\b/)[0].toLowerCase();
-    return `hrm.${prefix}.events`;
   }
 }

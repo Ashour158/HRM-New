@@ -266,7 +266,7 @@ export class OrgUnit extends AggregateRoot {
    * Restructures the org unit under a new parent and/or with a new name.
    */
   restructure(
-    newParentId: Uuid | undefined,
+    newParentId: Uuid | null | undefined,
     newName: string | undefined,
     correlationId: Uuid,
   ): void {
@@ -275,7 +275,7 @@ export class OrgUnit extends AggregateRoot {
     }
     const previousParentId = this.parentId;
     if (newParentId !== undefined) {
-      this.parentId = newParentId;
+      this.parentId = newParentId ?? undefined;
     }
     if (newName !== undefined) {
       this.name = newName;
@@ -288,7 +288,7 @@ export class OrgUnit extends AggregateRoot {
         aggregateId: this.id,
         correlationId,
         previousParentId,
-        newParentId: newParentId,
+        newParentId: newParentId ?? undefined,
         newName: newName,
       }),
     );

@@ -6,7 +6,9 @@ import {
   Body,
   Req,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -14,6 +16,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 
 import { BenefitsProgramRepository } from '../repositories/benefits-program.repository.js';
 import { BenefitsEnrollmentRepository } from '../repositories/benefits-enrollment.repository.js';
@@ -29,7 +32,10 @@ import {
   CreateCarrierReconciliationRunDto,
 } from './dtos.js';
 
+const BENEFITS_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP', 'BENEFITS_ADMIN']);
+
 @ApiTags('Benefits')
+@UseGuards(AuthGuard)
 @Controller('hr/benefits')
 export class BenefitsController {
   constructor(
@@ -56,6 +62,7 @@ export class BenefitsController {
     if (!actor) {
       throw new BadRequestException('Actor missing');
     }
+    this.assertBenefitsAdminScope(req);
     return {
       commandId: Uuid.generate(),
       commandName,
@@ -94,13 +101,15 @@ export class BenefitsController {
 
   @Get('programs')
   async listPrograms(@Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     const tenantId = req.tenantId;
     if (!tenantId) throw new BadRequestException('Tenant ID missing');
     return this.programRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('programs/:id')
-  async getProgram(@Param('id') id: string) {
+  async getProgram(@Param('id') id: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     const program = await this.programRepo.findById(new Uuid(id));
     if (!program) throw new NotFoundException('BenefitsProgram not found');
     return program;
@@ -124,12 +133,14 @@ export class BenefitsController {
   }
 
   @Get('enrollments/worker/:workerId')
-  async getEnrollmentsByWorker(@Param('workerId') workerId: string) {
+  async getEnrollmentsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     return this.enrollmentRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('enrollments/program/:programId')
-  async getEnrollmentsByProgram(@Param('programId') programId: string) {
+  async getEnrollmentsByProgram(@Param('programId') programId: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     return this.enrollmentRepo.findByProgram(new Uuid(programId));
   }
 
@@ -150,7 +161,8 @@ export class BenefitsController {
   }
 
   @Get('life-events/worker/:workerId')
-  async getLifeEventsByWorker(@Param('workerId') workerId: string) {
+  async getLifeEventsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     return this.lifeEventRepo.findByWorker(new Uuid(workerId));
   }
 
@@ -171,7 +183,8 @@ export class BenefitsController {
   }
 
   @Get('spending-accounts/worker/:workerId')
-  async getSpendingAccountsByWorker(@Param('workerId') workerId: string) {
+  async getSpendingAccountsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     return this.spendingAccountRepo.findByWorker(new Uuid(workerId));
   }
 
@@ -195,7 +208,14 @@ export class BenefitsController {
   }
 
   @Get('carrier-reconciliation-runs/carrier/:carrierId')
-  async getReconciliationRunsByCarrier(@Param('carrierId') carrierId: string) {
+  async getReconciliationRunsByCarrier(@Param('carrierId') carrierId: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
     return this.reconciliationRunRepo.findByCarrier(new Uuid(carrierId));
+  }
+
+  private assertBenefitsAdminScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => BENEFITS_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only HR or benefits administrators can access benefits administration');
   }
 }

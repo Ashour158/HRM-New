@@ -87,10 +87,146 @@ export interface InboxEventsTable {
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
+export interface PlatformNotificationsTable {
+  id: string;
+  tenant_id: string;
+  audience: string;
+  recipient_worker_id: string | null;
+  recipient_role: string | null;
+  category: string;
+  title: string;
+  body: string;
+  source_event_id: string;
+  source_event_name: string;
+  related_aggregate_type: string;
+  related_aggregate_id: string;
+  payload: unknown;
+  delivery_status: string;
+  read_at: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
 export interface HcmSetupConfigsTable {
   id: string;
   tenant_id: string;
   config: unknown;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AdminPolicyRevisionsTable {
+  id: string;
+  tenant_id: string;
+  area: string;
+  title: string;
+  status: string;
+  baseline_config: unknown;
+  draft_config: unknown;
+  validation_result: unknown | null;
+  simulation_result: unknown | null;
+  created_by: string | null;
+  reviewed_by: string | null;
+  approved_by: string | null;
+  published_by: string | null;
+  applied_by: string | null;
+  review_notes: string | null;
+  submitted_at: Date | null;
+  reviewed_at: Date | null;
+  approved_at: Date | null;
+  published_at: Date | null;
+  applied_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AdminPolicyRevisionScopesTable {
+  id: string;
+  tenant_id: string;
+  revision_id: string;
+  country_codes: unknown;
+  legal_entity_ids: unknown;
+  org_unit_ids: unknown;
+  department_ids: unknown;
+  location_codes: unknown;
+  employee_types: unknown;
+  worker_ids: unknown;
+  effective_from: Date | null;
+  effective_until: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AdminPolicyApplicationRunsTable {
+  id: string;
+  tenant_id: string;
+  revision_id: string;
+  status: string;
+  impacted_employees: number;
+  pending_records: unknown;
+  applied_by: string;
+  applied_at: ColumnType<Date, string | undefined, never>;
+  runtime_snapshot: unknown;
+}
+
+export interface AdminPolicyImpactResultsTable {
+  id: string;
+  tenant_id: string;
+  revision_id: string;
+  simulation_result: unknown;
+  created_by: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AdminPolicyDecisionEvidenceTable {
+  id: string;
+  tenant_id: string;
+  policy_revision_id: string;
+  service_area: string;
+  engine_name: string;
+  engine_version: string;
+  scope_match: unknown;
+  decision: string;
+  reason: string;
+  subject_worker_id: string | null;
+  source_record_id: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AdminModuleOperationRecordsTable {
+  id: string;
+  tenant_id: string;
+  module_id: string;
+  object_type: string;
+  owner_role: string;
+  workflow_name: string;
+  status: string;
+  risk: string;
+  last_event: string;
+  source: string;
+  native_source: string | null;
+  native_record_id: string | null;
+  native_route: string | null;
+  payload: unknown;
+  created_by: string | null;
+  updated_by: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AdminModuleOperationWorkflowsTable {
+  id: string;
+  tenant_id: string;
+  module_id: string;
+  workflow_name: string;
+  owner_role: string;
+  state: string;
+  sla_target: string;
+  last_event: string;
+  payload: unknown;
+  created_by: string | null;
+  updated_by: string | null;
+  aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -221,6 +357,7 @@ export interface HeadcountRequestsTable {
   status: string;
   positions_requested: number;
   positions_approved: number | null;
+  auto_create_position: boolean;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
@@ -343,6 +480,13 @@ export interface OnboardingPlansTable {
   worker_id: string;
   start_date: Date;
   assigned_buddy_id: string | null;
+  mentor_id: string | null;
+  role_track: string | null;
+  preboarding_portal_status: string;
+  first_day_instructions: unknown;
+  welcome_message: string | null;
+  probation_review_date: Date | null;
+  probation_status: string;
   status: string;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
@@ -356,10 +500,33 @@ export interface OnboardingTasksTable {
   title: string;
   description: string | null;
   assigned_to: string | null;
+  owner_group: string;
+  category: string;
+  required: boolean;
+  evidence_type: string | null;
+  evidence_payload: unknown;
+  provisioning_target: string | null;
+  signing_provider_envelope_id: string | null;
+  milestone_day: number | null;
+  completion_notes: string | null;
   due_date: Date | null;
   completed_at: Date | null;
   status: string;
   aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface OnboardingTrackTemplatesTable {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  role_track: string;
+  target_employment_types: unknown;
+  country_codes: unknown;
+  task_blueprint: unknown;
+  active: boolean;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -563,7 +730,7 @@ export interface PolicyDocumentsTable {
   tenant_id: string;
   title: string;
   document_type: string;
-  version: string;
+  document_version: string;
   content: unknown;
   effective_from: Date | null;
   effective_until: Date | null;
@@ -778,7 +945,25 @@ export interface TimeClockEventsTable {
   event_type: string;
   timestamp: Date;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy_meters: number | null;
+  workplace_code: string | null;
+  distance_meters: number | null;
+  geofence_radius_meters: number | null;
+  geofence_profile_code: string | null;
+  location_status: string | null;
+  device_trust_level: string | null;
+  trust_level: string | null;
+  trust_score: number | null;
+  trust_requires_approval: boolean | null;
+  trust_reasons: string[] | null;
   device_id: string | null;
+  capture_method: string | null;
+  capture_device_kind: string | null;
+  capture_reference: string | null;
+  verification_status: string | null;
+  capture_evidence: unknown;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1106,6 +1291,7 @@ export interface ShiftSchedulesTable {
   end_time: Date;
   break_duration: number;
   department_id: string;
+  workplace_code: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1116,10 +1302,13 @@ export interface OpenShiftsTable {
   id: string;
   tenant_id: string;
   department_id: string;
+  workplace_code: string | null;
   shift_date: Date;
   start_time: Date;
   end_time: Date;
   required_skills: unknown;
+  bid_deadline: Date | null;
+  filled_by_worker_id: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1132,6 +1321,8 @@ export interface ShiftBidsTable {
   worker_id: string;
   open_shift_id: string;
   bid_date: Date;
+  approved_by: string | null;
+  approved_at: Date | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1143,8 +1334,10 @@ export interface ShiftSwapRequestsTable {
   tenant_id: string;
   requester_worker_id: string;
   target_worker_id: string;
-  shift_date: Date;
+  original_shift_id: string;
+  target_shift_id: string;
   reason: string | null;
+  approved_by: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1157,6 +1350,7 @@ export interface WfmOvertimeApprovalsTable {
   worker_id: string;
   requested_hours: number;
   reason: string;
+  shift_date: Date | null;
   requested_at: Date;
   approved_by: string | null;
   approved_at: Date | null;
@@ -1170,10 +1364,13 @@ export interface CoverageGapsTable {
   id: string;
   tenant_id: string;
   department_id: string;
+  workplace_code: string | null;
   shift_date: Date;
   gap_start: Date;
   gap_end: Date;
+  required_skills: unknown;
   unfilled_positions: number;
+  filled_by_worker_id: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1237,10 +1434,13 @@ export interface HrServiceCasesTable {
   id: string;
   tenant_id: string;
   requester_worker_id: string;
+  case_number: string;
   case_type: string;
   priority: string;
+  description: string;
   status: string;
   assigned_to: string | null;
+  sla_deadline: Date | null;
   resolved_at: Date | null;
   aggregate_version: number;
   created_at: Date;
@@ -1278,10 +1478,13 @@ export interface HrKnowledgeArticlesTable {
 export interface HrServiceCatalogItemsTable {
   id: string;
   tenant_id: string;
+  service_code: string;
   service_name: string;
   service_type: string;
   description: string | null;
+  category: string | null;
   sla_hours: number | null;
+  fulfillment_process: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -1632,7 +1835,15 @@ export interface Database {
   transition_ledgers: TransitionLedgersTable;
   outbox_events: OutboxEventsTable;
   inbox_events: InboxEventsTable;
+  platform_notifications: PlatformNotificationsTable;
   hcm_setup_configs: HcmSetupConfigsTable;
+  admin_policy_revisions: AdminPolicyRevisionsTable;
+  admin_policy_revision_scopes: AdminPolicyRevisionScopesTable;
+  admin_policy_application_runs: AdminPolicyApplicationRunsTable;
+  admin_policy_impact_results: AdminPolicyImpactResultsTable;
+  admin_policy_decision_evidence: AdminPolicyDecisionEvidenceTable;
+  admin_module_operation_records: AdminModuleOperationRecordsTable;
+  admin_module_operation_workflows: AdminModuleOperationWorkflowsTable;
   workers: WorkersTable;
   employment_relationships: EmploymentRelationshipsTable;
   job_assignments: JobAssignmentsTable;
@@ -1649,6 +1860,7 @@ export interface Database {
   'hr_recruiting.offers': OffersTable;
   'hr_onboarding.onboarding_plans': OnboardingPlansTable;
   'hr_onboarding.onboarding_tasks': OnboardingTasksTable;
+  'hr_onboarding.onboarding_track_templates': OnboardingTrackTemplatesTable;
   compensation_plans: CompensationPlansTable;
   compensation_bands: CompensationBandsTable;
   compensation_changes: CompensationChangesTable;

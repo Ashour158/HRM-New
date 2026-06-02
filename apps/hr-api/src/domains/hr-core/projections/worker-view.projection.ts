@@ -59,8 +59,8 @@ export class WorkerViewProjectionBuilder {
       throw new NotFoundError('Worker not found');
     }
 
-    const assignment = await this.jobAssignmentRepo.findActiveForWorker(workerId);
-    const relationships = await this.employmentRelationshipRepo.findByWorker(workerId);
+    const assignment = await this.jobAssignmentRepo.findActiveForWorkerForTenant(workerId, worker.tenantId);
+    const relationships = await this.employmentRelationshipRepo.findByWorkerForTenant(workerId, worker.tenantId);
     const relationship = relationships.find((r) => r.state !== 'ENDED');
 
     const view: WorkerView = {

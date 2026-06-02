@@ -47,11 +47,11 @@ pnpm db:seed
 ## Development
 
 ```bash
-# API server (http://localhost:3000)
+# API server (http://localhost:3001)
 pnpm api:start
 
-# If port 3000 is occupied, override via env:
-PORT=3001 pnpm api:start
+# If port 3001 is occupied, override via env:
+PORT=3002 pnpm api:start
 
 # Web dev server (http://localhost:5173)
 pnpm web:dev
@@ -81,7 +81,7 @@ pnpm test
 When the API is running, Swagger UI is available at:
 
 ```
-http://localhost:3000/api/docs
+http://localhost:3001/api/docs
 ```
 
 ## Project Structure
@@ -110,9 +110,9 @@ http://localhost:3000/api/docs
 
 | Service | URL |
 |---------|-----|
-| API | http://localhost:3000 (or `PORT` env) |
-| Swagger | http://localhost:3000/api/docs |
-| Health | http://localhost:3000/api/v1/health |
+| API | http://localhost:3001 (or `PORT` env) |
+| Swagger | http://localhost:3001/api/docs |
+| Health | http://localhost:3001/api/v1/health |
 | Web App | http://localhost:5173 |
 
 ### Authentication (Local Dev Stub)
@@ -128,6 +128,11 @@ The web client automatically sends this header when `tenant_id` is set in localS
 ```js
 localStorage.setItem('tenant_id', '00000000-0000-0000-0000-000000000001');
 ```
+
+JWT tenant claims are verified when a Bearer token is present. Header-based tenant
+resolution remains for local, non-auth, and internal paths. Enabling global
+authentication across every controller is a larger follow-up because it requires
+updating controller contracts and tests together.
 
 ## Worker Lifecycle Vertical Slice
 

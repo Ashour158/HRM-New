@@ -1,5 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
+import { Uuid as UuidValue } from '@hcm/shared-kernel';
+import type { HrEventEnvelope } from '@hcm/event-schemas';
+import { createPrivacyForEvent } from '@hcm/event-schemas';
+import { EventBus } from '../event-bus/event-bus.js';
 
 export type WorkflowStepType = 'MANUAL' | 'AUTO' | 'APPROVAL' | 'ENGINE';
 export type WorkflowStepStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'SKIPPED' | 'FAILED';
@@ -44,11 +48,13 @@ export interface StepResult {
 export class WorkflowEngine {
   private readonly instances = new Map<string, WorkflowInstance>();
 
+  constructor(@Optional() private readonly eventBus?: EventBus) {}
+
   async startWorkflow(
     definitionId: string,
     context: WorkflowContext,
   ): Promise<WorkflowInstance> {
-    const id = crypto.randomUUID() as unknown as Uuid;
+    const id = UuidValue.generate();
     const instance: WorkflowInstance = {
       id,
       definitionId,
@@ -62,6 +68,10 @@ export class WorkflowEngine {
       startedAt: new Date(),
     };
     this.instances.set(id.value, instance);
+    await this.publishWorkflowEvent(instance, 'WorkflowStarted', {
+      definitionId,
+      payload: context.payload,
+    });
     return instance;
   }
 
@@ -81,6 +91,14 @@ export class WorkflowEngine {
     step.status = result.status;
     step.completedAt = new Date();
     step.result = result.data;
+    await this.publishWorkflowEvent(instance, 'WorkflowStepCompleted', {
+      stepId,
+      stepName: step.name,
+      stepType: step.type,
+      stepStatus: result.status,
+      result: result.data,
+      reason: result.reason,
+    });
 
     // Advance to next step if available
     const currentIndex = instance.steps.findIndex((s) => s.id === stepId);
@@ -91,6 +109,9 @@ export class WorkflowEngine {
     } else if (instance.steps.every((s) => s.status === 'COMPLETED' || s.status === 'SKIPPED')) {
       instance.status = 'COMPLETED';
       instance.completedAt = new Date();
+      await this.publishWorkflowEvent(instance, 'WorkflowCompleted', {
+        definitionId: instance.definitionId,
+      });
     }
   }
 
@@ -102,6 +123,10 @@ export class WorkflowEngine {
     instance.status = 'CANCELLED';
     instance.completedAt = new Date();
     instance.context.cancellationReason = reason;
+    await this.publishWorkflowEvent(instance, 'WorkflowCancelled', {
+      definitionId: instance.definitionId,
+      reason,
+    });
   }
 
   async getInstance(instanceId: Uuid): Promise<WorkflowInstance | undefined> {
@@ -118,12 +143,45 @@ export class WorkflowEngine {
     }
     const newStep: WorkflowStep = {
       ...step,
-      id: crypto.randomUUID(),
+      id: UuidValue.generate().value,
     };
     instance.steps.push(newStep);
     if (!instance.currentStepId) {
       instance.currentStepId = newStep.id;
       newStep.status = 'IN_PROGRESS';
     }
+  }
+
+  private async publishWorkflowEvent(
+    instance: WorkflowInstance,
+    eventName: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.eventBus) return;
+    const event: HrEventEnvelope<Record<string, unknown>> = {
+      eventId: UuidValue.generate(),
+      eventName,
+      eventSchemaVersion: 1,
+      tenantId: instance.tenantId,
+      aggregateType: 'WorkflowInstance',
+      aggregateId: instance.id,
+      payload: {
+        workflowInstanceId: instance.id.value,
+        workflowDefinitionId: instance.definitionId,
+        workflowStatus: instance.status,
+        currentStepId: instance.currentStepId,
+        ...payload,
+      },
+      metadata: {
+        correlationId: UuidValue.generate(),
+        requestHash: `workflow:${instance.id.value}:${eventName}`,
+        clientType: 'SYSTEM',
+        processInstanceId: instance.id.value,
+      },
+      privacy: createPrivacyForEvent('NONE', undefined, undefined),
+      occurredAt: new Date(),
+      version: 1,
+    };
+    await this.eventBus.publish(event);
   }
 }

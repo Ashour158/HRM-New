@@ -28,6 +28,11 @@ export class PerformanceReviewRepository extends BaseRepository<'performance_rev
     return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
+  async findByManager(managerId: Uuid): Promise<PerformanceReview[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('manager_id', '=', managerId.value).execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: PerformanceReview): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

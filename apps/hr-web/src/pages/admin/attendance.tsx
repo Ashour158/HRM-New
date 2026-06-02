@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Link } from 'react-router-dom';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -274,6 +275,81 @@ interface AttendancePeriodCloseResult extends AttendancePeriodCloseReadinessResp
   payrollInputCommandCount: number;
 }
 
+interface AttendanceSchedulingCommandCenter {
+  workDate: string;
+  workplaceCode?: string;
+  status: 'AT_RISK' | 'BLOCKED' | 'OK' | 'WARNING';
+  summary: {
+    scheduledEmployees: number;
+    presentEmployees: number;
+    openShiftCount: number;
+    activeCoverageGaps: number;
+    overtimeMinutes: number;
+    fatigueRiskCount: number;
+    optimizationSuggestionCount: number;
+  };
+  captureChannels: Array<{
+    method: string;
+    label: string;
+    status: 'ACTIVE' | 'NEEDS_CONFIGURATION' | 'NOT_CONFIGURED';
+    evidenceFields: string[];
+    policyDriven: boolean;
+    message: string;
+  }>;
+  schedulePatterns: Array<{
+    code: string;
+    label: string;
+    type: 'FLEXIBLE_HOURS' | 'INDIVIDUAL_SCHEDULE' | 'SHIFT_ROTATION' | 'TENANT_DEFAULT';
+    active: boolean;
+    details: string;
+  }>;
+  coverage: Array<{
+    department: string;
+    scheduled: number;
+    present: number;
+    absent: number;
+    onLeave: number;
+    exceptionCount: number;
+    overtimeMinutes: number;
+    minimumStaffingTarget: number;
+    gap: number;
+    status: 'COVERED' | 'GAP' | 'WATCH';
+  }>;
+  roster: {
+    assignedShifts: Array<{ id: string; workerId: string; shiftDate: string; startTime: string; endTime: string; status: string; departmentId: string }>;
+    openShifts: Array<{ id: string; departmentId: string; shiftDate: string; startTime: string; endTime: string; requiredSkills: string[]; status: string }>;
+    coverageGaps: Array<{ id: string; departmentId: string; shiftDate: string; startTime: string; endTime: string; requiredSkills: string[]; status: string }>;
+  };
+  overtime: {
+    policyThresholdMinutes: number;
+    pendingApprovals: number;
+    dailyDetectedMinutes: number;
+    controls: string[];
+  };
+  lateEarly: {
+    lateEmployees: number;
+    earlyDepartureProxyEmployees: number;
+    graceMinutes: number;
+    deductionPolicies: string[];
+  };
+  fatigueRisks: Array<{
+    workerId: string;
+    employeeId: string;
+    workerName: string;
+    department?: string;
+    riskCode: string;
+    severity: 'HIGH' | 'MEDIUM';
+    message: string;
+  }>;
+  optimizationSuggestions: Array<{
+    code: string;
+    priority: 'HIGH' | 'LOW' | 'MEDIUM';
+    recommendation: string;
+    reason: string;
+    action: string;
+  }>;
+}
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -366,6 +442,7 @@ async function downloadPeriodCloseEvidenceCsv(query: string, label: string) {
 
 const attendanceTabs = [
   { value: 'daily', label: 'Daily Ledger' },
+  { value: 'scheduling', label: 'Scheduling & Coverage' },
   { value: 'readiness', label: 'Close Readiness' },
   { value: 'corrections', label: 'Corrections' },
   { value: 'reminders', label: 'Reminders' },
@@ -405,6 +482,10 @@ export function AdminAttendance() {
   const { data: report } = useApiQuery<AttendancePeriodReport>(
     ['attendance-report-summary', periodYear, periodMonth, workplaceCode],
     `/time/attendance/reports/summary?${periodQuery}`,
+  );
+  const { data: scheduling } = useApiQuery<AttendanceSchedulingCommandCenter>(
+    ['attendance-scheduling-command-center', date, workplaceCode],
+    `/time/attendance/scheduling-command-center?date=${encodeURIComponent(date)}${workplaceCode !== 'ALL' ? `&workplaceCode=${encodeURIComponent(workplaceCode)}` : ''}`,
   );
   const { data: periodReadiness, isLoading: periodReadinessLoading, refetch: refetchPeriodReadiness } = useApiQuery<AttendancePeriodCloseReadinessResponse>(
     ['attendance-period-close-readiness', periodYear, periodMonth, workplaceCode],
@@ -611,10 +692,13 @@ export function AdminAttendance() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
+          <Button asChild variant="outline">
+            <Link to="/admin/policies">Policy Center</Link>
+          </Button>
         </div>
       </div>
 
-      <section className="grid gap-4 border-b py-6 md:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-4 border-b py-6 md:grid-cols-2 xl:grid-cols-8">
         <div>
           <p className="text-xs text-muted-foreground">Employees</p>
           <p className="text-2xl font-semibold">{ledger?.summary.totalEmployees ?? 0}</p>
@@ -642,6 +726,14 @@ export function AdminAttendance() {
         <div>
           <p className="text-xs text-muted-foreground">Locked Rows</p>
           <p className="text-2xl font-semibold">{lockedRows}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Coverage Gaps</p>
+          <p className={scheduling?.summary.activeCoverageGaps ? 'text-2xl font-semibold text-amber-600' : 'text-2xl font-semibold'}>{scheduling?.summary.activeCoverageGaps ?? 0}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Fatigue Risks</p>
+          <p className={scheduling?.summary.fatigueRiskCount ? 'text-2xl font-semibold text-amber-600' : 'text-2xl font-semibold'}>{scheduling?.summary.fatigueRiskCount ?? 0}</p>
         </div>
       </section>
 
@@ -708,6 +800,204 @@ export function AdminAttendance() {
             />
           </CardContent>
         </Card>
+      </section>
+
+      <section className={tabClass('scheduling')}>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Command status</CardDescription>
+              <CardTitle className="text-2xl">{scheduling?.status.replace(/_/g, ' ') ?? 'Checking'}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Open shifts</CardDescription>
+              <CardTitle className="text-2xl">{scheduling?.summary.openShiftCount ?? 0}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Coverage gaps</CardDescription>
+              <CardTitle className="text-2xl">{scheduling?.summary.activeCoverageGaps ?? 0}</CardTitle>
+            </CardHeader>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardDescription>Detected overtime</CardDescription>
+              <CardTitle className="text-2xl">{hours(scheduling?.summary.overtimeMinutes ?? 0)}</CardTitle>
+            </CardHeader>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ShieldCheck className="h-5 w-5" />
+                Attendance Capture Channels
+              </CardTitle>
+              <CardDescription>Capture methods are policy-driven and stored as structured evidence on clock events.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(scheduling?.captureChannels ?? []).map((channel) => (
+                <div key={channel.method} className="rounded-md border p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium">{channel.label}</p>
+                      <p className="text-sm text-muted-foreground">{channel.message}</p>
+                    </div>
+                    <Badge variant={channel.status === 'ACTIVE' ? 'default' : channel.status === 'NEEDS_CONFIGURATION' ? 'secondary' : 'outline'}>
+                      {channel.status.replace(/_/g, ' ')}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{channel.evidenceFields.join(', ')}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <CalendarDays className="h-5 w-5" />
+                Schedule Policy Patterns
+              </CardTitle>
+              <CardDescription>Fixed defaults, individual schedules, rotations, and flexible-hours rules resolve before ledger calculation.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(scheduling?.schedulePatterns ?? []).map((pattern) => (
+                <div key={`${pattern.type}-${pattern.code}`} className="grid gap-2 rounded-md border p-3 md:grid-cols-[1fr_auto]">
+                  <div>
+                    <p className="font-medium">{pattern.label}</p>
+                    <p className="text-sm text-muted-foreground">{pattern.details}</p>
+                  </div>
+                  <Badge variant={pattern.active ? 'default' : 'outline'}>{pattern.type.replace(/_/g, ' ')}</Badge>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Coverage Matrix</CardTitle>
+            <CardDescription>Compares scheduled employees, actual attendance, leave, absence, exceptions, overtime, and staffing gaps.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {(scheduling?.coverage ?? []).length === 0 ? (
+              <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No coverage signals for this date.</div>
+            ) : scheduling?.coverage.map((item) => (
+              <div key={item.department} className="grid gap-2 rounded-md border p-3 lg:grid-cols-[1fr_repeat(8,6rem)]">
+                <span className="font-medium">{item.department}</span>
+                <span className="text-sm text-muted-foreground">{item.scheduled} scheduled</span>
+                <span className="text-sm text-muted-foreground">{item.present} present</span>
+                <span className="text-sm text-muted-foreground">{item.absent} absent</span>
+                <span className="text-sm text-muted-foreground">{item.onLeave} leave</span>
+                <span className="text-sm text-muted-foreground">{item.exceptionCount} exceptions</span>
+                <span className="text-sm text-muted-foreground">{hours(item.overtimeMinutes)} OT</span>
+                <span className="text-sm text-muted-foreground">{item.gap} gap</span>
+                <Badge variant={item.status === 'GAP' ? 'destructive' : item.status === 'WATCH' ? 'secondary' : 'default'}>{item.status}</Badge>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 xl:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Roster & Open Shifts</CardTitle>
+              <CardDescription>Published roster and open coverage work pulled from Workforce Management.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(scheduling?.roster.openShifts ?? []).length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No open shifts for this date.</div>
+              ) : scheduling?.roster.openShifts.map((shift) => (
+                <div key={shift.id} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{new Date(shift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {new Date(shift.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    <Badge variant="secondary">{shift.status.replace(/_/g, ' ')}</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{shift.departmentId} · {shift.requiredSkills.join(', ') || 'No required skills listed'}</p>
+                </div>
+              ))}
+              {(scheduling?.roster.coverageGaps ?? []).map((gap) => (
+                <div key={gap.id} className="rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                  <p className="font-medium">Coverage gap · {gap.status.replace(/_/g, ' ')}</p>
+                  <p className="text-xs">{gap.departmentId} · {new Date(gap.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Overtime & Early/Late Controls</CardTitle>
+              <CardDescription>Late, early departure proxy, overtime caps, and payroll policy effects.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Late employees</p>
+                  <p className="text-xl font-semibold">{scheduling?.lateEarly.lateEmployees ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Early departure</p>
+                  <p className="text-xl font-semibold">{scheduling?.lateEarly.earlyDepartureProxyEmployees ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Pending OT approvals</p>
+                  <p className="text-xl font-semibold">{scheduling?.overtime.pendingApprovals ?? 0}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">OT threshold</p>
+                  <p className="text-xl font-semibold">{hours(scheduling?.overtime.policyThresholdMinutes ?? 0)}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {(scheduling?.overtime.controls ?? []).map((control) => (
+                  <p key={control} className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{control}</p>
+                ))}
+                {(scheduling?.lateEarly.deductionPolicies ?? []).map((policy) => (
+                  <Badge key={policy} variant="outline">{policy}</Badge>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <AlertTriangle className="h-5 w-5" />
+                Fatigue & Optimization
+              </CardTitle>
+              <CardDescription>Flags unsafe hours/rest risk and explains recommended scheduling actions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {(scheduling?.fatigueRisks ?? []).length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No fatigue risk detected for this date.</div>
+              ) : scheduling?.fatigueRisks.map((risk, index) => (
+                <div key={`${risk.riskCode}-${risk.workerId}-${index}`} className="rounded-md border p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{risk.workerName}</p>
+                    <Badge variant={risk.severity === 'HIGH' ? 'destructive' : 'secondary'}>{risk.riskCode.replace(/_/g, ' ')}</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{risk.message}</p>
+                </div>
+              ))}
+              {(scheduling?.optimizationSuggestions ?? []).map((suggestion) => (
+                <div key={suggestion.code} className="rounded-md border bg-muted/20 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{suggestion.recommendation}</p>
+                    <Badge variant={suggestion.priority === 'HIGH' ? 'destructive' : suggestion.priority === 'MEDIUM' ? 'secondary' : 'outline'}>{suggestion.priority}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">{suggestion.reason}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{suggestion.action}</p>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </section>
 
       <section className={tabClass('readiness')}>

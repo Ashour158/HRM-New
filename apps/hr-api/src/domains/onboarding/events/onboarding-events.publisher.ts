@@ -10,7 +10,7 @@ import { EventBus } from '../../../platform/event-bus/event-bus.js';
  *
  * Reads uncommitted domain events from an aggregate, maps them to canonical
  * {@link HrEventEnvelope} instances, and publishes them to the appropriate
- * topic (hr.recruiting.v1).
+ * topic (hr.onboarding.v1).
  */
 @Injectable()
 export class OnboardingEventsPublisher {

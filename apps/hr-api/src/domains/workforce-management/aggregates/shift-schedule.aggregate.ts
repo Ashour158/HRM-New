@@ -11,6 +11,7 @@ export interface ShiftScheduleProps {
   endTime: Date;
   breakDuration: number;
   departmentId: Uuid;
+  workplaceCode?: string;
   status?: ShiftScheduleStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -51,6 +52,7 @@ export class ShiftSchedule extends AggregateRoot {
   endTime: Date;
   breakDuration: number;
   departmentId: Uuid;
+  workplaceCode?: string;
   status: ShiftScheduleStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -68,6 +70,7 @@ export class ShiftSchedule extends AggregateRoot {
     this.endTime = props.endTime;
     this.breakDuration = props.breakDuration;
     this.departmentId = props.departmentId;
+    this.workplaceCode = props.workplaceCode;
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();

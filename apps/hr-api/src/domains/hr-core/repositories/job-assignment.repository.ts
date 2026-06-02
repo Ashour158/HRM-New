@@ -21,6 +21,16 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
     return row ? this.toAggregate(row as unknown as Database['job_assignments']) : undefined;
   }
 
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<JobAssignment | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['job_assignments']) : undefined;
+  }
+
   async findByWorker(workerId: Uuid): Promise<JobAssignment[]> {
     const rows = await this.db
       .selectFrom(this.tableName)
@@ -30,11 +40,32 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
     return rows.map((r) => this.toAggregate(r as unknown as Database['job_assignments']));
   }
 
+  async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<JobAssignment[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['job_assignments']));
+  }
+
   async findActiveForWorker(workerId: Uuid): Promise<JobAssignment | undefined> {
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
       .where('worker_id', '=', workerId.value)
+      .where('state', '=', 'ACTIVE')
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['job_assignments']) : undefined;
+  }
+
+  async findActiveForWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<JobAssignment | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', tenantId.value)
       .where('state', '=', 'ACTIVE')
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['job_assignments']) : undefined;

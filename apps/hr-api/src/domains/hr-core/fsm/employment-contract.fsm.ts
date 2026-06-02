@@ -18,6 +18,7 @@ export function registerEmploymentContractFsm(fsm: FsmFramework): void {
     transitions: [
       { action: 'CreateEmploymentContract', from: 'DRAFT', to: 'DRAFT', eventName: 'EmploymentContractCreated' },
       { action: 'OfferEmploymentContract', from: 'DRAFT', to: 'OFFERED', eventName: 'EmploymentContractOffered' },
+      { action: 'SignEmploymentContract', from: 'DRAFT', to: 'SIGNED', eventName: 'EmploymentContractSigned' },
       { action: 'SignEmploymentContract', from: 'OFFERED', to: 'SIGNED', eventName: 'EmploymentContractSigned' },
       { action: 'ActivateEmploymentContract', from: 'SIGNED', to: 'ACTIVE', eventName: 'EmploymentContractActivated' },
       { action: 'TerminateEmploymentContract', from: 'DRAFT', to: 'TERMINATED', eventName: 'EmploymentContractTerminated' },

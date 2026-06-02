@@ -17,86 +17,51 @@ export class CreateFeedback360CycleHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    try {
-      const payload = command.payload as {
-        name: string;
-        cycleYear: number;
-        reviewCycleId?: string;
-        startDate: Date;
-        endDate: Date;
-        selfReviewDeadline?: Date;
-        peerReviewDeadline?: Date;
-        managerReviewDeadline?: Date;
-        anonymityEnabled?: boolean;
-        minPeerReviews?: number;
-        maxPeerReviews?: number;
-      };
-      console.error('[CreateFeedback360CycleHandler] payload:', JSON.stringify(payload));
-      console.error('[CreateFeedback360CycleHandler] command.tenantId:', command.tenantId);
-      console.error('[CreateFeedback360CycleHandler] command.correlationId:', command.correlationId);
-      const ar = Feedback360Cycle.create(
-        {
-          id: Uuid.generate(),
-          tenantId: command.tenantId,
-          name: payload.name,
-          cycleYear: payload.cycleYear,
-          reviewCycleId: payload.reviewCycleId ? new Uuid(payload.reviewCycleId) : undefined,
-          startDate: payload.startDate,
-          endDate: payload.endDate,
-          selfReviewDeadline: payload.selfReviewDeadline,
-          peerReviewDeadline: payload.peerReviewDeadline,
-          managerReviewDeadline: payload.managerReviewDeadline,
-          anonymityEnabled: payload.anonymityEnabled,
-          minPeerReviews: payload.minPeerReviews,
-          maxPeerReviews: payload.maxPeerReviews,
-        },
-        command.correlationId,
-      );
-      console.error('[CreateFeedback360CycleHandler] aggregate created, id=', ar.id.value);
-      try {
-        await this.repo.save(ar);
-        console.error('[CreateFeedback360CycleHandler] repo.save OK');
-      } catch (e) {
-        console.error('SAVE ERROR:', e);
-        throw e;
-      }
-      try {
-        await this.publisher.publishFromAggregate(ar);
-        console.error('[CreateFeedback360CycleHandler] publish OK');
-      } catch (e) {
-        console.error('PUBLISH ERROR:', e);
-        throw e;
-      }
-      try {
-        const actions = this.fsm.getAllowedActionsFromState(ar.status, 'PerformanceFeedback360Cycle');
-        console.error('FSM ACTIONS:', actions);
-      } catch (e) {
-        console.error('FSM ERROR:', e);
-        throw e;
-      }
-      const result = {
-        success: true as const,
-        data: { feedback360CycleId: ar.id.value, status: ar.status },
-        commandId: command.commandId,
-        correlationId: command.correlationId,
-        aggregateId: ar.id,
-        newState: ar.status,
-        newVersion: ar.aggregateVersion,
-        allowedNextActions: this.fsm.getAllowedActionsFromState(ar.status, 'PerformanceFeedback360Cycle'),
-        eventsEmitted: ar.domainEvents.map((e) => e.eventName),
-        auditRecordId: command.commandId,
-        fieldAccessDecisions: {},
-      };
-      console.error('[CreateFeedback360CycleHandler] result:', JSON.stringify({
-        success: result.success,
-        aggregateId: typeof result.aggregateId,
-        aggregateIdValue: result.aggregateId?.value,
-        newState: result.newState,
-      }));
-      return result as CommandResult<unknown>;
-    } catch (e) {
-      console.error('[CreateFeedback360CycleHandler] UNCAUGHT ERROR:', e);
-      throw e;
-    }
+    const payload = command.payload as {
+      name: string;
+      cycleYear: number;
+      reviewCycleId?: string;
+      startDate: Date;
+      endDate: Date;
+      selfReviewDeadline?: Date;
+      peerReviewDeadline?: Date;
+      managerReviewDeadline?: Date;
+      anonymityEnabled?: boolean;
+      minPeerReviews?: number;
+      maxPeerReviews?: number;
+    };
+    const ar = Feedback360Cycle.create(
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        name: payload.name,
+        cycleYear: payload.cycleYear,
+        reviewCycleId: payload.reviewCycleId ? new Uuid(payload.reviewCycleId) : undefined,
+        startDate: payload.startDate,
+        endDate: payload.endDate,
+        selfReviewDeadline: payload.selfReviewDeadline,
+        peerReviewDeadline: payload.peerReviewDeadline,
+        managerReviewDeadline: payload.managerReviewDeadline,
+        anonymityEnabled: payload.anonymityEnabled,
+        minPeerReviews: payload.minPeerReviews,
+        maxPeerReviews: payload.maxPeerReviews,
+      },
+      command.correlationId,
+    );
+    await this.repo.save(ar);
+    await this.publisher.publishFromAggregate(ar);
+    return {
+      success: true,
+      data: { feedback360CycleId: ar.id.value, status: ar.status },
+      commandId: command.commandId,
+      correlationId: command.correlationId,
+      aggregateId: ar.id,
+      newState: ar.status,
+      newVersion: ar.aggregateVersion,
+      allowedNextActions: this.fsm.getAllowedActionsFromState(ar.status, 'PerformanceFeedback360Cycle'),
+      eventsEmitted: ar.domainEvents.map((e) => e.eventName),
+      auditRecordId: command.commandId,
+      fieldAccessDecisions: {},
+    } as CommandResult<unknown>;
   }
 }

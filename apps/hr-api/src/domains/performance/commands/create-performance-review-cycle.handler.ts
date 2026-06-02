@@ -23,6 +23,9 @@ export class CreatePerformanceReviewCycleHandler {
       startDate: Date;
       endDate: Date;
       reviewType: string;
+      templateId?: string;
+      weightings?: Record<string, number>;
+      periods?: Array<{ name: string; startDate: Date; endDate: Date }>;
     };
     const ar = PerformanceReviewCycle.create(
       {
@@ -33,6 +36,9 @@ export class CreatePerformanceReviewCycleHandler {
         startDate: payload.startDate,
         endDate: payload.endDate,
         reviewType: payload.reviewType,
+        templateId: payload.templateId ? new Uuid(payload.templateId) : undefined,
+        weightings: payload.weightings,
+        periods: payload.periods,
       },
       command.correlationId,
     );

@@ -550,12 +550,21 @@ export class CommandBus implements OnModuleInit {
     if (!command.subjectWorkerId) return;
     if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT' || command.actor.actorType === 'INTEGRATION') return;
     if (command.actor.roles.some((role) => ['HR_ADMIN', 'HRBP', 'PAYROLL_ADMIN', 'SUPER_ADMIN'].includes(role))) return;
-    if (command.actor.actorId.value === command.subjectWorkerId.value) return;
+    if (command.actor.actorId.value === command.subjectWorkerId.value) {
+      const self = await this.db
+        .selectFrom('workers')
+        .select(['id'])
+        .where('id', '=', command.subjectWorkerId.value)
+        .where('tenant_id', '=', command.tenantId.value)
+        .executeTakeFirst();
+      if (self) return;
+    }
     if (command.actor.roles.includes('MANAGER')) {
       const report = await this.db
         .selectFrom('workers')
         .select(['id'])
         .where('id', '=', command.subjectWorkerId.value)
+        .where('tenant_id', '=', command.tenantId.value)
         .where('manager_id', '=', command.actor.actorId.value)
         .executeTakeFirst();
       if (report) return;
@@ -566,12 +575,14 @@ export class CommandBus implements OnModuleInit {
         .selectFrom('workers')
         .select(['id'])
         .where('email', '=', actorEmail)
+        .where('tenant_id', '=', command.tenantId.value)
         .executeTakeFirst();
       if (manager) {
         const report = await this.db
           .selectFrom('workers')
           .select(['id'])
           .where('id', '=', command.subjectWorkerId.value)
+          .where('tenant_id', '=', command.tenantId.value)
           .where('manager_id', '=', manager.id)
           .executeTakeFirst();
         if (report) return;
@@ -582,6 +593,7 @@ export class CommandBus implements OnModuleInit {
         .selectFrom('workers')
         .select(['id'])
         .where('id', '=', command.subjectWorkerId.value)
+        .where('tenant_id', '=', command.tenantId.value)
         .where('email', '=', actorEmail)
         .executeTakeFirst();
       if (self) return;
@@ -644,6 +656,7 @@ export class CommandBus implements OnModuleInit {
   }
 
   private async stepEvaluateRbac(command: HrCommandEnvelope<unknown>): Promise<void> {
+    const actorType = this.mapActorType(command.actor.actorType, command.actor.roles);
     const acCommand = {
       commandName: command.commandName,
       commandType: this.inferCommandType(command.commandName),
@@ -654,7 +667,8 @@ export class CommandBus implements OnModuleInit {
     const acActor = {
       workerId: command.actor.actorId,
       roles: command.actor.roles,
-      actorType: this.mapActorType(command.actor.actorType, command.actor.roles),
+      actorType,
+      employmentStatus: await this.resolveActorEmploymentStatus(command, actorType),
     };
     const decision = this.accessControl.evaluateCommandAccess(acCommand, acActor);
     if (!decision.allowed) {
@@ -666,6 +680,30 @@ export class CommandBus implements OnModuleInit {
         false,
       );
     }
+  }
+
+  private async resolveActorEmploymentStatus(
+    command: HrCommandEnvelope<unknown>,
+    actorType: 'SYSTEM' | 'INTEGRATION' | 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN' | 'HRBP' | 'EXECUTIVE' | 'EXTERNAL',
+  ): Promise<string | undefined> {
+    if (actorType !== 'EMPLOYEE' && actorType !== 'MANAGER') return undefined;
+    const byId = await this.db
+      .selectFrom('workers')
+      .select(['status'])
+      .where('id', '=', command.actor.actorId.value)
+      .where('tenant_id', '=', command.tenantId.value)
+      .executeTakeFirst();
+    if (byId?.status) return byId.status;
+
+    const actorEmail = (command.actor as { email?: string }).email;
+    if (!actorEmail) return undefined;
+    const byEmail = await this.db
+      .selectFrom('workers')
+      .select(['status'])
+      .where('email', '=', actorEmail)
+      .where('tenant_id', '=', command.tenantId.value)
+      .executeTakeFirst();
+    return byEmail?.status ?? undefined;
   }
 
   private mapActorType(
@@ -681,6 +719,7 @@ export class CommandBus implements OnModuleInit {
       case 'USER':
       default:
         if (roles.includes('HR_ADMIN')) return 'HR_ADMIN';
+        if (roles.includes('WORKFORCE_PLANNING_ADMIN')) return 'HR_ADMIN';
         if (roles.includes('MANAGER')) return 'MANAGER';
         if (roles.includes('HRBP')) return 'HRBP';
         if (roles.includes('EXECUTIVE')) return 'EXECUTIVE';
@@ -787,11 +826,12 @@ export class CommandBus implements OnModuleInit {
     return undefined;
   }
 
-  private async isDirectManager(subjectWorkerId: Uuid, managerId: string): Promise<boolean> {
+  private async isDirectManager(subjectWorkerId: Uuid, managerId: string, tenantId: Uuid): Promise<boolean> {
     const report = await this.db
       .selectFrom('workers')
       .select(['id'])
       .where('id', '=', subjectWorkerId.value)
+      .where('tenant_id', '=', tenantId.value)
       .where('manager_id', '=', managerId)
       .executeTakeFirst();
     return Boolean(report);
@@ -804,7 +844,7 @@ export class CommandBus implements OnModuleInit {
     if (!subjectWorkerId) return;
 
     const actorId = this.readUuidValue(command.actor.actorId);
-    if (actorId && await this.isDirectManager(subjectWorkerId, actorId)) {
+    if (actorId && await this.isDirectManager(subjectWorkerId, actorId, command.tenantId)) {
       return;
     }
     const actorEmail = (command.actor as { email?: string }).email;
@@ -813,8 +853,9 @@ export class CommandBus implements OnModuleInit {
         .selectFrom('workers')
         .select(['id'])
         .where('email', '=', actorEmail)
+        .where('tenant_id', '=', command.tenantId.value)
         .executeTakeFirst();
-      if (manager && await this.isDirectManager(subjectWorkerId, manager.id)) {
+      if (manager && await this.isDirectManager(subjectWorkerId, manager.id, command.tenantId)) {
         return;
       }
     }
@@ -844,7 +885,16 @@ export class CommandBus implements OnModuleInit {
         false,
       );
     }
-    if (command.expectedVersion !== undefined && aggregate.version !== command.expectedVersion) {
+    const aggregateVersion = typeof aggregate.version === 'string'
+      ? Number(aggregate.version)
+      : aggregate.version;
+    const expectedVersion = typeof command.expectedVersion === 'string'
+      ? Number(command.expectedVersion)
+      : command.expectedVersion;
+    if (
+      expectedVersion !== undefined &&
+      (!Number.isFinite(aggregateVersion) || !Number.isFinite(expectedVersion) || aggregateVersion !== expectedVersion)
+    ) {
       throw this.makeError(
         command,
         CommandPipelineStep.EVALUATE_WORKFLOW_GUARD_EXPECTED_STATE_VERSION_EFFECTIVE_DATE,
@@ -857,7 +907,7 @@ export class CommandBus implements OnModuleInit {
       aggregateId: command.aggregateId!,
       aggregateType: command.aggregateType,
       currentState: command.expectedState,
-      version: aggregate.version,
+      version: aggregateVersion,
       history: [],
     };
     const allowed = this.fsmFramework.getAllowedActions(fsmInstance);
@@ -923,7 +973,6 @@ export class CommandBus implements OnModuleInit {
     command: HrCommandEnvelope<unknown>,
     result: CommandResult<unknown>,
   ): Promise<void> {
-    console.error(`[stepWriteTransitionLedger] aggregateId type=${typeof result.aggregateId}, value=${result.aggregateId?.value ?? result.aggregateId}`);
     await this.transitionLedger.recordTransition({
       id: crypto.randomUUID() as unknown as Uuid,
       tenantId: command.tenantId,
@@ -973,50 +1022,56 @@ export class CommandBus implements OnModuleInit {
     command: HrCommandEnvelope<unknown>,
     result: CommandResult<unknown>,
   ): Promise<void> {
-    const event: HrEventEnvelope<unknown> = {
-      eventId: crypto.randomUUID() as unknown as Uuid,
-      eventName: `${command.aggregateType}${this.inferActionFromCommand(command.commandName)}ed`,
-      eventSchemaVersion: 1,
-      tenantId: command.tenantId,
-      aggregateType: command.aggregateType,
-      aggregateId: result.aggregateId,
-      payload: result.data,
-      metadata: {
-        correlationId: command.correlationId,
-        causationId: command.commandId,
-        sourceEventId: command.sourceEventId,
-        processInstanceId: command.processInstanceId,
-        requestHash: command.metadata.requestHash,
-        clientType: command.metadata.clientType,
-        dataResidencyRegion: command.metadata.dataResidencyRegion,
-        hrDataSensitivity: command.metadata.hrDataSensitivity,
-      },
-      privacy: createPrivacyForEvent(
-        command.metadata.hrDataSensitivity ?? 'NONE',
-        command.subjectWorkerId?.value,
-        'PROFILE',
-      ),
-      occurredAt: new Date(),
-      version: result.newVersion,
-    };
+    const eventNames = result.eventsEmitted?.length
+      ? result.eventsEmitted
+      : [`${command.aggregateType}${this.inferActionFromCommand(command.commandName)}ed`];
 
-    await tx
-      .insertInto('outbox_events')
-      .values({
-        id: crypto.randomUUID(),
-        tenant_id: command.tenantId.value,
-        event_name: event.eventName,
-        aggregate_type: event.aggregateType,
-        aggregate_id: event.aggregateId.value,
-        payload: event.payload as unknown as Record<string, never>,
-        metadata: event.metadata as unknown as Record<string, never>,
-        correlation_id: event.metadata.correlationId.value,
-        causation_id: event.metadata.causationId?.value ?? null,
-        created_at: new Date().toISOString(),
-        published_at: null,
-        publish_attempt_count: 0,
-      })
-      .execute();
+    for (const eventName of eventNames) {
+      const event: HrEventEnvelope<unknown> = {
+        eventId: crypto.randomUUID() as unknown as Uuid,
+        eventName,
+        eventSchemaVersion: 1,
+        tenantId: command.tenantId,
+        aggregateType: command.aggregateType,
+        aggregateId: result.aggregateId,
+        payload: result.data,
+        metadata: {
+          correlationId: command.correlationId,
+          causationId: command.commandId,
+          sourceEventId: command.sourceEventId,
+          processInstanceId: command.processInstanceId,
+          requestHash: command.metadata.requestHash,
+          clientType: command.metadata.clientType,
+          dataResidencyRegion: command.metadata.dataResidencyRegion,
+          hrDataSensitivity: command.metadata.hrDataSensitivity,
+        },
+        privacy: createPrivacyForEvent(
+          command.metadata.hrDataSensitivity ?? 'NONE',
+          command.subjectWorkerId?.value,
+          'PROFILE',
+        ),
+        occurredAt: new Date(),
+        version: result.newVersion,
+      };
+
+      await tx
+        .insertInto('outbox_events')
+        .values({
+          id: crypto.randomUUID(),
+          tenant_id: command.tenantId.value,
+          event_name: event.eventName,
+          aggregate_type: event.aggregateType,
+          aggregate_id: event.aggregateId.value,
+          payload: event.payload as unknown as Record<string, never>,
+          metadata: event.metadata as unknown as Record<string, never>,
+          correlation_id: event.metadata.correlationId.value,
+          causation_id: event.metadata.causationId?.value ?? null,
+          created_at: new Date().toISOString(),
+          published_at: null,
+          publish_attempt_count: 0,
+        })
+        .execute();
+    }
   }
 
   private async stepStoreIdempotencyResult(
@@ -1052,10 +1107,14 @@ export class CommandBus implements OnModuleInit {
   }
 
   private inferCommandType(commandName: string): string {
-    if (commandName.includes('CREATE') || commandName.includes('ADD')) return 'CREATE';
-    if (commandName.includes('UPDATE') || commandName.includes('EDIT')) return 'UPDATE';
-    if (commandName.includes('DELETE') || commandName.includes('REMOVE')) return 'DELETE';
-    if (commandName.includes('APPROVE')) return 'APPROVE';
+    const normalizedName = commandName
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .replace(/[\s.-]+/g, '_')
+      .toUpperCase();
+    if (normalizedName.includes('CREATE') || normalizedName.includes('ADD')) return 'CREATE';
+    if (normalizedName.includes('UPDATE') || normalizedName.includes('EDIT')) return 'UPDATE';
+    if (normalizedName.includes('DELETE') || normalizedName.includes('REMOVE')) return 'DELETE';
+    if (normalizedName.includes('APPROVE')) return 'APPROVE';
     return 'READ';
   }
 

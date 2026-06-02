@@ -141,6 +141,46 @@ export const ActivateWorkerPayloadSchema = z.object({
   activationDate: z.coerce.date().optional(),
 });
 
+export const SuspendWorkerCommandName = 'SuspendWorker' as const;
+
+export interface SuspendWorkerPayload {
+  workerId: Uuid;
+  reason?: string;
+  effectiveDate?: Date;
+}
+
+export const SuspendWorkerPayloadSchema = z.object({
+  workerId: z.string().uuid(),
+  reason: z.string().min(1).optional(),
+  effectiveDate: z.coerce.date().optional(),
+});
+
+export const ReinstateWorkerCommandName = 'ReinstateWorker' as const;
+
+export interface ReinstateWorkerPayload {
+  workerId: Uuid;
+  effectiveDate?: Date;
+}
+
+export const ReinstateWorkerPayloadSchema = z.object({
+  workerId: z.string().uuid(),
+  effectiveDate: z.coerce.date().optional(),
+});
+
+export const RehireWorkerCommandName = 'RehireWorker' as const;
+
+export interface RehireWorkerPayload {
+  workerId: Uuid;
+  rehireDate?: Date;
+  reason?: string;
+}
+
+export const RehireWorkerPayloadSchema = z.object({
+  workerId: z.string().uuid(),
+  rehireDate: z.coerce.date().optional(),
+  reason: z.string().min(1).optional(),
+});
+
 export const UpdateWorkerPersonalDataCommandName = 'UpdateWorkerPersonalData' as const;
 
 export interface UpdateWorkerPersonalDataPayload {
@@ -173,6 +213,53 @@ export const UpdateWorkerPersonalDataPayloadSchema = z.object({
   education: z.array(z.record(z.unknown())).optional(),
   experience: z.array(z.record(z.unknown())).optional(),
   certifications: z.array(z.record(z.unknown())).optional(),
+});
+
+export const UpsertWorkerProfileSectionCommandName = 'UpsertWorkerProfileSection' as const;
+
+export type WorkerProfileSectionCategory =
+  | 'BASIC'
+  | 'CONTACT'
+  | 'BANKING'
+  | 'TAX'
+  | 'MEDICAL'
+  | 'EMERGENCY_CONTACT'
+  | 'DEPENDENT'
+  | 'BACKGROUND'
+  | 'COMPENSATION'
+  | 'DOCUMENT'
+  | 'WORK_AUTHORIZATION'
+  | 'ASSET_ACCESS'
+  | 'SKILLS'
+  | 'CONSENT'
+  | 'CUSTOM';
+
+export interface UpsertWorkerProfileSectionPayload {
+  workerId: Uuid;
+  dataCategory: WorkerProfileSectionCategory;
+  fields: Record<string, unknown>;
+}
+
+export const UpsertWorkerProfileSectionPayloadSchema = z.object({
+  workerId: z.string().uuid(),
+  dataCategory: z.enum([
+    'BASIC',
+    'CONTACT',
+    'BANKING',
+    'TAX',
+    'MEDICAL',
+    'EMERGENCY_CONTACT',
+    'DEPENDENT',
+    'BACKGROUND',
+    'COMPENSATION',
+    'DOCUMENT',
+    'WORK_AUTHORIZATION',
+    'ASSET_ACCESS',
+    'SKILLS',
+    'CONSENT',
+    'CUSTOM',
+  ]),
+  fields: z.record(z.unknown()),
 });
 
 export const TerminateWorkerCommandName = 'TerminateWorker' as const;
@@ -250,6 +337,56 @@ export const EndJobAssignmentPayloadSchema = z.object({
 });
 
 /* ------------------------------------------------------------------ */
+/*  Employment relationship commands                                   */
+/* ------------------------------------------------------------------ */
+
+export const CreateEmploymentRelationshipCommandName = 'CreateEmploymentRelationship' as const;
+
+export interface CreateEmploymentRelationshipPayload {
+  relationshipId?: Uuid;
+  workerId: Uuid;
+  relationshipType: string;
+  startDate: Date;
+  legalEntityId?: Uuid | string;
+  contractType?: string;
+  probationEndDate?: Date;
+}
+
+export const CreateEmploymentRelationshipPayloadSchema = z.object({
+  relationshipId: z.string().uuid().optional(),
+  workerId: z.string().uuid(),
+  relationshipType: z.string().min(1),
+  startDate: z.coerce.date(),
+  legalEntityId: z.string().uuid().optional(),
+  contractType: z.string().optional(),
+  probationEndDate: z.coerce.date().optional(),
+});
+
+export const ActivateEmploymentRelationshipCommandName = 'ActivateEmploymentRelationship' as const;
+
+export interface ActivateEmploymentRelationshipPayload {
+  relationshipId: Uuid;
+}
+
+export const ActivateEmploymentRelationshipPayloadSchema = z.object({
+  relationshipId: z.string().uuid(),
+});
+
+export const EndEmploymentRelationshipCommandName = 'EndEmploymentRelationship' as const;
+
+export interface EndEmploymentRelationshipPayload {
+  relationshipId: Uuid;
+  endDate: Date;
+  reason: string;
+}
+
+export const EndEmploymentRelationshipPayloadSchema = z.object({
+  relationshipId: z.string().uuid(),
+  endDate: z.coerce.date(),
+  reason: z.string().min(1),
+});
+
+/* ------------------------------------------------------------------ */
 /*  Employment contract commands                                       */
 /* ------------------------------------------------------------------ */
 
@@ -261,6 +398,7 @@ export interface CreateEmploymentContractPayload {
   contractType: string;
   startDate: Date;
   endDate?: Date;
+  terms?: Record<string, unknown>;
 }
 
 export const CreateEmploymentContractPayloadSchema = z.object({
@@ -269,6 +407,7 @@ export const CreateEmploymentContractPayloadSchema = z.object({
   contractType: z.string().min(1),
   startDate: z.coerce.date(),
   endDate: z.coerce.date().optional(),
+  terms: z.record(z.unknown()).optional(),
 });
 
 export const SignEmploymentContractCommandName = 'SignEmploymentContract' as const;

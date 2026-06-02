@@ -22,11 +22,31 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
   }
 
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<WorkerProfile | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
   async findByEmployeeNumber(employeeNumber: string): Promise<WorkerProfile | undefined> {
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
       .where('employee_number', '=', employeeNumber)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
+  async findByEmployeeNumberForTenant(employeeNumber: string, tenantId: Uuid): Promise<WorkerProfile | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('employee_number', '=', employeeNumber)
+      .where('tenant_id', '=', tenantId.value)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
   }
@@ -40,11 +60,31 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
   }
 
+  async findByEmailForTenant(email: string, tenantId: Uuid): Promise<WorkerProfile | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('email', '=', email)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
   async findByManager(managerId: Uuid): Promise<WorkerProfile[]> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
       .where('manager_id', '=', managerId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async findByManagerForTenant(managerId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('manager_id', '=', managerId.value)
+      .where('tenant_id', '=', tenantId.value)
       .execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
   }
@@ -58,11 +98,31 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
   }
 
+  async findByDepartmentForTenant(departmentId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('department_id', '=', departmentId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
   async findByLegalEntity(legalEntityId: Uuid): Promise<WorkerProfile[]> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async findByLegalEntityForTenant(legalEntityId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('legal_entity_id', '=', legalEntityId.value)
+      .where('tenant_id', '=', tenantId.value)
       .execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
   }
@@ -76,11 +136,81 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
   }
 
+  async findByStatusForTenant(status: WorkerStatus, tenantId: Uuid, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
+    let dbQuery = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('status', '=', status);
+
+    if (options?.limit !== undefined) {
+      dbQuery = dbQuery.limit(options.limit);
+    }
+    if (options?.offset !== undefined) {
+      dbQuery = dbQuery.offset(options.offset);
+    }
+
+    const rows = await dbQuery.execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
   async search(query: string, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
     let dbQuery = this.db
       .selectFrom(this.tableName)
       .selectAll();
 
+    if (query) {
+      const like = `%${query}%`;
+      dbQuery = dbQuery.where((eb) =>
+        eb.or([
+          eb('first_name', 'ilike', like),
+          eb('last_name', 'ilike', like),
+          eb('email', 'ilike', like),
+          eb('employee_number', 'ilike', like),
+        ])
+      );
+    }
+
+    if (options?.limit !== undefined) {
+      dbQuery = dbQuery.limit(options.limit);
+    }
+    if (options?.offset !== undefined) {
+      dbQuery = dbQuery.offset(options.offset);
+    }
+
+    const rows = await dbQuery.execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
+  async searchForTenant(
+    query: string,
+    tenantId: Uuid,
+    options?: {
+      limit?: number;
+      offset?: number;
+      status?: WorkerStatus;
+      departmentId?: Uuid;
+      managerId?: Uuid;
+      legalEntityId?: Uuid;
+    },
+  ): Promise<WorkerProfile[]> {
+    let dbQuery = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value);
+
+    if (options?.status) {
+      dbQuery = dbQuery.where('status', '=', options.status);
+    }
+    if (options?.departmentId) {
+      dbQuery = dbQuery.where('department_id', '=', options.departmentId.value);
+    }
+    if (options?.managerId) {
+      dbQuery = dbQuery.where('manager_id', '=', options.managerId.value);
+    }
+    if (options?.legalEntityId) {
+      dbQuery = dbQuery.where('legal_entity_id', '=', options.legalEntityId.value);
+    }
     if (query) {
       const like = `%${query}%`;
       dbQuery = dbQuery.where((eb) =>

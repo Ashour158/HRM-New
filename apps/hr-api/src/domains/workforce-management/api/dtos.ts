@@ -9,6 +9,7 @@ export const CreateShiftScheduleDtoSchema = z.object({
   endTime: z.coerce.date(),
   breakDuration: z.number().min(0),
   departmentId: z.string().uuid(),
+  workplaceCode: z.string().optional(),
 });
 
 export class CreateShiftScheduleDto {
@@ -18,6 +19,7 @@ export class CreateShiftScheduleDto {
   @ApiProperty() endTime!: Date;
   @ApiProperty() breakDuration!: number;
   @ApiProperty() departmentId!: string;
+  @ApiPropertyOptional() workplaceCode?: string;
 }
 
 export const CreateOpenShiftDtoSchema = z.object({
@@ -27,6 +29,7 @@ export const CreateOpenShiftDtoSchema = z.object({
   endTime: z.coerce.date(),
   requiredSkills: z.array(z.string()).optional(),
   bidDeadline: z.coerce.date().optional(),
+  workplaceCode: z.string().optional(),
 });
 
 export class CreateOpenShiftDto {
@@ -36,6 +39,7 @@ export class CreateOpenShiftDto {
   @ApiProperty() endTime!: Date;
   @ApiPropertyOptional() requiredSkills?: string[];
   @ApiPropertyOptional() bidDeadline?: Date;
+  @ApiPropertyOptional() workplaceCode?: string;
 }
 
 export const CreateShiftBidDtoSchema = z.object({
@@ -84,6 +88,7 @@ export const CreateCoverageGapDtoSchema = z.object({
   startTime: z.coerce.date(),
   endTime: z.coerce.date(),
   requiredSkills: z.array(z.string()).optional(),
+  workplaceCode: z.string().optional(),
 });
 
 export class CreateCoverageGapDto {
@@ -92,6 +97,7 @@ export class CreateCoverageGapDto {
   @ApiProperty() startTime!: Date;
   @ApiProperty() endTime!: Date;
   @ApiPropertyOptional() requiredSkills?: string[];
+  @ApiPropertyOptional() workplaceCode?: string;
 }
 
 @Injectable()

@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HrCoreModule } from '../hr-core/hr-core.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { HrServiceDeliveryController } from './api/hr-service-delivery.controller.js';
 import { HrServiceCaseRepository } from './repositories/hr-service-case.repository.js';
@@ -36,7 +37,7 @@ import { registerHrServiceCatalogItemFsm } from './fsm/hr-service-catalog-item.f
 import { registerHrCaseSlaInstanceFsm } from './fsm/hr-case-sla-instance.fsm.js';
 
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HrCoreModule],
   controllers: [HrServiceDeliveryController],
   providers: [
     HrServiceCaseRepository,

@@ -63,6 +63,7 @@ import { EnterReviewPerformanceImprovementPlanHandler } from './commands/enter-r
 import { CompletePerformanceImprovementPlanHandler } from './commands/complete-performance-improvement-plan.handler.js';
 import { ClosePerformanceImprovementPlanHandler } from './commands/close-performance-improvement-plan.handler.js';
 import { ExtendPerformanceImprovementPlanHandler } from './commands/extend-performance-improvement-plan.handler.js';
+import { RecordPerformanceImprovementPlanCheckpointHandler } from './commands/record-performance-improvement-plan-checkpoint.handler.js';
 import { TerminatePerformanceImprovementPlanHandler } from './commands/terminate-performance-improvement-plan.handler.js';
 
 // Handlers — new Feedback 360
@@ -112,6 +113,7 @@ import { PerformanceEventsPublisher } from './events/performance-events.publishe
 import { PerformanceAnalyticsService } from './services/performance-analytics.service.js';
 import { PerformanceNotificationService } from './services/performance-notification.service.js';
 import { PerformanceGoalPolicyService } from './services/performance-goal-policy.service.js';
+import { KpiFormulaService } from './services/kpi-formula.service.js';
 
 // FSM registrars — existing
 import { registerPerformanceReviewCycleFsm } from './fsm/performance-review-cycle.fsm.js';
@@ -195,6 +197,7 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     CompletePerformanceImprovementPlanHandler,
     ClosePerformanceImprovementPlanHandler,
     ExtendPerformanceImprovementPlanHandler,
+    RecordPerformanceImprovementPlanCheckpointHandler,
     TerminatePerformanceImprovementPlanHandler,
 
     // Handlers — new Feedback 360
@@ -244,6 +247,7 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     PerformanceAnalyticsService,
     PerformanceNotificationService,
     PerformanceGoalPolicyService,
+    KpiFormulaService,
   ],
   exports: [
     PerformanceReviewCycleRepository,
@@ -264,6 +268,7 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
     PerformanceAnalyticsService,
     PerformanceNotificationService,
     PerformanceGoalPolicyService,
+    KpiFormulaService,
   ],
 })
 export class PerformanceModule implements OnModuleInit {

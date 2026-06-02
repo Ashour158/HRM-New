@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
-import type { FieldAccessResult } from '@/types';
+import type { ApiResponse, FieldAccessResult } from '@/types';
 
 /**
  * Hook to fetch field-level access decisions from backend policy engine.
@@ -17,14 +17,14 @@ export function useFieldAccess(
   return useQuery<FieldAccessResult>({
     queryKey: ['field-access', resourceType, resourceId, fieldPath],
     queryFn: async () => {
-      const response = await apiClient.get<FieldAccessResult>('/policy/field-access', {
+      const response = await apiClient.get<ApiResponse<FieldAccessResult>>('/policy/field-access', {
         params: {
           fieldPath,
           resourceType,
           resourceId,
         },
       });
-      return response.data;
+      return response.data.data;
     },
     enabled: !!resourceId && !!fieldPath,
     staleTime: 2 * 60 * 1000,

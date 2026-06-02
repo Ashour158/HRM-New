@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
-import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import type { CommandOutcome, CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { AuthGuard } from '../../../guards/auth.guard.js';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import type { WorkerProfile } from '../../hr-core/aggregates/worker-profile.aggregate.js';
@@ -41,10 +41,7 @@ function statusForUi(status: AbsenceRequestStatus): 'PENDING' | 'APPROVED' | 'RE
 }
 
 function toDateKey(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  return value.toISOString().slice(0, 10);
 }
 
 @ApiTags('Employee Leave')
@@ -153,6 +150,17 @@ export class EmployeeLeaveController {
     };
   }
 
+  private assertCommandSucceeded<TData>(outcome: CommandOutcome<TData>): CommandResult<TData> {
+    if (outcome.success) return outcome;
+    throw new BadRequestException({
+      errorCode: outcome.errorCode,
+      errorMessage: outcome.errorMessage,
+      errorDetails: outcome.errorDetails,
+      stepFailed: outcome.stepFailed,
+      retryable: outcome.retryable,
+    });
+  }
+
   private toAbsenceDto(request: AbsenceRequest, worker?: WorkerProfile) {
     return {
       id: request.id.value,
@@ -258,21 +266,19 @@ export class EmployeeLeaveController {
       endTime: dto.endTime,
       reason: dto.reason,
     };
-    const created = await this.commandBus.execute(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', payload, req, {
+    const created = this.assertCommandSucceeded(await this.commandBus.execute<typeof payload, { absenceRequestId: string }>(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', payload, req, {
       subjectWorkerId: worker.id,
-    }));
-    if (!created.success) return created;
+    })));
     const absenceRequestId = 'data' in created ? (created.data as { absenceRequestId: string }).absenceRequestId : undefined;
     if (!absenceRequestId) return created;
     const request = await this.absenceRequestRepo.findById(new Uuid(absenceRequestId));
     if (!request) return created;
-    const submitted = await this.commandBus.execute(this.buildCommand('SubmitAbsenceRequest', 'AbsenceRequest', { absenceRequestId: request.id }, req, {
+    this.assertCommandSucceeded(await this.commandBus.execute(this.buildCommand('SubmitAbsenceRequest', 'AbsenceRequest', { absenceRequestId: request.id }, req, {
       aggregateId: request.id,
       expectedState: request.status,
       expectedVersion: request.aggregateVersion,
       subjectWorkerId: worker.id,
-    }));
-    if (!submitted.success) return submitted;
+    })));
     const updated = await this.absenceRequestRepo.findById(request.id);
     return this.toAbsenceDto(updated ?? request, worker);
   }
@@ -314,6 +320,11 @@ export class EmployeeLeaveController {
     };
   }
 
+  @Get('employee/manager/dashboard')
+  async getEmployeeManagerDashboard(@Req() req: Request) {
+    return this.getManagerDashboard(req);
+  }
+
   @Get('manager/leave/requests')
   async getManagerLeaveRequests(@Query('status') status: string | undefined, @Req() req: Request) {
     const manager = await this.resolveSelfWorker(req);
@@ -326,36 +337,60 @@ export class EmployeeLeaveController {
     return this.toAbsenceDtos(status ? requests.filter((request) => request.status === status) : requests);
   }
 
+  @Get('employee/manager/leave/requests')
+  async getEmployeeManagerLeaveRequests(@Query('status') status: string | undefined, @Req() req: Request) {
+    return this.getManagerLeaveRequests(status, req);
+  }
+
   @Post('manager/leave/requests/:id/approve')
   async approveLeaveRequest(@Param('id') id: string, @Req() req: Request) {
     const request = await this.absenceRequestRepo.findById(new Uuid(id));
     if (!request) throw new BadRequestException('Leave request not found');
     const approvedBy = await this.assertCanReviewRequest(req, request);
-    const outcome = await this.commandBus.execute(this.buildCommand('ApproveAbsenceRequest', 'AbsenceRequest', { absenceRequestId: request.id, approvedBy }, req, {
+    this.assertCommandSucceeded(await this.commandBus.execute(this.buildCommand('ApproveAbsenceRequest', 'AbsenceRequest', { absenceRequestId: request.id, approvedBy }, req, {
       aggregateId: request.id,
       expectedState: request.status,
       expectedVersion: request.aggregateVersion,
       subjectWorkerId: request.workerId,
-    }));
-    if (!outcome.success) return outcome;
+    })));
     const updated = await this.absenceRequestRepo.findById(request.id);
     return this.toAbsenceDto(updated ?? request, await this.workerRepo.findById(request.workerId));
   }
 
+  @Post('employee/manager/leave/requests/:id/approve')
+  async approveEmployeeManagerLeaveRequest(@Param('id') id: string, @Req() req: Request) {
+    return this.approveLeaveRequest(id, req);
+  }
+
   @Post('manager/leave/requests/:id/reject')
-  async rejectLeaveRequest(@Param('id') id: string, @Req() req: Request) {
+  async rejectLeaveRequest(
+    @Param('id') id: string,
+    @Body() body: { reason?: string } | undefined,
+    @Req() req: Request,
+  ) {
     const request = await this.absenceRequestRepo.findById(new Uuid(id));
     if (!request) throw new BadRequestException('Leave request not found');
     await this.assertCanReviewRequest(req, request);
-    const outcome = await this.commandBus.execute(this.buildCommand('RejectAbsenceRequest', 'AbsenceRequest', { absenceRequestId: request.id }, req, {
+    this.assertCommandSucceeded(await this.commandBus.execute(this.buildCommand('RejectAbsenceRequest', 'AbsenceRequest', {
+      absenceRequestId: request.id,
+      rejectionReason: body?.reason,
+    }, req, {
       aggregateId: request.id,
       expectedState: request.status,
       expectedVersion: request.aggregateVersion,
       subjectWorkerId: request.workerId,
-    }));
-    if (!outcome.success) return outcome;
+    })));
     const updated = await this.absenceRequestRepo.findById(request.id);
     return this.toAbsenceDto(updated ?? request, await this.workerRepo.findById(request.workerId));
+  }
+
+  @Post('employee/manager/leave/requests/:id/reject')
+  async rejectEmployeeManagerLeaveRequest(
+    @Param('id') id: string,
+    @Body() body: { reason?: string } | undefined,
+    @Req() req: Request,
+  ) {
+    return this.rejectLeaveRequest(id, body, req);
   }
 
   private resolvePolicyOrFallback(policies: LeavePolicy[], leaveType: string): LeavePolicy {

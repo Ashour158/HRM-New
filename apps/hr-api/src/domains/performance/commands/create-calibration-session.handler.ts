@@ -6,6 +6,7 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { CalibrationSession } from '../aggregates/calibration-session.aggregate.js';
 import { CalibrationSessionRepository } from '../repositories/calibration-session.repository.js';
 import { PerformanceEventsPublisher } from '../events/performance-events.publisher.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 @CommandHandler('CreateCalibrationSession')
 @Injectable()
@@ -18,16 +19,16 @@ export class CreateCalibrationSessionHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      reviewCycleId: Uuid;
-      facilitatorId: Uuid;
+      reviewCycleId: UuidInput;
+      facilitatorId: UuidInput;
       participants?: string[];
     };
     const ar = CalibrationSession.create(
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        reviewCycleId: payload.reviewCycleId,
-        facilitatorId: payload.facilitatorId,
+        reviewCycleId: toUuid(payload.reviewCycleId),
+        facilitatorId: toUuid(payload.facilitatorId),
         participants: payload.participants,
       },
       command.correlationId,

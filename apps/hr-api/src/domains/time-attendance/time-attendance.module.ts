@@ -3,6 +3,7 @@ import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
 import { AbsenceLeaveModule } from '../absence-leave/absence-leave.module.js';
+import { WorkforceManagementModule } from '../workforce-management/workforce-management.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { TimeAttendanceController } from './api/time-attendance.controller.js';
 import { WorkScheduleRepository } from './repositories/work-schedule.repository.js';
@@ -49,6 +50,7 @@ import { AttendanceGeolocationExportService } from './services/attendance-geoloc
 import { AttendanceTimesheetProjectionService } from './services/attendance-timesheet-projection.service.js';
 import { AttendanceReminderService } from './services/attendance-reminder.service.js';
 import { AttendanceReportingService } from './services/attendance-reporting.service.js';
+import { AttendanceSchedulingCommandCenterService } from './services/attendance-scheduling-command-center.service.js';
 import { registerWorkScheduleFsm } from './fsm/work-schedule.fsm.js';
 import { registerTimesheetFsm } from './fsm/timesheet.fsm.js';
 import { registerTimeClockEventFsm } from './fsm/time-clock-event.fsm.js';
@@ -57,7 +59,7 @@ import { registerAttendanceCorrectionRequestFsm } from './fsm/attendance-correct
 import { registerOvertimeApprovalFsm } from './fsm/overtime-approval.fsm.js';
 
 @Module({
-  imports: [PlatformModule, HcmSetupModule, HrCoreModule, AbsenceLeaveModule],
+  imports: [PlatformModule, HcmSetupModule, HrCoreModule, AbsenceLeaveModule, WorkforceManagementModule],
   controllers: [TimeAttendanceController],
   providers: [
     WorkScheduleRepository,
@@ -104,8 +106,9 @@ import { registerOvertimeApprovalFsm } from './fsm/overtime-approval.fsm.js';
     AttendanceTimesheetProjectionService,
     AttendanceReminderService,
     AttendanceReportingService,
+    AttendanceSchedulingCommandCenterService,
   ],
-  exports: [WorkScheduleRepository, TimesheetRepository, TimeClockEventRepository, AttendanceExceptionRepository, AttendanceDailyLedgerRepository, AttendanceCorrectionRequestRepository, OvertimeApprovalRepository, AttendanceCalculationService, AttendanceStateService, AttendanceLedgerService, AttendanceLedgerBuilderService, AttendancePolicyResolutionService, AttendanceTrustService, AttendanceFinalizationService, AttendanceCloseReadinessService, AttendanceCorrectionService, AttendanceGeolocationExportService, AttendanceTimesheetProjectionService, AttendanceReminderService, AttendanceReportingService],
+  exports: [WorkScheduleRepository, TimesheetRepository, TimeClockEventRepository, AttendanceExceptionRepository, AttendanceDailyLedgerRepository, AttendanceCorrectionRequestRepository, OvertimeApprovalRepository, AttendanceCalculationService, AttendanceStateService, AttendanceLedgerService, AttendanceLedgerBuilderService, AttendancePolicyResolutionService, AttendanceTrustService, AttendanceFinalizationService, AttendanceCloseReadinessService, AttendanceCorrectionService, AttendanceGeolocationExportService, AttendanceTimesheetProjectionService, AttendanceReminderService, AttendanceReportingService, AttendanceSchedulingCommandCenterService],
 })
 export class TimeAttendanceModule implements OnModuleInit {
   constructor(private readonly fsm: FsmFramework) {}

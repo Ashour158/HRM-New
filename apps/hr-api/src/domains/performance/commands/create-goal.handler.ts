@@ -7,6 +7,7 @@ import { Goal } from '../aggregates/goal.aggregate.js';
 import { GoalRepository } from '../repositories/goal.repository.js';
 import { PerformanceEventsPublisher } from '../events/performance-events.publisher.js';
 import { PerformanceGoalPolicyService, type SmartGoalCriteria } from '../services/performance-goal-policy.service.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 @CommandHandler('CreateGoal')
 @Injectable()
@@ -20,7 +21,7 @@ export class CreateGoalHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      workerId: Uuid;
+      workerId: UuidInput;
       title: string;
       description?: string;
       targetValue?: number;
@@ -39,7 +40,7 @@ export class CreateGoalHandler {
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        workerId: payload.workerId,
+        workerId: toUuid(payload.workerId),
         title: payload.title,
         description: payload.description,
         targetValue: payload.targetValue,

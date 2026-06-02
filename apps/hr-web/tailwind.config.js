@@ -7,7 +7,28 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        headline: ['Hanken Grotesk', 'Inter', 'ui-sans-serif', 'system-ui'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+      },
       colors: {
+        lumina: {
+          surface: '#f8f9ff',
+          surfaceLow: '#eff4ff',
+          surfaceContainer: '#e5eeff',
+          surfaceHigh: '#dce9ff',
+          surfaceHighest: '#d3e4fe',
+          card: '#ffffff',
+          text: '#0b1c30',
+          muted: '#3c4a42',
+          outline: '#bbcabf',
+          primary: '#006c49',
+          primaryBright: '#10b981',
+          secondary: '#4648d4',
+          tertiary: '#e29100',
+          inverse: '#213145',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',

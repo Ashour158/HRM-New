@@ -64,11 +64,21 @@ export const TIME_READ = 'TIME_READ';
 export const TIME_APPROVE = 'TIME_APPROVE';
 export const TIME_MANAGE = 'TIME_MANAGE';
 
+// Workforce scheduling domain
+export const WORKFORCE_READ = 'WORKFORCE_READ';
+export const WORKFORCE_SCHEDULE = 'WORKFORCE_SCHEDULE';
+export const WORKFORCE_APPROVE = 'WORKFORCE_APPROVE';
+
 // Employee Relations domain
 export const ER_CASE_READ = 'ER_CASE_READ';
 export const ER_CASE_CREATE = 'ER_CASE_CREATE';
 export const ER_CASE_INVESTIGATE = 'ER_CASE_INVESTIGATE';
 export const ER_CASE_CLOSE = 'ER_CASE_CLOSE';
+
+// HR Service Delivery domain
+export const SERVICE_READ = 'SERVICE_READ';
+export const SERVICE_REQUEST = 'SERVICE_REQUEST';
+export const SERVICE_MANAGE = 'SERVICE_MANAGE';
 
 // Compliance domain
 export const COMPLIANCE_READ = 'COMPLIANCE_READ';
@@ -98,7 +108,9 @@ export const ALL_PERMISSIONS: readonly string[] = [
   LEARNING_READ, LEARNING_ASSIGN, LEARNING_APPROVE,
   ABSENCE_READ, ABSENCE_APPROVE, ABSENCE_MANAGE,
   TIME_READ, TIME_APPROVE, TIME_MANAGE,
+  WORKFORCE_READ, WORKFORCE_SCHEDULE, WORKFORCE_APPROVE,
   ER_CASE_READ, ER_CASE_CREATE, ER_CASE_INVESTIGATE, ER_CASE_CLOSE,
+  SERVICE_READ, SERVICE_REQUEST, SERVICE_MANAGE,
   COMPLIANCE_READ, COMPLIANCE_MANAGE, LEGAL_HOLD_MANAGE,
   REPORT_READ, REPORT_CREATE, REPORT_EXPORT,
   ADMIN_SYSTEM, ADMIN_TENANT, ADMIN_SECURITY,
@@ -169,10 +181,18 @@ const PERMISSION_CATALOG: Record<string, PermissionDefinition> = {
   [TIME_APPROVE]: { code: TIME_APPROVE, description: 'Approve timesheets', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
   [TIME_MANAGE]: { code: TIME_MANAGE, description: 'Manage time records', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
 
+  [WORKFORCE_READ]: { code: WORKFORCE_READ, description: 'Read workforce schedules and coverage plans', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: false },
+  [WORKFORCE_SCHEDULE]: { code: WORKFORCE_SCHEDULE, description: 'Create and manage workforce schedules, rosters, and coverage gaps', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
+  [WORKFORCE_APPROVE]: { code: WORKFORCE_APPROVE, description: 'Approve workforce scheduling, shift bids, swaps, overtime, and coverage actions', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
+
   [ER_CASE_READ]: { code: ER_CASE_READ, description: 'Read ER case data', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ER_CASE_CREATE]: { code: ER_CASE_CREATE, description: 'Create ER cases', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ER_CASE_INVESTIGATE]: { code: ER_CASE_INVESTIGATE, description: 'Investigate ER cases', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ER_CASE_CLOSE]: { code: ER_CASE_CLOSE, description: 'Close ER cases', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
+
+  [SERVICE_READ]: { code: SERVICE_READ, description: 'Read HR service catalog and service request cases', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: false },
+  [SERVICE_REQUEST]: { code: SERVICE_REQUEST, description: 'Open employee HR service requests', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
+  [SERVICE_MANAGE]: { code: SERVICE_MANAGE, description: 'Manage HR service delivery cases, tasks, knowledge articles, catalog items, and SLAs', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
 
   [COMPLIANCE_READ]: { code: COMPLIANCE_READ, description: 'Read compliance data', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: false },
   [COMPLIANCE_MANAGE]: { code: COMPLIANCE_MANAGE, description: 'Manage compliance policies', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },

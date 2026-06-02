@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
@@ -7,10 +7,10 @@ import type { InboxEvent } from './inbox-consumer.js';
 
 @Injectable()
 export class InboxDeduplicator {
-  private readonly db: Kysely<Database>;
+  private readonly db: Pick<Kysely<Database>, 'selectFrom' | 'updateTable'>;
 
-  constructor() {
-    this.db = createKyselyInstance(getPool());
+  constructor(@Optional() db?: Pick<Kysely<Database>, 'selectFrom' | 'updateTable'>) {
+    this.db = db ?? createKyselyInstance(getPool());
   }
 
   async isProcessed(
@@ -24,6 +24,7 @@ export class InboxDeduplicator {
       .where('source_event_id', '=', sourceEventId.value)
       .where('consumer_name', '=', consumerName)
       .where('consumer_version', '=', consumerVersion)
+      .where('processing_status', 'in', ['SUCCESS', 'SKIPPED'])
       .executeTakeFirst();
     return !!existing;
   }

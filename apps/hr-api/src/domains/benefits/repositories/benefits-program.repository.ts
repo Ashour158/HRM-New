@@ -30,12 +30,15 @@ export class BenefitsProgramRepository extends BaseRepository<'benefits_programs
     return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_programs']));
   }
 
-  async findActive(): Promise<BenefitsProgram[]> {
-    const rows = await this.db
+  async findActive(tenantId?: Uuid): Promise<BenefitsProgram[]> {
+    let query = this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('status', '=', 'ACTIVE')
-      .execute();
+      .where('status', '=', 'ACTIVE');
+    if (tenantId) {
+      query = query.where('tenant_id', '=', tenantId.value);
+    }
+    const rows = await query.execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_programs']));
   }
 

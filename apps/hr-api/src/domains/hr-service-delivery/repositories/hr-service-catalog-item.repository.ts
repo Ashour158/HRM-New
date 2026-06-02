@@ -19,11 +19,25 @@ export class HrServiceCatalogItemRepository extends BaseRepository<'hr_service_c
   }
 
   async findByTenant(tenantId: Uuid): Promise<HrServiceCatalogItem[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .orderBy('service_name', 'asc')
+      .execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_catalog_items']));
   }
 
-
+  async findActive(tenantId: Uuid): Promise<HrServiceCatalogItem[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('status', '=', 'ACTIVE')
+      .orderBy('service_name', 'asc')
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_catalog_items']));
+  }
 
   async save(entity: HrServiceCatalogItem): Promise<void> {
     const row = this.toRow(entity);
@@ -40,11 +54,11 @@ export class HrServiceCatalogItemRepository extends BaseRepository<'hr_service_c
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       serviceName: row.service_name,
-      serviceCode: row.id,
+      serviceCode: row.service_code,
       description: row.description ?? '',
-      category: 'GENERAL',
+      category: row.category ?? row.service_type,
       slaHours: row.sla_hours ?? 0,
-      fulfillmentProcess: '',
+      fulfillmentProcess: row.fulfillment_process ?? '',
       status: row.status as HrServiceCatalogItemStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -56,10 +70,13 @@ export class HrServiceCatalogItemRepository extends BaseRepository<'hr_service_c
     return {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
+      service_code: entity.serviceCode,
       service_name: entity.serviceName,
-      service_type: 'GENERAL',
+      service_type: entity.category,
       description: entity.description ?? null,
+      category: entity.category,
       sla_hours: entity.slaHours ?? null,
+      fulfillment_process: entity.fulfillmentProcess,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

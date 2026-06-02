@@ -9,6 +9,13 @@ export const CreatePerformanceReviewCycleDtoSchema = z.object({
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
   reviewType: z.string().min(1),
+  templateId: z.string().uuid().optional(),
+  weightings: z.record(z.number().min(0).max(100)).optional(),
+  periods: z.array(z.object({
+    name: z.string().min(1),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+  })).optional(),
 });
 
 export class CreatePerformanceReviewCycleDto {
@@ -17,6 +24,9 @@ export class CreatePerformanceReviewCycleDto {
   @ApiProperty() startDate!: Date;
   @ApiProperty() endDate!: Date;
   @ApiProperty() reviewType!: string;
+  @ApiPropertyOptional() templateId?: string;
+  @ApiPropertyOptional() weightings?: Record<string, number>;
+  @ApiPropertyOptional() periods?: Array<{ name: string; startDate: Date; endDate: Date }>;
 }
 
 /* ── Performance Review ── */
@@ -150,6 +160,27 @@ export class CompletePerformanceImprovementPlanDto { @ApiProperty() outcome!: st
 
 export const ExtendPerformanceImprovementPlanDtoSchema = z.object({ newEndDate: z.coerce.date() });
 export class ExtendPerformanceImprovementPlanDto { @ApiProperty() newEndDate!: Date; }
+
+export const RecordPerformanceImprovementPlanCheckpointDtoSchema = z.object({
+  milestoneTitle: z.string().min(1).optional(),
+  milestoneDay: z.number().int().min(1).optional(),
+  milestoneStatus: z.string().min(1).optional(),
+  metricUpdates: z.array(z.object({
+    metric: z.string().min(1),
+    current: z.number(),
+  })).optional(),
+  note: z.string().optional(),
+}).refine((value) => Boolean(value.milestoneTitle || value.milestoneDay || value.metricUpdates?.length || value.note?.trim()), {
+  message: 'At least one milestone, metric update, or note is required',
+});
+
+export class RecordPerformanceImprovementPlanCheckpointDto {
+  @ApiPropertyOptional() milestoneTitle?: string;
+  @ApiPropertyOptional() milestoneDay?: number;
+  @ApiPropertyOptional() milestoneStatus?: string;
+  @ApiPropertyOptional() metricUpdates?: Array<{ metric: string; current: number }>;
+  @ApiPropertyOptional() note?: string;
+}
 
 /* ── Feedback 360 Cycles ── */
 export const CreateFeedback360CycleDtoSchema = z.object({
@@ -365,20 +396,77 @@ export const CreateReviewTemplateDtoSchema = z.object({
   description: z.string().optional(),
   sections: z.array(z.object({
     title: z.string(),
-    questions: z.array(z.string()),
-    competencyIds: z.array(z.string()),
-    weight: z.number(),
+    questions: z.array(z.union([
+      z.string(),
+      z.object({
+        id: z.string().optional(),
+        label: z.string().min(1),
+        type: z.enum(['RATING', 'COMMENT', 'EVIDENCE', 'YES_NO']).default('RATING'),
+        mandatoryComment: z.boolean().optional(),
+        evidenceRequired: z.boolean().optional(),
+        rubric: z.record(z.string()).optional(),
+      }),
+    ])),
+    competencyIds: z.array(z.string()).default([]),
+    weight: z.number().min(0).max(100),
+    reviewerRoles: z.array(z.string()).optional(),
+    mandatoryCommentBelowRating: z.number().min(0).max(5).optional(),
+    evidenceRequired: z.boolean().optional(),
   })),
-  ratingScale: z.object({ min: z.number(), max: z.number(), labels: z.record(z.string()) }),
+  ratingScale: z.object({
+    min: z.number(),
+    max: z.number(),
+    labels: z.record(z.string()),
+    behavioralAnchors: z.record(z.string()).optional(),
+  }),
   applicableRoles: z.array(z.string()),
+  scoringRubric: z.object({
+    calculation: z.enum(['WEIGHTED_AVERAGE', 'SECTION_WEIGHTED', 'COMPETENCY_WEIGHTED']).default('SECTION_WEIGHTED'),
+    rounding: z.enum(['NONE', 'NEAREST_HALF', 'NEAREST_WHOLE']).default('NEAREST_HALF'),
+    requireEvidenceForTopRating: z.boolean().optional(),
+  }).optional(),
+  workflow: z.object({
+    levels: z.array(z.object({
+      role: z.string().min(1),
+      required: z.boolean().default(true),
+      canCalibrate: z.boolean().optional(),
+    })).optional(),
+    allowEmployeeAcknowledgement: z.boolean().optional(),
+    allowDispute: z.boolean().optional(),
+  }).optional(),
 });
 
 export class CreateReviewTemplateDto {
   @ApiProperty() name!: string;
   @ApiPropertyOptional() description?: string;
-  @ApiProperty() sections!: Array<{ title: string; questions: string[]; competencyIds: string[]; weight: number }>;
-  @ApiProperty() ratingScale!: { min: number; max: number; labels: Record<string, string> };
+  @ApiProperty() sections!: Array<{
+    title: string;
+    questions: Array<string | {
+      id?: string;
+      label: string;
+      type?: 'RATING' | 'COMMENT' | 'EVIDENCE' | 'YES_NO';
+      mandatoryComment?: boolean;
+      evidenceRequired?: boolean;
+      rubric?: Record<string, string>;
+    }>;
+    competencyIds: string[];
+    weight: number;
+    reviewerRoles?: string[];
+    mandatoryCommentBelowRating?: number;
+    evidenceRequired?: boolean;
+  }>;
+  @ApiProperty() ratingScale!: { min: number; max: number; labels: Record<string, string>; behavioralAnchors?: Record<string, string> };
   @ApiProperty() applicableRoles!: string[];
+  @ApiPropertyOptional() scoringRubric?: {
+    calculation: 'WEIGHTED_AVERAGE' | 'SECTION_WEIGHTED' | 'COMPETENCY_WEIGHTED';
+    rounding: 'NONE' | 'NEAREST_HALF' | 'NEAREST_WHOLE';
+    requireEvidenceForTopRating?: boolean;
+  };
+  @ApiPropertyOptional() workflow?: {
+    levels?: Array<{ role: string; required: boolean; canCalibrate?: boolean }>;
+    allowEmployeeAcknowledgement?: boolean;
+    allowDispute?: boolean;
+  };
 }
 
 /* ── Competencies ── */

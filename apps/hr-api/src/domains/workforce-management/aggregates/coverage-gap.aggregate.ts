@@ -9,6 +9,7 @@ export interface CoverageGapProps {
   shiftDate: Date;
   startTime: Date;
   endTime: Date;
+  workplaceCode?: string;
   requiredSkills?: string[];
   filledByWorkerId?: Uuid;
   status?: CoverageGapStatus;
@@ -51,6 +52,7 @@ export class CoverageGap extends AggregateRoot {
   shiftDate: Date;
   startTime: Date;
   endTime: Date;
+  workplaceCode?: string;
   requiredSkills?: string[];
   filledByWorkerId?: Uuid;
   status: CoverageGapStatus;
@@ -68,6 +70,7 @@ export class CoverageGap extends AggregateRoot {
     this.shiftDate = props.shiftDate;
     this.startTime = props.startTime;
     this.endTime = props.endTime;
+    this.workplaceCode = props.workplaceCode;
     this.requiredSkills = props.requiredSkills;
     this.filledByWorkerId = props.filledByWorkerId;
     this.status = props.status ?? 'DETECTED';

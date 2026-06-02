@@ -25,16 +25,16 @@ interface JwtPayload {
 }
 
 const API_KEY_ACTORS: Record<
-  string,
+  'system' | 'integration',
   Pick<HrActor, 'actorType' | 'actorId' | 'roles' | 'permissions'>
 > = {
-  'system-api-key': {
+  system: {
     actorType: 'SYSTEM',
     actorId: new Uuid('00000000-0000-4000-8000-000000000001'),
     roles: ['SYSTEM_ACTOR'],
     permissions: [],
   },
-  'integration-api-key': {
+  integration: {
     actorType: 'INTEGRATION',
     actorId: new Uuid('00000000-0000-4000-8000-000000000002'),
     roles: ['INTEGRATION_ACTOR'],
@@ -58,7 +58,7 @@ export class AuthGuard implements CanActivate {
       (request.headers[config.apiKeyHeader] as string | undefined);
 
     if (apiKey) {
-      const actorStub = API_KEY_ACTORS[apiKey];
+      const actorStub = this.resolveApiKeyActor(apiKey, config);
       if (!actorStub) {
         throw new ForbiddenException('Invalid API key');
       }
@@ -91,6 +91,19 @@ export class AuthGuard implements CanActivate {
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
+  }
+
+  private resolveApiKeyActor(
+    apiKey: string,
+    config: ReturnType<typeof loadAppConfig>,
+  ): Pick<HrActor, 'actorType' | 'actorId' | 'roles' | 'permissions'> | undefined {
+    if (apiKey === config.systemApiKey) {
+      return API_KEY_ACTORS.system;
+    }
+    if (apiKey === config.integrationApiKey) {
+      return API_KEY_ACTORS.integration;
+    }
+    return undefined;
   }
 
   private buildActor(

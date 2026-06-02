@@ -44,7 +44,7 @@ export class PositionEventsPublisher {
       tenantId,
       aggregateType: event.aggregateType,
       aggregateId: event.aggregateId,
-      payload: {},
+      payload: this.toPayload(event, correlationId),
       metadata: {
         correlationId,
         causationId: event.causationId,
@@ -55,5 +55,45 @@ export class PositionEventsPublisher {
       occurredAt: event.occurredAt,
       version: event.version,
     };
+  }
+
+  private toPayload(event: DomainEvent, actorId: Uuid): Record<string, unknown> {
+    switch (event.eventName) {
+      case 'HeadcountRequestCreated':
+      case 'HeadcountRequestSubmitted':
+      case 'HeadcountRequestReviewStarted':
+      case 'HeadcountRequestCancelled':
+        return {
+          headcountRequestId: event.aggregateId,
+          submittedBy: actorId,
+        };
+      case 'HeadcountRequestApproved':
+        return {
+          headcountRequestId: event.aggregateId,
+          approvedBy: actorId,
+        };
+      case 'HeadcountRequestRejected':
+        return {
+          headcountRequestId: event.aggregateId,
+          rejectedBy: actorId,
+        };
+      case 'PositionCreated':
+      case 'PositionActivated':
+      case 'PositionFrozen':
+      case 'PositionUnfrozen':
+      case 'PositionFilled':
+      case 'PositionVacated':
+      case 'PositionClosed':
+      case 'PositionUpdated':
+        return {
+          positionId: event.aggregateId,
+          actorId,
+        };
+      default:
+        return {
+          aggregateId: event.aggregateId,
+          actorId,
+        };
+    }
   }
 }

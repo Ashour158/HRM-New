@@ -51,7 +51,7 @@ import {
   CalibratePerformanceReviewDtoSchema, FinalizePerformanceReviewDtoSchema,
   CreateGoalDtoSchema, UpdateGoalProgressDtoSchema,
   CreateCalibrationSessionDtoSchema,
-  CreatePerformanceImprovementPlanDtoSchema, CompletePerformanceImprovementPlanDtoSchema, ExtendPerformanceImprovementPlanDtoSchema,
+  CreatePerformanceImprovementPlanDtoSchema, CompletePerformanceImprovementPlanDtoSchema, ExtendPerformanceImprovementPlanDtoSchema, RecordPerformanceImprovementPlanCheckpointDtoSchema,
   // New
   CreateFeedback360CycleDtoSchema, CreateFeedback360ResponseDtoSchema, SubmitFeedback360ResponseDtoSchema, CreateSelfServiceFeedbackDtoSchema,
   CreateObjectiveDtoSchema, UpdateObjectiveProgressDtoSchema,
@@ -345,6 +345,51 @@ export class PerformanceController {
     throw new ForbiddenException('Authenticated actor is not linked to an employee record');
   }
 
+  private sameOptionalUuid(left?: Uuid, right?: Uuid): boolean {
+    return Boolean(left?.value && right?.value && left.value === right.value);
+  }
+
+  private feedbackRelationshipType(
+    reviewee: { id: Uuid; departmentId?: Uuid; managerId?: Uuid },
+    reviewer: { id: Uuid; departmentId?: Uuid; managerId?: Uuid },
+  ): 'PEER' | 'MANAGER' | 'DIRECT_REPORT' | undefined {
+    if (reviewee.managerId?.value === reviewer.id.value) return 'MANAGER';
+    if (reviewer.managerId?.value === reviewee.id.value) return 'DIRECT_REPORT';
+    if (this.sameOptionalUuid(reviewee.departmentId, reviewer.departmentId) || this.sameOptionalUuid(reviewee.managerId, reviewer.managerId)) {
+      return 'PEER';
+    }
+    return undefined;
+  }
+
+  private async assertSelfServiceFeedbackEligibility(
+    cycle: { status: string; tenantId: Uuid },
+    reviewer: { id: Uuid; tenantId: Uuid; departmentId?: Uuid; managerId?: Uuid },
+    reviewee: { id: Uuid; tenantId: Uuid; departmentId?: Uuid; managerId?: Uuid },
+    relationshipType: string,
+  ): Promise<void> {
+    if (!['ACTIVE', 'IN_PROGRESS'].includes(cycle.status)) {
+      throw new BadRequestException('360 feedback can only be submitted during an active or launched cycle');
+    }
+    if (reviewer.tenantId.value !== cycle.tenantId.value || reviewee.tenantId.value !== cycle.tenantId.value) {
+      throw new ForbiddenException('360 feedback is tenant scoped');
+    }
+
+    const relationship = relationshipType.toUpperCase();
+    const sameDepartment = this.sameOptionalUuid(reviewer.departmentId, reviewee.departmentId);
+    const sameManager = this.sameOptionalUuid(reviewer.managerId, reviewee.managerId);
+    const reviewerIsManager = reviewee.managerId?.value === reviewer.id.value;
+    const revieweeIsManager = reviewer.managerId?.value === reviewee.id.value;
+
+    const eligible =
+      (['PEER', 'COLLEAGUE'].includes(relationship) && (sameDepartment || sameManager)) ||
+      (['MANAGER', 'MANAGER_REVIEW'].includes(relationship) && reviewerIsManager) ||
+      (['DIRECT_REPORT', 'REPORT'].includes(relationship) && revieweeIsManager);
+
+    if (!eligible) {
+      throw new BadRequestException('360 feedback reviewer is not eligible for the selected relationship');
+    }
+  }
+
   private async buildCycleAnalytics(cycleId: string, req: Request) {
     this.assertCanReadOrganizationalPerformance(req);
     const cycle = await this.cycleRepo.findById(new Uuid(cycleId));
@@ -363,6 +408,9 @@ export class PerformanceController {
 
     return this.performanceAnalyticsService.buildCycleAnalytics({
       cycleId,
+      anonymityThreshold: feedbackCycles.length
+        ? Math.max(1, Math.min(...feedbackCycles.map((feedbackCycle) => feedbackCycle.minPeerReviews ?? 3)))
+        : 3,
       workers,
       reviews,
       goals,
@@ -376,6 +424,39 @@ export class PerformanceController {
   @Get('analytics/cycle/:cycleId')
   async getCycleAnalytics(@Param('cycleId') cycleId: string, @Req() req: Request) {
     return this.buildCycleAnalytics(cycleId, req);
+  }
+
+  @Get('analytics/manager/:managerId')
+  async getManagerPerformanceDashboard(@Param('managerId') managerId: string, @Req() req: Request) {
+    const manager = await this.workerRepo.findById(new Uuid(managerId));
+    if (!manager) throw new NotFoundException('Manager employee record not found');
+    await this.assertCanAccessWorker(req, managerId);
+
+    const reports = (await this.workerRepo.findByManager(new Uuid(managerId)))
+      .filter((worker) => worker.tenantId.value === manager.tenantId.value);
+    const reviews = (await Promise.all(reports.map((worker) => this.reviewRepo.findByWorker(worker.id)))).flat();
+    const goals = (await Promise.all(reports.map((worker) => this.goalRepo.findByWorker(worker.id)))).flat();
+    const objectives = (await Promise.all(reports.map((worker) => this.objectiveRepo.findByOwner(worker.id)))).flat();
+    const keyResults = (await Promise.all(objectives.map((objective) => this.keyResultRepo.findByObjective(objective.id)))).flat();
+    const feedbackResponses = (await Promise.all(reports.map((worker) => this.feedback360ResponseRepo.findByReviewee(worker.id)))).flat();
+    const developmentPlans = (await Promise.all(reports.map((worker) => this.developmentPlanRepo.findByWorker(worker.id)))).flat();
+    const analytics = this.performanceAnalyticsService.buildCycleAnalytics({
+      cycleId: `manager-dashboard:${managerId}`,
+      workers: reports,
+      reviews,
+      goals,
+      objectives,
+      keyResults,
+      feedbackResponses,
+      developmentPlans,
+    });
+
+    return {
+      managerId,
+      managerName: [manager.firstName, manager.lastName].filter(Boolean).join(' ') || managerId,
+      reportCount: reports.length,
+      analytics,
+    };
   }
 
   @Get('action-plans/worker/:workerId')
@@ -428,6 +509,14 @@ export class PerformanceController {
      ═══════════════════════════════════════════════════════════════ */
   @Post('review-cycles')
   async createReviewCycle(@Body(new ZodValidationPipe(CreatePerformanceReviewCycleDtoSchema)) dto: dtos.CreatePerformanceReviewCycleDto, @Req() req: Request) {
+    if (dto.templateId) {
+      const template = await this.reviewTemplateRepo.findById(new Uuid(dto.templateId));
+      if (!template) throw new NotFoundException('Review template not found');
+      this.assertCanAccessTenant(req, template.tenantId.value);
+      if (template.status !== 'ACTIVE') {
+        throw new BadRequestException('Review cycles can only use active review templates');
+      }
+    }
     return this.executeCommand(this.buildCommand('CreatePerformanceReviewCycle', 'PerformanceReviewCycle', dto, req));
   }
 
@@ -436,13 +525,58 @@ export class PerformanceController {
     const ar = await this.cycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Review cycle not found');
     const result = await this.executeCommand(this.buildCommand('SetupPerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    const activeWorkers = (await this.workerRepo.findActive()).filter((worker) => worker.tenantId.value === ar.tenantId.value);
+    const existingReviews = await this.reviewRepo.findByReviewCycle(ar.id);
+    const existingReviewKeys = new Set(existingReviews.map((review) => `${review.workerId.value}:${review.reviewCycleId.value}`));
+    const reviewAssignments: Array<{
+      reviewId: string;
+      workerId: Uuid;
+      managerId?: Uuid;
+      selfReviewDueDate?: Date;
+      managerReviewDueDate?: Date;
+    }> = [];
+    const periods = (ar as { periods?: Array<{ name?: string; endDate?: Date }> }).periods ?? [];
+    const selfReviewDueDate = periods.find((period) => period.name?.toLowerCase().includes('self'))?.endDate;
+    const managerReviewDueDate = periods.find((period) => period.name?.toLowerCase().includes('manager'))?.endDate;
+
+    for (const worker of activeWorkers) {
+      if (!worker.managerId) continue;
+      const key = `${worker.id.value}:${ar.id.value}`;
+      if (existingReviewKeys.has(key)) continue;
+      const createReviewResult = await this.executeCommand(this.buildCommand('CreatePerformanceReview', 'PerformanceReview', {
+        workerId: worker.id.value,
+        reviewCycleId: ar.id.value,
+        managerId: worker.managerId.value,
+      }, req, { subjectWorkerId: worker.id }));
+      const reviewId = this.commandDataValue(createReviewResult, 'performanceReviewId');
+      if (!reviewId) continue;
+      reviewAssignments.push({
+        reviewId,
+        workerId: worker.id,
+        managerId: worker.managerId,
+        selfReviewDueDate,
+        managerReviewDueDate,
+      });
+    }
+
     const notificationsCreated = await this.performanceNotificationService.notifyReviewCycleSetup({
       tenantId: ar.tenantId,
       cycleId: ar.id,
       cycleName: ar.name,
       actorId: req.actor?.actorId,
     });
-    return this.mergeCommandResult(result, { notificationsCreated });
+    const reviewTaskNotificationsCreated = await this.performanceNotificationService.notifyReviewAssignments({
+      tenantId: ar.tenantId,
+      cycleId: ar.id,
+      cycleName: ar.name,
+      assignments: reviewAssignments,
+      actorId: req.actor?.actorId,
+    });
+    return this.mergeCommandResult(result, {
+      notificationsCreated,
+      reviewAssignmentsCreated: reviewAssignments.length,
+      reviewTaskNotificationsCreated,
+    });
   }
 
   @Post('review-cycles/:id/commands/activate')
@@ -480,18 +614,18 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('ClosePerformanceReviewCycle', 'PerformanceReviewCycle', { performanceReviewCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Get('review-cycles/tenant/:tenantId')
+  async getReviewCyclesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertCanAccessTenant(req, tenantId);
+    return this.cycleRepo.findByTenant(new Uuid(tenantId));
+  }
+
   @Get('review-cycles/:id')
   async getReviewCycle(@Param('id') id: string, @Req() req: Request) {
     const cycle = await this.cycleRepo.findById(new Uuid(id));
     if (!cycle) throw new NotFoundException('Review cycle not found');
     this.assertCanAccessTenant(req, cycle.tenantId.value);
     return cycle;
-  }
-
-  @Get('review-cycles/tenant/:tenantId')
-  async getReviewCyclesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
-    this.assertCanAccessTenant(req, tenantId);
-    return this.cycleRepo.findByTenant(new Uuid(tenantId));
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -544,14 +678,6 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('DisputePerformanceReview', 'PerformanceReview', { performanceReviewId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('reviews/:id')
-  async getReview(@Param('id') id: string, @Req() req: Request) {
-    const review = await this.reviewRepo.findById(new Uuid(id));
-    if (!review) throw new NotFoundException('Review not found');
-    await this.assertCanAccessWorker(req, review.workerId.value);
-    return review;
-  }
-
   @Get('reviews/worker/:workerId')
   async getReviewsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     await this.assertCanAccessWorker(req, workerId);
@@ -564,6 +690,20 @@ export class PerformanceController {
     if (!cycle) throw new NotFoundException('Review cycle not found');
     this.assertCanAccessTenant(req, cycle.tenantId.value);
     return this.reviewRepo.findByReviewCycle(new Uuid(cycleId));
+  }
+
+  @Get('reviews/manager/:managerId')
+  async getReviewsByManager(@Param('managerId') managerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, managerId);
+    return this.reviewRepo.findByManager(new Uuid(managerId));
+  }
+
+  @Get('reviews/:id')
+  async getReview(@Param('id') id: string, @Req() req: Request) {
+    const review = await this.reviewRepo.findById(new Uuid(id));
+    if (!review) throw new NotFoundException('Review not found');
+    await this.assertCanAccessWorker(req, review.workerId.value);
+    return review;
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -609,18 +749,18 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('CancelGoal', 'Goal', { goalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Get('goals/worker/:workerId')
+  async getGoalsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.goalRepo.findByWorker(new Uuid(workerId));
+  }
+
   @Get('goals/:id')
   async getGoal(@Param('id') id: string, @Req() req: Request) {
     const goal = await this.goalRepo.findById(new Uuid(id));
     if (!goal) throw new NotFoundException('Goal not found');
     await this.assertCanAccessWorker(req, goal.workerId.value);
     return goal;
-  }
-
-  @Get('goals/worker/:workerId')
-  async getGoalsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
-    await this.assertCanAccessWorker(req, workerId);
-    return this.goalRepo.findByWorker(new Uuid(workerId));
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -659,20 +799,20 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('FinalizeCalibrationSession', 'CalibrationSession', { calibrationSessionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('calibration-sessions/:id')
-  async getCalibrationSession(@Param('id') id: string, @Req() req: Request) {
-    const session = await this.calibrationRepo.findById(new Uuid(id));
-    if (!session) throw new NotFoundException('Calibration session not found');
-    this.assertCanAccessTenant(req, session.tenantId.value);
-    return session;
-  }
-
   @Get('calibration-sessions/cycle/:cycleId')
   async getCalibrationSessionsByCycle(@Param('cycleId') cycleId: string, @Req() req: Request) {
     const cycle = await this.cycleRepo.findById(new Uuid(cycleId));
     if (!cycle) throw new NotFoundException('Review cycle not found');
     this.assertCanAccessTenant(req, cycle.tenantId.value);
     return this.calibrationRepo.findByReviewCycle(new Uuid(cycleId));
+  }
+
+  @Get('calibration-sessions/:id')
+  async getCalibrationSession(@Param('id') id: string, @Req() req: Request) {
+    const session = await this.calibrationRepo.findById(new Uuid(id));
+    if (!session) throw new NotFoundException('Calibration session not found');
+    this.assertCanAccessTenant(req, session.tenantId.value);
+    return session;
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -687,42 +827,62 @@ export class PerformanceController {
   async activatePIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.executeCommand(this.buildCommand('ActivatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('ActivatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('improvement-plans/:id/commands/enter-review')
   async enterReviewPIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.executeCommand(this.buildCommand('EnterReviewPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('EnterReviewPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('improvement-plans/:id/commands/complete')
   async completePIP(@Param('id') id: string, @Body(new ZodValidationPipe(CompletePerformanceImprovementPlanDtoSchema)) dto: dtos.CompletePerformanceImprovementPlanDto, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.executeCommand(this.buildCommand('CompletePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), outcome: dto.outcome }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('CompletePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), outcome: dto.outcome }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('improvement-plans/:id/commands/close')
   async closePIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.executeCommand(this.buildCommand('ClosePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('ClosePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('improvement-plans/:id/commands/extend')
   async extendPIP(@Param('id') id: string, @Body(new ZodValidationPipe(ExtendPerformanceImprovementPlanDtoSchema)) dto: dtos.ExtendPerformanceImprovementPlanDto, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.executeCommand(this.buildCommand('ExtendPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), newEndDate: dto.newEndDate }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('ExtendPerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), newEndDate: dto.newEndDate }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
+  }
+
+  @Post('improvement-plans/:id/commands/record-checkpoint')
+  async recordPIPCheckpoint(@Param('id') id: string, @Body(new ZodValidationPipe(RecordPerformanceImprovementPlanCheckpointDtoSchema)) dto: dtos.RecordPerformanceImprovementPlanCheckpointDto, @Req() req: Request) {
+    const ar = await this.pipRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('PIP not found');
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('RecordPerformanceImprovementPlanCheckpoint', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id), ...dto }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
   }
 
   @Post('improvement-plans/:id/commands/terminate')
   async terminatePIP(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.pipRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('PIP not found');
-    return this.executeCommand(this.buildCommand('TerminatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    await this.assertCanAccessWorker(req, ar.workerId.value);
+    return this.executeCommand(this.buildCommand('TerminatePerformanceImprovementPlan', 'PerformanceImprovementPlan', { performanceImprovementPlanId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: ar.workerId }));
+  }
+
+  @Get('improvement-plans/worker/:workerId')
+  async getPIPsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.pipRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('improvement-plans/:id')
@@ -731,12 +891,6 @@ export class PerformanceController {
     if (!pip) throw new NotFoundException('Performance improvement plan not found');
     await this.assertCanAccessWorker(req, pip.workerId.value);
     return pip;
-  }
-
-  @Get('improvement-plans/worker/:workerId')
-  async getPIPsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
-    await this.assertCanAccessWorker(req, workerId);
-    return this.pipRepo.findByWorker(new Uuid(workerId));
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -758,7 +912,61 @@ export class PerformanceController {
   async launchFeedback360Cycle(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.feedback360CycleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
-    return this.executeCommand(this.buildCommand('LaunchPerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    const result = await this.executeCommand(this.buildCommand('LaunchPerformanceFeedback360Cycle', 'PerformanceFeedback360Cycle', { feedback360CycleId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+    const activeWorkers = (await this.workerRepo.findActive()).filter((worker) => worker.tenantId.value === ar.tenantId.value);
+    const existingResponses = await this.feedback360ResponseRepo.findByCycle(ar.id);
+    const existingResponseKeys = new Set(existingResponses.map((response) => `${response.revieweeId.value}:${response.reviewerId.value}`));
+    const maxPeerReviews = Math.max(1, ar.maxPeerReviews ?? 5);
+    const minPeerReviews = Math.max(1, ar.minPeerReviews ?? 3);
+    let feedbackRequestsCreated = 0;
+    let feedbackNotificationsCreated = 0;
+    const feedbackCoverageWarnings: string[] = [];
+
+    for (const reviewee of activeWorkers) {
+      const eligibleReviewers = activeWorkers
+        .filter((candidate) => candidate.id.value !== reviewee.id.value)
+        .map((candidate) => ({
+          candidate,
+          relationshipType: this.feedbackRelationshipType(reviewee, candidate),
+        }))
+        .filter((candidate) => Boolean(candidate.relationshipType))
+        .slice(0, maxPeerReviews);
+
+      if (eligibleReviewers.length < minPeerReviews) {
+        feedbackCoverageWarnings.push(`${reviewee.id.value} has ${eligibleReviewers.length} eligible 360 reviewers; minimum is ${minPeerReviews}.`);
+      }
+
+      for (const { candidate, relationshipType } of eligibleReviewers) {
+        const key = `${reviewee.id.value}:${candidate.id.value}`;
+        if (existingResponseKeys.has(key)) continue;
+        const createResponseResult = await this.executeCommand(this.buildCommand('CreatePerformanceFeedback360Response', 'PerformanceFeedback360Response', {
+          cycleId: ar.id.value,
+          revieweeId: reviewee.id.value,
+          reviewerId: candidate.id.value,
+          relationshipType,
+          isAnonymous: ar.anonymityEnabled,
+        }, req, { subjectWorkerId: reviewee.id }));
+        const feedback360ResponseId = this.commandDataValue(createResponseResult, 'feedback360ResponseId');
+        if (!feedback360ResponseId) continue;
+        feedbackRequestsCreated += 1;
+        existingResponseKeys.add(key);
+        feedbackNotificationsCreated += await this.performanceNotificationService.notifyPeerReviewRequest({
+          tenantId: ar.tenantId,
+          cycleId: ar.id,
+          cycleName: ar.name,
+          revieweeId: reviewee.id,
+          reviewerId: candidate.id,
+          feedback360ResponseId,
+          isAnonymous: ar.anonymityEnabled,
+        });
+      }
+    }
+
+    return this.mergeCommandResult(result, {
+      feedbackRequestsCreated,
+      feedbackNotificationsCreated,
+      feedbackCoverageWarnings,
+    });
   }
 
   @Post('feedback-360-cycles/:id/commands/close')
@@ -826,6 +1034,7 @@ export class PerformanceController {
     const reviewee = await this.workerRepo.findById(new Uuid(dto.revieweeId));
     if (!reviewee) throw new NotFoundException('Reviewee not found');
     if (reviewee.id.value === reviewer.id.value) throw new BadRequestException('360 feedback must target another employee');
+    await this.assertSelfServiceFeedbackEligibility(cycle, reviewer, reviewee, dto.relationshipType);
 
     const createResult = await this.executeCommand(this.buildCommand('CreatePerformanceFeedback360Response', 'PerformanceFeedback360Response', {
       cycleId: dto.cycleId,
@@ -872,14 +1081,6 @@ export class PerformanceController {
     }));
   }
 
-  @Get('feedback-360-responses/:id')
-  async getFeedback360Response(@Param('id') id: string, @Req() req: Request) {
-    const response = await this.feedback360ResponseRepo.findById(new Uuid(id));
-    if (!response) throw new NotFoundException('Feedback 360 response not found');
-    await this.assertCanAccessFeedbackResponse(req, response);
-    return this.presentFeedbackResponse(response, req);
-  }
-
   @Get('feedback-360-responses/cycle/:cycleId')
   async getFeedback360ResponsesByCycle(@Param('cycleId') cycleId: string, @Req() req: Request) {
     const cycle = await this.feedback360CycleRepo.findById(new Uuid(cycleId));
@@ -901,6 +1102,14 @@ export class PerformanceController {
     await this.assertCanAccessWorker(req, reviewerId);
     const responses = await this.feedback360ResponseRepo.findByReviewer(new Uuid(reviewerId));
     return responses.map((response) => this.presentFeedbackResponse(response, req, reviewerId));
+  }
+
+  @Get('feedback-360-responses/:id')
+  async getFeedback360Response(@Param('id') id: string, @Req() req: Request) {
+    const response = await this.feedback360ResponseRepo.findById(new Uuid(id));
+    if (!response) throw new NotFoundException('Feedback 360 response not found');
+    await this.assertCanAccessFeedbackResponse(req, response);
+    return this.presentFeedbackResponse(response, req);
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -939,14 +1148,6 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('CancelObjective', 'Objective', { objectiveId: id, reason: 'Cancelled via API' }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('objectives/:id')
-  async getObjective(@Param('id') id: string, @Req() req: Request) {
-    const objective = await this.objectiveRepo.findById(new Uuid(id));
-    if (!objective) throw new NotFoundException('Objective not found');
-    await this.assertCanAccessWorker(req, objective.ownerId.value);
-    return objective;
-  }
-
   @Get('objectives/owner/:ownerId')
   async getObjectivesByOwner(@Param('ownerId') ownerId: string, @Req() req: Request) {
     await this.assertCanAccessWorker(req, ownerId);
@@ -962,7 +1163,15 @@ export class PerformanceController {
   @Get('objectives/parent/:parentObjectiveId')
   async getObjectivesByParent(@Param('parentObjectiveId') parentObjectiveId: string, @Req() req: Request) {
     this.assertCanReadOrganizationalPerformance(req);
-    return this.objectiveRepo.findByReviewCycle(new Uuid(parentObjectiveId));
+    return this.objectiveRepo.findByParent(new Uuid(parentObjectiveId));
+  }
+
+  @Get('objectives/:id')
+  async getObjective(@Param('id') id: string, @Req() req: Request) {
+    const objective = await this.objectiveRepo.findById(new Uuid(id));
+    if (!objective) throw new NotFoundException('Objective not found');
+    await this.assertCanAccessWorker(req, objective.ownerId.value);
+    return objective;
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1004,6 +1213,14 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('CancelKeyResult', 'KeyResult', { keyResultId: id, reason: 'Cancelled via API' }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Get('key-results/objective/:objectiveId')
+  async getKeyResultsByObjective(@Param('objectiveId') objectiveId: string, @Req() req: Request) {
+    const objective = await this.objectiveRepo.findById(new Uuid(objectiveId));
+    if (!objective) throw new NotFoundException('Objective not found');
+    await this.assertCanAccessWorker(req, objective.ownerId.value);
+    return this.keyResultRepo.findByObjective(new Uuid(objectiveId));
+  }
+
   @Get('key-results/:id')
   async getKeyResult(@Param('id') id: string, @Req() req: Request) {
     const keyResult = await this.keyResultRepo.findById(new Uuid(id));
@@ -1015,14 +1232,6 @@ export class PerformanceController {
       this.assertCanReadOrganizationalPerformance(req);
     }
     return keyResult;
-  }
-
-  @Get('key-results/objective/:objectiveId')
-  async getKeyResultsByObjective(@Param('objectiveId') objectiveId: string, @Req() req: Request) {
-    const objective = await this.objectiveRepo.findById(new Uuid(objectiveId));
-    if (!objective) throw new NotFoundException('Objective not found');
-    await this.assertCanAccessWorker(req, objective.ownerId.value);
-    return this.keyResultRepo.findByObjective(new Uuid(objectiveId));
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1061,14 +1270,6 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('ArchiveKpi', 'KeyPerformanceIndicator', { kpiId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('kpis/:id')
-  async getKpi(@Param('id') id: string, @Req() req: Request) {
-    this.assertCanReadOrganizationalPerformance(req);
-    const kpi = await this.kpiRepo.findById(new Uuid(id));
-    if (!kpi) throw new NotFoundException('KPI not found');
-    return kpi;
-  }
-
   @Get('kpis/org-unit/:orgUnitId')
   async getKpisByOrgUnit(@Param('orgUnitId') orgUnitId: string, @Req() req: Request) {
     this.assertCanReadOrganizationalPerformance(req);
@@ -1079,6 +1280,14 @@ export class PerformanceController {
   async getKpisByDepartment(@Param('category') category: string, @Req() req: Request) {
     this.assertCanReadOrganizationalPerformance(req);
     return this.kpiRepo.findByDepartment(category);
+  }
+
+  @Get('kpis/:id')
+  async getKpi(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    const kpi = await this.kpiRepo.findById(new Uuid(id));
+    if (!kpi) throw new NotFoundException('KPI not found');
+    return kpi;
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1099,18 +1308,18 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('ValidateKpiMeasurement', 'KpiMeasurement', { kpiMeasurementId: id, validatedBy: dto.validatedBy }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Get('kpi-measurements/kpi/:kpiId')
+  async getKpiMeasurementsByKpi(@Param('kpiId') kpiId: string, @Req() req: Request) {
+    this.assertCanReadOrganizationalPerformance(req);
+    return this.kpiMeasurementRepo.findByKpi(new Uuid(kpiId));
+  }
+
   @Get('kpi-measurements/:id')
   async getKpiMeasurement(@Param('id') id: string, @Req() req: Request) {
     this.assertCanReadOrganizationalPerformance(req);
     const measurement = await this.kpiMeasurementRepo.findById(new Uuid(id));
     if (!measurement) throw new NotFoundException('KPI measurement not found');
     return measurement;
-  }
-
-  @Get('kpi-measurements/kpi/:kpiId')
-  async getKpiMeasurementsByKpi(@Param('kpiId') kpiId: string, @Req() req: Request) {
-    this.assertCanReadOrganizationalPerformance(req);
-    return this.kpiMeasurementRepo.findByKpi(new Uuid(kpiId));
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1135,18 +1344,18 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('ArchiveReviewTemplate', 'ReviewTemplate', { reviewTemplateId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Get('review-templates/tenant/:tenantId')
+  async getReviewTemplatesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertCanAccessTenant(req, tenantId);
+    return this.reviewTemplateRepo.findByTenant(new Uuid(tenantId));
+  }
+
   @Get('review-templates/:id')
   async getReviewTemplate(@Param('id') id: string, @Req() req: Request) {
     const template = await this.reviewTemplateRepo.findById(new Uuid(id));
     if (!template) throw new NotFoundException('Review template not found');
     this.assertCanAccessTenant(req, template.tenantId.value);
     return template;
-  }
-
-  @Get('review-templates/tenant/:tenantId')
-  async getReviewTemplatesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
-    this.assertCanAccessTenant(req, tenantId);
-    return this.reviewTemplateRepo.findByTenant(new Uuid(tenantId));
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1171,14 +1380,6 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('DeactivateCompetency', 'Competency', { competencyId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('competencies/:id')
-  async getCompetency(@Param('id') id: string, @Req() req: Request) {
-    const competency = await this.competencyRepo.findById(new Uuid(id));
-    if (!competency) throw new NotFoundException('Competency not found');
-    this.assertCanAccessTenant(req, competency.tenantId.value);
-    return competency;
-  }
-
   @Get('competencies/category/:category')
   async getCompetenciesByCategory(@Param('category') category: string, @Req() req: Request) {
     this.assertCanReadOrganizationalPerformance(req);
@@ -1189,6 +1390,14 @@ export class PerformanceController {
   async getCompetenciesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
     this.assertCanAccessTenant(req, tenantId);
     return this.competencyRepo.findByTenant(new Uuid(tenantId));
+  }
+
+  @Get('competencies/:id')
+  async getCompetency(@Param('id') id: string, @Req() req: Request) {
+    const competency = await this.competencyRepo.findById(new Uuid(id));
+    if (!competency) throw new NotFoundException('Competency not found');
+    this.assertCanAccessTenant(req, competency.tenantId.value);
+    return competency;
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -1227,17 +1436,17 @@ export class PerformanceController {
     return this.executeCommand(this.buildCommand('CloseDevelopmentPlan', 'DevelopmentPlan', { developmentPlanId: id }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Get('development-plans/worker/:workerId')
+  async getDevelopmentPlansByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
+    return this.developmentPlanRepo.findByWorker(new Uuid(workerId));
+  }
+
   @Get('development-plans/:id')
   async getDevelopmentPlan(@Param('id') id: string, @Req() req: Request) {
     const plan = await this.developmentPlanRepo.findById(new Uuid(id));
     if (!plan) throw new NotFoundException('Development plan not found');
     await this.assertCanAccessWorker(req, plan.workerId.value);
     return plan;
-  }
-
-  @Get('development-plans/worker/:workerId')
-  async getDevelopmentPlansByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
-    await this.assertCanAccessWorker(req, workerId);
-    return this.developmentPlanRepo.findByWorker(new Uuid(workerId));
   }
 }

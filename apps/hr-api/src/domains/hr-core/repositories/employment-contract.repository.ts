@@ -5,6 +5,13 @@ import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { EmploymentContract, type EmploymentContractState } from '../aggregates/employment-contract.aggregate.js';
 
+export interface EmploymentContractExpiryAlertRow {
+  workerId: string;
+  contractId: string;
+  expiryDate: string;
+  daysUntilExpiry: number;
+}
+
 /**
  * Repository for {@link EmploymentContract} aggregates.
  */
@@ -21,6 +28,16 @@ export class EmploymentContractRepository extends BaseRepository<'employment_con
     return row ? this.toAggregate(row as unknown as Database['employment_contracts']) : undefined;
   }
 
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<EmploymentContract | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['employment_contracts']) : undefined;
+  }
+
   async findByWorker(workerId: Uuid): Promise<EmploymentContract[]> {
     const rows = await this.db
       .selectFrom(this.tableName)
@@ -28,6 +45,44 @@ export class EmploymentContractRepository extends BaseRepository<'employment_con
       .where('worker_id', '=', workerId.value)
       .execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['employment_contracts']));
+  }
+
+  async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<EmploymentContract[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['employment_contracts']));
+  }
+
+  async findExpiringWithin(days: number): Promise<EmploymentContractExpiryAlertRow[]> {
+    return this.findExpiringWithinForTenant(days);
+  }
+
+  async findExpiringWithinForTenant(days: number, tenantId?: Uuid): Promise<EmploymentContractExpiryAlertRow[]> {
+    const cutoff = new Date();
+    cutoff.setUTCDate(cutoff.getUTCDate() + days);
+    let query = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('end_date', 'is not', null)
+      .where('end_date', '<=', cutoff);
+    if (tenantId) {
+      query = query.where('tenant_id', '=', tenantId.value);
+    }
+    const rows = await query.execute();
+
+    return rows
+      .map((row) => ({
+        workerId: row.worker_id,
+        contractId: row.id,
+        expiryDate: this.isoDate(row.end_date),
+        daysUntilExpiry: this.daysUntil(row.end_date),
+      }))
+      .filter((alert): alert is EmploymentContractExpiryAlertRow => Boolean(alert.expiryDate))
+      .sort((left, right) => left.daysUntilExpiry - right.daysUntilExpiry);
   }
 
   async save(entity: EmploymentContract): Promise<void> {
@@ -72,5 +127,21 @@ export class EmploymentContractRepository extends BaseRepository<'employment_con
       created_at: entity.createdAt,
       updated_at: entity.updatedAt,
     };
+  }
+
+  private isoDate(value: Date | string | null | undefined): string {
+    if (!value) return '';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  }
+
+  private daysUntil(value: Date | string | null | undefined): number {
+    if (!value) return Number.POSITIVE_INFINITY;
+    const expiry = value instanceof Date ? value : new Date(value);
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const expiryDay = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate());
+    return Math.ceil((expiryDay - today) / (24 * 60 * 60 * 1000));
   }
 }

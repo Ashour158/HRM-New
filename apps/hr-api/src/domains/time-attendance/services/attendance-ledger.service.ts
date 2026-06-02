@@ -28,6 +28,7 @@ export interface AttendanceLedgerWorker {
   employeeId: string;
   name: string;
   email: string;
+  departmentId?: string;
   departmentName?: string;
   managerId?: string;
   scheduledDailyMinutes?: number;

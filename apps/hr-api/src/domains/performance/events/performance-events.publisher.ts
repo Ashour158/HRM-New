@@ -20,14 +20,30 @@ export class PerformanceEventsPublisher {
     tenantId: Uuid;
     status: string;
     domainEvents: DomainEvent[];
+    workerId?: Uuid;
+    revieweeId?: Uuid;
+    reviewerId?: Uuid;
+    ownerId?: Uuid;
   }): Promise<void> {
     const events = aggregate.domainEvents
-      .map((e) => this.toEnvelope(e, aggregate.id, aggregate.tenantId))
+      .map((e) => this.toEnvelope(e, aggregate))
       .filter((e): e is HrEventEnvelope<unknown> => !!e);
     await Promise.all(events.map((e) => this.eventBus.publish(e)));
   }
 
-  private toEnvelope(event: DomainEvent, aggregateId: Uuid, tenantId: Uuid): HrEventEnvelope<unknown> | undefined {
+  private toEnvelope(
+    event: DomainEvent,
+    aggregate: {
+      id: Uuid;
+      tenantId: Uuid;
+      workerId?: Uuid;
+      revieweeId?: Uuid;
+      reviewerId?: Uuid;
+      ownerId?: Uuid;
+    },
+  ): HrEventEnvelope<unknown> | undefined {
+    const aggregateId = aggregate.id;
+    const tenantId = aggregate.tenantId;
     const base = {
       eventId: event.eventId,
       eventName: event.eventName,
@@ -36,7 +52,7 @@ export class PerformanceEventsPublisher {
       aggregateType: event.aggregateType ?? 'Performance',
       aggregateId,
       metadata: { correlationId: event.correlationId, causationId: event.causationId, requestHash: '', clientType: 'HR_ADMIN' as const },
-      privacy: this.buildPrivacy(event, aggregateId),
+      privacy: this.buildPrivacy(aggregate),
       occurredAt: event.occurredAt,
       version: event.version,
     };
@@ -125,7 +141,16 @@ export class PerformanceEventsPublisher {
     return fields[aggregateType] ?? `${aggregateType.charAt(0).toLowerCase()}${aggregateType.slice(1)}Id`;
   }
 
-  private buildPrivacy(_event: DomainEvent, aggregateId: Uuid): HrEventPrivacy {
-    return createPrivacyForEvent('NONE', aggregateId.value, 'PROFILE');
+  private buildPrivacy(aggregate: {
+    workerId?: Uuid;
+    revieweeId?: Uuid;
+    reviewerId?: Uuid;
+    ownerId?: Uuid;
+  }): HrEventPrivacy {
+    const subjectWorkerId = aggregate.workerId?.value
+      ?? aggregate.revieweeId?.value
+      ?? aggregate.ownerId?.value
+      ?? undefined;
+    return createPrivacyForEvent('HIGH', subjectWorkerId, 'PERFORMANCE');
   }
 }

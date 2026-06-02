@@ -1,29 +1,31 @@
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 230 100% 99%;
+    --foreground: 212 63% 12%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 212 63% 12%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 212 63% 12%;
+    --primary: 161 100% 21%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 239 63% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 219 100% 97%;
+    --muted-foreground: 143 10% 26%;
+    --accent: 216 100% 95%;
+    --accent-foreground: 212 63% 12%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+    --border: 143 15% 76%;
+    --input: 216 46% 94%;
+    --ring: 161 100% 21%;
+    --radius: 0.75rem;
   }
 
   .dark {
@@ -50,10 +52,92 @@
 }
 
 @layer base {
+  html {
+    overflow-y: scroll;
+    scrollbar-gutter: stable;
+  }
+
   * {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background font-sans text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    overflow-x: hidden;
+  }
+
+  ::-webkit-scrollbar {
+    height: 12px;
+    width: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: #e5eeff;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: #6c7a71;
+    border: 3px solid #e5eeff;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3c4a42;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-headline;
+  }
+}
+
+@layer components {
+  .lumina-canvas {
+    @apply mx-auto w-full max-w-[1440px] p-4 md:p-6 lg:p-8;
+  }
+
+  .lumina-panel {
+    @apply rounded-xl border border-[#bbcabf] bg-white shadow-[0_4px_20px_rgba(0,0,0,0.05)];
+  }
+
+  .lumina-soft-panel {
+    @apply rounded-xl border border-[#bbcabf]/70 bg-[#eff4ff] shadow-[0_4px_20px_rgba(0,0,0,0.04)];
+  }
+
+  .lumina-accent-strip {
+    @apply absolute left-0 top-0 h-1 w-full bg-[#10b981];
+  }
+
+  .lumina-label {
+    @apply font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42];
+  }
+
+  .lumina-muted {
+    @apply text-[#3c4a42];
+  }
+
+  .lumina-gradient {
+    @apply bg-gradient-to-r from-[#006c49] to-[#10b981];
+  }
+
+  .lumina-table {
+    @apply w-full border-collapse text-left text-sm;
+  }
+
+  .lumina-table thead {
+    @apply bg-[#eff4ff] font-mono text-xs uppercase tracking-wider text-[#3c4a42];
+  }
+
+  .lumina-table th,
+  .lumina-table td {
+    @apply border-b border-[#bbcabf]/50 p-4;
+  }
+
+  .lumina-table tbody tr {
+    @apply transition-colors hover:bg-[#eff4ff]/70;
   }
 }

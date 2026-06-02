@@ -18,23 +18,25 @@ export class CreateShiftScheduleHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      workerId: Uuid;
+      workerId: string | Uuid;
       shiftDate: Date;
       startTime: Date;
       endTime: Date;
       breakDuration: number;
-      departmentId: Uuid;
+      departmentId: string | Uuid;
+      workplaceCode?: string;
     };
     const ar = ShiftSchedule.create(
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        workerId: payload.workerId,
+        workerId: payload.workerId instanceof Uuid ? payload.workerId : new Uuid(payload.workerId),
         shiftDate: payload.shiftDate,
         startTime: payload.startTime,
         endTime: payload.endTime,
         breakDuration: payload.breakDuration,
-        departmentId: payload.departmentId,
+        departmentId: payload.departmentId instanceof Uuid ? payload.departmentId : new Uuid(payload.departmentId),
+        workplaceCode: payload.workplaceCode,
       },
       command.correlationId,
     );

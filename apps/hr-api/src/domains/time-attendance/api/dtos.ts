@@ -2,6 +2,19 @@ import { z } from 'zod';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
+export const CaptureMethodSchema = z.enum([
+  'API_IMPORT',
+  'BIOMETRIC_DEVICE',
+  'FACIAL_RECOGNITION',
+  'MANUAL_CORRECTION',
+  'MOBILE_GEOFENCE',
+  'QR_CODE',
+  'RFID_CARD',
+  'WEB_KIOSK',
+]);
+
+export const VerificationStatusSchema = z.enum(['FAILED', 'NOT_REQUIRED', 'PENDING', 'VERIFIED']);
+
 export const CreateWorkScheduleDtoSchema = z.object({
   workerId: z.string().uuid(),
   scheduleType: z.string().min(1),
@@ -55,7 +68,16 @@ export const RecordTimeClockEventDtoSchema = z.object({
   eventType: z.enum(['CLOCK_IN', 'CLOCK_OUT', 'BREAK_START', 'BREAK_END']),
   timestamp: z.coerce.date(),
   location: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  accuracyMeters: z.number().optional(),
+  workplaceCode: z.string().optional(),
   deviceId: z.string().optional(),
+  captureMethod: CaptureMethodSchema.optional(),
+  captureDeviceKind: z.string().optional(),
+  captureReference: z.string().optional(),
+  verificationStatus: VerificationStatusSchema.optional(),
+  captureEvidence: z.record(z.unknown()).optional(),
 });
 
 export class RecordTimeClockEventDto {
@@ -63,7 +85,16 @@ export class RecordTimeClockEventDto {
   @ApiProperty() eventType!: 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_START' | 'BREAK_END';
   @ApiProperty() timestamp!: Date;
   @ApiPropertyOptional() location?: string;
+  @ApiPropertyOptional() latitude?: number;
+  @ApiPropertyOptional() longitude?: number;
+  @ApiPropertyOptional() accuracyMeters?: number;
+  @ApiPropertyOptional() workplaceCode?: string;
   @ApiPropertyOptional() deviceId?: string;
+  @ApiPropertyOptional() captureMethod?: z.infer<typeof CaptureMethodSchema>;
+  @ApiPropertyOptional() captureDeviceKind?: string;
+  @ApiPropertyOptional() captureReference?: string;
+  @ApiPropertyOptional() verificationStatus?: z.infer<typeof VerificationStatusSchema>;
+  @ApiPropertyOptional() captureEvidence?: Record<string, unknown>;
 }
 
 export const CheckInOutDtoSchema = z.object({
@@ -74,6 +105,11 @@ export const CheckInOutDtoSchema = z.object({
   accuracyMeters: z.number().optional(),
   deviceId: z.string().optional(),
   timestamp: z.coerce.date().optional(),
+  captureMethod: CaptureMethodSchema.optional(),
+  captureDeviceKind: z.string().optional(),
+  captureReference: z.string().optional(),
+  verificationStatus: VerificationStatusSchema.optional(),
+  captureEvidence: z.record(z.unknown()).optional(),
 });
 
 export class CheckInOutDto {
@@ -84,6 +120,11 @@ export class CheckInOutDto {
   @ApiPropertyOptional() accuracyMeters?: number;
   @ApiPropertyOptional() deviceId?: string;
   @ApiPropertyOptional() timestamp?: Date;
+  @ApiPropertyOptional() captureMethod?: z.infer<typeof CaptureMethodSchema>;
+  @ApiPropertyOptional() captureDeviceKind?: string;
+  @ApiPropertyOptional() captureReference?: string;
+  @ApiPropertyOptional() verificationStatus?: z.infer<typeof VerificationStatusSchema>;
+  @ApiPropertyOptional() captureEvidence?: Record<string, unknown>;
 }
 
 export const OnDutyRequestDtoSchema = z.object({

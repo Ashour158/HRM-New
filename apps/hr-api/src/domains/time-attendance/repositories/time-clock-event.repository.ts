@@ -3,7 +3,31 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { TimeClockEvent, type TimeClockEventStatus, type TimeClockEventType } from '../aggregates/time-clock-event.aggregate.js';
+import { TimeClockEvent, type TimeClockCaptureMethod, type TimeClockEventStatus, type TimeClockEventType } from '../aggregates/time-clock-event.aggregate.js';
+
+function parseJsonArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (typeof value !== 'string') return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string') return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 @Injectable()
 export class TimeClockEventRepository extends BaseRepository<'time_clock_events', TimeClockEvent> {
@@ -54,7 +78,25 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
       eventType: row.event_type as TimeClockEventType,
       timestamp: row.timestamp,
       location: row.location ?? undefined,
+      latitude: row.latitude === null || row.latitude === undefined ? undefined : Number(row.latitude),
+      longitude: row.longitude === null || row.longitude === undefined ? undefined : Number(row.longitude),
+      accuracyMeters: row.accuracy_meters === null || row.accuracy_meters === undefined ? undefined : Number(row.accuracy_meters),
+      workplaceCode: row.workplace_code ?? undefined,
+      distanceMeters: row.distance_meters === null || row.distance_meters === undefined ? undefined : Number(row.distance_meters),
+      geofenceRadiusMeters: row.geofence_radius_meters === null || row.geofence_radius_meters === undefined ? undefined : Number(row.geofence_radius_meters),
+      geofenceProfileCode: row.geofence_profile_code ?? undefined,
+      locationStatus: row.location_status ?? undefined,
+      deviceTrustLevel: row.device_trust_level ?? undefined,
+      trustLevel: row.trust_level ?? undefined,
+      trustScore: row.trust_score === null || row.trust_score === undefined ? undefined : Number(row.trust_score),
+      trustRequiresApproval: row.trust_requires_approval ?? undefined,
+      trustReasons: parseJsonArray(row.trust_reasons),
       deviceId: row.device_id ?? undefined,
+      captureMethod: row.capture_method ? row.capture_method as TimeClockCaptureMethod : undefined,
+      captureDeviceKind: row.capture_device_kind ?? undefined,
+      captureReference: row.capture_reference ?? undefined,
+      verificationStatus: row.verification_status ? row.verification_status as TimeClockEvent['verificationStatus'] : undefined,
+      captureEvidence: parseJsonObject(row.capture_evidence),
       status: row.status as TimeClockEventStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -70,7 +112,25 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
       event_type: entity.eventType,
       timestamp: entity.timestamp,
       location: entity.location ?? null,
+      latitude: entity.latitude ?? null,
+      longitude: entity.longitude ?? null,
+      accuracy_meters: entity.accuracyMeters ?? null,
+      workplace_code: entity.workplaceCode ?? null,
+      distance_meters: entity.distanceMeters ?? null,
+      geofence_radius_meters: entity.geofenceRadiusMeters ?? null,
+      geofence_profile_code: entity.geofenceProfileCode ?? null,
+      location_status: entity.locationStatus ?? null,
+      device_trust_level: entity.deviceTrustLevel ?? null,
+      trust_level: entity.trustLevel ?? null,
+      trust_score: entity.trustScore ?? null,
+      trust_requires_approval: entity.trustRequiresApproval ?? null,
+      trust_reasons: entity.trustReasons ? JSON.stringify(entity.trustReasons) : null,
       device_id: entity.deviceId ?? null,
+      capture_method: entity.captureMethod ?? null,
+      capture_device_kind: entity.captureDeviceKind ?? null,
+      capture_reference: entity.captureReference ?? null,
+      verification_status: entity.verificationStatus ?? null,
+      capture_evidence: JSON.stringify(entity.captureEvidence ?? {}),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

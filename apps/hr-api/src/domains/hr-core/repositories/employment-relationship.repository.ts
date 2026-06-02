@@ -24,11 +24,31 @@ export class EmploymentRelationshipRepository extends BaseRepository<'employment
     return row ? this.toAggregate(row as unknown as Database['employment_relationships']) : undefined;
   }
 
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<EmploymentRelationship | undefined> {
+    const row = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row as unknown as Database['employment_relationships']) : undefined;
+  }
+
   async findByWorker(workerId: Uuid): Promise<EmploymentRelationship[]> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
       .where('worker_id', '=', workerId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['employment_relationships']));
+  }
+
+  async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<EmploymentRelationship[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', tenantId.value)
       .execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['employment_relationships']));
   }

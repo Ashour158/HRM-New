@@ -4,6 +4,21 @@ import { AggregateRoot, DomainEvent, Uuid, Guard, ConflictError } from '@hcm/sha
  * Canonical onboarding task status values.
  */
 export type OnboardingTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'OVERDUE' | 'SKIPPED';
+export type OnboardingTaskOwnerGroup = 'HR' | 'IT' | 'FINANCE' | 'ADMIN' | 'MANAGER' | 'SECURITY' | 'FACILITIES' | 'EMPLOYEE' | 'BUDDY' | 'COMPLIANCE';
+export type OnboardingTaskCategory =
+  | 'PREBOARDING'
+  | 'DOCUMENT'
+  | 'SIGNATURE'
+  | 'IT_PROVISIONING'
+  | 'FACILITY_ACCESS'
+  | 'FINANCE_SETUP'
+  | 'MANAGER_CHECKIN'
+  | 'TRAINING'
+  | 'COMPLIANCE'
+  | 'MILESTONE_30'
+  | 'MILESTONE_60'
+  | 'MILESTONE_90'
+  | 'PROBATION';
 
 /**
  * Properties required to construct or rehydrate an {@link OnboardingTask} aggregate.
@@ -15,6 +30,15 @@ export interface OnboardingTaskProps {
   title: string;
   description?: string;
   assignedTo?: Uuid;
+  ownerGroup?: OnboardingTaskOwnerGroup;
+  category?: OnboardingTaskCategory;
+  required?: boolean;
+  evidenceType?: string;
+  evidencePayload?: Record<string, unknown>;
+  provisioningTarget?: string;
+  signingProviderEnvelopeId?: string;
+  milestoneDay?: number;
+  completionNotes?: string;
   dueDate?: Date;
   completedAt?: Date;
   status?: OnboardingTaskStatus;
@@ -66,6 +90,18 @@ export class OnboardingTaskCompleted extends DomainEvent {
   }
 }
 
+export class OnboardingTaskEvidenceRecorded extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({
+      eventName: 'OnboardingTaskEvidenceRecorded',
+      tenantId: props.tenantId,
+      aggregateType: 'OnboardingTask',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+  }
+}
+
 export class OnboardingTaskOverdue extends DomainEvent {
   constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
     super({
@@ -109,6 +145,15 @@ export class OnboardingTask extends AggregateRoot {
   title: string;
   description?: string;
   assignedTo?: Uuid;
+  ownerGroup: OnboardingTaskOwnerGroup;
+  category: OnboardingTaskCategory;
+  required: boolean;
+  evidenceType?: string;
+  evidencePayload?: Record<string, unknown>;
+  provisioningTarget?: string;
+  signingProviderEnvelopeId?: string;
+  milestoneDay?: number;
+  completionNotes?: string;
   dueDate?: Date;
   completedAt?: Date;
   status: OnboardingTaskStatus;
@@ -137,6 +182,15 @@ export class OnboardingTask extends AggregateRoot {
     this.title = props.title;
     this.description = props.description;
     this.assignedTo = props.assignedTo;
+    this.ownerGroup = props.ownerGroup ?? 'HR';
+    this.category = props.category ?? 'PREBOARDING';
+    this.required = props.required ?? true;
+    this.evidenceType = props.evidenceType;
+    this.evidencePayload = props.evidencePayload;
+    this.provisioningTarget = props.provisioningTarget;
+    this.signingProviderEnvelopeId = props.signingProviderEnvelopeId;
+    this.milestoneDay = props.milestoneDay;
+    this.completionNotes = props.completionNotes;
     this.dueDate = props.dueDate;
     this.completedAt = props.completedAt;
     this.status = props.status ?? 'PENDING';
@@ -170,6 +224,13 @@ export class OnboardingTask extends AggregateRoot {
     );
 
     return task;
+  }
+
+  /**
+   * Rehydrate an existing task without emitting creation events.
+   */
+  static restore(props: OnboardingTaskProps): OnboardingTask {
+    return new OnboardingTask(props);
   }
 
   /**
@@ -209,6 +270,43 @@ export class OnboardingTask extends AggregateRoot {
         correlationId,
       }),
     );
+  }
+
+  /**
+   * Attach structured evidence to the task. Used for document upload,
+   * signature envelopes, IT provisioning tickets, compliance proof, and
+   * probation/manager checkpoint notes.
+   */
+  recordEvidence(
+    props: {
+      evidenceType?: string;
+      evidencePayload?: Record<string, unknown>;
+      signingProviderEnvelopeId?: string;
+      provisioningTarget?: string;
+      completionNotes?: string;
+      completeTask?: boolean;
+    },
+    correlationId: Uuid,
+  ): void {
+    if (this.status === 'SKIPPED' || this.status === 'COMPLETED') {
+      throw new ConflictError('Cannot record evidence for a terminal onboarding task');
+    }
+    if (props.evidenceType !== undefined) this.evidenceType = props.evidenceType;
+    if (props.evidencePayload !== undefined) this.evidencePayload = props.evidencePayload;
+    if (props.signingProviderEnvelopeId !== undefined) this.signingProviderEnvelopeId = props.signingProviderEnvelopeId;
+    if (props.provisioningTarget !== undefined) this.provisioningTarget = props.provisioningTarget;
+    if (props.completionNotes !== undefined) this.completionNotes = props.completionNotes;
+    this.bumpVersion();
+    this.addDomainEvent(
+      new OnboardingTaskEvidenceRecorded({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+      }),
+    );
+    if (props.completeTask) {
+      this.complete(correlationId);
+    }
   }
 
   /**
@@ -253,7 +351,7 @@ export class OnboardingTask extends AggregateRoot {
    * Update mutable task attributes.
    */
   update(
-    props: Partial<Pick<OnboardingTaskProps, 'title' | 'description' | 'assignedTo' | 'dueDate'>>,
+    props: Partial<Pick<OnboardingTaskProps, 'title' | 'description' | 'assignedTo' | 'dueDate' | 'ownerGroup' | 'category' | 'required'>>,
     _correlationId: Uuid,
   ): void {
     if (this.status === 'COMPLETED' || this.status === 'SKIPPED') {
@@ -263,6 +361,9 @@ export class OnboardingTask extends AggregateRoot {
     if (props.description !== undefined) this.description = props.description;
     if (props.assignedTo !== undefined) this.assignedTo = props.assignedTo;
     if (props.dueDate !== undefined) this.dueDate = props.dueDate;
+    if (props.ownerGroup !== undefined) this.ownerGroup = props.ownerGroup;
+    if (props.category !== undefined) this.category = props.category;
+    if (props.required !== undefined) this.required = props.required;
     this.bumpVersion();
     this.updatedAt = new Date();
   }

@@ -16,6 +16,7 @@ export type DataCategory =
   | 'ASSET_ACCESS'
   | 'SKILLS'
   | 'CONSENT'
+  | 'CUSTOM'
   | 'SPECIAL_CATEGORY';
 
 export interface PersonalDataRecordProps {

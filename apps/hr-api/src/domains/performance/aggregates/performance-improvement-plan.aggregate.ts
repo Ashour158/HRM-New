@@ -65,6 +65,12 @@ export class PIPExtended extends DomainEvent {
   }
 }
 
+export class PIPCheckpointRecorded extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'PIPCheckpointRecorded', tenantId: props.tenantId, aggregateType: 'PerformanceImprovementPlan', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
 export class PIPTerminated extends DomainEvent {
   constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
     super({ eventName: 'PIPTerminated', tenantId: props.tenantId, aggregateType: 'PerformanceImprovementPlan', aggregateId: props.aggregateId, correlationId: props.correlationId });
@@ -140,7 +146,7 @@ export class PerformanceImprovementPlan extends AggregateRoot {
   }
 
   enterReview(correlationId: Uuid): void {
-    if (this.status !== 'ACTIVE' && this.status !== 'IN_PROGRESS') throw new ValidationError(`Cannot enter review from ${this.status}`);
+    if (this.status !== 'ACTIVE' && this.status !== 'IN_PROGRESS' && this.status !== 'EXTENDED') throw new ValidationError(`Cannot enter review from ${this.status}`);
     this.status = 'REVIEW_PENDING';
     this.addDomainEvent(new PIPReviewPending({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
@@ -169,6 +175,59 @@ export class PerformanceImprovementPlan extends AggregateRoot {
     this.endDate = newEndDate;
     this.status = 'EXTENDED';
     this.addDomainEvent(new PIPExtended({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
+    this.incrementVersion();
+    this.updatedAt = new Date();
+  }
+
+  recordCheckpoint(
+    checkpoint: {
+      milestoneTitle?: string;
+      milestoneDay?: number;
+      milestoneStatus?: string;
+      metricUpdates?: Array<{ metric: string; current: number }>;
+      note?: string;
+    },
+    correlationId: Uuid,
+  ): void {
+    if (!['ACTIVE', 'IN_PROGRESS', 'EXTENDED'].includes(this.status)) {
+      throw new ValidationError(`Cannot record checkpoint from ${this.status}`);
+    }
+
+    if (checkpoint.milestoneTitle || checkpoint.milestoneDay !== undefined) {
+      let matched = false;
+      this.milestones = this.milestones.map((milestone) => {
+        const titleMatches = checkpoint.milestoneTitle && milestone.title === checkpoint.milestoneTitle;
+        const dayMatches = checkpoint.milestoneDay !== undefined && milestone.day === checkpoint.milestoneDay;
+        if (!titleMatches && !dayMatches) return milestone;
+        matched = true;
+        return {
+          ...milestone,
+          status: checkpoint.milestoneStatus ?? milestone.status ?? 'CHECKED_IN',
+        };
+      });
+      if (!matched) {
+        throw new ValidationError('Checkpoint milestone was not found on the action plan');
+      }
+    }
+
+    for (const update of checkpoint.metricUpdates ?? []) {
+      let matched = false;
+      this.trackingMetrics = this.trackingMetrics.map((metric) => {
+        if (metric.metric !== update.metric) return metric;
+        matched = true;
+        return { ...metric, current: update.current };
+      });
+      if (!matched) {
+        this.trackingMetrics.push({ metric: update.metric, current: update.current, target: update.current, unit: 'value' });
+      }
+    }
+
+    if (checkpoint.note?.trim()) {
+      this.successCriteria = [...this.successCriteria, `Checkpoint: ${checkpoint.note.trim()}`];
+    }
+
+    this.status = 'IN_PROGRESS';
+    this.addDomainEvent(new PIPCheckpointRecorded({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }

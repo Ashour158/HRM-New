@@ -6,15 +6,16 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { OnboardingPlanRepository } from '../repositories/onboarding-plan.repository.js';
 import { OnboardingEventsPublisher } from '../events/onboarding-events.publisher.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 export interface StartOnboardingCommandPayload {
-  planId: Uuid;
+  planId: UuidInput;
 }
 
 /**
  * Handler for the StartOnboarding command.
  *
- * Transitions an onboarding plan from SCHEDULED to IN_PROGRESS.
+ * Transitions an onboarding plan into IN_PROGRESS.
  */
 @Injectable()
 @CommandHandler('StartOnboarding')
@@ -29,11 +30,14 @@ export class StartOnboardingHandler implements ICommandHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as StartOnboardingCommandPayload;
-    const plan = await this.planRepo.findById(payload.planId);
+    const plan = await this.planRepo.findById(toUuid(payload.planId));
     if (!plan) {
       throw new NotFoundException('Onboarding plan not found');
     }
 
+    if (plan.status === 'DRAFT') {
+      plan.schedule(plan.startDate, command.correlationId);
+    }
     plan.start(command.correlationId);
     await this.planRepo.save(plan);
     await this.eventPublisher.publishUncommitted(plan, command.tenantId, command.correlationId);

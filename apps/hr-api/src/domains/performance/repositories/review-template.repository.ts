@@ -38,10 +38,10 @@ export class ReviewTemplateRepository extends BaseRepository<'review_templates',
       name: row.name,
       description: row.description ?? undefined,
       templateType: row.template_type,
-      sections: row.sections ?? [],
-      ratingScale: row.rating_scale ?? undefined,
-      competencies: row.competencies ?? undefined,
-      applicableRoles: row.applicable_roles ?? undefined,
+      sections: this.parseJson(row.sections, []),
+      ratingScale: this.parseJson(row.rating_scale, undefined),
+      competencies: this.parseJson(row.competencies, undefined),
+      applicableRoles: this.parseJson(row.applicable_roles, undefined),
       status: (row.status as ReviewTemplateStatus) ?? 'DRAFT',
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -65,5 +65,15 @@ export class ReviewTemplateRepository extends BaseRepository<'review_templates',
       created_at: entity.createdAt,
       updated_at: entity.updatedAt,
     };
+  }
+
+  private parseJson<T>(value: unknown, fallback: T): T {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value !== 'string') return value as T;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return fallback;
+    }
   }
 }

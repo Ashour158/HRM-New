@@ -76,6 +76,7 @@ export interface PerformanceAnalyticsDevelopmentPlan {
 
 export interface BuildPerformanceAnalyticsInput {
   cycleId: string;
+  anonymityThreshold?: number;
   workers: PerformanceAnalyticsWorker[];
   reviews: PerformanceAnalyticsReview[];
   goals: PerformanceAnalyticsGoal[];
@@ -175,8 +176,9 @@ export class PerformanceAnalyticsService {
       workerId: this.id(plan.workerId),
     }));
 
-    const feedbackSummaries = this.buildFeedbackSummaries(workers, feedbackResponses);
+    const feedbackSummaries = this.buildFeedbackSummaries(workers, feedbackResponses, input.anonymityThreshold ?? 3);
     const nineBox = workers.map((worker) => this.placeWorkerInNineBox(worker, reviews, goals, objectives, keyResults, feedbackSummaries));
+    const actionPlans = this.actionPlans(workers, reviews, goals, feedbackSummaries, developmentPlans);
     const recognitions = nineBox
       .filter((placement) => placement.performanceBand === 'HIGH')
       .sort((a, b) => b.performanceScore - a.performanceScore)
@@ -198,31 +200,50 @@ export class PerformanceAnalyticsService {
       nineBox,
       recognitions,
       feedbackSummaries,
-      actionPlans: this.actionPlans(workers, reviews, goals, feedbackSummaries, developmentPlans),
+      actionPlans,
+      scoreExplainability: this.scoreExplainability(workers, reviews, goals, objectives, keyResults, feedbackSummaries),
+      biasChecks: this.biasChecks(workers, reviews, input.anonymityThreshold ?? 3),
+      trendSignals: this.trendSignals(actionPlans),
+      governance: {
+        anonymityThreshold: input.anonymityThreshold ?? 3,
+        performanceFormulaVersion: 'performance-analytics-v2',
+        generatedAt: new Date().toISOString(),
+        inputCounts: {
+          workers: workers.length,
+          reviews: reviews.length,
+          goals: goals.length,
+          feedbackResponses: feedbackResponses.length,
+        },
+      },
     };
   }
 
   private buildFeedbackSummaries(
     workers: Array<PerformanceAnalyticsWorker & { id: string; employeeName: string }>,
     responses: Array<PerformanceAnalyticsFeedback & { id: string; revieweeId: string; reviewerId: string }>,
+    anonymityThreshold: number,
   ): Record<string, PerformanceFeedbackSummary> {
     return workers.reduce<Record<string, PerformanceFeedbackSummary>>((acc, worker) => {
       const workerResponses = responses.filter((response) => response.revieweeId === worker.id);
+      const anonymousResponseCount = workerResponses.filter((response) => response.isAnonymous).length;
+      const suppressAnonymousSummary = anonymousResponseCount > 0 && workerResponses.length < anonymityThreshold;
       const ratings = workerResponses.map((response) => response.overallRating).filter((rating): rating is number => typeof rating === 'number');
-      const strengths = this.takeThemes(workerResponses.map((response) => response.strengths));
-      const improvements = this.takeThemes(workerResponses.map((response) => response.improvements));
-      const averageRating = ratings.length ? this.round(ratings.reduce((sum, value) => sum + value, 0) / ratings.length) : null;
-      const dimensionAverages = this.dimensionAverages(workerResponses.map((response) => response.dimensionScores));
-      const areaThemes = this.areaThemes(workerResponses.map((response) => response.areaComments));
+      const strengths = suppressAnonymousSummary ? [] : this.takeThemes(workerResponses.map((response) => response.strengths));
+      const improvements = suppressAnonymousSummary ? [] : this.takeThemes(workerResponses.map((response) => response.improvements));
+      const averageRating = suppressAnonymousSummary ? null : ratings.length ? this.round(ratings.reduce((sum, value) => sum + value, 0) / ratings.length) : null;
+      const dimensionAverages = suppressAnonymousSummary ? {} : this.dimensionAverages(workerResponses.map((response) => response.dimensionScores));
+      const areaThemes = suppressAnonymousSummary ? {} : this.areaThemes(workerResponses.map((response) => response.areaComments));
       acc[worker.id] = {
         workerId: worker.id,
         responseCount: workerResponses.length,
-        anonymousResponseCount: workerResponses.filter((response) => response.isAnonymous).length,
+        anonymousResponseCount,
         averageRating,
         strengths,
         improvements,
-        conciseFeedback: this.conciseFeedback(strengths, improvements, averageRating),
-        anonymitySuppressionApplied: workerResponses.some((response) => response.isAnonymous),
+        conciseFeedback: suppressAnonymousSummary
+          ? `Anonymous feedback is hidden until the anonymous threshold of ${anonymityThreshold} submitted responses is met.`
+          : this.conciseFeedback(strengths, improvements, averageRating),
+        anonymitySuppressionApplied: suppressAnonymousSummary,
         dimensionAverages,
         areaThemes,
       };
@@ -320,6 +341,83 @@ export class PerformanceAnalyticsService {
       potentialBand,
       box: this.boxLabel(performanceBand, potentialBand),
     };
+  }
+
+  private scoreExplainability(
+    workers: Array<PerformanceAnalyticsWorker & { id: string; employeeName: string }>,
+    reviews: Array<PerformanceAnalyticsReview & { workerId: string; rating: number | undefined }>,
+    goals: Array<PerformanceAnalyticsGoal & { workerId: string; progress: number }>,
+    objectives: Array<PerformanceAnalyticsObjective & { id: string; ownerId: string }>,
+    keyResults: Array<PerformanceAnalyticsKeyResult & { objectiveId: string; progress: number }>,
+    summaries: Record<string, PerformanceFeedbackSummary>,
+  ) {
+    return workers.reduce<Record<string, unknown>>((acc, worker) => {
+      const rating = this.workerRating(worker.id, reviews);
+      const ratingScore = ((rating ?? 3) / 5) * 100;
+      const goalScore = this.average(goals.filter((goal) => goal.workerId === worker.id).map((goal) => goal.progress));
+      const feedbackScore = ((summaries[worker.id]?.averageRating ?? 3) / 5) * 100;
+      const ownedObjectiveIds = objectives.filter((objective) => objective.ownerId === worker.id).map((objective) => objective.id);
+      const objectiveScore = this.average(objectives.filter((objective) => objective.ownerId === worker.id).map((objective) => objective.progress ?? 0));
+      const keyResultScore = this.average(keyResults.filter((keyResult) => ownedObjectiveIds.includes(keyResult.objectiveId)).map((keyResult) => keyResult.progress));
+      const confidenceScore = this.average(objectives.filter((objective) => objective.ownerId === worker.id).map((objective) => (objective.confidenceScore ?? 0.5) * 100));
+      const performanceScore = this.round((ratingScore * 0.55) + (goalScore * 0.3) + (feedbackScore * 0.15));
+      const potentialScore = this.round((objectiveScore * 0.45) + (keyResultScore * 0.25) + (confidenceScore * 0.2) + (feedbackScore * 0.1));
+      acc[worker.id] = {
+        employeeName: worker.employeeName,
+        ratingScore: this.round(ratingScore),
+        goalScore: this.round(goalScore),
+        feedbackScore: this.round(feedbackScore),
+        objectiveScore: this.round(objectiveScore),
+        keyResultScore: this.round(keyResultScore),
+        confidenceScore: this.round(confidenceScore),
+        performanceScore,
+        potentialScore,
+        performanceWeights: { rating: 0.55, goals: 0.3, feedback: 0.15 },
+        potentialWeights: { objectives: 0.45, keyResults: 0.25, confidence: 0.2, feedback: 0.1 },
+        summary: `Performance uses rating ${this.round(ratingScore)}%, goals ${this.round(goalScore)}%, and peer feedback ${this.round(feedbackScore)}%.`,
+      };
+      return acc;
+    }, {});
+  }
+
+  private biasChecks(
+    workers: Array<PerformanceAnalyticsWorker & { id: string; employeeName: string }>,
+    reviews: Array<PerformanceAnalyticsReview & { workerId: string; rating: number | undefined }>,
+    suppressionThreshold: number,
+  ) {
+    const departmentGroups = new Map<string, number[]>();
+    for (const worker of workers) {
+      const group = worker.departmentName ?? 'Unassigned';
+      const rating = this.workerRating(worker.id, reviews);
+      const current = departmentGroups.get(group) ?? [];
+      if (typeof rating === 'number') current.push(rating);
+      departmentGroups.set(group, current);
+    }
+
+    return {
+      suppressionThreshold,
+      departmentRatingDistribution: Array.from(departmentGroups.entries()).map(([group, ratings]) => {
+        const suppressed = ratings.length > 0 && ratings.length < suppressionThreshold;
+        return {
+          group,
+          count: ratings.length,
+          averageRating: suppressed ? null : this.round(this.average(ratings)),
+          suppressed,
+        };
+      }),
+    };
+  }
+
+  private trendSignals(actionPlans: PerformanceActionPlan[]) {
+    return actionPlans
+      .filter((plan) => plan.riskLevel !== 'LOW' || plan.progressTrend !== 'STABLE')
+      .map((plan) => ({
+        workerId: plan.workerId,
+        employeeName: plan.employeeName,
+        signal: plan.progressTrend,
+        riskLevel: plan.riskLevel,
+        recommendedAction: plan.recommendedActions[0] ?? 'Keep monitoring performance signals with manager review.',
+      }));
   }
 
   private ratingDistribution(reviews: Array<PerformanceAnalyticsReview & { rating: number | undefined }>) {

@@ -62,17 +62,55 @@ export const RejectTimesheetPayloadSchema = z.object({
 export const RecordTimeClockEventCommandName = 'RecordTimeClockEvent' as const;
 
 export interface RecordTimeClockEventPayload {
-  eventId: Uuid;
   workerId: Uuid;
-  clockedAt: Date;
-  eventType: 'IN' | 'OUT';
+  timestamp: Date;
+  eventType: 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_START' | 'BREAK_END';
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+  workplaceCode?: string;
+  distanceMeters?: number;
+  geofenceRadiusMeters?: number;
+  geofenceProfileCode?: string;
+  locationStatus?: string;
+  deviceTrustLevel?: string;
+  trustLevel?: string;
+  trustScore?: number;
+  trustRequiresApproval?: boolean;
+  trustReasons?: string[];
+  deviceId?: string;
+  captureMethod?: 'API_IMPORT' | 'BIOMETRIC_DEVICE' | 'FACIAL_RECOGNITION' | 'MANUAL_CORRECTION' | 'MOBILE_GEOFENCE' | 'QR_CODE' | 'RFID_CARD' | 'WEB_KIOSK';
+  captureDeviceKind?: string;
+  captureReference?: string;
+  verificationStatus?: 'FAILED' | 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED';
+  captureEvidence?: Record<string, unknown>;
 }
 
 export const RecordTimeClockEventPayloadSchema = z.object({
-  eventId: z.string().uuid(),
   workerId: z.string().uuid(),
-  clockedAt: z.coerce.date(),
-  eventType: z.enum(['IN', 'OUT']),
+  timestamp: z.coerce.date(),
+  eventType: z.enum(['CLOCK_IN', 'CLOCK_OUT', 'BREAK_START', 'BREAK_END']),
+  location: z.string().optional(),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  accuracyMeters: z.number().optional(),
+  workplaceCode: z.string().optional(),
+  distanceMeters: z.number().optional(),
+  geofenceRadiusMeters: z.number().optional(),
+  geofenceProfileCode: z.string().optional(),
+  locationStatus: z.string().optional(),
+  deviceTrustLevel: z.string().optional(),
+  trustLevel: z.string().optional(),
+  trustScore: z.number().optional(),
+  trustRequiresApproval: z.boolean().optional(),
+  trustReasons: z.array(z.string()).optional(),
+  deviceId: z.string().optional(),
+  captureMethod: z.enum(['API_IMPORT', 'BIOMETRIC_DEVICE', 'FACIAL_RECOGNITION', 'MANUAL_CORRECTION', 'MOBILE_GEOFENCE', 'QR_CODE', 'RFID_CARD', 'WEB_KIOSK']).optional(),
+  captureDeviceKind: z.string().optional(),
+  captureReference: z.string().optional(),
+  verificationStatus: z.enum(['FAILED', 'NOT_REQUIRED', 'PENDING', 'VERIFIED']).optional(),
+  captureEvidence: z.record(z.unknown()).optional(),
 });
 
 /* ------------------------------------------------------------------ */

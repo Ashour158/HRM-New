@@ -7,6 +7,7 @@ describe('PerformanceAnalyticsService', () => {
 
     const summary = service.buildCycleAnalytics({
       cycleId: 'cycle-1',
+      anonymityThreshold: 1,
       workers: [
         { id: 'worker-a', firstName: 'Alice', lastName: 'Smith', departmentName: 'People' },
         { id: 'worker-b', firstName: 'Omar', lastName: 'Hassan', departmentName: 'Sales' },
@@ -84,7 +85,7 @@ describe('PerformanceAnalyticsService', () => {
       conciseFeedback: expect.stringContaining('Clear leadership'),
       dimensionAverages: expect.objectContaining({ communication: 5, professionalism: 5, ethics: 4, teamwork: 5 }),
       areaThemes: expect.objectContaining({ communication: ['Keeps stakeholders aligned'] }),
-      anonymitySuppressionApplied: true,
+      anonymitySuppressionApplied: false,
     }));
     expect(summary.actionPlans.find((plan) => plan.workerId === 'worker-b')).toEqual(expect.objectContaining({
       currentPerformance: expect.objectContaining({
@@ -108,5 +109,82 @@ describe('PerformanceAnalyticsService', () => {
       ethics: 3.5,
       teamwork: 3.5,
     }));
+    expect(summary.scoreExplainability['worker-a']).toEqual(expect.objectContaining({
+      ratingScore: 100,
+      goalScore: 100,
+      feedbackScore: 100,
+      performanceWeights: expect.objectContaining({ rating: 0.55, goals: 0.3, feedback: 0.15 }),
+      summary: expect.stringContaining('rating'),
+    }));
+    expect(summary.biasChecks.departmentRatingDistribution).toEqual(expect.arrayContaining([
+      expect.objectContaining({ group: 'People', count: 1, averageRating: 5, suppressed: false }),
+      expect.objectContaining({ group: 'Sales', count: 1, averageRating: 2, suppressed: false }),
+    ]));
+    expect(summary.trendSignals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ workerId: 'worker-b', signal: 'DECLINING', recommendedAction: expect.stringContaining('manager') }),
+    ]));
+    expect(summary.governance).toEqual(expect.objectContaining({
+      anonymityThreshold: 1,
+      performanceFormulaVersion: 'performance-analytics-v2',
+    }));
+  });
+
+  it('suppresses anonymous 360 summaries until the peer threshold is met', () => {
+    const service = new PerformanceAnalyticsService();
+
+    const summary = service.buildCycleAnalytics({
+      cycleId: 'cycle-1',
+      anonymityThreshold: 3,
+      workers: [
+        { id: 'worker-a', firstName: 'Alice', lastName: 'Smith' },
+      ],
+      reviews: [],
+      goals: [],
+      objectives: [],
+      keyResults: [],
+      feedbackResponses: [
+        {
+          id: 'feedback-a',
+          revieweeId: 'worker-a',
+          reviewerId: 'peer-1',
+          relationshipType: 'PEER',
+          dimensionScores: { communication: 2 },
+          areaComments: { communication: 'Needs clearer updates' },
+          overallRating: 2,
+          strengths: 'Customer care',
+          improvements: 'More proactive communication',
+          comments: 'Can improve',
+          isAnonymous: true,
+          status: 'SUBMITTED',
+        },
+        {
+          id: 'feedback-b',
+          revieweeId: 'worker-a',
+          reviewerId: 'peer-2',
+          relationshipType: 'PEER',
+          dimensionScores: { communication: 3 },
+          areaComments: { communication: 'Sometimes late' },
+          overallRating: 3,
+          strengths: 'Responsive',
+          improvements: 'Earlier status sharing',
+          comments: 'Mixed',
+          isAnonymous: true,
+          status: 'SUBMITTED',
+        },
+      ],
+      developmentPlans: [],
+    });
+
+    expect(summary.feedbackSummaries['worker-a']).toEqual(expect.objectContaining({
+      responseCount: 2,
+      anonymousResponseCount: 2,
+      averageRating: null,
+      strengths: [],
+      improvements: [],
+      dimensionAverages: {},
+      areaThemes: {},
+      anonymitySuppressionApplied: true,
+    }));
+    expect(summary.feedbackSummaries['worker-a'].conciseFeedback).toContain('anonymous threshold');
   });
 });

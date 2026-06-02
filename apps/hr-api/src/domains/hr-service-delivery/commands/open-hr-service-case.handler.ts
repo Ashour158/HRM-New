@@ -19,22 +19,45 @@ export class OpenHrServiceCaseHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
       caseNumber: string;
-      requesterWorkerId: Uuid;
+      requesterWorkerId: Uuid | string;
       caseType: string;
       priority: string;
       description: string;
-      assignedTo?: Uuid;
-      slaDeadline?: Date;
+      assignedTo?: Uuid | string;
+      slaDeadline?: Date | string;
     };
     const ar = HrServiceCase.open(
-      { id: Uuid.generate(), tenantId: command.tenantId, ...payload },
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        ...payload,
+        requesterWorkerId: payload.requesterWorkerId instanceof Uuid
+          ? payload.requesterWorkerId
+          : new Uuid(payload.requesterWorkerId),
+        assignedTo: payload.assignedTo
+          ? payload.assignedTo instanceof Uuid
+            ? payload.assignedTo
+            : new Uuid(payload.assignedTo)
+          : undefined,
+        slaDeadline: payload.slaDeadline
+          ? payload.slaDeadline instanceof Date
+            ? payload.slaDeadline
+            : new Date(payload.slaDeadline)
+          : undefined,
+      },
       command.correlationId,
     );
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {
       success: true,
-      data: { hrServiceCaseId: ar.id.value, status: ar.status },
+      data: {
+        hrServiceCaseId: ar.id.value,
+        caseNumber: ar.caseNumber,
+        caseType: ar.caseType,
+        priority: ar.priority,
+        status: ar.status,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: ar.id,

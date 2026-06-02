@@ -19,7 +19,23 @@ export class HrServiceCaseRepository extends BaseRepository<'hr_service_cases', 
   }
 
   async findByTenant(tenantId: Uuid): Promise<HrServiceCase[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .orderBy('created_at', 'desc')
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_cases']));
+  }
+
+  async findByRequester(tenantId: Uuid, requesterWorkerId: Uuid): Promise<HrServiceCase[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('requester_worker_id', '=', requesterWorkerId.value)
+      .orderBy('created_at', 'desc')
+      .execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_cases']));
   }
 
@@ -40,11 +56,12 @@ export class HrServiceCaseRepository extends BaseRepository<'hr_service_cases', 
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       requesterWorkerId: new Uuid(row.requester_worker_id),
-      caseNumber: row.id,
+      caseNumber: row.case_number,
       caseType: row.case_type,
       priority: row.priority,
-      description: '',
+      description: row.description,
       assignedTo: row.assigned_to ? new Uuid(row.assigned_to) : undefined,
+      slaDeadline: row.sla_deadline ?? undefined,
       resolvedAt: row.resolved_at ?? undefined,
       status: row.status as HrServiceCaseStatus,
       aggregateVersion: row.aggregate_version,
@@ -58,10 +75,13 @@ export class HrServiceCaseRepository extends BaseRepository<'hr_service_cases', 
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       requester_worker_id: entity.requesterWorkerId.value,
+      case_number: entity.caseNumber,
       case_type: entity.caseType,
       priority: entity.priority,
+      description: entity.description,
       status: entity.status,
       assigned_to: entity.assignedTo?.value ?? null,
+      sla_deadline: entity.slaDeadline ?? null,
       resolved_at: entity.resolvedAt ?? null,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

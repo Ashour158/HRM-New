@@ -6,9 +6,8 @@ import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, Building2, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -71,58 +70,120 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/50 px-4">
-      <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-2">
-          <Building2 className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold">HR/HCM Platform</h1>
-        </div>
+    <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1440px]">
+        <section className="relative hidden flex-1 overflow-hidden bg-[#213145] lg:flex">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(111,251,190,0.32),transparent_28%),linear-gradient(135deg,#0b1c30_0%,#006c49_54%,#213145_100%)]" />
+          <div className="absolute inset-x-16 top-20 grid gap-4">
+            <div className="h-28 rounded-xl border border-white/10 bg-white/12 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur">
+              <div className="mb-4 h-3 w-28 rounded-full bg-white/60" />
+              <div className="grid grid-cols-3 gap-3">
+                <div className="h-10 rounded-lg bg-[#6ffbbe]/80" />
+                <div className="h-10 rounded-lg bg-white/45" />
+                <div className="h-10 rounded-lg bg-[#ffb95f]/85" />
+              </div>
+            </div>
+            <div className="ml-16 grid h-48 grid-cols-[1.1fr_0.9fr] gap-4 rounded-xl border border-white/10 bg-white/10 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.2)] backdrop-blur">
+              <div className="space-y-3">
+                <div className="h-3 w-24 rounded-full bg-white/70" />
+                <div className="h-20 rounded-lg bg-white/22" />
+                <div className="h-3 w-3/4 rounded-full bg-white/35" />
+                <div className="h-3 w-1/2 rounded-full bg-white/30" />
+              </div>
+              <div className="grid place-items-center rounded-xl bg-[#6ffbbe]/18">
+                <ShieldCheck className="h-16 w-16 text-[#6ffbbe]" />
+              </div>
+            </div>
+          </div>
+          <div className="relative z-10 mt-auto w-full p-10 xl:p-12">
+            <div className="max-w-xl text-white">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-[#eaf1ff] backdrop-blur">
+                <ShieldCheck className="h-4 w-4 text-[#6ffbbe]" />
+                Secure enterprise workspace
+              </div>
+              <h2 className="font-headline text-4xl font-bold leading-tight">Empowering the modern enterprise</h2>
+              <p className="mt-4 max-w-md text-lg leading-7 text-[#eaf1ff]/90">
+                A unified workspace for HR administration, employee services, payroll, performance, and compliance.
+              </p>
+            </div>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Sign In</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+        <main className="flex flex-1 items-center justify-center border-l border-[#bbcabf]/40 bg-white px-5 py-10 shadow-[0_4px_20px_rgba(0,0,0,0.05)] lg:px-20 xl:px-[120px]">
+          <div className="w-full max-w-[440px]">
+            <div className="mb-8 flex items-center gap-3">
+              <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#10b981] text-white">
+                <Building2 className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-[#006c49]">HRM Nexus</h1>
+                <p className="text-sm text-[#3c4a42]">Enterprise HR portal</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <h2 className="font-headline text-4xl font-semibold text-[#0b1c30]">Welcome back</h2>
+              <p className="mt-2 text-base leading-6 text-[#3c4a42]">
+                Please enter your enterprise credentials to access the portal.
+              </p>
+            </div>
+
+            <form className="space-y-4" onSubmit={handleSubmit}>
               {loginError && (
-                <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                  <AlertCircle className="h-4 w-4" />
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
                   {loginError}
                 </div>
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@company.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  aria-invalid={!!errors.email}
-                  aria-describedby={errors.email ? 'email-error' : undefined}
-                />
+                <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]" htmlFor="email">
+                  Work Email
+                </Label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6c7a71]" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@company.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'email-error' : undefined}
+                    className="pl-10"
+                  />
+                </div>
                 {errors.email && (
-                  <p id="email-error" className="text-sm text-destructive">
+                  <p id="email-error" className="text-sm text-red-600">
                     {errors.email}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="Enter your password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  aria-invalid={!!errors.password}
-                  aria-describedby={errors.password ? 'password-error' : undefined}
-                />
+                <div className="flex items-center justify-between gap-4">
+                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]" htmlFor="password">
+                    Password
+                  </Label>
+                  <a className="text-sm font-semibold text-[#006c49] underline-offset-4 hover:underline" href="#">
+                    Forgot password?
+                  </a>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6c7a71]" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? 'password-error' : undefined}
+                    className="pl-10"
+                  />
+                </div>
                 {errors.password && (
-                  <p id="password-error" className="text-sm text-destructive">
+                  <p id="password-error" className="text-sm text-red-600">
                     {errors.password}
                   </p>
                 )}
@@ -130,7 +191,9 @@ export function LoginPage() {
 
               {tenants.length > 1 && (
                 <div className="space-y-2">
-                  <Label htmlFor="tenant">Organization</Label>
+                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]" htmlFor="tenant">
+                    Organization
+                  </Label>
                   <Select
                     value={formData.tenantId}
                     onValueChange={(value) => setFormData({ ...formData, tenantId: value })}
@@ -149,25 +212,49 @@ export function LoginPage() {
                   </Select>
                 </div>
               )}
-            </CardContent>
-            <CardFooter>
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Signing in...
-                  </>
-                ) : (
-                  'Sign In'
-                )}
-              </Button>
-            </CardFooter>
-          </form>
-        </Card>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} HR/HCM Platform. All rights reserved.
-        </p>
+              <label className="flex cursor-pointer items-center gap-2 py-2 text-sm text-[#3c4a42]">
+                <input className="h-4 w-4 rounded border-[#bbcabf] text-[#006c49] focus:ring-[#006c49]/20" type="checkbox" />
+                Remember me
+              </label>
+
+              <div className="space-y-3 pt-1">
+                <Button type="submit" className="h-11 w-full gap-2" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    <>
+                      Sign In
+                      <ArrowRight className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+
+                <div className="flex items-center gap-4 py-2">
+                  <div className="h-px flex-1 bg-[#bbcabf]/50" />
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6c7a71]">OR</span>
+                  <div className="h-px flex-1 bg-[#bbcabf]/50" />
+                </div>
+
+                <Button type="button" variant="outline" className="h-11 w-full gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  Single Sign-On (SSO)
+                </Button>
+              </div>
+            </form>
+
+            <div className="mt-8 border-t border-[#bbcabf]/40 pt-6 text-center text-sm leading-6 text-[#3c4a42]">
+              Need access or technical support?
+              <br />
+              <a className="font-semibold text-[#006c49] underline-offset-4 hover:underline" href="#">
+                Contact IT Helpdesk
+              </a>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

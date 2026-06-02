@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FieldMask } from '@/components/common/field-mask';
-import { AuditTrail } from '@/components/common/audit-trail';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { useFieldAccess } from '@/hooks/use-field-access';
 import { formatDate } from '@/lib/utils';
@@ -19,13 +18,7 @@ interface EmployeeProfileData {
   phone?: string;
   dateOfBirth?: string;
   ssn?: string;
-  address?: {
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-    country: string;
-  };
+  address?: string;
   hireDate: string;
   employmentType: string;
   status: string;
@@ -71,44 +64,13 @@ function ProfileField({
   );
 }
 
-/**
- * Employee profile page with personal info, employment details, and documents.
- * Field-level access policies are applied to sensitive fields.
- */
-const DEMO_PROFILE: EmployeeProfileData = {
-  id: '00000000-0000-0000-0000-000000000000',
-  employeeId: 'DEMO-001',
-  firstName: 'Demo',
-  lastName: 'User',
-  email: 'demo.user@example.com',
-  phone: '+1-555-0100',
-  dateOfBirth: '1990-01-01',
-  ssn: '123-45-6789',
-  address: {
-    street: '123 Innovation Dr',
-    city: 'San Francisco',
-    state: 'CA',
-    zip: '94105',
-    country: 'US',
-  },
-  hireDate: '2023-01-15',
-  employmentType: 'FULL_TIME',
-  status: 'ACTIVE',
-  department: 'Engineering',
-  jobTitle: 'Senior Software Engineer',
-  manager: 'Alice Manager',
-  legalEntity: 'Acme Corp US',
-  documents: [],
-};
-
 export function EmployeeProfile() {
   const { data: profile, isLoading, error } = useApiQuery<EmployeeProfileData>(
     ['employee-profile'],
     '/employee/profile'
   );
 
-  const displayProfile = profile ?? DEMO_PROFILE;
-  const isDemo = !profile || !!error;
+  const displayProfile = profile;
 
   if (isLoading) {
     return (
@@ -119,17 +81,16 @@ export function EmployeeProfile() {
     );
   }
 
-  if (!displayProfile) {
-    return <div className="p-4 text-muted-foreground">Profile not found</div>;
+  if (error || !displayProfile) {
+    return (
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        Employee profile could not be loaded. Make sure the authenticated user is linked to a worker record.
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      {isDemo && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 text-sm">
-          <strong>Development Mode:</strong> Showing demo profile data because <code>/employee/profile</code> is not yet wired to an authenticated user endpoint. Create an employee in the Admin Employees page to see real data.
-        </div>
-      )}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -150,7 +111,6 @@ export function EmployeeProfile() {
           <TabsTrigger value="personal">Personal Information</TabsTrigger>
           <TabsTrigger value="employment">Employment</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="audit">Audit Trail</TabsTrigger>
         </TabsList>
 
         <TabsContent value="personal">
@@ -208,10 +168,7 @@ export function EmployeeProfile() {
                     <MapPin className="h-3 w-3" />
                     Address
                   </p>
-                  <p className="text-sm">
-                    {displayProfile.address.street}, {displayProfile.address.city}, {displayProfile.address.state}{' '}
-                    {displayProfile.address.zip}, {displayProfile.address.country}
-                  </p>
+                  <p className="text-sm">{displayProfile.address}</p>
                 </div>
               )}
             </CardContent>
@@ -299,17 +256,6 @@ export function EmployeeProfile() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="audit">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Audit Trail</CardTitle>
-              <CardDescription>Activity log for your profile</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AuditTrail resourceType="WORKER" resourceId={displayProfile.id} />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

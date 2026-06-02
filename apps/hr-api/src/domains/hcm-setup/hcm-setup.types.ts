@@ -249,6 +249,49 @@ export type PayrollBlockingRule = SetupOption & {
   minNetSalary?: number;
 };
 
+export type HcmPolicyScope = {
+  tenantId?: string;
+  countryCodes?: string[];
+  legalEntityIds?: string[];
+  orgUnitIds?: string[];
+  departmentIds?: string[];
+  locationCodes?: string[];
+  employeeTypes?: string[];
+  workerIds?: string[];
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+};
+
+export type AllowedActionPolicyOverride = {
+  id: string;
+  active: boolean;
+  aggregateType: string;
+  action: string;
+  roles?: string[];
+  effect: 'ALLOW' | 'HIDE';
+  label?: string;
+  requiresReason?: boolean;
+  reason?: string;
+  scope?: HcmPolicyScope;
+};
+
+export type FieldAccessPolicyOverride = {
+  id: string;
+  active: boolean;
+  resourceType: string;
+  fieldPath: string;
+  roles?: string[];
+  decision: 'VISIBLE' | 'MASKED' | 'HIDDEN' | 'REQUIRES_STEP_UP' | 'REQUIRES_BREAK_GLASS' | 'DENIED';
+  maskingRule?: string;
+  reason?: string;
+  scope?: HcmPolicyScope;
+};
+
+export type PolicyGovernanceConfig = {
+  allowedActionOverrides: AllowedActionPolicyOverride[];
+  fieldAccessOverrides: FieldAccessPolicyOverride[];
+};
+
 export interface HcmSetupConfig {
   genderOptions: GenderOption[];
   workPhoneEnabled: boolean;
@@ -267,6 +310,9 @@ export interface HcmSetupConfig {
   earningPolicies: EarningPolicy[];
   deductionPolicies: DeductionPolicy[];
   payrollBlockingRules: PayrollBlockingRule[];
+  policyGovernance?: PolicyGovernanceConfig;
+  countryPolicyRuntime?: Record<string, unknown>;
+  compliancePolicyRuntime?: Record<string, unknown>;
 }
 
 export type HcmSetupUpdate = Partial<HcmSetupConfig>;

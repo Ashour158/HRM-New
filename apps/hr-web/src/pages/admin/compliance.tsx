@@ -1,7 +1,13 @@
 
-import { useApiQuery } from '@/hooks/use-api';
+import * as React from 'react';
+import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -15,7 +21,7 @@ interface PolicyDocument {
   title: string;
   version: string;
   effectiveDate: string;
-  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
+  status: 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'PUBLISHED' | 'ARCHIVED';
   requiresAcknowledgement: boolean;
 }
 
@@ -34,14 +40,61 @@ interface ComplianceData {
   statutoryReports: Array<{ id: string; name: string; dueDate: string; status: string }>;
 }
 
+interface PolicyForm {
+  title: string;
+  documentType: string;
+  documentVersion: string;
+  effectiveFrom: string;
+  requiresAcknowledgement: boolean;
+}
+
+const emptyPolicyForm: PolicyForm = {
+  title: '',
+  documentType: 'HR_POLICY',
+  documentVersion: '1.0',
+  effectiveFrom: new Date().toISOString().slice(0, 10),
+  requiresAcknowledgement: true,
+};
+
+function apiData<T>(payload: unknown): T {
+  const response = payload as { data?: T; success?: boolean };
+  if (response.success === true && response.data !== undefined) return response.data;
+  return payload as T;
+}
+
+function unwrap<T>(response: { data: unknown }) {
+  return apiData<T>(response.data);
+}
+
 /**
  * Compliance management page with policies, acknowledgements, legal holds, and reports.
  */
 export function AdminCompliance() {
-  const { data, isLoading } = useApiQuery<ComplianceData>(
-    ['admin-compliance'],
-    '/admin/compliance'
-  );
+  const queryClient = useQueryClient();
+  const [policyForm, setPolicyForm] = React.useState<PolicyForm>(emptyPolicyForm);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['admin-compliance'],
+    queryFn: async () => unwrap<ComplianceData>(await apiClient.get('/compliance/summary')),
+  });
+
+  const createPolicy = useMutation({
+    mutationFn: async (form: PolicyForm) => apiClient.post('/compliance/policy-documents', {
+      documentId: crypto.randomUUID(),
+      title: form.title,
+      documentType: form.documentType,
+      version: form.documentVersion,
+      effectiveFrom: form.effectiveFrom,
+      content: {
+        requiresAcknowledgement: form.requiresAcknowledgement,
+        source: 'admin-ui',
+      },
+    }),
+    onSuccess: () => {
+      setPolicyForm(emptyPolicyForm);
+      queryClient.invalidateQueries({ queryKey: ['admin-compliance'] });
+    },
+  });
 
   const policyColumns = [
     { key: 'title', header: 'Title', cell: (row: PolicyDocument) => row.title },
@@ -97,11 +150,52 @@ export function AdminCompliance() {
           </h2>
           <p className="text-muted-foreground">Policy management and compliance tracking</p>
         </div>
-        <AllowedActions
-          aggregateType="COMPLIANCE"
-          onAction={(action) => console.log('Compliance action:', action)}
-        />
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline">
+            <Link to="/admin/policies">Policy Center</Link>
+          </Button>
+          <AllowedActions
+            aggregateType="COMPLIANCE"
+            onAction={(action) => console.log('Compliance action:', action)}
+          />
+        </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Add Policy Document
+          </CardTitle>
+          <CardDescription>Create a policy document that can be approved, published, and acknowledged.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-4 md:grid-cols-[1fr_10rem_8rem_12rem_auto]" onSubmit={(event) => {
+            event.preventDefault();
+            createPolicy.mutate(policyForm);
+          }}>
+            <div className="space-y-2">
+              <Label htmlFor="policy-title">Title</Label>
+              <Input id="policy-title" value={policyForm.title} onChange={(event) => setPolicyForm({ ...policyForm, title: event.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="policy-type">Type</Label>
+              <Input id="policy-type" value={policyForm.documentType} onChange={(event) => setPolicyForm({ ...policyForm, documentType: event.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="policy-version">Version</Label>
+              <Input id="policy-version" value={policyForm.documentVersion} onChange={(event) => setPolicyForm({ ...policyForm, documentVersion: event.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="policy-effective">Effective From</Label>
+              <Input id="policy-effective" type="date" value={policyForm.effectiveFrom} onChange={(event) => setPolicyForm({ ...policyForm, effectiveFrom: event.target.value })} required />
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" disabled={createPolicy.isPending}>Create Policy</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       <Tabs defaultValue="policies" className="space-y-4">
         <TabsList>

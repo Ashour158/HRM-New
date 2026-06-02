@@ -3,7 +3,7 @@ import { Kysely } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
 import { getPool, createKyselyInstance } from '@hcm/database';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
+import { getTopicForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
 import { InboxDeduplicator } from './inbox-deduplicator.js';
 
 export interface InboxEvent {
@@ -64,7 +64,7 @@ export class InboxConsumer {
         consumer_name: consumerName,
         consumer_version: consumerVersion,
         source_event_id: event.eventId.value,
-        source_topic: this.inferTopic(event.eventName),
+        source_topic: getTopicForEvent(event),
         source_partition: 0,
         source_offset: 0,
         event_name: event.eventName,
@@ -136,11 +136,6 @@ export class InboxConsumer {
       return !['SCHEMA_VALIDATION_ERROR', 'DECRYPTION_ERROR', 'UNKNOWN_EVENT_TYPE'].includes(code);
     }
     return true;
-  }
-
-  private inferTopic(eventName: string): string {
-    const prefix = eventName.split(/\b/)[0].toLowerCase();
-    return `hrm.${prefix}.events`;
   }
 
   private toInboxEvent(r: Record<string, unknown>): InboxEvent {

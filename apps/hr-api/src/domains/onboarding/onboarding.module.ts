@@ -10,7 +10,10 @@ import { CompleteOnboardingHandler } from './commands/complete-onboarding.handle
 import { CreateOnboardingTaskHandler } from './commands/create-onboarding-task.handler.js';
 import { CompleteOnboardingTaskHandler } from './commands/complete-onboarding-task.handler.js';
 import { SkipOnboardingTaskHandler } from './commands/skip-onboarding-task.handler.js';
+import { RecordOnboardingTaskEvidenceHandler } from './commands/record-onboarding-task-evidence.handler.js';
 import { OnboardingEventsPublisher } from './events/onboarding-events.publisher.js';
+import { OnboardingTemplateService } from './services/onboarding-template.service.js';
+import { OnboardingReadinessService } from './services/onboarding-readiness.service.js';
 
 /**
  * Onboarding domain module.
@@ -34,9 +37,12 @@ import { OnboardingEventsPublisher } from './events/onboarding-events.publisher.
     CreateOnboardingTaskHandler,
     CompleteOnboardingTaskHandler,
     SkipOnboardingTaskHandler,
+    RecordOnboardingTaskEvidenceHandler,
     // Event publisher
     OnboardingEventsPublisher,
+    OnboardingTemplateService,
+    OnboardingReadinessService,
   ],
-  exports: [OnboardingPlanRepository, OnboardingTaskRepository],
+  exports: [OnboardingPlanRepository, OnboardingTaskRepository, OnboardingTemplateService, OnboardingReadinessService],
 })
 export class OnboardingModule {}

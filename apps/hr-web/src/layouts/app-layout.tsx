@@ -53,7 +53,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  if (location.pathname.startsWith('/employee')) {
+  if (location.pathname.startsWith('/employee') || location.pathname.startsWith('/manager') || location.pathname.startsWith('/admin')) {
     return <div className="min-h-screen bg-[#e9eef5]">{children}</div>;
   }
 

@@ -10,6 +10,9 @@ export interface PerformanceReviewCycleProps {
   startDate: Date;
   endDate: Date;
   reviewType: string;
+  templateId?: Uuid;
+  weightings?: Record<string, number>;
+  periods?: Array<{ name: string; startDate: Date; endDate: Date }>;
   status?: PerformanceReviewCycleStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -69,6 +72,9 @@ export class PerformanceReviewCycle extends AggregateRoot {
   startDate: Date;
   endDate: Date;
   reviewType: string;
+  templateId?: Uuid;
+  weightings?: Record<string, number>;
+  periods: Array<{ name: string; startDate: Date; endDate: Date }>;
   status: PerformanceReviewCycleStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -85,6 +91,9 @@ export class PerformanceReviewCycle extends AggregateRoot {
     this.startDate = props.startDate;
     this.endDate = props.endDate;
     this.reviewType = props.reviewType;
+    this.templateId = props.templateId;
+    this.weightings = props.weightings;
+    this.periods = props.periods ?? [];
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();

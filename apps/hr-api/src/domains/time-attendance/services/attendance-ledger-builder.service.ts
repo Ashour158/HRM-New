@@ -86,6 +86,7 @@ export class AttendanceLedgerBuilderService {
         employeeId: worker.employeeNumber,
         name: `${worker.firstName} ${worker.lastName}`,
         email: worker.email.toString(),
+        departmentId,
         departmentName: departmentId ? departmentLabels.get(departmentId) ?? departmentId : 'Unassigned',
         managerId: worker.managerId?.value,
         workLocationCode,

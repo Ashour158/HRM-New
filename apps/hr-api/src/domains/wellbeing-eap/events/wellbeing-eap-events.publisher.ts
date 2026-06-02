@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import type { HrEventEnvelope, HrEventPrivacy } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import { EapReferral } from '../aggregates/eap-referral.aggregate.js';
 import { WellnessProgram } from '../aggregates/wellness-program.aggregate.js';
@@ -11,21 +12,29 @@ export class WellbeingEapEventsPublisher {
 
   async publishFromAggregate(aggregate: EapReferral | WellnessProgram | MentalHealthCase): Promise<void> {
     for (const event of aggregate.domainEvents) {
-      const envelope = {
+      const envelope: HrEventEnvelope<Record<string, never>> = {
+        eventId: event.eventId,
         eventName: event.eventName,
+        eventSchemaVersion: 1,
+        tenantId: event.tenantId,
         aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId.value,
-        tenantId: event.tenantId.value,
-        correlationId: event.correlationId.value,
+        aggregateId: event.aggregateId,
         payload: {},
+        metadata: {
+          correlationId: event.correlationId,
+          causationId: event.causationId,
+          requestHash: event.eventId.value,
+          clientType: 'HR_ADMIN',
+        },
         privacy: this.buildPrivacy(aggregate),
-        occurredAt: new Date(),
+        occurredAt: event.occurredAt,
+        version: event.version,
       };
-      await this.eventBus.publish(envelope as never);
+      await this.eventBus.publish(envelope);
     }
   }
 
-  private buildPrivacy(aggregate: EapReferral | WellnessProgram | MentalHealthCase) {
+  private buildPrivacy(aggregate: EapReferral | WellnessProgram | MentalHealthCase): HrEventPrivacy {
     return createPrivacyForEvent('NONE', aggregate.id.value, 'PROFILE');
   }
 }

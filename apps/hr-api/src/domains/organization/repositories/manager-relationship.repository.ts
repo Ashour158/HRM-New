@@ -39,6 +39,15 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
     return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<ManagerRelationship[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
+  }
+
   async findActiveForWorker(workerId: Uuid): Promise<ManagerRelationship | undefined> {
     const row = await this.db
       .selectFrom(this.tableName)

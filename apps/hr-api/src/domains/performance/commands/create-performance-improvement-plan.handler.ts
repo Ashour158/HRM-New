@@ -6,6 +6,7 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PerformanceImprovementPlan } from '../aggregates/performance-improvement-plan.aggregate.js';
 import { PerformanceImprovementPlanRepository } from '../repositories/performance-improvement-plan.repository.js';
 import { PerformanceEventsPublisher } from '../events/performance-events.publisher.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 @CommandHandler('CreatePerformanceImprovementPlan')
 @Injectable()
@@ -18,8 +19,8 @@ export class CreatePerformanceImprovementPlanHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      workerId: Uuid;
-      managerId: Uuid;
+      workerId: UuidInput;
+      managerId: UuidInput;
       objectives?: string[];
       currentPerformance?: {
         summary?: string;
@@ -40,8 +41,8 @@ export class CreatePerformanceImprovementPlanHandler {
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        workerId: payload.workerId,
-        managerId: payload.managerId,
+        workerId: toUuid(payload.workerId),
+        managerId: toUuid(payload.managerId),
         objectives: payload.objectives,
         currentPerformance: payload.currentPerformance,
         planDurationDays: payload.planDurationDays,

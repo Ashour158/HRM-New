@@ -2,6 +2,15 @@ import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/s
 
 export type TimeClockEventType = 'CLOCK_IN' | 'CLOCK_OUT' | 'BREAK_START' | 'BREAK_END';
 export type TimeClockEventStatus = 'RECORDED' | 'VALIDATED' | 'EXCEPTION' | 'RESOLVED';
+export type TimeClockCaptureMethod =
+  | 'API_IMPORT'
+  | 'BIOMETRIC_DEVICE'
+  | 'FACIAL_RECOGNITION'
+  | 'MANUAL_CORRECTION'
+  | 'MOBILE_GEOFENCE'
+  | 'QR_CODE'
+  | 'RFID_CARD'
+  | 'WEB_KIOSK';
 
 export interface TimeClockEventProps {
   id: Uuid;
@@ -10,7 +19,25 @@ export interface TimeClockEventProps {
   eventType: TimeClockEventType;
   timestamp: Date;
   location?: string;
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+  workplaceCode?: string;
+  distanceMeters?: number;
+  geofenceRadiusMeters?: number;
+  geofenceProfileCode?: string;
+  locationStatus?: string;
+  deviceTrustLevel?: string;
+  trustLevel?: string;
+  trustScore?: number;
+  trustRequiresApproval?: boolean;
+  trustReasons?: string[];
   deviceId?: string;
+  captureMethod?: TimeClockCaptureMethod;
+  captureDeviceKind?: string;
+  captureReference?: string;
+  verificationStatus?: 'FAILED' | 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED';
+  captureEvidence?: Record<string, unknown>;
   status?: TimeClockEventStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -48,7 +75,25 @@ export class TimeClockEvent extends AggregateRoot {
   eventType: TimeClockEventType;
   timestamp: Date;
   location?: string;
+  latitude?: number;
+  longitude?: number;
+  accuracyMeters?: number;
+  workplaceCode?: string;
+  distanceMeters?: number;
+  geofenceRadiusMeters?: number;
+  geofenceProfileCode?: string;
+  locationStatus?: string;
+  deviceTrustLevel?: string;
+  trustLevel?: string;
+  trustScore?: number;
+  trustRequiresApproval?: boolean;
+  trustReasons?: string[];
   deviceId?: string;
+  captureMethod?: TimeClockCaptureMethod;
+  captureDeviceKind?: string;
+  captureReference?: string;
+  verificationStatus?: 'FAILED' | 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED';
+  captureEvidence?: Record<string, unknown>;
   status: TimeClockEventStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -64,7 +109,25 @@ export class TimeClockEvent extends AggregateRoot {
     this.eventType = props.eventType;
     this.timestamp = props.timestamp;
     this.location = props.location;
+    this.latitude = props.latitude;
+    this.longitude = props.longitude;
+    this.accuracyMeters = props.accuracyMeters;
+    this.workplaceCode = props.workplaceCode;
+    this.distanceMeters = props.distanceMeters;
+    this.geofenceRadiusMeters = props.geofenceRadiusMeters;
+    this.geofenceProfileCode = props.geofenceProfileCode;
+    this.locationStatus = props.locationStatus;
+    this.deviceTrustLevel = props.deviceTrustLevel;
+    this.trustLevel = props.trustLevel;
+    this.trustScore = props.trustScore;
+    this.trustRequiresApproval = props.trustRequiresApproval;
+    this.trustReasons = props.trustReasons;
     this.deviceId = props.deviceId;
+    this.captureMethod = props.captureMethod;
+    this.captureDeviceKind = props.captureDeviceKind;
+    this.captureReference = props.captureReference;
+    this.verificationStatus = props.verificationStatus;
+    this.captureEvidence = props.captureEvidence;
     this.status = props.status ?? 'RECORDED';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();

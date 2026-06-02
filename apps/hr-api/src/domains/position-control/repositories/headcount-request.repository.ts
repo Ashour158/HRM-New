@@ -123,6 +123,7 @@ export class HeadcountRequestRepository {
       status: entity.status,
       positions_requested: entity.positionsRequested,
       positions_approved: entity.positionsApproved ?? null,
+      auto_create_position: entity.autoCreatePosition,
       aggregate_version: entity.version,
       updated_at: new Date().toISOString(),
     };
@@ -142,7 +143,7 @@ export class HeadcountRequestRepository {
   }
 
   private toAggregate(row: Record<string, unknown>): HeadcountRequest {
-    return HeadcountRequest.create({
+    return HeadcountRequest.restore({
       id: new Uuid(row.id as string),
       tenantId: new Uuid(row.tenant_id as string),
       requestNumber: row.request_number as string,
@@ -155,6 +156,7 @@ export class HeadcountRequestRepository {
       status: (row.status as HeadcountRequest['status']) ?? undefined,
       positionsRequested: row.positions_requested as number,
       positionsApproved: (row.positions_approved as number | null) ?? undefined,
+      autoCreatePosition: row.auto_create_position === true,
       aggregateVersion: (row.aggregate_version as number) ?? undefined,
       createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
       updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,

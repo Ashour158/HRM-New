@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -12,6 +12,7 @@ import { ShiftBidRepository } from '../repositories/shift-bid.repository.js';
 import { ShiftSwapRequestRepository } from '../repositories/shift-swap-request.repository.js';
 import { WfmOvertimeApprovalRepository } from '../repositories/overtime-approval.repository.js';
 import { CoverageGapRepository } from '../repositories/coverage-gap.repository.js';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import type * as dtos from './dtos.js';
 import {
   CreateShiftScheduleDtoSchema, CreateOpenShiftDtoSchema, CreateShiftBidDtoSchema,
@@ -20,6 +21,7 @@ import {
 } from './dtos.js';
 
 @ApiTags('Workforce Management')
+@UseGuards(AuthGuard)
 @Controller('workforce-management')
 export class WorkforceManagementController {
   constructor(
@@ -31,6 +33,11 @@ export class WorkforceManagementController {
     private readonly overtimeApprovalRepo: WfmOvertimeApprovalRepository,
     private readonly coverageGapRepo: CoverageGapRepository,
   ) {}
+
+  private getActor(req: Request): NonNullable<Request['actor']> {
+    if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
+    return req.actor;
+  }
 
   private buildCommand<TPayload>(
     commandName: string,
@@ -45,7 +52,7 @@ export class WorkforceManagementController {
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['WORKFORCE_MANAGEMENT_WRITE'], mfaAuthenticated: true },
+      actor: this.getActor(req),
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,

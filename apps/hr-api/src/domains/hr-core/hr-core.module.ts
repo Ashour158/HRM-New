@@ -12,9 +12,18 @@ import { CreateWorkerHandler } from './commands/create-worker.handler.js';
 import { ActivateWorkerHandler } from './commands/activate-worker.handler.js';
 import { TerminateWorkerHandler } from './commands/terminate-worker.handler.js';
 import { UpdateWorkerPersonalDataHandler } from './commands/update-worker-personal-data.handler.js';
+import { SuspendWorkerHandler } from './commands/suspend-worker.handler.js';
+import { ReinstateWorkerHandler } from './commands/reinstate-worker.handler.js';
+import { RehireWorkerHandler } from './commands/rehire-worker.handler.js';
+import { UpsertWorkerProfileSectionHandler } from './commands/upsert-worker-profile-section.handler.js';
 import { CreateJobAssignmentHandler } from './commands/create-job-assignment.handler.js';
 import { ActivateJobAssignmentHandler } from './commands/activate-job-assignment.handler.js';
 import { EndJobAssignmentHandler } from './commands/end-job-assignment.handler.js';
+import { CreateEmploymentRelationshipHandler } from './commands/create-employment-relationship.handler.js';
+import { ActivateEmploymentRelationshipHandler } from './commands/activate-employment-relationship.handler.js';
+import { EndEmploymentRelationshipHandler } from './commands/end-employment-relationship.handler.js';
+import { CreateEmploymentContractHandler } from './commands/create-employment-contract.handler.js';
+import { SignEmploymentContractHandler } from './commands/sign-employment-contract.handler.js';
 import { WorkerEventsPublisher } from './events/worker-events.publisher.js';
 import { WorkerViewProjectionBuilder } from './projections/worker-view.projection.js';
 import { registerWorkerProfileFsm } from './fsm/worker-profile.fsm.js';
@@ -35,9 +44,18 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     ActivateWorkerHandler,
     TerminateWorkerHandler,
     UpdateWorkerPersonalDataHandler,
+    SuspendWorkerHandler,
+    ReinstateWorkerHandler,
+    RehireWorkerHandler,
+    UpsertWorkerProfileSectionHandler,
     CreateJobAssignmentHandler,
     ActivateJobAssignmentHandler,
     EndJobAssignmentHandler,
+    CreateEmploymentRelationshipHandler,
+    ActivateEmploymentRelationshipHandler,
+    EndEmploymentRelationshipHandler,
+    CreateEmploymentContractHandler,
+    SignEmploymentContractHandler,
     WorkerEventsPublisher,
     WorkerViewProjectionBuilder,
   ],

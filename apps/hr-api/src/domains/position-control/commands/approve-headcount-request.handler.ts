@@ -42,6 +42,7 @@ export class ApproveHeadcountRequestHandler implements ICommandHandler {
       success: true,
       data: {
         headcountRequestId: request.id.value,
+        approvedBy: command.actor.actorId.value,
         status: request.status,
         positionsApproved: request.positionsApproved,
       },

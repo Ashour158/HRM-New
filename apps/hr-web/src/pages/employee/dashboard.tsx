@@ -11,13 +11,20 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 import { cn } from '@/lib/utils';
 import {
+  ArrowRight,
   CalendarDays,
   Clock3,
   FileClock,
+  FileText,
+  Heart,
+  LifeBuoy,
   MapPin,
   Send,
   Sun,
+  TrendingUp,
   Umbrella,
+  UserCircle,
+  UserRoundCheck,
 } from 'lucide-react';
 import type { AbsenceRequest, HcmSetupConfig, Worker } from '@/types';
 
@@ -110,13 +117,73 @@ interface AttendanceCorrectionPayload {
 }
 
 const activityTabs = [
-  { label: 'Overview', path: '/employee' },
+  { label: 'Self-Service', path: '/employee' },
   { label: 'Attendance', path: '/employee#attendance' },
   { label: 'Leave', path: '/employee/time-off' },
   { label: 'Profile', path: '/employee/profile' },
-  { label: 'Payroll', path: '/employee/payslip' },
+  { label: 'Payslips', path: '/employee/payslip' },
   { label: 'Benefits', path: '/employee/benefits' },
   { label: 'Performance', path: '/employee/performance' },
+  { label: 'Services', path: '/employee/services' },
+];
+
+const selfServiceModules = [
+  {
+    label: 'Check-in / Check-out',
+    path: '/employee#attendance',
+    icon: Clock3,
+    description: 'Record time with workplace, device, and location evidence.',
+    group: 'Workforce',
+  },
+  {
+    label: 'Apply for Leave',
+    path: '/employee/time-off',
+    icon: Umbrella,
+    description: 'Submit leave requests against policy-driven balances.',
+    group: 'Workforce',
+  },
+  {
+    label: 'Payslips',
+    path: '/employee/payslip',
+    icon: FileText,
+    description: 'View salary statements connected to payroll operations.',
+    group: 'Payroll & Reward',
+  },
+  {
+    label: 'Benefits',
+    path: '/employee/benefits',
+    icon: Heart,
+    description: 'Review enrollment, coverage, and benefit elections.',
+    group: 'Payroll & Reward',
+  },
+  {
+    label: 'My Profile',
+    path: '/employee/profile',
+    icon: UserCircle,
+    description: 'Keep personal, job, and organization details aligned.',
+    group: 'People & Organization',
+  },
+  {
+    label: 'Preboarding',
+    path: '/employee/onboarding',
+    icon: UserRoundCheck,
+    description: 'Complete onboarding tasks, document evidence, IT access, and 30/60/90 readiness.',
+    group: 'Talent',
+  },
+  {
+    label: 'Goals',
+    path: '/employee/performance',
+    icon: TrendingUp,
+    description: 'Track objectives and feedback in the talent module.',
+    group: 'Talent',
+  },
+  {
+    label: 'Ask HR / Services',
+    path: '/employee/services',
+    icon: LifeBuoy,
+    description: 'Open service cases for HR letters, payroll questions, benefits, profile corrections, and access help.',
+    group: 'Services & Support',
+  },
 ];
 
 const statusCopy: Record<AttendanceClockStatus, { label: string; tone: string; helper: string }> = {
@@ -217,20 +284,6 @@ export function EmployeeDashboard() {
   const today = React.useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
-  const roleNames = React.useMemo(() => new Set((user?.roles ?? []).map((role) => role.name)), [user?.roles]);
-  const canSwitchAttendanceWorker = ['HR_ADMIN', 'PAYROLL_ADMIN', 'SUPER_ADMIN', 'MANAGER'].some((role) => roleNames.has(role));
-  const workerLookupUrl = React.useMemo(() => {
-    if (roleNames.has('HR_ADMIN') || roleNames.has('PAYROLL_ADMIN') || roleNames.has('SUPER_ADMIN')) {
-      return '/hr/core/workers?status=ACTIVE&pageSize=100';
-    }
-    if (roleNames.has('MANAGER') && user?.id) {
-      return `/hr/core/workers?manager=${encodeURIComponent(user.id)}&pageSize=100`;
-    }
-    if (user?.email) {
-      return `/hr/core/workers?search=${encodeURIComponent(user.email)}&pageSize=1`;
-    }
-    return '/hr/core/workers?pageSize=0';
-  }, [roleNames, user?.email, user?.id]);
 
   const data = React.useMemo<DashboardData>(() => ({
     upcomingEvents: [],
@@ -239,14 +292,14 @@ export function EmployeeDashboard() {
     absenceBalance: [],
   }), []);
   const isLoading = false;
-  const { data: setup = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
-  const { data: workers = [] } = useApiQuery<Worker[]>(['employee-clock-workers', workerLookupUrl], workerLookupUrl);
+  const { data: setup = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['employee-attendance-setup'], '/employee/attendance-setup');
+  const { data: activeWorker } = useApiQuery<Worker>(['employee-dashboard-profile'], '/employee/profile');
 
   React.useEffect(() => {
-    if (workers[0] && (!selectedWorkerId || !workers.some((worker) => worker.id === selectedWorkerId))) {
-      setSelectedWorkerId(workers[0].id);
+    if (activeWorker?.id && selectedWorkerId !== activeWorker.id) {
+      setSelectedWorkerId(activeWorker.id);
     }
-  }, [selectedWorkerId, workers]);
+  }, [activeWorker?.id, selectedWorkerId]);
 
   React.useEffect(() => {
     if (setup.locations[0]?.code && workplaceCode === DEFAULT_HCM_SETUP.locations[0]?.code) {
@@ -254,7 +307,6 @@ export function EmployeeDashboard() {
     }
   }, [setup.locations, workplaceCode]);
 
-  const activeWorker = workers.find((worker) => worker.id === selectedWorkerId);
   const activeWorkerName = activeWorker ? `${activeWorker.firstName} ${activeWorker.lastName}` : `${user?.firstName ?? 'Employee'} ${user?.lastName ?? ''}`.trim();
   const workplace = setup.locations.find((location) => location.code === workplaceCode);
 
@@ -311,12 +363,6 @@ export function EmployeeDashboard() {
     : Math.max((todayState?.elapsedMinutes ?? 0) * 60, 0);
   const [hours, minutes, seconds] = formatDuration(activeSeconds + tick * 0);
   const pendingAbsences = React.useMemo<AbsenceRequest[]>(() => [], []);
-
-  const reportees = React.useMemo(() => {
-    if (!canSwitchAttendanceWorker) return [];
-    const directReports = workers.filter((worker) => worker.managerId === activeWorker?.id);
-    return directReports.length > 0 ? directReports : workers.filter((worker) => worker.id !== selectedWorkerId).slice(0, 4);
-  }, [activeWorker?.id, canSwitchAttendanceWorker, selectedWorkerId, workers]);
 
   const weekDays = React.useMemo(() => currentWeekDays(today), [today]);
 
@@ -440,21 +486,23 @@ export function EmployeeDashboard() {
           </section>
 
           <section className="rounded-md border border-[#ced8e4] bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold">Reportees</h2>
-            <div className="mt-3 divide-y">
-              {reportees.map((reportee) => (
-                <div key={reportee.id} className="flex items-center gap-3 py-3">
-                  <Avatar className="h-10 w-10 rounded-md">
-                    <AvatarImage src={reportee.photoUrl} alt={`${reportee.firstName} ${reportee.lastName}`} />
-                    <AvatarFallback className="rounded-md text-xs">{reportee.firstName.charAt(0)}{reportee.lastName.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{reportee.employeeId} - {reportee.firstName} {reportee.lastName}</p>
-                    <p className="text-xs text-orange-500">{reportee.status === 'ACTIVE' ? 'In' : 'Yet to check-in'}</p>
-                  </div>
-                </div>
+            <h2 className="text-base font-semibold">My Shortcuts</h2>
+            <div className="mt-3 space-y-2">
+              {[
+                { label: 'My Profile', path: '/employee/profile' },
+                { label: 'Leave Requests', path: '/employee/time-off' },
+                { label: 'Payslips', path: '/employee/payslip' },
+                { label: 'Ask HR', path: '/employee/services' },
+              ].map((shortcut) => (
+                <Link
+                  key={shortcut.path}
+                  to={shortcut.path}
+                  className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-[#0b8cff]/50 hover:bg-sky-50 hover:text-slate-950"
+                >
+                  {shortcut.label}
+                  <ArrowRight className="h-4 w-4 text-slate-400" />
+                </Link>
               ))}
-              {reportees.length === 0 ? <p className="py-4 text-sm text-slate-500">No reportees assigned.</p> : null}
             </div>
           </section>
         </aside>
@@ -483,15 +531,48 @@ export function EmployeeDashboard() {
               })}
             </div>
 
-            <div className="max-h-[calc(100vh-178px)] overflow-y-auto bg-[#f7f9fc] p-5">
+            <div className="bg-[#f7f9fc] p-5">
               <div className="space-y-3">
                 <div className="flex items-center gap-4 rounded-md border border-[#d5e7f3] bg-[#effaff] p-4">
                   <div className="grid h-[62px] w-[100px] place-items-center rounded border bg-white text-lg font-bold text-[#0b60c8]">HCM</div>
                   <div>
                     <p className="font-semibold">Good Afternoon&nbsp; {activeWorkerName}</p>
-                    <p className="text-sm text-slate-600">Have a productive day!</p>
+                    <p className="text-sm text-slate-600">Your self-service actions use the same HCM data HR administers.</p>
                   </div>
                   <Sun className="ml-auto h-14 w-14 text-amber-300" />
+                </div>
+
+                <div className="rounded-md border border-[#d7e1ec] bg-white p-5">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <Badge variant="secondary" className="mb-2">Employee Self-Service</Badge>
+                      <h2 className="text-lg font-semibold text-slate-950">My HCM Workspace</h2>
+                      <p className="mt-1 text-sm text-slate-600">
+                        The same modules appear here as employee actions: workforce, payroll and reward, people, and talent.
+                      </p>
+                    </div>
+                    <Link className="text-sm font-medium text-[#0b8cff]" to="/employee/time-off">Start a leave request</Link>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+                    {selfServiceModules.map((module) => {
+                      const Icon = module.icon;
+                      return (
+                        <Link key={module.path} to={module.path} className="group">
+                          <div className="flex h-full min-h-[136px] flex-col rounded-md border border-slate-200 bg-[#f8fbff] p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#0b8cff]/50 group-hover:bg-white">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="grid h-10 w-10 place-items-center rounded-md bg-white text-[#0b60c8] shadow-sm">
+                                <Icon className="h-5 w-5" />
+                              </div>
+                              <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#0b60c8]" />
+                            </div>
+                            <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{module.group}</p>
+                            <h3 className="mt-1 text-sm font-semibold text-slate-950">{module.label}</h3>
+                            <p className="mt-2 text-xs leading-5 text-slate-600">{module.description}</p>
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="grid gap-3 xl:grid-cols-[1fr_360px]">
@@ -621,26 +702,13 @@ export function EmployeeDashboard() {
                     <div className="rounded-md border border-[#d7e1ec] bg-white p-4">
                       <h3 className="font-semibold">Attendance Terminal</h3>
                       <p className="mt-1 text-sm text-slate-600">
-                        {canSwitchAttendanceWorker ? 'Select the authorized employee and workplace before recording a punch.' : 'Record your own attendance with workplace and location evidence.'}
+                        Record your own attendance with workplace and location evidence.
                       </p>
                       <div className="mt-4 space-y-3">
-                        {canSwitchAttendanceWorker ? (
-                          <Select value={selectedWorkerId} onValueChange={setSelectedWorkerId}>
-                            <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
-                            <SelectContent>
-                              {workers.map((worker) => (
-                                <SelectItem key={worker.id} value={worker.id}>
-                                  {worker.firstName} {worker.lastName} - {worker.employeeId}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                            <p className="text-sm font-medium">{activeWorkerName || 'Linked employee profile required'}</p>
-                            <p className="text-xs text-slate-500">{activeWorker?.employeeId ?? user?.email ?? 'No employee profile linked'}</p>
-                          </div>
-                        )}
+                        <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                          <p className="text-sm font-medium">{activeWorkerName || 'Linked employee profile required'}</p>
+                          <p className="text-xs text-slate-500">{activeWorker?.employeeId ?? user?.email ?? 'No employee profile linked'}</p>
+                        </div>
                         <Select value={workplaceCode} onValueChange={setWorkplaceCode}>
                           <SelectTrigger><SelectValue placeholder="Select workplace" /></SelectTrigger>
                           <SelectContent>

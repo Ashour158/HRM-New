@@ -23,6 +23,13 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
     return rows.map((r) => this.toAggregate(r as unknown as Database['coverage_gaps']));
   }
 
+  async findByTenantScoped(tenantId: Uuid, workplaceCode?: string): Promise<CoverageGap[]> {
+    let query = this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value);
+    if (workplaceCode) query = query.where('workplace_code', '=', workplaceCode);
+    const rows = await query.execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['coverage_gaps']));
+  }
+
   async findByDepartment(departmentId: Uuid): Promise<CoverageGap[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('department_id', '=', departmentId.value).execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['coverage_gaps']));
@@ -45,9 +52,12 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       departmentId: new Uuid(row.department_id),
+      workplaceCode: row.workplace_code ?? undefined,
       shiftDate: row.shift_date,
       startTime: row.gap_start,
       endTime: row.gap_end,
+      requiredSkills: Array.isArray(row.required_skills) ? (row.required_skills as string[]) : [],
+      filledByWorkerId: row.filled_by_worker_id ? new Uuid(row.filled_by_worker_id) : undefined,
       status: row.status as CoverageGapStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -60,10 +70,13 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       department_id: entity.departmentId.value,
+      workplace_code: entity.workplaceCode ?? null,
       shift_date: entity.shiftDate,
       gap_start: entity.startTime,
       gap_end: entity.endTime,
-      unfilled_positions: 0,
+      required_skills: entity.requiredSkills ?? [],
+      unfilled_positions: entity.status === 'FILLED' ? 0 : 1,
+      filled_by_worker_id: entity.filledByWorkerId?.value ?? null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

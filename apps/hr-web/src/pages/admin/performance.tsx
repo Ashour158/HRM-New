@@ -48,6 +48,9 @@ interface PerformanceReviewCycle {
   startDate: string;
   endDate: string;
   reviewType: string;
+  templateId?: string;
+  weightings?: Record<string, number>;
+  periods?: Array<{ name: string; startDate: string; endDate: string }>;
   status: LifecycleStatus;
 }
 
@@ -103,12 +106,38 @@ interface PerformanceGoal {
   status: LifecycleStatus;
 }
 
+interface ManagerPerformanceDashboard {
+  managerId: string;
+  managerName: string;
+  reportCount: number;
+  analytics: {
+    ratingDistribution?: Array<{ rating: number; count: number }>;
+    goalMetrics?: { total: number; active: number; achieved: number; atRisk: number; averageProgress: number };
+    peerFeedback?: { submitted: number; anonymousSubmitted: number; averageRating: number | null };
+    nineBox?: Array<{ workerId: string; employeeName: string; performanceScore: number; potentialScore: number; box: string }>;
+    recognitions?: Array<{ workerId: string; employeeName: string; score: number; reason: string }>;
+    actionPlans?: Array<{
+      workerId: string;
+      employeeName: string;
+      riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+      progressTrend: string;
+      recommendedActions: string[];
+    }>;
+  };
+}
+
 interface ReviewCycleForm {
   name: string;
   cycleYear: string;
   startDate: string;
   endDate: string;
   reviewType: string;
+  templateId: string;
+  selfWeight: string;
+  managerWeight: string;
+  peerWeight: string;
+  selfReviewEnd: string;
+  managerReviewEnd: string;
 }
 
 interface TemplateForm {
@@ -152,6 +181,12 @@ const EMPTY_CYCLE: ReviewCycleForm = {
   startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10),
   endDate: new Date(new Date().getFullYear(), 11, 31).toISOString().slice(0, 10),
   reviewType: 'ANNUAL',
+  templateId: '',
+  selfWeight: '20',
+  managerWeight: '50',
+  peerWeight: '30',
+  selfReviewEnd: new Date(new Date().getFullYear(), 0, 31).toISOString().slice(0, 10),
+  managerReviewEnd: new Date(new Date().getFullYear(), 1, 28).toISOString().slice(0, 10),
 };
 
 const EMPTY_TEMPLATE: TemplateForm = {
@@ -312,11 +347,12 @@ function FieldTextarea({
 export function AdminPerformance() {
   const { user } = useAuth();
   const tenantId = user?.tenantId ?? '00000000-0000-0000-0000-000000000001';
-  const [activeTab, setActiveTab] = React.useState<'cycles' | 'templates' | 'competencies' | 'goals' | 'operations'>('cycles');
+  const [activeTab, setActiveTab] = React.useState<'cycles' | 'templates' | 'competencies' | 'goals' | 'manager' | 'operations'>('cycles');
   const [cycleForm, setCycleForm] = React.useState<ReviewCycleForm>(EMPTY_CYCLE);
   const [templateForm, setTemplateForm] = React.useState<TemplateForm>(EMPTY_TEMPLATE);
   const [competencyForm, setCompetencyForm] = React.useState<CompetencyForm>(EMPTY_COMPETENCY);
   const [goalForm, setGoalForm] = React.useState<GoalForm>(EMPTY_GOAL);
+  const [selectedManagerId, setSelectedManagerId] = React.useState('');
   const [busyCommand, setBusyCommand] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
 
@@ -359,6 +395,7 @@ export function AdminPerformance() {
   );
 
   const selectedWorkerId = goalForm.workerId || workers[0]?.id || '';
+  const selectedManagerWorkerId = selectedManagerId || workers[0]?.id || '';
 
   const {
     data: goals = [],
@@ -370,11 +407,27 @@ export function AdminPerformance() {
     { enabled: Boolean(selectedWorkerId) },
   );
 
+  const {
+    data: managerDashboard,
+    isLoading: managerDashboardLoading,
+    refetch: refetchManagerDashboard,
+  } = useApiQuery<ManagerPerformanceDashboard>(
+    ['performance-manager-dashboard', selectedManagerWorkerId],
+    `/performance/analytics/manager/${selectedManagerWorkerId}`,
+    { enabled: Boolean(selectedManagerWorkerId) },
+  );
+
   React.useEffect(() => {
     if (!goalForm.workerId && workers[0]?.id) {
       setGoalForm((current) => ({ ...current, workerId: workers[0].id }));
     }
   }, [goalForm.workerId, workers]);
+
+  React.useEffect(() => {
+    if (!selectedManagerId && workers[0]?.id) {
+      setSelectedManagerId(workers[0].id);
+    }
+  }, [selectedManagerId, workers]);
 
   const createCycleMutation = useApiMutation<unknown, {
     name: string;
@@ -382,6 +435,9 @@ export function AdminPerformance() {
     startDate: string;
     endDate: string;
     reviewType: string;
+    templateId?: string;
+    weightings?: Record<string, number>;
+    periods?: Array<{ name: string; startDate: string; endDate: string }>;
   }>('/performance/review-cycles', 'post', [['performance-cycles']]);
 
   const createTemplateMutation = useApiMutation<unknown, {
@@ -427,6 +483,21 @@ export function AdminPerformance() {
     [selectedWorkerId, workers],
   );
 
+  const selectedManager = React.useMemo(
+    () => workers.find((worker) => worker.id === selectedManagerWorkerId),
+    [selectedManagerWorkerId, workers],
+  );
+
+  const templateById = React.useMemo(
+    () => new Map(templates.map((template) => [template.id, template])),
+    [templates],
+  );
+
+  const activeTemplates = React.useMemo(
+    () => templates.filter((template) => template.status === 'ACTIVE'),
+    [templates],
+  );
+
   const activeCycleCount = React.useMemo(
     () => cycles.filter((cycle) => ['ACTIVE', 'IN_PROGRESS', 'CALIBRATION', 'REVIEW'].includes(cycle.status)).length,
     [cycles],
@@ -444,12 +515,25 @@ export function AdminPerformance() {
 
   const submitCycle = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const selfEnd = cycleForm.selfReviewEnd || cycleForm.endDate;
+    const managerEnd = cycleForm.managerReviewEnd || cycleForm.endDate;
     await createCycleMutation.mutateAsync({
       name: cycleForm.name,
       cycleYear: Number(cycleForm.cycleYear),
       startDate: cycleForm.startDate,
       endDate: cycleForm.endDate,
       reviewType: cycleForm.reviewType,
+      templateId: cycleForm.templateId || undefined,
+      weightings: {
+        self: Number(cycleForm.selfWeight || 0),
+        manager: Number(cycleForm.managerWeight || 0),
+        peer: Number(cycleForm.peerWeight || 0),
+      },
+      periods: [
+        { name: 'Self review', startDate: cycleForm.startDate, endDate: selfEnd },
+        { name: 'Manager review', startDate: selfEnd, endDate: managerEnd },
+        { name: 'Calibration and final review', startDate: managerEnd, endDate: cycleForm.endDate },
+      ],
     });
     setCycleForm(EMPTY_CYCLE);
     setMessage('Review cycle created');
@@ -553,6 +637,9 @@ export function AdminPerformance() {
         <div>
           <p className="font-medium text-slate-950">{cycle.name}</p>
           <p className="text-xs text-muted-foreground">{cycle.reviewType} · {cycle.cycleYear}</p>
+          {cycle.templateId ? (
+            <p className="mt-1 text-xs text-slate-500">Template: {templateById.get(cycle.templateId)?.name ?? cycle.templateId}</p>
+          ) : null}
         </div>
       ),
     },
@@ -565,6 +652,11 @@ export function AdminPerformance() {
       key: 'status',
       header: 'Status',
       cell: (cycle) => <Badge variant={statusVariant(cycle.status)}>{cycle.status}</Badge>,
+    },
+    {
+      key: 'weightings',
+      header: 'Weights',
+      cell: (cycle) => cycle.weightings ? Object.entries(cycle.weightings).map(([key, value]) => `${key} ${value}%`).join(' / ') : '-',
     },
     {
       key: 'action',
@@ -586,7 +678,7 @@ export function AdminPerformance() {
         );
       },
     },
-  ], [busyCommand, refetchCycles]);
+  ], [busyCommand, refetchCycles, templateById]);
 
   const templateColumns = React.useMemo<DataTableColumn<ReviewTemplate>[]>(() => [
     {
@@ -747,6 +839,7 @@ export function AdminPerformance() {
               refetchTemplates();
               refetchCompetencies();
               refetchGoals();
+              refetchManagerDashboard();
             }}
           >
             <RefreshCw className="mr-2 h-4 w-4" />
@@ -786,6 +879,10 @@ export function AdminPerformance() {
           <TabsTrigger value="goals" className="gap-2">
             <Goal className="h-4 w-4" />
             Goals
+          </TabsTrigger>
+          <TabsTrigger value="manager" className="gap-2">
+            <Users className="h-4 w-4" />
+            Manager Dashboard
           </TabsTrigger>
           <TabsTrigger value="operations" className="gap-2">
             <Activity className="h-4 w-4" />
@@ -849,6 +946,42 @@ export function AdminPerformance() {
                   <div className="space-y-2">
                     <Label htmlFor="cycle-end">End</Label>
                     <Input id="cycle-end" type="date" value={cycleForm.endDate} onChange={(event) => setCycleForm({ ...cycleForm, endDate: event.target.value })} required />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Review Template</Label>
+                  <Select value={cycleForm.templateId || 'none'} onValueChange={(value) => setCycleForm({ ...cycleForm, templateId: value === 'none' ? '' : value })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No template</SelectItem>
+                      {activeTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="cycle-self-weight">Self %</Label>
+                    <Input id="cycle-self-weight" type="number" value={cycleForm.selfWeight} onChange={(event) => setCycleForm({ ...cycleForm, selfWeight: event.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cycle-manager-weight">Manager %</Label>
+                    <Input id="cycle-manager-weight" type="number" value={cycleForm.managerWeight} onChange={(event) => setCycleForm({ ...cycleForm, managerWeight: event.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cycle-peer-weight">Peer %</Label>
+                    <Input id="cycle-peer-weight" type="number" value={cycleForm.peerWeight} onChange={(event) => setCycleForm({ ...cycleForm, peerWeight: event.target.value })} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="cycle-self-review-end">Self Review End</Label>
+                    <Input id="cycle-self-review-end" type="date" value={cycleForm.selfReviewEnd} onChange={(event) => setCycleForm({ ...cycleForm, selfReviewEnd: event.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cycle-manager-review-end">Manager Review End</Label>
+                    <Input id="cycle-manager-review-end" type="date" value={cycleForm.managerReviewEnd} onChange={(event) => setCycleForm({ ...cycleForm, managerReviewEnd: event.target.value })} />
                   </div>
                 </div>
                 <Button className="w-full" disabled={createCycleMutation.isPending}>
@@ -1091,6 +1224,122 @@ export function AdminPerformance() {
               </form>
             </CardContent>
           </Card>
+        </div>
+      ) : null}
+
+      {activeTab === 'manager' ? (
+        <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <Card className="rounded-md">
+            <CardHeader>
+              <CardTitle className="text-lg">Manager Scope</CardTitle>
+              <CardDescription>Dashboard analytics are built from direct reports only.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Manager</Label>
+                <Select
+                  value={selectedManagerWorkerId}
+                  onValueChange={setSelectedManagerId}
+                  disabled={workersLoading || workers.length === 0}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                  <SelectContent>
+                    {workers.map((worker) => (
+                      <SelectItem key={worker.id} value={worker.id}>
+                        {employeeName(worker)} · {worker.employeeId}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="rounded-md border bg-slate-50 p-3">
+                <p className="text-sm font-semibold text-slate-950">{selectedManager ? employeeName(selectedManager) : 'No manager selected'}</p>
+                <p className="mt-1 text-sm text-slate-600">{managerDashboard?.reportCount ?? 0} direct reports in the current tenant scope.</p>
+              </div>
+              <Button variant="outline" className="w-full" onClick={() => refetchManagerDashboard()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatTile icon={Users} label="Direct Reports" value={managerDashboardLoading ? '-' : managerDashboard?.reportCount ?? 0} />
+              <StatTile icon={Goal} label="Avg Goal Progress" value={`${Math.round(managerDashboard?.analytics.goalMetrics?.averageProgress ?? 0)}%`} />
+              <StatTile icon={Sparkles} label="Recognitions" value={managerDashboard?.analytics.recognitions?.length ?? 0} />
+              <StatTile icon={Gauge} label="At Risk Goals" value={managerDashboard?.analytics.goalMetrics?.atRisk ?? 0} />
+            </div>
+
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="text-lg">Talent Grid</CardTitle>
+                <CardDescription>Nine-box placement and performance actions from reviews, goals, objectives, and feedback.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(managerDashboard?.analytics.nineBox ?? []).length ? managerDashboard?.analytics.nineBox?.map((item) => (
+                  <div key={item.workerId} className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-[1fr_140px_140px_160px] md:items-center">
+                    <div>
+                      <p className="font-medium text-slate-950">{item.employeeName}</p>
+                      <p className="text-xs text-muted-foreground">{item.workerId}</p>
+                    </div>
+                    <p className="text-sm text-slate-700">Performance {Math.round(item.performanceScore)}%</p>
+                    <p className="text-sm text-slate-700">Potential {Math.round(item.potentialScore)}%</p>
+                    <Badge variant="outline">{item.box}</Badge>
+                  </div>
+                )) : (
+                  <p className="rounded-md border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">No direct-report analytics available yet.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <Card className="rounded-md">
+                <CardHeader>
+                  <CardTitle className="text-lg">Action Plans</CardTitle>
+                  <CardDescription>Manager-owned coaching actions generated from performance signals.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(managerDashboard?.analytics.actionPlans ?? []).slice(0, 5).map((plan) => (
+                    <div key={plan.workerId} className="rounded-md border bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium text-slate-950">{plan.employeeName}</p>
+                        <Badge variant={plan.riskLevel === 'HIGH' ? 'destructive' : plan.riskLevel === 'MEDIUM' ? 'secondary' : 'outline'}>{plan.riskLevel}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">Trend: {plan.progressTrend}</p>
+                      <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                        {plan.recommendedActions.slice(0, 2).map((action) => <li key={action}>- {action}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+                  {managerDashboard?.analytics.actionPlans?.length ? null : (
+                    <p className="rounded-md border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">No action plans generated yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-md">
+                <CardHeader>
+                  <CardTitle className="text-lg">Recognition</CardTitle>
+                  <CardDescription>Best employee signals from the performance analytics engine.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(managerDashboard?.analytics.recognitions ?? []).slice(0, 5).map((recognition) => (
+                    <div key={recognition.workerId} className="rounded-md border bg-slate-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium text-slate-950">{recognition.employeeName}</p>
+                        <Badge>{Math.round(recognition.score)}%</Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{recognition.reason}</p>
+                    </div>
+                  ))}
+                  {managerDashboard?.analytics.recognitions?.length ? null : (
+                    <p className="rounded-md border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">No recognition candidates yet.</p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
       ) : null}
 

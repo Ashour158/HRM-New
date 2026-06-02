@@ -170,7 +170,7 @@ export class PositionRepository {
   }
 
   private toAggregate(row: Record<string, unknown>): Position {
-    return Position.create({
+    return Position.restore({
       id: new Uuid(row.id as string),
       tenantId: new Uuid(row.tenant_id as string),
       positionCode: row.position_code as string,

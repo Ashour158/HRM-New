@@ -23,6 +23,18 @@ export class ShiftScheduleRepository extends BaseRepository<'shift_schedules', S
     return rows.map((r) => this.toAggregate(r as unknown as Database['shift_schedules']));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<ShiftSchedule[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_schedules']));
+  }
+
+  async findByTenantScoped(tenantId: Uuid, workplaceCode?: string): Promise<ShiftSchedule[]> {
+    let query = this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value);
+    if (workplaceCode) query = query.where('workplace_code', '=', workplaceCode);
+    const rows = await query.execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_schedules']));
+  }
+
   async save(entity: ShiftSchedule): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
@@ -43,6 +55,7 @@ export class ShiftScheduleRepository extends BaseRepository<'shift_schedules', S
       endTime: row.end_time,
       breakDuration: row.break_duration,
       departmentId: new Uuid(row.department_id),
+      workplaceCode: row.workplace_code ?? undefined,
       status: row.status as ShiftScheduleStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -60,6 +73,7 @@ export class ShiftScheduleRepository extends BaseRepository<'shift_schedules', S
       end_time: entity.endTime,
       break_duration: entity.breakDuration,
       department_id: entity.departmentId.value,
+      workplace_code: entity.workplaceCode ?? null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

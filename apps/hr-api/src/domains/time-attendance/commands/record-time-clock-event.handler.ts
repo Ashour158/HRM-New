@@ -3,7 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
-import { TimeClockEvent, type TimeClockEventType } from '../aggregates/time-clock-event.aggregate.js';
+import { TimeClockEvent, type TimeClockCaptureMethod, type TimeClockEventType } from '../aggregates/time-clock-event.aggregate.js';
 import { TimeClockEventRepository } from '../repositories/time-clock-event.repository.js';
 import { TimeAttendanceEventsPublisher } from '../events/time-attendance-events.publisher.js';
 
@@ -22,7 +22,25 @@ export class RecordTimeClockEventHandler {
       eventType: TimeClockEventType;
       timestamp: Date;
       location?: string;
+      latitude?: number;
+      longitude?: number;
+      accuracyMeters?: number;
+      workplaceCode?: string;
+      distanceMeters?: number;
+      geofenceRadiusMeters?: number;
+      geofenceProfileCode?: string;
+      locationStatus?: string;
+      deviceTrustLevel?: string;
+      trustLevel?: string;
+      trustScore?: number;
+      trustRequiresApproval?: boolean;
+      trustReasons?: string[];
       deviceId?: string;
+      captureMethod?: TimeClockCaptureMethod;
+      captureDeviceKind?: string;
+      captureReference?: string;
+      verificationStatus?: 'FAILED' | 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED';
+      captureEvidence?: Record<string, unknown>;
     };
     const ev = TimeClockEvent.record(
       {
@@ -32,7 +50,25 @@ export class RecordTimeClockEventHandler {
         eventType: payload.eventType,
         timestamp: payload.timestamp,
         location: payload.location,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        accuracyMeters: payload.accuracyMeters,
+        workplaceCode: payload.workplaceCode,
+        distanceMeters: payload.distanceMeters,
+        geofenceRadiusMeters: payload.geofenceRadiusMeters,
+        geofenceProfileCode: payload.geofenceProfileCode,
+        locationStatus: payload.locationStatus,
+        deviceTrustLevel: payload.deviceTrustLevel,
+        trustLevel: payload.trustLevel,
+        trustScore: payload.trustScore,
+        trustRequiresApproval: payload.trustRequiresApproval,
+        trustReasons: payload.trustReasons,
         deviceId: payload.deviceId,
+        captureMethod: payload.captureMethod,
+        captureDeviceKind: payload.captureDeviceKind,
+        captureReference: payload.captureReference,
+        verificationStatus: payload.verificationStatus,
+        captureEvidence: payload.captureEvidence,
       },
       command.correlationId,
     );

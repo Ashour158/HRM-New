@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Link } from 'react-router-dom';
 import { Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -157,6 +158,9 @@ export function AdminSettings() {
         </div>
         <div className="flex items-center gap-3">
           {savedAt ? <Badge variant="secondary">Saved {savedAt}</Badge> : null}
+          <Button asChild type="button" variant="outline">
+            <Link to="/admin/policies">Policy Center</Link>
+          </Button>
           <Button type="button" onClick={save} disabled={isLoading || mutation.isPending}>
             <Save className="mr-2 h-4 w-4" />
             {mutation.isPending ? 'Saving...' : 'Save Setup'}

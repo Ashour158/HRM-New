@@ -390,13 +390,21 @@ export class WorkerProfile extends AggregateRoot {
    * Update job information.
    */
   updateJobInfo(
-    props: { jobTitle?: string; departmentId?: Uuid; legalEntityId?: Uuid; managerId?: Uuid },
+    props: { jobTitle?: string | null; departmentId?: Uuid | null; legalEntityId?: Uuid | null; managerId?: Uuid | null },
     correlationId: Uuid,
   ): void {
-    this.jobTitle = props.jobTitle ?? this.jobTitle;
-    this.departmentId = props.departmentId ?? this.departmentId;
-    this.legalEntityId = props.legalEntityId ?? this.legalEntityId;
-    this.managerId = props.managerId ?? this.managerId;
+    if ('jobTitle' in props && props.jobTitle !== undefined) {
+      this.jobTitle = props.jobTitle ?? undefined;
+    }
+    if ('departmentId' in props && props.departmentId !== undefined) {
+      this.departmentId = props.departmentId ?? undefined;
+    }
+    if ('legalEntityId' in props && props.legalEntityId !== undefined) {
+      this.legalEntityId = props.legalEntityId ?? undefined;
+    }
+    if ('managerId' in props && props.managerId !== undefined) {
+      this.managerId = props.managerId ?? undefined;
+    }
     this.addDomainEvent(
       new JobInfoUpdated({
         tenantId: this.tenantId,

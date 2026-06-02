@@ -7,12 +7,20 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { OnboardingPlan } from '../aggregates/onboarding-plan.aggregate.js';
 import { OnboardingPlanRepository } from '../repositories/onboarding-plan.repository.js';
 import { OnboardingEventsPublisher } from '../events/onboarding-events.publisher.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 export interface CreateOnboardingPlanCommandPayload {
-  planId: Uuid;
-  workerId: Uuid;
+  planId: UuidInput;
+  workerId: UuidInput;
   startDate: Date;
-  assignedBuddyId?: Uuid;
+  assignedBuddyId?: UuidInput;
+  mentorId?: UuidInput;
+  roleTrack?: string;
+  preboardingPortalStatus?: 'NOT_INVITED' | 'INVITED' | 'ACTIVE' | 'COMPLETED';
+  firstDayInstructions?: Record<string, unknown>;
+  welcomeMessage?: string;
+  probationReviewDate?: Date;
+  probationStatus?: 'NOT_REQUIRED' | 'PENDING_REVIEW' | 'CONFIRMED' | 'EXTENDED' | 'TERMINATION_RECOMMENDED';
 }
 
 /**
@@ -37,11 +45,18 @@ export class CreateOnboardingPlanHandler implements ICommandHandler {
 
     const plan = OnboardingPlan.create(
       {
-        id: payload.planId,
+        id: toUuid(payload.planId),
         tenantId: command.tenantId,
-        workerId: payload.workerId,
-        startDate: payload.startDate,
-        assignedBuddyId: payload.assignedBuddyId,
+        workerId: toUuid(payload.workerId),
+        startDate: new Date(payload.startDate),
+        assignedBuddyId: payload.assignedBuddyId ? toUuid(payload.assignedBuddyId) : undefined,
+        mentorId: payload.mentorId ? toUuid(payload.mentorId) : undefined,
+        roleTrack: payload.roleTrack,
+        preboardingPortalStatus: payload.preboardingPortalStatus,
+        firstDayInstructions: payload.firstDayInstructions,
+        welcomeMessage: payload.welcomeMessage,
+        probationReviewDate: payload.probationReviewDate ? new Date(payload.probationReviewDate) : undefined,
+        probationStatus: payload.probationStatus,
       },
       command.correlationId,
     );

@@ -22,7 +22,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../../guards/auth.guard.js';
-import { WorkerProfile } from '../aggregates/worker-profile.aggregate.js';
+import { WorkerProfile, type WorkerStatus } from '../aggregates/worker-profile.aggregate.js';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { WorkerRepository } from '../repositories/worker.repository.js';
@@ -58,6 +58,65 @@ type EmployeeMassUpdateRow = {
   currency?: string;
 };
 
+type ProfileSectionCategory =
+  | 'BASIC'
+  | 'CONTACT'
+  | 'BANKING'
+  | 'TAX'
+  | 'MEDICAL'
+  | 'EMERGENCY_CONTACT'
+  | 'DEPENDENT'
+  | 'BACKGROUND'
+  | 'COMPENSATION'
+  | 'DOCUMENT'
+  | 'WORK_AUTHORIZATION'
+  | 'ASSET_ACCESS'
+  | 'SKILLS'
+  | 'CONSENT'
+  | 'CUSTOM';
+
+type ExpiryAlert = {
+  source: 'PERSONAL_DATA' | 'EMPLOYMENT_CONTRACT';
+  workerId: string;
+  recordId?: string;
+  contractId?: string;
+  category?: string;
+  fieldPath?: string;
+  expiryType: string;
+  expiryDate: string;
+  daysUntilExpiry: number;
+  severity: 'EXPIRED' | 'CRITICAL' | 'WARNING';
+};
+
+const PROFILE_SECTION_CATEGORIES = new Set<ProfileSectionCategory>([
+  'BASIC',
+  'CONTACT',
+  'BANKING',
+  'TAX',
+  'MEDICAL',
+  'EMERGENCY_CONTACT',
+  'DEPENDENT',
+  'BACKGROUND',
+  'COMPENSATION',
+  'DOCUMENT',
+  'WORK_AUTHORIZATION',
+  'ASSET_ACCESS',
+  'SKILLS',
+  'CONSENT',
+  'CUSTOM',
+]);
+
+const EXPIRY_KEY_PATTERN = /(expiry|expires|expiration|validUntil|valid_to|endDate|end_date)/i;
+const EXPIRY_TYPE_PATTERNS: Array<[RegExp, string]> = [
+  [/passport/i, 'PASSPORT'],
+  [/work.?permit|work.?authorization/i, 'WORK_PERMIT'],
+  [/licen[cs]e/i, 'LICENSE'],
+  [/certification|certificate/i, 'CERTIFICATION'],
+  [/insurance/i, 'INSURANCE'],
+  [/health.?card|medical/i, 'HEALTH_CARD'],
+  [/contract/i, 'CONTRACT_END'],
+];
+
 function csvEscape(value: string | number | null | undefined): string {
   const text = value === null || value === undefined ? '' : String(value);
   if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
@@ -71,6 +130,17 @@ function toCsv(rows: Array<Record<string, string | number | null | undefined>>):
     ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(',')),
   ].join('\n');
 }
+
+const HR_CORE_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'PEOPLE_ADMIN',
+  'WORKFORCE_PLANNING_ADMIN',
+  'SYSTEM_ACTOR',
+]);
 
 @ApiTags('HR Core')
 @UseGuards(AuthGuard)
@@ -107,6 +177,7 @@ export class HrCoreController {
       throw new ForbiddenException('Authenticated actor is required');
     }
     const actor = req.actor;
+    this.assertHrCoreAdminScope(req);
     return {
       commandId: Uuid.generate(),
       commandName,
@@ -128,6 +199,24 @@ export class HrCoreController {
         clientType: this.mapRoleToClientType(actor.roles[0]),
       },
     };
+  }
+
+  private getTenantId(req: Request): Uuid {
+    return new Uuid(
+      (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001',
+    );
+  }
+
+  private assertHrCoreAdminScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => HR_CORE_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only HR administrators can access employee master data administration');
+  }
+
+  private async getTenantWorker(id: string, req: Request): Promise<WorkerProfile> {
+    const worker = await this.workerRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!worker) throw new BadRequestException('Worker not found');
+    return worker;
   }
 
   private mapRoleToClientType(role?: string): 'HR_ADMIN' | 'MANAGER_PORTAL' | 'EMPLOYEE_PORTAL' | 'SYSTEM' {
@@ -178,7 +267,10 @@ export class HrCoreController {
   @Post('workers/duplicate-check')
   async checkWorkerDuplicates(
     @Body(new ZodValidationPipe(WorkerDuplicateCheckDtoSchema)) dto: dtos.WorkerDuplicateCheckDto,
+    @Req() req: Request,
   ) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
     const exactMatches: Array<{ field: string; value: string; workerId?: string; employeeId?: string }> = [];
     const warnings: Array<{ reason: string; workerId: string; employeeId: string; name: string }> = [];
 
@@ -189,7 +281,7 @@ export class HrCoreController {
     ].filter((entry): entry is [string, string] => Boolean(entry[1]));
 
     for (const [field, value] of emailChecks) {
-      const worker = await this.workerRepo.findByEmail(value);
+      const worker = await this.workerRepo.findByEmailForTenant(value, tenantId);
       if (worker) {
         exactMatches.push({
           field,
@@ -201,7 +293,7 @@ export class HrCoreController {
     }
 
     if (dto.employeeNumber) {
-      const worker = await this.workerRepo.findByEmployeeNumber(dto.employeeNumber);
+      const worker = await this.workerRepo.findByEmployeeNumberForTenant(dto.employeeNumber, tenantId);
       if (worker) {
         exactMatches.push({
           field: 'employeeId',
@@ -213,7 +305,7 @@ export class HrCoreController {
     }
 
     if (dto.phoneNumber) {
-      const record = await this.personalDataRepo.findByPayloadField('BASIC', 'phoneNumber', dto.phoneNumber);
+      const record = await this.personalDataRepo.findByPayloadFieldForTenant('BASIC', 'phoneNumber', dto.phoneNumber, tenantId);
       if (record) {
         exactMatches.push({
           field: 'phone',
@@ -224,7 +316,7 @@ export class HrCoreController {
     }
 
     if (dto.workPhoneNumber) {
-      const record = await this.personalDataRepo.findByPayloadField('BASIC', 'workPhoneNumber', dto.workPhoneNumber);
+      const record = await this.personalDataRepo.findByPayloadFieldForTenant('BASIC', 'workPhoneNumber', dto.workPhoneNumber, tenantId);
       if (record) {
         exactMatches.push({
           field: 'workPhone',
@@ -236,7 +328,7 @@ export class HrCoreController {
 
     if (dto.firstName && dto.lastName) {
       const normalizedName = `${dto.firstName} ${dto.lastName}`.trim().toLowerCase();
-      const nameMatches = await this.workerRepo.search(`${dto.firstName} ${dto.lastName}`, { limit: 10 });
+      const nameMatches = await this.workerRepo.searchForTenant(`${dto.firstName} ${dto.lastName}`, tenantId, { limit: 10 });
       for (const worker of nameMatches) {
         const workerName = `${worker.firstName} ${worker.lastName}`.trim();
         if (workerName.toLowerCase() === normalizedName) {
@@ -269,8 +361,7 @@ export class HrCoreController {
 
   @Post('workers/:id/commands/activate')
   async activateWorker(@Param('id') id: string, @Req() req: Request) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+    const worker = await this.getTenantWorker(id, req);
     const command = this.buildCommand(
       'ActivateWorker',
       'WorkerProfile',
@@ -292,8 +383,7 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(TerminateWorkerDtoSchema)) dto: dtos.TerminateWorkerDto,
     @Req() req: Request,
   ) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+    const worker = await this.getTenantWorker(id, req);
     const command = this.buildCommand(
       'TerminateWorker',
       'WorkerProfile',
@@ -311,30 +401,50 @@ export class HrCoreController {
   }
 
   @Post('workers/:id/commands/suspend')
-  async suspendWorker(@Param('id') id: string, @Req() req: Request) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+  async suspendWorker(@Param('id') id: string, @Body() body: { reason?: string; effectiveDate?: string }, @Req() req: Request) {
+    const worker = await this.getTenantWorker(id, req);
+    const effectiveDate = body.effectiveDate ? new Date(body.effectiveDate) : undefined;
     const command = this.buildCommand(
       'SuspendWorker',
       'WorkerProfile',
-      { workerId: new Uuid(id) },
+      { workerId: new Uuid(id), reason: body.reason, effectiveDate },
       req,
       {
         aggregateId: new Uuid(id),
         expectedState: worker.status,
         expectedVersion: worker.aggregateVersion,
         subjectWorkerId: new Uuid(id),
+        effectiveDate,
       },
     );
     return this.executeCommand(command);
   }
 
   @Post('workers/:id/commands/reinstate')
-  async reinstateWorker(@Param('id') id: string, @Req() req: Request) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+  async reinstateWorker(@Param('id') id: string, @Body() body: { effectiveDate?: string }, @Req() req: Request) {
+    const worker = await this.getTenantWorker(id, req);
+    const effectiveDate = body.effectiveDate ? new Date(body.effectiveDate) : undefined;
     const command = this.buildCommand(
       'ReinstateWorker',
+      'WorkerProfile',
+      { workerId: new Uuid(id), effectiveDate },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: worker.status,
+        expectedVersion: worker.aggregateVersion,
+        subjectWorkerId: new Uuid(id),
+        effectiveDate,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('workers/:id/commands/rehire')
+  async rehireWorker(@Param('id') id: string, @Req() req: Request) {
+    const worker = await this.getTenantWorker(id, req);
+    const command = this.buildCommand(
+      'RehireWorker',
       'WorkerProfile',
       { workerId: new Uuid(id) },
       req,
@@ -354,8 +464,7 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(UpdateWorkerDtoSchema)) dto: dtos.UpdateWorkerDto,
     @Req() req: Request,
   ) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+    const worker = await this.getTenantWorker(id, req);
     const command = this.buildCommand(
       'UpdateWorkerPersonalData',
       'WorkerProfile',
@@ -371,8 +480,33 @@ export class HrCoreController {
     return this.executeCommand(command);
   }
 
+  @Patch('workers/:id/profile-sections/:category')
+  async upsertWorkerProfileSection(
+    @Param('id') id: string,
+    @Param('category') category: string,
+    @Body() fields: Record<string, unknown>,
+    @Req() req: Request,
+  ) {
+    const worker = await this.getTenantWorker(id, req);
+    const dataCategory = this.normalizeProfileSectionCategory(category);
+    const command = this.buildCommand(
+      'UpsertWorkerProfileSection',
+      'WorkerProfile',
+      { workerId: new Uuid(id), dataCategory, fields },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: worker.status,
+        expectedVersion: worker.aggregateVersion,
+        subjectWorkerId: new Uuid(id),
+      },
+    );
+    return this.executeCommand(command);
+  }
+
   @Get('workers')
   async listWorkers(
+    @Req() req: Request,
     @Query('search') search?: string,
     @Query('status') status?: string,
     @Query('department') department?: string,
@@ -381,32 +515,30 @@ export class HrCoreController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
     const limit = pageSize ? parseInt(pageSize, 10) : 50;
     const offset = page ? (parseInt(page, 10) - 1) * limit : 0;
 
-    let workers: WorkerProfile[];
-    if (department) {
-      workers = await this.workerRepo.findByDepartment(new Uuid(department));
-    } else if (manager) {
-      workers = await this.workerRepo.findByManager(new Uuid(manager));
-    } else if (legalEntity) {
-      workers = await this.workerRepo.findByLegalEntity(new Uuid(legalEntity));
-    } else if (search) {
-      workers = await this.workerRepo.search(search, { limit, offset });
-    } else if (status) {
-      workers = await this.workerRepo.findActive();
-    } else {
-      workers = await this.workerRepo.search('', { limit, offset });
-    }
+    const workers = await this.workerRepo.searchForTenant(search ?? '', tenantId, {
+      limit,
+      offset,
+      status: status ? this.normalizeWorkerStatus(status) : undefined,
+      departmentId: department ? new Uuid(department) : undefined,
+      managerId: manager ? new Uuid(manager) : undefined,
+      legalEntityId: legalEntity ? new Uuid(legalEntity) : undefined,
+    });
 
     return workers.map((w) => this.toWorkerDto(w));
   }
 
   @Get('workers/export.csv')
-  async exportWorkersCsv(@Res() res: Response) {
-    const workers = await this.workerRepo.search('', { limit: 1000 });
+  async exportWorkersCsv(@Req() req: Request, @Res() res: Response) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    const workers = await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
     const rows = await Promise.all(workers.map(async (worker) => {
-      const records = await this.personalDataRepo.findByWorker(worker.id);
+      const records = await this.personalDataRepo.findByWorkerForTenant(worker.id, tenantId);
       const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
       const basic = payloadByCategory.BASIC ?? {};
       const contact = payloadByCategory.CONTACT ?? {};
@@ -432,7 +564,8 @@ export class HrCoreController {
   }
 
   @Get('workers/mass-update-template.csv')
-  async employeeMassUpdateTemplate(@Res() res: Response) {
+  async employeeMassUpdateTemplate(@Req() req: Request, @Res() res: Response) {
+    this.assertHrCoreAdminScope(req);
     const csv = toCsv([{
       employeeId: 'EMP-001',
       firstName: 'Mona',
@@ -453,7 +586,9 @@ export class HrCoreController {
   }
 
   @Post('workers/mass-update-preview')
-  async employeeMassUpdatePreview(@Body() body: { rows?: EmployeeMassUpdateRow[] }) {
+  async employeeMassUpdatePreview(@Body() body: { rows?: EmployeeMassUpdateRow[] }, @Req() req: Request) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
     const rows = body.rows ?? [];
     const seenEmployeeIds = new Set<string>();
     const seenEmails = new Set<string>();
@@ -464,7 +599,7 @@ export class HrCoreController {
       if (row.employeeId && seenEmployeeIds.has(row.employeeId)) errors.push({ row: index + 1, field: 'employeeId', message: 'Duplicate employee ID in upload' });
       if (row.employeeId) {
         seenEmployeeIds.add(row.employeeId);
-        const existing = await this.workerRepo.findByEmployeeNumber(row.employeeId);
+        const existing = await this.workerRepo.findByEmployeeNumberForTenant(row.employeeId, tenantId);
         if (!existing) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee does not exist for mass update' });
       }
       const email = row.workEmail ?? row.personalEmail;
@@ -483,17 +618,18 @@ export class HrCoreController {
   }
 
   @Get('workers/:id')
-  async getWorker(@Param('id') id: string) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+  async getWorker(@Param('id') id: string, @Req() req: Request) {
+    this.assertHrCoreAdminScope(req);
+    const worker = await this.getTenantWorker(id, req);
     return this.toWorkerDto(worker);
   }
 
   @Get('workers/:id/profile')
-  async getWorkerProfile(@Param('id') id: string) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
-    const records = await this.personalDataRepo.findByWorker(worker.id);
+  async getWorkerProfile(@Param('id') id: string, @Req() req: Request) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    const worker = await this.getTenantWorker(id, req);
+    const records = await this.personalDataRepo.findByWorkerForTenant(worker.id, tenantId);
     const byCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record]));
 
     return {
@@ -524,11 +660,213 @@ export class HrCoreController {
     };
   }
 
+  @Get('workers/:id/master-profile')
+  async getWorkerMasterProfile(@Param('id') id: string, @Req() req: Request, @Query('expiryDays') expiryDays?: string) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    const worker = await this.getTenantWorker(id, req);
+
+    const [records, relationships, jobAssignments, contracts] = await Promise.all([
+      this.personalDataRepo.findByWorkerForTenant(worker.id, tenantId),
+      this.employmentRelationshipRepo.findByWorkerForTenant(worker.id, tenantId),
+      this.jobAssignmentRepo.findByWorkerForTenant(worker.id, tenantId),
+      this.employmentContractRepo.findByWorkerForTenant(worker.id, tenantId),
+    ]);
+    const profileSections = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}]));
+    const documentSection = profileSections.DOCUMENT as Record<string, unknown> | undefined;
+    const days = this.parseDays(expiryDays, 30);
+
+    return {
+      worker: this.toWorkerDto(worker),
+      profileSections,
+      relationships,
+      jobAssignments,
+      contracts,
+      digitalEmployeeFile: {
+        documents: Array.isArray(documentSection?.documents) ? documentSection.documents : [],
+        documentRecord: documentSection ?? {},
+      },
+      lifecycleTimeline: this.buildLifecycleTimeline(worker, relationships, jobAssignments, contracts),
+      expiryAlerts: this.collectExpiryAlerts(records, contracts, days, worker.id),
+      governance: {
+        dataClassification: worker.dataClassification,
+        personalDataRecords: records.map((record) => ({
+          id: record.id.value,
+          dataCategory: record.dataCategory,
+          dataClassification: record.dataClassification,
+          consentStatus: record.consentStatus,
+          state: record.state,
+        })),
+      },
+    };
+  }
+
   @Get('workers/:id/allowed-actions')
-  async getAllowedActions(@Param('id') id: string) {
-    const worker = await this.workerRepo.findById(new Uuid(id));
-    if (!worker) throw new BadRequestException('Worker not found');
+  async getAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    const worker = await this.getTenantWorker(id, req);
     return this.fsm.getAllowedActionsFromState(worker.status, 'WorkerProfile');
+  }
+
+  private normalizeProfileSectionCategory(category: string): ProfileSectionCategory {
+    const normalized = category.trim().toUpperCase().replace(/-/g, '_') as ProfileSectionCategory;
+    if (!PROFILE_SECTION_CATEGORIES.has(normalized)) {
+      throw new BadRequestException(`Unsupported profile section category ${category}`);
+    }
+    return normalized;
+  }
+
+  private normalizeWorkerStatus(status: string): WorkerStatus {
+    const normalized = status.trim().toUpperCase() as WorkerStatus;
+    if (!['DRAFT', 'PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'TERMINATED', 'REHIRED'].includes(normalized)) {
+      throw new BadRequestException(`Unsupported worker status ${status}`);
+    }
+    return normalized;
+  }
+
+  private parseDays(value: string | undefined, fallback: number): number {
+    const parsed = value ? Number.parseInt(value, 10) : fallback;
+    if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+    return parsed;
+  }
+
+  private buildLifecycleTimeline(
+    worker: WorkerProfile,
+    relationships: unknown[],
+    jobAssignments: unknown[],
+    contracts: unknown[],
+  ) {
+    return [
+      { type: 'WORKER_HIRED', date: worker.hireDate.toISOString(), status: worker.status },
+      ...relationships.map((relationship) => ({
+        type: 'EMPLOYMENT_RELATIONSHIP',
+        state: (relationship as { state?: string }).state,
+        startDate: this.isoDate((relationship as { startDate?: Date | string }).startDate),
+        endDate: this.isoDate((relationship as { endDate?: Date | string }).endDate),
+      })),
+      ...jobAssignments.map((assignment) => ({
+        type: 'JOB_ASSIGNMENT',
+        state: (assignment as { state?: string }).state,
+        startDate: this.isoDate((assignment as { startDate?: Date | string }).startDate),
+        endDate: this.isoDate((assignment as { endDate?: Date | string }).endDate),
+      })),
+      ...contracts.map((contract) => ({
+        type: 'EMPLOYMENT_CONTRACT',
+        state: (contract as { state?: string }).state,
+        startDate: this.isoDate((contract as { startDate?: Date | string }).startDate),
+        endDate: this.isoDate((contract as { endDate?: Date | string }).endDate),
+      })),
+    ];
+  }
+
+  private collectExpiryAlerts(
+    records: Array<{
+      id: Uuid;
+      workerId: Uuid;
+      dataCategory: string;
+      payload?: Record<string, unknown> | null;
+    }>,
+    contracts: Array<{ id: Uuid; workerId?: Uuid; endDate?: Date | string }>,
+    days: number,
+    ownerWorkerId?: Uuid,
+  ): ExpiryAlert[] {
+    const alerts: ExpiryAlert[] = [];
+    for (const record of records) {
+      for (const candidate of this.findExpiryCandidates(record.payload ?? {}, record.dataCategory)) {
+        const daysUntilExpiry = this.daysUntil(candidate.expiryDate);
+        if (daysUntilExpiry <= days) {
+          alerts.push({
+            source: 'PERSONAL_DATA',
+            workerId: record.workerId.value,
+            recordId: record.id.value,
+            category: record.dataCategory,
+            fieldPath: candidate.fieldPath,
+            expiryType: candidate.expiryType,
+            expiryDate: candidate.expiryDate,
+            daysUntilExpiry,
+            severity: this.severityForDays(daysUntilExpiry),
+          });
+        }
+      }
+    }
+
+    for (const contract of contracts) {
+      const expiryDate = this.isoDate(contract.endDate);
+      if (!expiryDate) continue;
+      const daysUntilExpiry = this.daysUntil(expiryDate);
+      if (daysUntilExpiry <= days) {
+        alerts.push({
+          source: 'EMPLOYMENT_CONTRACT',
+          workerId: (contract.workerId ?? ownerWorkerId)?.value ?? '',
+          contractId: contract.id.value,
+          expiryType: 'CONTRACT_END',
+          expiryDate,
+          daysUntilExpiry,
+          severity: this.severityForDays(daysUntilExpiry),
+        });
+      }
+    }
+
+    return alerts.sort((left, right) => left.daysUntilExpiry - right.daysUntilExpiry);
+  }
+
+  private findExpiryCandidates(
+    value: unknown,
+    context: string,
+    path = '',
+  ): Array<{ fieldPath: string; expiryType: string; expiryDate: string }> {
+    if (!value || typeof value !== 'object') return [];
+    if (Array.isArray(value)) {
+      return value.flatMap((item, index) => this.findExpiryCandidates(item, context, `${path}[${index}]`));
+    }
+
+    const record = value as Record<string, unknown>;
+    const matches: Array<{ fieldPath: string; expiryType: string; expiryDate: string }> = [];
+    for (const [key, child] of Object.entries(record)) {
+      const fieldPath = path ? `${path}.${key}` : key;
+      if (EXPIRY_KEY_PATTERN.test(key)) {
+        const expiryDate = this.isoDate(child as Date | string | undefined);
+        if (expiryDate) {
+          const siblingContext = Object.values(record)
+            .filter((candidate): candidate is string => typeof candidate === 'string')
+            .join('.');
+          matches.push({
+            fieldPath,
+            expiryType: this.inferExpiryType(`${context}.${fieldPath}.${siblingContext}`),
+            expiryDate,
+          });
+        }
+      }
+      matches.push(...this.findExpiryCandidates(child, `${context}.${key}`, fieldPath));
+    }
+    return matches;
+  }
+
+  private inferExpiryType(path: string): string {
+    for (const [pattern, type] of EXPIRY_TYPE_PATTERNS) {
+      if (pattern.test(path)) return type;
+    }
+    return 'DOCUMENT';
+  }
+
+  private isoDate(value: Date | string | undefined): string | undefined {
+    if (!value) return undefined;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return undefined;
+    return date.toISOString().slice(0, 10);
+  }
+
+  private daysUntil(value: Date | string): number {
+    const expiry = value instanceof Date ? value : new Date(value);
+    const todayUtc = new Date();
+    const today = Date.UTC(todayUtc.getUTCFullYear(), todayUtc.getUTCMonth(), todayUtc.getUTCDate());
+    const expiryDay = Date.UTC(expiry.getUTCFullYear(), expiry.getUTCMonth(), expiry.getUTCDate());
+    return Math.ceil((expiryDay - today) / (24 * 60 * 60 * 1000));
+  }
+
+  private severityForDays(daysUntilExpiry: number): 'EXPIRED' | 'CRITICAL' | 'WARNING' {
+    if (daysUntilExpiry < 0) return 'EXPIRED';
+    if (daysUntilExpiry <= 7) return 'CRITICAL';
+    return 'WARNING';
   }
 
   private toWorkerDto(worker: WorkerProfile) {
@@ -557,8 +895,10 @@ export class HrCoreController {
   }
 
   @Get('workers/:id/personal-data')
-  async getPersonalData(@Param('id') id: string) {
-    const records = await this.personalDataRepo.findByWorker(new Uuid(id));
+  async getPersonalData(@Param('id') id: string, @Req() req: Request) {
+    const tenantId = this.getTenantId(req);
+    await this.getTenantWorker(id, req);
+    const records = await this.personalDataRepo.findByWorkerForTenant(new Uuid(id), tenantId);
     return records.map((r) => ({
       id: r.id.value,
       dataCategory: r.dataCategory,
@@ -566,6 +906,42 @@ export class HrCoreController {
       payload: r.dataCategory === 'SPECIAL_CATEGORY' ? null : r.payload,
       encryptedPayloadRef: r.encryptedPayloadRef,
     }));
+  }
+
+  @Get('employee-alerts/expiring')
+  async getExpiringEmployeeAlerts(@Req() req: Request, @Query('days') daysQuery?: string) {
+    const tenantId = this.getTenantId(req);
+    const days = this.parseDays(daysQuery, 30);
+    const [personalDataAlerts, contractAlerts] = await Promise.all([
+      this.personalDataRepo.findExpiringWithinForTenant(days, tenantId),
+      this.employmentContractRepo.findExpiringWithinForTenant(days, tenantId),
+    ]);
+
+    return {
+      days,
+      alerts: [
+        ...personalDataAlerts.map((alert) => ({
+          source: 'PERSONAL_DATA' as const,
+          workerId: alert.workerId,
+          recordId: alert.recordId,
+          category: alert.dataCategory,
+          fieldPath: alert.fieldPath,
+          expiryType: alert.expiryType,
+          expiryDate: alert.expiryDate,
+          daysUntilExpiry: alert.daysUntilExpiry,
+          severity: this.severityForDays(alert.daysUntilExpiry),
+        })),
+        ...contractAlerts.map((alert) => ({
+          source: 'EMPLOYMENT_CONTRACT' as const,
+          workerId: alert.workerId,
+          contractId: alert.contractId,
+          expiryType: 'CONTRACT_END',
+          expiryDate: alert.expiryDate,
+          daysUntilExpiry: alert.daysUntilExpiry,
+          severity: this.severityForDays(alert.daysUntilExpiry),
+        })),
+      ].sort((left, right) => left.daysUntilExpiry - right.daysUntilExpiry),
+    };
   }
 
   /* ---------------------------------------------------------------- */
@@ -577,18 +953,25 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(CreateEmploymentRelationshipDtoSchema)) dto: dtos.CreateEmploymentRelationshipDto,
     @Req() req: Request,
   ) {
-    const command = this.buildCommand('CreateEmploymentRelationship', 'EmploymentRelationship', dto, req);
+    await this.getTenantWorker(dto.workerId, req);
+    const command = this.buildCommand(
+      'CreateEmploymentRelationship',
+      'EmploymentRelationship',
+      { ...dto, relationshipId: Uuid.generate().value },
+      req,
+      { subjectWorkerId: new Uuid(dto.workerId) },
+    );
     return this.executeCommand(command);
   }
 
   @Post('employment-relationships/:id/commands/activate')
   async activateEmploymentRelationship(@Param('id') id: string, @Req() req: Request) {
-    const relationship = await this.employmentRelationshipRepo.findById(new Uuid(id));
+    const relationship = await this.employmentRelationshipRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
     if (!relationship) throw new BadRequestException('Employment relationship not found');
     const command = this.buildCommand(
       'ActivateEmploymentRelationship',
       'EmploymentRelationship',
-      { workerId: relationship.workerId },
+      { relationshipId: new Uuid(id) },
       req,
       {
         aggregateId: new Uuid(id),
@@ -601,12 +984,12 @@ export class HrCoreController {
 
   @Post('employment-relationships/:id/commands/end')
   async endEmploymentRelationship(@Param('id') id: string, @Req() req: Request) {
-    const relationship = await this.employmentRelationshipRepo.findById(new Uuid(id));
+    const relationship = await this.employmentRelationshipRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
     if (!relationship) throw new BadRequestException('Employment relationship not found');
     const command = this.buildCommand(
       'EndEmploymentRelationship',
       'EmploymentRelationship',
-      { workerId: relationship.workerId, endDate: new Date(), reason: 'API end' },
+      { relationshipId: new Uuid(id), endDate: new Date(), reason: 'API end' },
       req,
       {
         aggregateId: new Uuid(id),
@@ -618,8 +1001,10 @@ export class HrCoreController {
   }
 
   @Get('employment-relationships/worker/:workerId')
-  async getEmploymentRelationships(@Param('workerId') workerId: string) {
-    return this.employmentRelationshipRepo.findByWorker(new Uuid(workerId));
+  async getEmploymentRelationships(@Param('workerId') workerId: string, @Req() req: Request) {
+    const tenantId = this.getTenantId(req);
+    await this.getTenantWorker(workerId, req);
+    return this.employmentRelationshipRepo.findByWorkerForTenant(new Uuid(workerId), tenantId);
   }
 
   /* ---------------------------------------------------------------- */
@@ -631,14 +1016,15 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(CreateJobAssignmentDtoSchema)) dto: dtos.CreateJobAssignmentDto,
     @Req() req: Request,
   ) {
+    await this.getTenantWorker(dto.workerId, req);
     const payload = { ...dto, assignmentId: Uuid.generate().value };
-    const command = this.buildCommand('CreateJobAssignment', 'JobAssignment', payload, req);
+    const command = this.buildCommand('CreateJobAssignment', 'JobAssignment', payload, req, { subjectWorkerId: new Uuid(dto.workerId) });
     return this.executeCommand(command);
   }
 
   @Post('job-assignments/:id/commands/activate')
   async activateJobAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.jobAssignmentRepo.findById(new Uuid(id));
+    const assignment = await this.jobAssignmentRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
     if (!assignment) throw new BadRequestException('Job assignment not found');
     const command = this.buildCommand(
       'ActivateJobAssignment',
@@ -656,7 +1042,7 @@ export class HrCoreController {
 
   @Post('job-assignments/:id/commands/end')
   async endJobAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.jobAssignmentRepo.findById(new Uuid(id));
+    const assignment = await this.jobAssignmentRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
     if (!assignment) throw new BadRequestException('Job assignment not found');
     const command = this.buildCommand(
       'EndJobAssignment',
@@ -673,8 +1059,10 @@ export class HrCoreController {
   }
 
   @Get('job-assignments/worker/:workerId')
-  async getJobAssignments(@Param('workerId') workerId: string) {
-    return this.jobAssignmentRepo.findByWorker(new Uuid(workerId));
+  async getJobAssignments(@Param('workerId') workerId: string, @Req() req: Request) {
+    const tenantId = this.getTenantId(req);
+    await this.getTenantWorker(workerId, req);
+    return this.jobAssignmentRepo.findByWorkerForTenant(new Uuid(workerId), tenantId);
   }
 
   /* ---------------------------------------------------------------- */
@@ -686,13 +1074,14 @@ export class HrCoreController {
     @Body(new ZodValidationPipe(CreateEmploymentContractDtoSchema)) dto: dtos.CreateEmploymentContractDto,
     @Req() req: Request,
   ) {
-    const command = this.buildCommand('CreateEmploymentContract', 'EmploymentContract', dto, req);
+    await this.getTenantWorker(dto.workerId, req);
+    const command = this.buildCommand('CreateEmploymentContract', 'EmploymentContract', dto, req, { subjectWorkerId: new Uuid(dto.workerId) });
     return this.executeCommand(command);
   }
 
   @Post('employment-contracts/:id/commands/sign')
   async signEmploymentContract(@Param('id') id: string, @Req() req: Request) {
-    const contract = await this.employmentContractRepo.findById(new Uuid(id));
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
     if (!contract) throw new BadRequestException('Contract not found');
     const command = this.buildCommand(
       'SignEmploymentContract',
@@ -709,7 +1098,9 @@ export class HrCoreController {
   }
 
   @Get('employment-contracts/worker/:workerId')
-  async getEmploymentContracts(@Param('workerId') workerId: string) {
-    return this.employmentContractRepo.findByWorker(new Uuid(workerId));
+  async getEmploymentContracts(@Param('workerId') workerId: string, @Req() req: Request) {
+    const tenantId = this.getTenantId(req);
+    await this.getTenantWorker(workerId, req);
+    return this.employmentContractRepo.findByWorkerForTenant(new Uuid(workerId), tenantId);
   }
 }

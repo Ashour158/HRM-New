@@ -1,4 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
+import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { PositionRepository } from '../position-control/repositories/position.repository.js';
+import { HeadcountRequestRepository } from '../position-control/repositories/headcount-request.repository.js';
 import { OrganizationController } from './api/organization.controller.js';
 import { LegalEntityRepository } from './repositories/legal-entity.repository.js';
 import { OrgUnitRepository } from './repositories/org-unit.repository.js';
@@ -17,6 +20,7 @@ import { RestructureOrgUnitHandler } from './commands/restructure-org-unit.handl
 import { UpdateOrgUnitHandler } from './commands/update-org-unit.handler.js';
 import { AssignManagerHandler } from './commands/assign-manager.handler.js';
 import { EndManagerRelationshipHandler } from './commands/end-manager-relationship.handler.js';
+import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-worker-organization-assignment.handler.js';
 
 /**
  * Organization Management domain module.
@@ -24,11 +28,14 @@ import { EndManagerRelationshipHandler } from './commands/end-manager-relationsh
  * Owns LegalEntity, OrgUnit, and ManagerRelationship aggregates.
  */
 @Module({
+  imports: [HrCoreModule],
   controllers: [OrganizationController],
   providers: [
     LegalEntityRepository,
     OrgUnitRepository,
     ManagerRelationshipRepository,
+    PositionRepository,
+    HeadcountRequestRepository,
     LegalEntityEventsPublisher,
     LegalEntityFsm,
     OrgUnitFsm,
@@ -43,6 +50,7 @@ import { EndManagerRelationshipHandler } from './commands/end-manager-relationsh
     UpdateOrgUnitHandler,
     AssignManagerHandler,
     EndManagerRelationshipHandler,
+    UpdateWorkerOrganizationAssignmentHandler,
   ],
   exports: [
     LegalEntityRepository,

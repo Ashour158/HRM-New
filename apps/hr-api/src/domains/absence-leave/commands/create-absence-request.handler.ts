@@ -6,6 +6,7 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { AbsenceRequest } from '../aggregates/absence-request.aggregate.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
+import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
 import { AbsenceLeaveEventsPublisher } from '../events/absence-leave-events.publisher.js';
 import { LeavePolicyService } from '../services/leave-policy.service.js';
 
@@ -14,6 +15,7 @@ import { LeavePolicyService } from '../services/leave-policy.service.js';
 export class CreateAbsenceRequestHandler {
   constructor(
     private readonly repo: AbsenceRequestRepository,
+    private readonly balanceRepo: AbsenceAccrualBalanceRepository,
     private readonly fsm: FsmFramework,
     private readonly publisher: AbsenceLeaveEventsPublisher,
     private readonly hcmSetupService: HcmSetupService,
@@ -32,6 +34,8 @@ export class CreateAbsenceRequestHandler {
     };
     const setup = await this.hcmSetupService.getSetup(command.tenantId);
     const duration = this.leavePolicyService.calculateDuration(setup, payload);
+    const balance = await this.findBalance(command.tenantId, payload.workerId, payload.absenceType, duration.policy.code);
+    this.leavePolicyService.assertBalanceAvailable(setup, duration, balance?.balanceHours);
     if (!duration.policy.requestableByEmployee && !this.hasSetupAdminScope(command)) {
       throw new ValidationError(`${duration.policy.label} is system-managed and cannot be requested by employees`);
     }
@@ -92,5 +96,14 @@ export class CreateAbsenceRequestHandler {
 
   private hasSetupAdminScope(command: HrCommandEnvelope<unknown>): boolean {
     return (command.actor.roles ?? []).some((role) => ['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN'].includes(role));
+  }
+
+  private async findBalance(tenantId: Uuid, workerId: Uuid, absenceType: string, policyCode: string) {
+    const balances = await this.balanceRepo.findByWorker(workerId);
+    return balances.find((candidate) => (
+      candidate.tenantId.value === tenantId.value
+      && candidate.status === 'ACTIVE'
+      && (candidate.leaveType === absenceType || candidate.leaveType === policyCode)
+    ));
   }
 }

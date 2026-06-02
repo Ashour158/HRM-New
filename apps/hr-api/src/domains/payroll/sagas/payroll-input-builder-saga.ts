@@ -1,6 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
 import {
+  HR_ABSENCE,
+  HR_BENEFITS,
+  HR_COMPENSATION,
+  HR_TIME,
   isAbsenceRequestApprovedEvent,
   isBenefitsEnrollmentFinalizedEvent,
   isOvertimeApprovedEvent,
@@ -26,7 +30,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe('hrm.timesheet.events', 'payroll-input-builder-saga', {
+    this.eventBus.subscribe(HR_TIME, 'payroll-input-builder-saga', {
       consumerGroup: 'payroll-input-builder-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isTimesheetApprovedEvent(event)) await this.createInputFromTimesheet(event);
@@ -34,21 +38,21 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       },
     });
 
-    this.eventBus.subscribe('hrm.absence.events', 'payroll-input-builder-saga', {
+    this.eventBus.subscribe(HR_ABSENCE, 'payroll-input-builder-saga', {
       consumerGroup: 'payroll-input-builder-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isAbsenceRequestApprovedEvent(event)) await this.createInputFromAbsence(event);
       },
     });
 
-    this.eventBus.subscribe('hrm.benefits.events', 'payroll-input-builder-saga', {
+    this.eventBus.subscribe(HR_BENEFITS, 'payroll-input-builder-saga', {
       consumerGroup: 'payroll-input-builder-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isBenefitsEnrollmentFinalizedEvent(event)) await this.createInputFromBenefits(event);
       },
     });
 
-    this.eventBus.subscribe('hrm.compensation.events', 'payroll-input-builder-saga', {
+    this.eventBus.subscribe(HR_COMPENSATION, 'payroll-input-builder-saga', {
       consumerGroup: 'payroll-input-builder-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (event.eventName.startsWith('Compensation')) await this.createInputFromCompensation(event);

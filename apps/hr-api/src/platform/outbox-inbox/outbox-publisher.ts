@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Kysely } from 'kysely';
-import type { Uuid } from '@hcm/shared-kernel';
+import { Kysely, sql } from 'kysely';
+import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
 import { getPool, createKyselyInstance } from '@hcm/database';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
+import type { ClientType, EventMetadata, HrEventEnvelope } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import { EventBus } from '../event-bus/event-bus.js';
 
@@ -57,40 +57,43 @@ export class OutboxPublisher {
   }
 
   async pollAndPublish(batchSize = 100): Promise<number> {
-    const events = await this.db
-      .selectFrom('outbox_events')
-      .selectAll()
-      .where('published_at', 'is', null)
-      .where('publish_attempt_count', '<', 5)
-      .orderBy('created_at', 'asc')
-      .limit(batchSize)
-      .execute();
+    return this.db.transaction().execute(async (trx) => {
+      const events = await sql<OutboxEvent>`
+        SELECT *
+        FROM "hr_platform"."outbox_events"
+        WHERE "published_at" IS NULL
+          AND "publish_attempt_count" < 5
+        ORDER BY "created_at" ASC
+        LIMIT ${batchSize}
+        FOR UPDATE SKIP LOCKED
+      `.execute(trx);
 
-    let published = 0;
-    for (const row of events) {
-      try {
-        const event = this.rowToEnvelope(row as unknown as OutboxEvent);
-        await this.eventBus.publish(event);
-        await this.db
-          .updateTable('outbox_events')
-          .set({ published_at: new Date() })
-          .where('id', '=', row.id)
-          .execute();
-        published++;
-      } catch (err) {
-        this.logger.error({
-          type: 'OUTBOX_PUBLISH_FAILED',
-          outboxEventId: row.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        await this.db
-          .updateTable('outbox_events')
-          .set({ publish_attempt_count: (row.publish_attempt_count ?? 0) + 1 })
-          .where('id', '=', row.id)
-          .execute();
+      let published = 0;
+      for (const row of events.rows) {
+        try {
+          const event = this.rowToEnvelope(row);
+          await this.eventBus.publish(event);
+          await trx
+            .updateTable('outbox_events')
+            .set({ published_at: new Date() })
+            .where('id', '=', row.id)
+            .execute();
+          published++;
+        } catch (err) {
+          this.logger.error({
+            type: 'OUTBOX_PUBLISH_FAILED',
+            outboxEventId: row.id,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          await trx
+            .updateTable('outbox_events')
+            .set({ publish_attempt_count: (row.publish_attempt_count ?? 0) + 1 })
+            .where('id', '=', row.id)
+            .execute();
+        }
       }
-    }
-    return published;
+      return published;
+    });
   }
 
   startPolling(intervalMs = 5000): void {
@@ -113,17 +116,79 @@ export class OutboxPublisher {
 
   private rowToEnvelope(row: OutboxEvent): HrEventEnvelope<unknown> {
     return {
-      eventId: row.id as unknown as Uuid,
+      eventId: new Uuid(row.id),
       eventName: row.event_name,
       eventSchemaVersion: 1,
-      tenantId: row.tenant_id as unknown as Uuid,
+      tenantId: new Uuid(row.tenant_id),
       aggregateType: row.aggregate_type,
-      aggregateId: row.aggregate_id as unknown as Uuid,
+      aggregateId: new Uuid(row.aggregate_id),
       payload: row.payload,
-      metadata: row.metadata as HrEventEnvelope<unknown>['metadata'],
+      metadata: this.normalizeMetadata(row),
       privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
       occurredAt: row.created_at,
       version: 1,
     };
   }
+
+  private normalizeMetadata(row: OutboxEvent): EventMetadata {
+    const stored = isRecord(row.metadata) ? row.metadata : {};
+    const correlationId = this.uuidFrom(stored.correlationId) ?? this.uuidFrom(row.correlation_id) ?? new Uuid(row.id);
+    const causationId = this.uuidFrom(stored.causationId) ?? this.uuidFrom(row.causation_id);
+    const clientType = isClientType(stored.clientType) ? stored.clientType : 'SYSTEM';
+    const requestHash = typeof stored.requestHash === 'string' && stored.requestHash.length > 0
+      ? stored.requestHash
+      : row.id;
+
+    return {
+      correlationId,
+      causationId,
+      sourceEventId: this.uuidFrom(stored.sourceEventId),
+      processInstanceId: typeof stored.processInstanceId === 'string' ? stored.processInstanceId : undefined,
+      requestHash,
+      clientType,
+      dataResidencyRegion: typeof stored.dataResidencyRegion === 'string' ? stored.dataResidencyRegion : undefined,
+      hrDataSensitivity: isHrDataSensitivity(stored.hrDataSensitivity) ? stored.hrDataSensitivity : undefined,
+    };
+  }
+
+  private uuidFrom(value: unknown): Uuid | undefined {
+    if (value instanceof Uuid) {
+      return value;
+    }
+    if (typeof value === 'string' && Uuid.isValid(value)) {
+      return new Uuid(value);
+    }
+    if (isRecord(value) && typeof value.value === 'string' && Uuid.isValid(value.value)) {
+      return new Uuid(value.value);
+    }
+    return undefined;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isClientType(value: unknown): value is ClientType {
+  return typeof value === 'string' && [
+    'EMPLOYEE_PORTAL',
+    'MANAGER_PORTAL',
+    'HR_ADMIN',
+    'MOBILE',
+    'BFF',
+    'SYSTEM',
+    'INTEGRATION',
+  ].includes(value);
+}
+
+function isHrDataSensitivity(
+  value: unknown,
+): value is NonNullable<EventMetadata['hrDataSensitivity']> {
+  return typeof value === 'string' && [
+    'LOW',
+    'MEDIUM',
+    'HIGH',
+    'RESTRICTED',
+    'SPECIAL_CATEGORY',
+  ].includes(value);
 }

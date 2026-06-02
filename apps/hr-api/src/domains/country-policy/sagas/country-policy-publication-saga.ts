@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
-import { isCountryPolicyPackApprovedEvent } from '@hcm/event-schemas';
+import { HR_GLOBAL, isCountryPolicyPackApprovedEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
@@ -34,7 +34,7 @@ export class CountryPolicyPublicationSaga implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe('hr.global.events', 'country-policy-publication-saga', {
+    this.eventBus.subscribe(HR_GLOBAL, 'country-policy-publication-saga', {
       consumerGroup: 'country-policy-publication-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isCountryPolicyPackApprovedEvent(event)) {

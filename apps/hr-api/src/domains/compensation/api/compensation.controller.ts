@@ -6,7 +6,9 @@ import {
   Body,
   Req,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -14,6 +16,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 
 import { CompensationPlanRepository } from '../repositories/compensation-plan.repository.js';
 import { CompensationBandRepository } from '../repositories/compensation-band.repository.js';
@@ -45,7 +48,18 @@ import {
   CreateTotalCompensationStatementDto,
 } from './dtos.js';
 
+const COMPENSATION_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'PAYROLL_ADMIN',
+  'COMPENSATION_ADMIN',
+]);
+
 @ApiTags('Compensation')
+@UseGuards(AuthGuard)
 @Controller('hr/compensation')
 export class CompensationController {
   constructor(
@@ -83,6 +97,7 @@ export class CompensationController {
     if (!actor) {
       throw new BadRequestException('Actor missing');
     }
+    this.assertCompensationAdminScope(req);
     return {
       commandId: Uuid.generate(),
       commandName,
@@ -129,20 +144,23 @@ export class CompensationController {
 
   @Get('plans')
   async listPlans(@Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const tenantId = req.tenantId;
     if (!tenantId) throw new BadRequestException('Tenant ID missing');
     return this.planRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('plans/:id')
-  async getPlan(@Param('id') id: string) {
+  async getPlan(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const plan = await this.planRepo.findById(new Uuid(id));
     if (!plan) throw new NotFoundException('CompensationPlan not found');
     return plan;
   }
 
   @Get('plans/:id/allowed-actions')
-  async getPlanAllowedActions(@Param('id') id: string) {
+  async getPlanAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const plan = await this.planRepo.findById(new Uuid(id));
     if (!plan) throw new NotFoundException('CompensationPlan not found');
     return { allowedActions: this.planFsm.getAllowedActions(plan.status) };
@@ -169,20 +187,23 @@ export class CompensationController {
 
   @Get('bands')
   async listBands(@Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const tenantId = req.tenantId;
     if (!tenantId) throw new BadRequestException('Tenant ID missing');
     return this.bandRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('bands/:id')
-  async getBand(@Param('id') id: string) {
+  async getBand(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const band = await this.bandRepo.findById(new Uuid(id));
     if (!band) throw new NotFoundException('CompensationBand not found');
     return band;
   }
 
   @Get('bands/:id/allowed-actions')
-  async getBandAllowedActions(@Param('id') id: string) {
+  async getBandAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const band = await this.bandRepo.findById(new Uuid(id));
     if (!band) throw new NotFoundException('CompensationBand not found');
     return { allowedActions: this.bandFsm.getAllowedActions(band.status) };
@@ -216,12 +237,14 @@ export class CompensationController {
   }
 
   @Get('changes/worker/:workerId')
-  async getChangesByWorker(@Param('workerId') workerId: string) {
+  async getChangesByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     return this.changeRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('changes/:id/allowed-actions')
-  async getChangeAllowedActions(@Param('id') id: string) {
+  async getChangeAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const change = await this.changeRepo.findById(new Uuid(id));
     if (!change) throw new NotFoundException('CompensationChange not found');
     return { allowedActions: this.changeFsm.getAllowedActions(change.status) };
@@ -247,20 +270,23 @@ export class CompensationController {
 
   @Get('bonus-cycles')
   async listBonusCycles(@Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const tenantId = req.tenantId;
     if (!tenantId) throw new BadRequestException('Tenant ID missing');
     return this.bonusCycleRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('bonus-cycles/:id')
-  async getBonusCycle(@Param('id') id: string) {
+  async getBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const cycle = await this.bonusCycleRepo.findById(new Uuid(id));
     if (!cycle) throw new NotFoundException('BonusCycle not found');
     return cycle;
   }
 
   @Get('bonus-cycles/:id/allowed-actions')
-  async getBonusCycleAllowedActions(@Param('id') id: string) {
+  async getBonusCycleAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const cycle = await this.bonusCycleRepo.findById(new Uuid(id));
     if (!cycle) throw new NotFoundException('BonusCycle not found');
     return { allowedActions: this.bonusCycleFsm.getAllowedActions(cycle.status) };
@@ -285,19 +311,22 @@ export class CompensationController {
   }
 
   @Get('equity-grants/worker/:workerId')
-  async getEquityGrantsByWorker(@Param('workerId') workerId: string) {
+  async getEquityGrantsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     return this.equityGrantRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('equity-grants/:id')
-  async getEquityGrant(@Param('id') id: string) {
+  async getEquityGrant(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const grant = await this.equityGrantRepo.findById(new Uuid(id));
     if (!grant) throw new NotFoundException('EquityGrant not found');
     return grant;
   }
 
   @Get('equity-grants/:id/allowed-actions')
-  async getEquityGrantAllowedActions(@Param('id') id: string) {
+  async getEquityGrantAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const grant = await this.equityGrantRepo.findById(new Uuid(id));
     if (!grant) throw new NotFoundException('EquityGrant not found');
     return { allowedActions: this.equityGrantFsm.getAllowedActions(grant.status) };
@@ -322,20 +351,23 @@ export class CompensationController {
 
   @Get('variable-comp-plans')
   async listVariableCompPlans(@Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const tenantId = req.tenantId;
     if (!tenantId) throw new BadRequestException('Tenant ID missing');
     return this.variableCompPlanRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('variable-comp-plans/:id')
-  async getVariableCompPlan(@Param('id') id: string) {
+  async getVariableCompPlan(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const plan = await this.variableCompPlanRepo.findById(new Uuid(id));
     if (!plan) throw new NotFoundException('VariableCompPlan not found');
     return plan;
   }
 
   @Get('variable-comp-plans/:id/allowed-actions')
-  async getVariableCompPlanAllowedActions(@Param('id') id: string) {
+  async getVariableCompPlanAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const plan = await this.variableCompPlanRepo.findById(new Uuid(id));
     if (!plan) throw new NotFoundException('VariableCompPlan not found');
     return { allowedActions: this.variableCompPlanFsm.getAllowedActions(plan.status) };
@@ -359,20 +391,23 @@ export class CompensationController {
 
   @Get('pay-scales')
   async listPayScales(@Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const tenantId = req.tenantId;
     if (!tenantId) throw new BadRequestException('Tenant ID missing');
     return this.payScaleRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('pay-scales/:id')
-  async getPayScale(@Param('id') id: string) {
+  async getPayScale(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const scale = await this.payScaleRepo.findById(new Uuid(id));
     if (!scale) throw new NotFoundException('PayScale not found');
     return scale;
   }
 
   @Get('pay-scales/:id/allowed-actions')
-  async getPayScaleAllowedActions(@Param('id') id: string) {
+  async getPayScaleAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const scale = await this.payScaleRepo.findById(new Uuid(id));
     if (!scale) throw new NotFoundException('PayScale not found');
     return { allowedActions: this.payScaleFsm.getAllowedActions(scale.status) };
@@ -399,21 +434,30 @@ export class CompensationController {
   }
 
   @Get('total-comp-statements/worker/:workerId')
-  async getTotalCompStatementsByWorker(@Param('workerId') workerId: string) {
+  async getTotalCompStatementsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     return this.totalCompStatementRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('total-comp-statements/:id')
-  async getTotalCompStatement(@Param('id') id: string) {
+  async getTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const statement = await this.totalCompStatementRepo.findById(new Uuid(id));
     if (!statement) throw new NotFoundException('TotalCompensationStatement not found');
     return statement;
   }
 
   @Get('total-comp-statements/:id/allowed-actions')
-  async getTotalCompStatementAllowedActions(@Param('id') id: string) {
+  async getTotalCompStatementAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertCompensationAdminScope(req);
     const statement = await this.totalCompStatementRepo.findById(new Uuid(id));
     if (!statement) throw new NotFoundException('TotalCompensationStatement not found');
     return { allowedActions: this.totalCompStatementFsm.getAllowedActions(statement.status) };
+  }
+
+  private assertCompensationAdminScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => COMPENSATION_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only HR, payroll, or compensation administrators can access compensation administration');
   }
 }

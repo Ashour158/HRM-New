@@ -24,6 +24,13 @@ export interface LeaveDurationResult {
   payrollImpact: LeavePolicy['payrollImpact'];
 }
 
+export interface LeaveBalancePolicyResult {
+  allowed: boolean;
+  requestedAmount: number;
+  availableAmount?: number;
+  reason?: string;
+}
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function normalizeCode(value: string): string {
@@ -95,6 +102,7 @@ export class LeavePolicyService {
     }
 
     const policy = this.resolvePolicy(setup, input.absenceType);
+    this.assertMinimumNotice(policy, input.startDate);
     const calendarDays = calendarDaysInclusive(input.startDate, input.endDate);
     const working = this.countWorkingDays(setup, input);
 
@@ -151,6 +159,48 @@ export class LeavePolicyService {
     return Math.round((storedHours / standardDailyHours) * 100) / 100;
   }
 
+  checkBalance(
+    setup: HcmSetupConfig,
+    duration: LeaveDurationResult,
+    balanceHours?: number,
+  ): LeaveBalancePolicyResult {
+    const requestedHours = this.amountToStoredHours(setup, duration.durationUnit, duration.durationAmount);
+    const requestedAmount = this.amountFromStoredHours(setup, duration.policy, requestedHours);
+
+    if (!duration.deductFromBalance) {
+      return { allowed: true, requestedAmount };
+    }
+
+    const availableHours = balanceHours ?? (
+      duration.policy.annualEntitlement !== undefined
+        ? this.amountToStoredHours(setup, duration.policy.unit, duration.policy.annualEntitlement)
+        : undefined
+    );
+
+    if (availableHours === undefined) {
+      return { allowed: true, requestedAmount };
+    }
+
+    const availableAmount = this.amountFromStoredHours(setup, duration.policy, availableHours);
+    if (requestedHours > availableHours + 0.0001) {
+      return {
+        allowed: false,
+        requestedAmount,
+        availableAmount,
+        reason: `${duration.policy.label} exceeds available balance of ${availableAmount} ${duration.policy.unit.toLowerCase()}`,
+      };
+    }
+
+    return { allowed: true, requestedAmount, availableAmount };
+  }
+
+  assertBalanceAvailable(setup: HcmSetupConfig, duration: LeaveDurationResult, balanceHours?: number): void {
+    const result = this.checkBalance(setup, duration, balanceHours);
+    if (!result.allowed) {
+      throw new ValidationError(result.reason ?? `${duration.policy.label} exceeds available balance`);
+    }
+  }
+
   private countWorkingDays(
     setup: HcmSetupConfig,
     input: LeaveDurationInput,
@@ -178,6 +228,17 @@ export class LeavePolicyService {
   private assertPolicyLimits(policy: LeavePolicy, amount: number): void {
     if (policy.maxPerRequest !== undefined && amount > policy.maxPerRequest) {
       throw new ValidationError(`${policy.label} exceeds max per request of ${policy.maxPerRequest} ${policy.unit.toLowerCase()}`);
+    }
+  }
+
+  private assertMinimumNotice(policy: LeavePolicy, startDate: Date): void {
+    if (policy.minNoticeDays === undefined || policy.minNoticeDays <= 0) return;
+    const today = asUtcDate(dateKey(new Date()));
+    const requestedStart = asUtcDate(dateKey(startDate));
+    const noticeDays = Math.floor((requestedStart.getTime() - today.getTime()) / 86400000);
+    if (noticeDays < policy.minNoticeDays) {
+      const earliestStartDate = dateKey(addDays(today, policy.minNoticeDays));
+      throw new ValidationError(`${policy.label} requires at least ${policy.minNoticeDays} days notice. Earliest start date is ${earliestStartDate}`);
     }
   }
 }

@@ -6,6 +6,9 @@ import type { User } from '@/types';
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
+const LOCAL_ADMIN_EMAIL = 'hr.admin@example.com';
+const LOCAL_EMPLOYEE_EMAIL = 'employee@example.com';
+const LOCAL_BYPASS_PASSWORD = 'Password123!';
 const AUTH_VALIDATION_TIMEOUT_MS = 5000;
 
 let validatedAuthToken: string | null = null;
@@ -18,26 +21,23 @@ function resetAuthValidation() {
   authValidationPromise = null;
 }
 
-const LOCAL_BYPASS_USER: User = {
-  id: '00000000-0000-0000-0000-000000000999',
-  email: 'hr.admin@example.com',
-  firstName: 'HR',
-  lastName: 'Admin',
-  tenantId: DEFAULT_TENANT_ID,
-  roles: [
-    { id: 'role-employee', name: 'EMPLOYEE', description: 'Local development employee access' },
-    { id: 'role-manager', name: 'MANAGER', description: 'Local development manager access' },
-    { id: 'role-hr-admin', name: 'HR_ADMIN', description: 'Local development HR admin access' },
-    { id: 'role-recruiter', name: 'RECRUITER', description: 'Local development recruiter access' },
-    { id: 'role-payroll-admin', name: 'PAYROLL_ADMIN', description: 'Local development payroll access' },
-  ],
-  permissions: [
-    { id: 'worker-read', resource: 'worker', action: 'read' },
-    { id: 'worker-create', resource: 'worker', action: 'create' },
-    { id: 'worker-update', resource: 'worker', action: 'update' },
-    { id: 'worker-terminate', resource: 'worker', action: 'terminate' },
-  ],
-};
+function localBypassEmailForPath(pathname = window.location.pathname): string {
+  return pathname.startsWith('/employee') ? LOCAL_EMPLOYEE_EMAIL : LOCAL_ADMIN_EMAIL;
+}
+
+async function authenticateWithApi(email: string, password: string, tenantId?: string): Promise<{ user: User; token: string }> {
+  if (tenantId) {
+    localStorage.setItem('tenant_id', tenantId);
+  }
+  const response = await apiClient.post<{ success: boolean; data: { user: User; token: string } }>(
+    '/auth/login',
+    { email, password }
+  );
+  if (!response.data.success) {
+    throw new Error('Login failed');
+  }
+  return response.data.data;
+}
 
 /**
  * Authentication hook providing user state, roles, permissions, and auth actions.
@@ -54,27 +54,24 @@ export function useAuth() {
       setLoading(true);
       try {
         if (AUTH_BYPASS_ENABLED) {
-          const user = { ...LOCAL_BYPASS_USER, email: email || LOCAL_BYPASS_USER.email, tenantId: tenantId || DEFAULT_TENANT_ID };
-          login(user, LOCAL_BYPASS_TOKEN);
-          validatedAuthToken = LOCAL_BYPASS_TOKEN;
-          return { success: true };
-        }
-
-        if (tenantId) {
-          localStorage.setItem('tenant_id', tenantId);
-        }
-        const response = await apiClient.post<{ success: boolean; data: { user: User; token: string } }>(
-          '/auth/login',
-          { email, password }
-        );
-        if (response.data.success) {
-          login(response.data.data.user, response.data.data.token);
-          validatedAuthToken = response.data.data.token;
+          const credentials = await authenticateWithApi(
+            email || localBypassEmailForPath(),
+            password || LOCAL_BYPASS_PASSWORD,
+            tenantId || DEFAULT_TENANT_ID,
+          );
+          login(credentials.user, credentials.token);
+          validatedAuthToken = credentials.token;
           validatingAuthToken = null;
           authValidationPromise = null;
           return { success: true };
         }
-        return { success: false, error: 'Login failed' };
+
+        const credentials = await authenticateWithApi(email, password, tenantId);
+        login(credentials.user, credentials.token);
+        validatedAuthToken = credentials.token;
+        validatingAuthToken = null;
+        authValidationPromise = null;
+        return { success: true };
       } catch (error) {
         return { success: false, error: (error as Error).message };
       } finally {
@@ -103,12 +100,35 @@ export function useAuth() {
    */
   useEffect(() => {
     if (AUTH_BYPASS_ENABLED) {
-      if (!user || token !== LOCAL_BYPASS_TOKEN) {
-        login(LOCAL_BYPASS_USER, LOCAL_BYPASS_TOKEN);
-      } else {
+      const desiredEmail = localBypassEmailForPath();
+      if (user?.email === desiredEmail && token && token !== LOCAL_BYPASS_TOKEN) {
+        validatedAuthToken = token;
         setLoading(false);
+        return;
       }
-      return;
+
+      let cancelled = false;
+      setLoading(true);
+      authenticateWithApi(desiredEmail, LOCAL_BYPASS_PASSWORD, DEFAULT_TENANT_ID)
+        .then((credentials) => {
+          if (cancelled) return;
+          login(credentials.user, credentials.token);
+          validatedAuthToken = credentials.token;
+          validatingAuthToken = null;
+          authValidationPromise = null;
+        })
+        .catch(() => {
+          if (cancelled) return;
+          resetAuthValidation();
+          logout();
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (!token) {

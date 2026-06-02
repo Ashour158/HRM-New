@@ -185,11 +185,7 @@ export function EmployeePerformance() {
     areaComments: Object.fromEntries(PEER_REVIEW_AREAS.map((area) => [area.key, ''])) as Record<string, string>,
   });
 
-  const workerLookupUrl = user?.email
-    ? `/hr/core/workers?search=${encodeURIComponent(user.email)}&pageSize=1`
-    : '/hr/core/workers?pageSize=0';
-  const { data: workers = [] } = useApiQuery<Worker[]>(['employee-performance-worker', workerLookupUrl], workerLookupUrl);
-  const worker = workers[0];
+  const { data: worker } = useApiQuery<Worker>(['employee-performance-worker'], '/employee/profile');
   const workerId = worker?.id ?? '';
 
   const { data: notifications = [], refetch: refetchNotifications } = useApiQuery<PerformanceNotification[]>(
@@ -216,10 +212,15 @@ export function EmployeePerformance() {
     ['employee-performance-feedback-cycles'],
     '/performance/feedback-360-cycles/available',
   );
-  const { data: directory = [] } = useApiQuery<Worker[]>(
-    ['employee-performance-directory'],
-    '/hr/core/workers?page=1&pageSize=100',
-  );
+  const eligibleReviewees = React.useMemo(() => {
+    const unique = new Map<string, FeedbackRequest>();
+    for (const request of feedbackRequests) {
+      if (request.revieweeId && request.revieweeId !== workerId) {
+        unique.set(request.revieweeId, request);
+      }
+    }
+    return [...unique.values()];
+  }, [feedbackRequests, workerId]);
 
   React.useEffect(() => {
     const pending = feedbackRequests.find((request) => request.status === 'PENDING');
@@ -230,9 +231,11 @@ export function EmployeePerformance() {
     setDirectFeedbackForm((current) => ({
       ...current,
       cycleId: current.cycleId || availableFeedbackCycles[0]?.id || '',
-      revieweeId: current.revieweeId || directory.find((item) => item.id !== workerId)?.id || '',
+      revieweeId: eligibleReviewees.some((request) => request.revieweeId === current.revieweeId)
+        ? current.revieweeId
+        : eligibleReviewees[0]?.revieweeId ?? '',
     }));
-  }, [availableFeedbackCycles, directory, workerId]);
+  }, [availableFeedbackCycles, eligibleReviewees]);
 
   const selectedFeedback = feedbackRequests.find((request) => request.id === selectedFeedbackId);
   const pendingFeedbackCount = feedbackRequests.filter((request) => request.status === 'PENDING').length;
@@ -552,7 +555,7 @@ export function EmployeePerformance() {
         <Card className="rounded-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="h-5 w-5 text-[#0b76d1]" /> Give 360 Feedback</CardTitle>
-            <CardDescription>Choose an employee, decide whether your name is visible, and score practical behavior areas.</CardDescription>
+            <CardDescription>Submit feedback only for people assigned to you by an active review workflow.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="grid gap-4 xl:grid-cols-[280px_220px_1fr]" onSubmit={submitDirectFeedback}>
@@ -564,8 +567,11 @@ export function EmployeePerformance() {
                   onChange={(event) => setDirectFeedbackForm({ ...directFeedbackForm, revieweeId: event.target.value })}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  {directory.filter((item) => item.id !== workerId).map((item) => (
-                    <option key={item.id} value={item.id}>{employeeName(item)}</option>
+                  {eligibleReviewees.length === 0 ? <option value="">No assigned reviewees</option> : null}
+                  {eligibleReviewees.map((request) => (
+                    <option key={request.revieweeId} value={request.revieweeId}>
+                      {request.relationshipType} reviewee - {request.revieweeId.slice(-6)}
+                    </option>
                   ))}
                 </select>
               </div>

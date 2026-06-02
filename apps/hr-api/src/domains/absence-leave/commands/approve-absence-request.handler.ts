@@ -25,6 +25,7 @@ export class ApproveAbsenceRequestHandler {
     const payload = command.payload as { absenceRequestId: Uuid; approvedBy: Uuid };
     const ar = await this.repo.findById(payload.absenceRequestId);
     if (!ar) throw new Error('Absence request not found');
+    await this.assertBalanceImpactAvailable(ar);
     ar.approve(payload.approvedBy, command.correlationId);
     await this.applyBalanceImpact(ar, command.correlationId);
     await this.repo.save(ar);
@@ -48,13 +49,40 @@ export class ApproveAbsenceRequestHandler {
     const setup = await this.hcmSetupService.getSetup(ar.tenantId);
     const storedHours = this.leavePolicyService.amountToStoredHours(setup, ar.durationUnit, ar.durationAmount);
     const balances = await this.balanceRepo.findByWorker(ar.workerId);
-    const balance = balances.find((candidate) => candidate.leaveType === ar.absenceType || candidate.leaveType === ar.policyCode);
+    const balance = balances.find((candidate) => (
+      candidate.tenantId.value === ar.tenantId.value
+      && candidate.status === 'ACTIVE'
+      && (candidate.leaveType === ar.absenceType || candidate.leaveType === ar.policyCode)
+    ));
     if (!balance) return;
     balance.update({
-      balanceHours: Math.max(balance.balanceHours - storedHours, 0),
+      balanceHours: balance.balanceHours - storedHours,
       usedHours: balance.usedHours + storedHours,
     }, correlationId);
     await this.balanceRepo.save(balance);
     await this.publisher.publishFromAggregate(balance);
+  }
+
+  private async assertBalanceImpactAvailable(ar: Awaited<ReturnType<AbsenceRequestRepository['findById']>>): Promise<void> {
+    if (!ar?.deductFromBalance) return;
+    const setup = await this.hcmSetupService.getSetup(ar.tenantId);
+    const policy = this.leavePolicyService.resolvePolicy({ leavePolicies: setup.leavePolicies }, ar.policyCode || ar.absenceType);
+    const balances = await this.balanceRepo.findByWorker(ar.workerId);
+    const balance = balances.find((candidate) => (
+      candidate.tenantId.value === ar.tenantId.value
+      && candidate.status === 'ACTIVE'
+      && (candidate.leaveType === ar.absenceType || candidate.leaveType === ar.policyCode)
+    ));
+    this.leavePolicyService.assertBalanceAvailable(setup, {
+      policy,
+      durationUnit: ar.durationUnit,
+      durationAmount: ar.durationAmount,
+      calendarDays: ar.calendarDays,
+      workingDays: ar.workingDays,
+      excludedHolidayDates: ar.excludedHolidayDates,
+      paid: ar.paid,
+      deductFromBalance: ar.deductFromBalance,
+      payrollImpact: ar.payrollImpact,
+    }, balance?.balanceHours);
   }
 }

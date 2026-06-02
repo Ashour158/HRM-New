@@ -18,20 +18,22 @@ export class CreateCoverageGapHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      departmentId: Uuid;
+      departmentId: string | Uuid;
       shiftDate: Date;
       startTime: Date;
       endTime: Date;
       requiredSkills?: string[];
+      workplaceCode?: string;
     };
     const ar = CoverageGap.create(
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        departmentId: payload.departmentId,
+        departmentId: payload.departmentId instanceof Uuid ? payload.departmentId : new Uuid(payload.departmentId),
         shiftDate: payload.shiftDate,
         startTime: payload.startTime,
         endTime: payload.endTime,
+        workplaceCode: payload.workplaceCode,
         requiredSkills: payload.requiredSkills,
       },
       command.correlationId,

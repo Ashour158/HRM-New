@@ -25,6 +25,11 @@ import { AttendanceCloseReadinessService, type AttendanceCloseEmployee } from '.
 import { AttendanceTimesheetProjectionService } from '../services/attendance-timesheet-projection.service.js';
 import { AttendanceReminderService } from '../services/attendance-reminder.service.js';
 import { AttendanceReportingService } from '../services/attendance-reporting.service.js';
+import { AttendanceSchedulingCommandCenterService } from '../services/attendance-scheduling-command-center.service.js';
+import { ShiftScheduleRepository } from '../../workforce-management/repositories/shift-schedule.repository.js';
+import { OpenShiftRepository } from '../../workforce-management/repositories/open-shift.repository.js';
+import { CoverageGapRepository } from '../../workforce-management/repositories/coverage-gap.repository.js';
+import { WfmOvertimeApprovalRepository } from '../../workforce-management/repositories/overtime-approval.repository.js';
 import type { AttendanceCorrectionStatus } from '../services/attendance-correction.service.js';
 import type * as dtos from './dtos.js';
 import {
@@ -81,6 +86,24 @@ function csvCell(value: string | number | boolean | null | undefined): string {
   return text;
 }
 
+function inferCaptureMethod(dto: {
+  captureMethod?: dtos.CheckInOutDto['captureMethod'];
+  deviceId?: string;
+  latitude?: number;
+  longitude?: number;
+}): NonNullable<dtos.CheckInOutDto['captureMethod']> {
+  if (dto.captureMethod) return dto.captureMethod;
+  const deviceId = dto.deviceId?.toLowerCase() ?? '';
+  if (deviceId.includes('kiosk')) return 'WEB_KIOSK';
+  if (deviceId.includes('rfid') || deviceId.includes('badge')) return 'RFID_CARD';
+  if (deviceId.includes('bio')) return 'BIOMETRIC_DEVICE';
+  if (deviceId.includes('face')) return 'FACIAL_RECOGNITION';
+  if (deviceId.includes('qr')) return 'QR_CODE';
+  if (dto.latitude !== undefined && dto.longitude !== undefined) return 'MOBILE_GEOFENCE';
+  if (deviceId.includes('correction')) return 'MANUAL_CORRECTION';
+  return 'API_IMPORT';
+}
+
 @ApiTags('Time & Attendance')
 @UseGuards(AuthGuard)
 @Controller('time/attendance')
@@ -105,6 +128,11 @@ export class TimeAttendanceController {
     private readonly timesheetProjection: AttendanceTimesheetProjectionService,
     private readonly reminderService: AttendanceReminderService,
     private readonly reportingService: AttendanceReportingService,
+    private readonly schedulingCommandCenter: AttendanceSchedulingCommandCenterService,
+    private readonly shiftScheduleRepo: ShiftScheduleRepository,
+    private readonly openShiftRepo: OpenShiftRepository,
+    private readonly coverageGapRepo: CoverageGapRepository,
+    private readonly wfmOvertimeApprovalRepo: WfmOvertimeApprovalRepository,
   ) {}
 
   private buildCommand<TPayload>(
@@ -212,8 +240,9 @@ export class TimeAttendanceController {
     return { startAt, endAt };
   }
 
-  private async buildClockLocation(dto: dtos.CheckInOutDto, req: Request): Promise<string | undefined> {
+  private async buildClockLocation(dto: dtos.CheckInOutDto, req: Request): Promise<ClockLocationPayload> {
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const profile = setup.attendancePolicy.geofenceProfiles?.find((item) => item.active && item.locationCode === dto.workplaceCode);
     const trust = this.attendanceTrust.evaluateClockEvidence({
       policy: setup.attendancePolicy,
       locations: setup.locations,
@@ -224,7 +253,15 @@ export class TimeAttendanceController {
       deviceId: dto.deviceId,
     });
 
-    return JSON.stringify({
+    const requiresGeolocation = Boolean(setup.attendancePolicy.geofenceEnabled && profile?.requireGeolocation);
+    if (requiresGeolocation && (dto.latitude === undefined || dto.longitude === undefined)) {
+      throw new BadRequestException('Geolocation is required by the active attendance policy for this workplace');
+    }
+    if (profile?.blockOutsideGeofence && trust.locationStatus === 'OUTSIDE_GEOFENCE') {
+      throw new BadRequestException('Clock event is outside the allowed workplace geofence');
+    }
+
+    return {
       latitude: dto.latitude,
       longitude: dto.longitude,
       accuracyMeters: dto.accuracyMeters,
@@ -238,7 +275,7 @@ export class TimeAttendanceController {
       trustScore: trust.trustScore,
       trustRequiresApproval: trust.requiresApproval,
       trustReasons: trust.reasons,
-    } satisfies ClockLocationPayload);
+    } satisfies ClockLocationPayload;
   }
 
   private async recordClockEvent(
@@ -251,12 +288,46 @@ export class TimeAttendanceController {
     const transition = this.attendanceState.validateNextEvent(state, eventType);
     if (!transition.allowed) throw new BadRequestException(transition.reason);
 
+    const locationEvidence = await this.buildClockLocation(dto, req);
+    const captureMethod = inferCaptureMethod(dto);
     const payload = {
       workerId: new Uuid(dto.workerId),
       eventType,
       timestamp: dto.timestamp ?? new Date(),
-      location: await this.buildClockLocation(dto, req),
+      location: JSON.stringify(locationEvidence),
+      latitude: locationEvidence.latitude,
+      longitude: locationEvidence.longitude,
+      accuracyMeters: locationEvidence.accuracyMeters,
+      workplaceCode: locationEvidence.workplaceCode,
+      distanceMeters: locationEvidence.distanceMeters,
+      geofenceRadiusMeters: locationEvidence.geofenceRadiusMeters,
+      geofenceProfileCode: locationEvidence.geofenceProfileCode,
+      locationStatus: locationEvidence.locationStatus,
+      deviceTrustLevel: locationEvidence.deviceTrustLevel,
+      trustLevel: locationEvidence.trustLevel,
+      trustScore: locationEvidence.trustScore,
+      trustRequiresApproval: locationEvidence.trustRequiresApproval,
+      trustReasons: locationEvidence.trustReasons,
       deviceId: dto.deviceId,
+      captureMethod,
+      captureDeviceKind: dto.captureDeviceKind ?? (captureMethod === 'MOBILE_GEOFENCE' ? 'MOBILE_BROWSER' : undefined),
+      captureReference: dto.captureReference ?? dto.deviceId,
+      verificationStatus: dto.verificationStatus ?? (locationEvidence.trustRequiresApproval ? 'PENDING' : 'VERIFIED'),
+      captureEvidence: {
+        ...(dto.captureEvidence ?? {}),
+        geolocation: {
+          workplaceCode: locationEvidence.workplaceCode,
+          locationStatus: locationEvidence.locationStatus,
+          distanceMeters: locationEvidence.distanceMeters,
+          accuracyMeters: locationEvidence.accuracyMeters,
+        },
+        trust: {
+          trustLevel: locationEvidence.trustLevel,
+          trustScore: locationEvidence.trustScore,
+          requiresApproval: locationEvidence.trustRequiresApproval,
+          reasons: locationEvidence.trustReasons ?? [],
+        },
+      },
     };
     return this.commandBus.execute(this.buildCommand('RecordTimeClockEvent', 'TimeClockEvent', payload, req, {
       subjectWorkerId: new Uuid(dto.workerId),
@@ -777,6 +848,36 @@ export class TimeAttendanceController {
     return res.send(`\uFEFF${this.reportingService.toCsv(report)}`);
   }
 
+  @Get('scheduling-command-center')
+  async getSchedulingCommandCenter(
+    @Query('date') date: string | undefined,
+    @Query('workplaceCode') workplaceCode: string | undefined,
+    @Req() req: Request,
+  ) {
+    if (!this.hasAttendanceAdminScope(req)) {
+      throw new ForbiddenException('Only HR, payroll, or HRBP roles can view scheduling command center');
+    }
+    const tenantId = this.getTenantId(req);
+    const setup = await this.hcmSetupService.getSetup(tenantId);
+    const ledger = await this.attendanceLedgerBuilder.buildDailyLedger(tenantId, { date, workplaceCode });
+    const [shiftSchedules, openShifts, coverageGaps, overtimeApprovals] = await Promise.all([
+      this.shiftScheduleRepo.findByTenantScoped(tenantId, workplaceCode),
+      this.openShiftRepo.findByTenantScoped(tenantId, workplaceCode),
+      this.coverageGapRepo.findByTenantScoped(tenantId, workplaceCode),
+      this.wfmOvertimeApprovalRepo.findByTenant(tenantId),
+    ]);
+
+    return this.schedulingCommandCenter.build({
+      setup,
+      ledger,
+      shiftSchedules,
+      openShifts,
+      coverageGaps,
+      overtimeApprovals,
+      workplaceCode,
+    });
+  }
+
   @Get('correction-requests')
   async getCorrectionRequests(
     @Query('workerId') workerId: string | undefined,
@@ -1074,7 +1175,59 @@ export class TimeAttendanceController {
   @Post('time-clock-events')
   async recordTimeClockEvent(@Body(new ZodValidationPipe(RecordTimeClockEventDtoSchema)) dto: dtos.RecordTimeClockEventDto, @Req() req: Request) {
     await this.assertCanAccessWorker(req, dto.workerId, { managerAllowed: false });
-    return this.commandBus.execute(this.buildCommand('RecordTimeClockEvent', 'TimeClockEvent', { ...dto, workerId: new Uuid(dto.workerId) }, req, {
+    const normalizedDto = {
+      workerId: dto.workerId,
+      workplaceCode: dto.workplaceCode,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      accuracyMeters: dto.accuracyMeters,
+      deviceId: dto.deviceId,
+      timestamp: dto.timestamp,
+      captureMethod: dto.captureMethod,
+      captureDeviceKind: dto.captureDeviceKind,
+      captureReference: dto.captureReference,
+      verificationStatus: dto.verificationStatus,
+      captureEvidence: dto.captureEvidence,
+    };
+    const locationEvidence = await this.buildClockLocation(normalizedDto, req);
+    const captureMethod = inferCaptureMethod(dto);
+    return this.commandBus.execute(this.buildCommand('RecordTimeClockEvent', 'TimeClockEvent', {
+      ...dto,
+      workerId: new Uuid(dto.workerId),
+      location: dto.location ?? JSON.stringify(locationEvidence),
+      latitude: locationEvidence.latitude,
+      longitude: locationEvidence.longitude,
+      accuracyMeters: locationEvidence.accuracyMeters,
+      workplaceCode: locationEvidence.workplaceCode,
+      distanceMeters: locationEvidence.distanceMeters,
+      geofenceRadiusMeters: locationEvidence.geofenceRadiusMeters,
+      geofenceProfileCode: locationEvidence.geofenceProfileCode,
+      locationStatus: locationEvidence.locationStatus,
+      deviceTrustLevel: locationEvidence.deviceTrustLevel,
+      trustLevel: locationEvidence.trustLevel,
+      trustScore: locationEvidence.trustScore,
+      trustRequiresApproval: locationEvidence.trustRequiresApproval,
+      trustReasons: locationEvidence.trustReasons,
+      captureMethod,
+      captureDeviceKind: dto.captureDeviceKind ?? (captureMethod === 'MOBILE_GEOFENCE' ? 'MOBILE_BROWSER' : undefined),
+      captureReference: dto.captureReference ?? dto.deviceId,
+      verificationStatus: dto.verificationStatus ?? (locationEvidence.trustRequiresApproval ? 'PENDING' : 'VERIFIED'),
+      captureEvidence: {
+        ...(dto.captureEvidence ?? {}),
+        geolocation: {
+          workplaceCode: locationEvidence.workplaceCode,
+          locationStatus: locationEvidence.locationStatus,
+          distanceMeters: locationEvidence.distanceMeters,
+          accuracyMeters: locationEvidence.accuracyMeters,
+        },
+        trust: {
+          trustLevel: locationEvidence.trustLevel,
+          trustScore: locationEvidence.trustScore,
+          requiresApproval: locationEvidence.trustRequiresApproval,
+          reasons: locationEvidence.trustReasons ?? [],
+        },
+      },
+    }, req, {
       subjectWorkerId: new Uuid(dto.workerId),
     }));
   }

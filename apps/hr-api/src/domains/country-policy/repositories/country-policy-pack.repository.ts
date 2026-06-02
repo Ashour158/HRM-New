@@ -36,6 +36,14 @@ export class CountryPolicyPackRepository {
     return rows.map((r) => this.toAggregate(r));
   }
 
+  async findAll(): Promise<CountryPolicyPack[]> {
+    const rows = await this.db
+      .selectFrom('hr_country_policy.policy_packs')
+      .selectAll()
+      .execute();
+    return rows.map((r) => this.toAggregate(r));
+  }
+
   async findPublishedByCountryCode(countryCode: string): Promise<CountryPolicyPack | undefined> {
     const row = await this.db
       .selectFrom('hr_country_policy.policy_packs')

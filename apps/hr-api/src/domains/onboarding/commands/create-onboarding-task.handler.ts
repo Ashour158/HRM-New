@@ -5,15 +5,25 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { OnboardingTask } from '../aggregates/onboarding-task.aggregate.js';
+import type { OnboardingTaskCategory, OnboardingTaskOwnerGroup } from '../aggregates/onboarding-task.aggregate.js';
 import { OnboardingTaskRepository } from '../repositories/onboarding-task.repository.js';
 import { OnboardingEventsPublisher } from '../events/onboarding-events.publisher.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 export interface CreateOnboardingTaskCommandPayload {
-  taskId: Uuid;
-  planId: Uuid;
+  taskId: UuidInput;
+  planId: UuidInput;
   title: string;
   description?: string;
-  assignedTo?: Uuid;
+  assignedTo?: UuidInput;
+  ownerGroup?: OnboardingTaskOwnerGroup | string;
+  category?: OnboardingTaskCategory;
+  required?: boolean;
+  evidenceType?: string;
+  evidencePayload?: Record<string, unknown>;
+  provisioningTarget?: string;
+  signingProviderEnvelopeId?: string;
+  milestoneDay?: number;
   dueDate?: Date;
 }
 
@@ -38,13 +48,21 @@ export class CreateOnboardingTaskHandler implements ICommandHandler {
 
     const task = OnboardingTask.create(
       {
-        id: payload.taskId,
+        id: toUuid(payload.taskId),
         tenantId: command.tenantId,
-        onboardingPlanId: payload.planId,
+        onboardingPlanId: toUuid(payload.planId),
         title: payload.title,
         description: payload.description,
-        assignedTo: payload.assignedTo,
-        dueDate: payload.dueDate,
+        assignedTo: payload.assignedTo ? toUuid(payload.assignedTo) : undefined,
+        ownerGroup: normalizeOwnerGroup(payload.ownerGroup),
+        category: payload.category,
+        required: payload.required,
+        evidenceType: payload.evidenceType,
+        evidencePayload: payload.evidencePayload,
+        provisioningTarget: payload.provisioningTarget,
+        signingProviderEnvelopeId: payload.signingProviderEnvelopeId,
+        milestoneDay: payload.milestoneDay,
+        dueDate: payload.dueDate ? new Date(payload.dueDate) : undefined,
       },
       command.correlationId,
     );
@@ -66,4 +84,19 @@ export class CreateOnboardingTaskHandler implements ICommandHandler {
       auditRecordId: Uuid.generate(),
     };
   }
+}
+
+function normalizeOwnerGroup(value: OnboardingTaskOwnerGroup | string | undefined): OnboardingTaskOwnerGroup | undefined {
+  if (!value) return undefined;
+  const normalized = value.toUpperCase().replace(/\s+/g, '_');
+  if (normalized === 'FINANCE') return 'FINANCE';
+  if (normalized === 'ADMIN') return 'ADMIN';
+  if (normalized === 'MANAGER') return 'MANAGER';
+  if (normalized === 'SECURITY') return 'SECURITY';
+  if (normalized === 'FACILITIES') return 'FACILITIES';
+  if (normalized === 'EMPLOYEE') return 'EMPLOYEE';
+  if (normalized === 'BUDDY') return 'BUDDY';
+  if (normalized === 'COMPLIANCE') return 'COMPLIANCE';
+  if (normalized === 'IT') return 'IT';
+  return 'HR';
 }

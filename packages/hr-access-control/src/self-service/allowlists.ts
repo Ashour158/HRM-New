@@ -28,6 +28,7 @@ export const EmployeeSelfServiceAllowlist: readonly string[] = [
   'SubmitPerformanceFeedback360Response',
   'CompleteLearning',
   'SubmitHRCase',
+  'OpenHrServiceCase',
   'ViewPayslip',
   'ViewTotalCompensation',
   'UpdateProfilePhoto',
@@ -53,8 +54,10 @@ export const ManagerSelfServiceAllowlist: readonly string[] = [
   'CreatePerformanceFeedback360Response',
   'SubmitPerformanceFeedback360Response',
   'CreatePerformanceImprovementPlan',
+  'RecordPerformanceImprovementPlanCheckpoint',
   'CompleteLearning',
   'SubmitHRCase',
+  'OpenHrServiceCase',
   'ViewPayslip',
   'ViewTotalCompensation',
   // Manager-specific commands

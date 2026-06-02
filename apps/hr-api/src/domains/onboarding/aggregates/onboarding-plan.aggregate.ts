@@ -4,6 +4,8 @@ import { AggregateRoot, DomainEvent, Uuid, ConflictError } from '@hcm/shared-ker
  * Canonical onboarding plan status values.
  */
 export type OnboardingPlanStatus = 'DRAFT' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+export type PreboardingPortalStatus = 'NOT_INVITED' | 'INVITED' | 'ACTIVE' | 'COMPLETED';
+export type ProbationPlanStatus = 'NOT_REQUIRED' | 'PENDING_REVIEW' | 'CONFIRMED' | 'EXTENDED' | 'TERMINATION_RECOMMENDED';
 
 /**
  * Properties required to construct or rehydrate an {@link OnboardingPlan} aggregate.
@@ -14,6 +16,13 @@ export interface OnboardingPlanProps {
   workerId: Uuid;
   startDate: Date;
   assignedBuddyId?: Uuid;
+  mentorId?: Uuid;
+  roleTrack?: string;
+  preboardingPortalStatus?: PreboardingPortalStatus;
+  firstDayInstructions?: Record<string, unknown>;
+  welcomeMessage?: string;
+  probationReviewDate?: Date;
+  probationStatus?: ProbationPlanStatus;
   status?: OnboardingPlanStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -105,6 +114,13 @@ export class OnboardingPlan extends AggregateRoot {
   workerId: Uuid;
   startDate: Date;
   assignedBuddyId?: Uuid;
+  mentorId?: Uuid;
+  roleTrack?: string;
+  preboardingPortalStatus: PreboardingPortalStatus;
+  firstDayInstructions?: Record<string, unknown>;
+  welcomeMessage?: string;
+  probationReviewDate?: Date;
+  probationStatus: ProbationPlanStatus;
   status: OnboardingPlanStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -130,6 +146,13 @@ export class OnboardingPlan extends AggregateRoot {
     this.workerId = props.workerId;
     this.startDate = props.startDate;
     this.assignedBuddyId = props.assignedBuddyId;
+    this.mentorId = props.mentorId;
+    this.roleTrack = props.roleTrack;
+    this.preboardingPortalStatus = props.preboardingPortalStatus ?? 'NOT_INVITED';
+    this.firstDayInstructions = props.firstDayInstructions;
+    this.welcomeMessage = props.welcomeMessage;
+    this.probationReviewDate = props.probationReviewDate;
+    this.probationStatus = props.probationStatus ?? 'NOT_REQUIRED';
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
@@ -160,6 +183,13 @@ export class OnboardingPlan extends AggregateRoot {
     );
 
     return plan;
+  }
+
+  /**
+   * Rehydrate an existing plan without emitting creation events.
+   */
+  static restore(props: OnboardingPlanProps): OnboardingPlan {
+    return new OnboardingPlan(props);
   }
 
   /**

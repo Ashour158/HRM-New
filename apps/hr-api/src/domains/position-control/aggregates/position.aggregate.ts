@@ -101,6 +101,13 @@ export class Position extends AggregateRoot {
   }
 
   /**
+   * Rehydrate an existing Position without emitting creation events.
+   */
+  static restore(props: PositionProps): Position {
+    return new Position(props);
+  }
+
+  /**
    * Activate the position (DRAFT → ACTIVE).
    */
   activate(correlationId: Uuid): void {

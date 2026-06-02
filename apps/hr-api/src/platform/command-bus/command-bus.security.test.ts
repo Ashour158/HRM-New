@@ -67,6 +67,19 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it('normalizes aggregate versions from database rows before FSM conflict checks', async () => {
+    const bus = commandBusWith({
+      fsmFramework: {
+        getAllowedActions: () => ['UpdateWorkerPersonalData'],
+      },
+    });
+
+    await expect(bus.stepEvaluateFsm(makeCommand({
+      expectedState: 'ACTIVE',
+      expectedVersion: 1,
+    }), { version: '1' } as never)).resolves.toBeUndefined();
+  });
+
   it('loads stateful aggregates from the declared table registry beyond the worker/payroll slice', async () => {
     const selectedTables: string[] = [];
     const executeTakeFirst = async () => ({
@@ -95,6 +108,43 @@ describe('CommandBus security gates', () => {
 
     expect(selectedTables).toEqual(['hr_recruiting.candidates']);
     expect(aggregate).toMatchObject({ version: 3 });
+  });
+
+  it('writes handler-emitted canonical event names to the outbox', async () => {
+    const inserted: Array<{ table: string; row: Record<string, unknown> }> = [];
+    const tx = {
+      insertInto: (table: string) => ({
+        values: (row: Record<string, unknown>) => ({
+          execute: async () => {
+            inserted.push({ table, row });
+          },
+        }),
+      }),
+    };
+    const bus = commandBusWith();
+
+    await bus.stepWriteOutbox(tx, makeCommand({
+      commandName: 'SuspendWorker',
+      aggregateType: 'WorkerProfile',
+    }), {
+      success: true,
+      data: { workerId: workerId.value, status: 'SUSPENDED' },
+      commandId: new Uuid('550e8400-e29b-41d4-a716-446655440011'),
+      correlationId: new Uuid('550e8400-e29b-41d4-a716-446655440013'),
+      aggregateId: workerId,
+      newState: 'SUSPENDED',
+      newVersion: 3,
+      allowedNextActions: [],
+      fieldAccessDecisions: {},
+      eventsEmitted: ['WorkerSuspended'],
+      auditRecordId: new Uuid('550e8400-e29b-41d4-a716-446655440014'),
+    });
+
+    expect(inserted).toHaveLength(1);
+    expect(inserted[0]).toMatchObject({
+      table: 'outbox_events',
+      row: { event_name: 'WorkerSuspended' },
+    });
   });
 
   it('rejects stale expected state when the stored aggregate state has moved', async () => {
@@ -155,5 +205,78 @@ describe('CommandBus security gates', () => {
     await expect(bus.stepEvaluateLegalAndPolicy(makeCommand())).rejects.toMatchObject({
       errorCode: 'LEGAL_HOLD_BLOCKED',
     });
+  });
+
+  it('hydrates self-service employment status using the command tenant', async () => {
+    const conditions: Array<[string, string, string]> = [];
+    const query = {
+      select: () => query,
+      where: (field: string, operator: string, value: string) => {
+        conditions.push([field, operator, value]);
+        return query;
+      },
+      executeTakeFirst: async () => ({ status: 'ACTIVE' }),
+    };
+    const bus = commandBusWith({
+      db: {
+        selectFrom: () => query,
+      },
+    });
+
+    const status = await bus.resolveActorEmploymentStatus(makeCommand(), 'EMPLOYEE');
+
+    expect(status).toBe('ACTIVE');
+    expect(conditions).toContainEqual(['tenant_id', '=', tenantId.value]);
+  });
+
+  it('validates manager subject access inside the command tenant', async () => {
+    const conditions: Array<[string, string, string]> = [];
+    const managerId = new Uuid('550e8400-e29b-41d4-a716-446655440015');
+    const query = {
+      select: () => query,
+      where: (field: string, operator: string, value: string) => {
+        conditions.push([field, operator, value]);
+        return query;
+      },
+      executeTakeFirst: async () => ({ id: workerId.value }),
+    };
+    const bus = commandBusWith({
+      db: {
+        selectFrom: () => query,
+      },
+    });
+
+    await bus.stepValidateSubjectWorkerAccess(makeCommand({
+      actor: {
+        actorType: 'USER',
+        actorId: managerId,
+        roles: ['MANAGER'],
+        permissions: ['WORKER_UPDATE'],
+        mfaAuthenticated: true,
+      },
+      subjectWorkerId: workerId,
+    }));
+
+    expect(conditions).toContainEqual(['tenant_id', '=', tenantId.value]);
+  });
+
+  it('maps workforce planning users to administrative command access for WFM mutations', async () => {
+    const bus = commandBusWith();
+
+    await expect(bus.stepEvaluateRbac(makeCommand({
+      commandName: 'CreateShiftSchedule',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440016'),
+        roles: ['WORKFORCE_PLANNING_ADMIN'],
+        permissions: [],
+        mfaAuthenticated: true,
+      },
+      aggregateType: 'ShiftSchedule',
+      aggregateId: undefined,
+      expectedState: undefined,
+      expectedVersion: undefined,
+      payload: {},
+    }))).resolves.toBeUndefined();
   });
 });

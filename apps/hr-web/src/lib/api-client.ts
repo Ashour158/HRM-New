@@ -30,10 +30,10 @@ function readPersistedAuthState(): { token?: string; tenantId?: string } {
 
 function readAuthToken(): string | null {
   const token = localStorage.getItem('auth_token');
-  if (token) return token;
+  if (token && token !== LOCAL_BYPASS_TOKEN) return token;
 
   const persistedToken = readPersistedAuthState().token;
-  if (persistedToken) {
+  if (persistedToken && persistedToken !== LOCAL_BYPASS_TOKEN) {
     localStorage.setItem('auth_token', persistedToken);
     return persistedToken;
   }

@@ -23,6 +23,13 @@ export class OpenShiftRepository extends BaseRepository<'open_shifts', OpenShift
     return rows.map((r) => this.toAggregate(r as unknown as Database['open_shifts']));
   }
 
+  async findByTenantScoped(tenantId: Uuid, workplaceCode?: string): Promise<OpenShift[]> {
+    let query = this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value);
+    if (workplaceCode) query = query.where('workplace_code', '=', workplaceCode);
+    const rows = await query.execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['open_shifts']));
+  }
+
   async findByDepartment(departmentId: Uuid): Promise<OpenShift[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('department_id', '=', departmentId.value).execute();
     return rows.map((r) => this.toAggregate(r as unknown as Database['open_shifts']));
@@ -45,10 +52,13 @@ export class OpenShiftRepository extends BaseRepository<'open_shifts', OpenShift
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       departmentId: new Uuid(row.department_id),
+      workplaceCode: row.workplace_code ?? undefined,
       shiftDate: row.shift_date,
       startTime: row.start_time,
       endTime: row.end_time,
       requiredSkills: Array.isArray(row.required_skills) ? (row.required_skills as string[]) : [],
+      bidDeadline: row.bid_deadline ?? undefined,
+      filledByWorkerId: row.filled_by_worker_id ? new Uuid(row.filled_by_worker_id) : undefined,
       status: row.status as OpenShiftStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -61,10 +71,13 @@ export class OpenShiftRepository extends BaseRepository<'open_shifts', OpenShift
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       department_id: entity.departmentId.value,
+      workplace_code: entity.workplaceCode ?? null,
       shift_date: entity.shiftDate,
       start_time: entity.startTime,
       end_time: entity.endTime,
       required_skills: entity.requiredSkills ?? [],
+      bid_deadline: entity.bidDeadline ?? null,
+      filled_by_worker_id: entity.filledByWorkerId?.value ?? null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

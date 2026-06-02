@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { isWorkerTerminatedEvent, isWorkerActivatedEvent } from '@hcm/event-schemas';
+import { HR_CORE, isWorkerTerminatedEvent, isWorkerActivatedEvent } from '@hcm/event-schemas';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
@@ -24,7 +24,7 @@ export class GlobalComplianceSaga implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe('hr.core.events', 'global-compliance-saga', {
+    this.eventBus.subscribe(HR_CORE, 'global-compliance-saga', {
       consumerGroup: 'global-compliance-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isWorkerTerminatedEvent(event)) {

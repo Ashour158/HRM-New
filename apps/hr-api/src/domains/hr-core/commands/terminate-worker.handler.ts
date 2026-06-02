@@ -27,7 +27,7 @@ export class TerminateWorkerHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as TerminateWorkerPayload;
 
-    const worker = await this.workerRepo.findById(payload.workerId);
+    const worker = await this.workerRepo.findByIdForTenant(payload.workerId, command.tenantId);
     if (!worker) {
       throw new NotFoundError('Worker not found');
     }
@@ -35,7 +35,7 @@ export class TerminateWorkerHandler {
     worker.terminate(payload.terminationDate, payload.reason, command.correlationId);
     await this.workerRepo.save(worker);
 
-    const assignments = await this.jobAssignmentRepo.findByWorker(worker.id);
+    const assignments = await this.jobAssignmentRepo.findByWorkerForTenant(worker.id, command.tenantId);
     for (const assignment of assignments) {
       if (assignment.state === 'ACTIVE') {
         assignment.end(payload.terminationDate, command.correlationId);
@@ -43,7 +43,7 @@ export class TerminateWorkerHandler {
       }
     }
 
-    const relationships = await this.employmentRelationshipRepo.findByWorker(worker.id);
+    const relationships = await this.employmentRelationshipRepo.findByWorkerForTenant(worker.id, command.tenantId);
     for (const relationship of relationships) {
       if (relationship.state !== 'ENDED') {
         relationship.end(payload.terminationDate, command.correlationId);

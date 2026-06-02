@@ -24,12 +24,16 @@ export class CreateJobAssignmentHandler {
     const payload = command.payload as CreateJobAssignmentPayload;
 
     const workerId = payload.workerId instanceof Uuid ? payload.workerId : new Uuid(payload.workerId as string);
-    const worker = await this.workerRepo.findById(workerId);
+    const worker = await this.workerRepo.findByIdForTenant(workerId, command.tenantId);
     if (!worker) {
       throw new NotFoundError('Worker not found');
     }
     if (worker.status !== 'ACTIVE') {
       throw new ValidationError('Worker must be ACTIVE to create a job assignment');
+    }
+    const activeAssignment = await this.jobAssignmentRepo.findActiveForWorkerForTenant(workerId, command.tenantId);
+    if (activeAssignment) {
+      throw new ValidationError('Worker already has an active primary job assignment');
     }
 
     const assignment = JobAssignment.create(

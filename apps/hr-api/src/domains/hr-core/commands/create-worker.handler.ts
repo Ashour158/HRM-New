@@ -80,7 +80,7 @@ export class CreateWorkerHandler {
       (value): value is string => Boolean(value),
     );
     for (const candidate of emailCandidates) {
-      const existing = await this.workerRepo.findByEmail(candidate);
+      const existing = await this.workerRepo.findByEmailForTenant(candidate, command.tenantId);
       if (existing) {
         throw new ValidationError('Email already in use');
       }
@@ -94,21 +94,31 @@ export class CreateWorkerHandler {
     }
 
     if (payload.employeeNumber) {
-      const existing = await this.workerRepo.findByEmployeeNumber(payload.employeeNumber);
+      const existing = await this.workerRepo.findByEmployeeNumberForTenant(payload.employeeNumber, command.tenantId);
       if (existing) {
         throw new ValidationError('Employee ID already in use');
       }
     }
 
     if (payload.phoneNumber) {
-      const existing = await this.personalDataRepo.findByPayloadField('BASIC', 'phoneNumber', payload.phoneNumber);
+      const existing = await this.personalDataRepo.findByPayloadFieldForTenant(
+        'BASIC',
+        'phoneNumber',
+        payload.phoneNumber,
+        command.tenantId,
+      );
       if (existing) {
         throw new ValidationError('Phone number already in use');
       }
     }
 
     if (payload.workPhoneNumber) {
-      const existing = await this.personalDataRepo.findByPayloadField('BASIC', 'workPhoneNumber', payload.workPhoneNumber);
+      const existing = await this.personalDataRepo.findByPayloadFieldForTenant(
+        'BASIC',
+        'workPhoneNumber',
+        payload.workPhoneNumber,
+        command.tenantId,
+      );
       if (existing) {
         throw new ValidationError('Work phone number already in use');
       }

@@ -8,6 +8,7 @@ import type { AllowedAction } from '@/types';
 interface AllowedActionsProps {
   aggregateType: string;
   aggregateId?: string;
+  state?: string;
   context?: Record<string, unknown>;
   onAction?: (action: AllowedAction) => void;
   variant?: 'default' | 'outline' | 'ghost';
@@ -22,6 +23,7 @@ interface AllowedActionsProps {
 export function AllowedActions({
   aggregateType,
   aggregateId,
+  state,
   context,
   onAction,
   variant = 'default',
@@ -29,12 +31,13 @@ export function AllowedActions({
   className,
 }: AllowedActionsProps) {
   const { data: actions, isLoading } = useQuery({
-    queryKey: ['allowed-actions', aggregateType, aggregateId, context],
+    queryKey: ['allowed-actions', aggregateType, aggregateId, state, context],
     queryFn: async () => {
       const response = await apiClient.get<{ success: boolean; data: AllowedAction[] }>('/policy/allowed-actions', {
         params: {
           aggregateType,
           aggregateId,
+          state,
           ...context,
         },
       });

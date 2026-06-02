@@ -31,13 +31,19 @@ import { IntegrationsModule } from './integrations/integrations.module.js';
 import { OrganizationModule } from './domains/organization/organization.module.js';
 import { PositionControlModule } from './domains/position-control/position-control.module.js';
 import { HcmSetupModule } from './domains/hcm-setup/hcm-setup.module.js';
+import { AdminModuleOperationsModule } from './domains/admin-module-operations/admin-module-operations.module.js';
+import { PolicyCenterModule } from './domains/policy-center/policy-center.module.js';
 import { TenantInterceptor } from './interceptors/tenant.interceptor.js';
 import { TransformInterceptor } from './interceptors/transform.interceptor.js';
 import { AppService } from './app.service.js';
+import { PolicyActionsController } from './policy-actions.controller.js';
+import { EmployeeSelfServiceController } from './employee-self-service.controller.js';
+import { AdminDashboardController } from './admin-dashboard.controller.js';
+import { AuditController } from './audit.controller.js';
 
 @Module({
-  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule],
-  controllers: [AppController],
+  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, PolicyCenterModule],
+  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController],
   providers: [
     AppService,
     {

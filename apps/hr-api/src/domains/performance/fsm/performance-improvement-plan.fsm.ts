@@ -4,12 +4,16 @@ export function registerPerformanceImprovementPlanFsm(fsm: FsmFramework): void {
   const definition: FsmDefinition<string, string> = {
     aggregateType: 'PerformanceImprovementPlan',
     states: ['DRAFT', 'ACTIVE', 'IN_PROGRESS', 'REVIEW_PENDING', 'COMPLETED', 'CLOSED', 'EXTENDED', 'TERMINATED'],
-    actions: ['CreatePerformanceImprovementPlan', 'ActivatePerformanceImprovementPlan', 'EnterReviewPerformanceImprovementPlan', 'CompletePerformanceImprovementPlan', 'ClosePerformanceImprovementPlan', 'ExtendPerformanceImprovementPlan', 'TerminatePerformanceImprovementPlan'],
+    actions: ['CreatePerformanceImprovementPlan', 'ActivatePerformanceImprovementPlan', 'RecordPerformanceImprovementPlanCheckpoint', 'EnterReviewPerformanceImprovementPlan', 'CompletePerformanceImprovementPlan', 'ClosePerformanceImprovementPlan', 'ExtendPerformanceImprovementPlan', 'TerminatePerformanceImprovementPlan'],
     transitions: [
       { action: 'CreatePerformanceImprovementPlan', from: 'DRAFT', to: 'DRAFT', eventName: 'PIPCreated' },
       { action: 'ActivatePerformanceImprovementPlan', from: 'DRAFT', to: 'ACTIVE', eventName: 'PIPActivated' },
+      { action: 'RecordPerformanceImprovementPlanCheckpoint', from: 'ACTIVE', to: 'IN_PROGRESS', eventName: 'PIPCheckpointRecorded' },
+      { action: 'RecordPerformanceImprovementPlanCheckpoint', from: 'IN_PROGRESS', to: 'IN_PROGRESS', eventName: 'PIPCheckpointRecorded' },
+      { action: 'RecordPerformanceImprovementPlanCheckpoint', from: 'EXTENDED', to: 'IN_PROGRESS', eventName: 'PIPCheckpointRecorded' },
       { action: 'EnterReviewPerformanceImprovementPlan', from: 'ACTIVE', to: 'REVIEW_PENDING', eventName: 'PIPReviewPending' },
       { action: 'EnterReviewPerformanceImprovementPlan', from: 'IN_PROGRESS', to: 'REVIEW_PENDING', eventName: 'PIPReviewPending' },
+      { action: 'EnterReviewPerformanceImprovementPlan', from: 'EXTENDED', to: 'REVIEW_PENDING', eventName: 'PIPReviewPending' },
       { action: 'CompletePerformanceImprovementPlan', from: 'REVIEW_PENDING', to: 'COMPLETED', eventName: 'PIPCompleted' },
       { action: 'ClosePerformanceImprovementPlan', from: 'COMPLETED', to: 'CLOSED', eventName: 'PIPClosed' },
       { action: 'ExtendPerformanceImprovementPlan', from: 'ACTIVE', to: 'EXTENDED', eventName: 'PIPExtended' },
@@ -19,10 +23,11 @@ export function registerPerformanceImprovementPlanFsm(fsm: FsmFramework): void {
       { action: 'TerminatePerformanceImprovementPlan', from: 'ACTIVE', to: 'TERMINATED', eventName: 'PIPTerminated' },
       { action: 'TerminatePerformanceImprovementPlan', from: 'IN_PROGRESS', to: 'TERMINATED', eventName: 'PIPTerminated' },
       { action: 'TerminatePerformanceImprovementPlan', from: 'REVIEW_PENDING', to: 'TERMINATED', eventName: 'PIPTerminated' },
+      { action: 'TerminatePerformanceImprovementPlan', from: 'EXTENDED', to: 'TERMINATED', eventName: 'PIPTerminated' },
       { action: 'TerminatePerformanceImprovementPlan', from: 'COMPLETED', to: 'TERMINATED', eventName: 'PIPTerminated' },
     ],
     initialState: 'DRAFT',
-    terminalStates: ['CLOSED', 'EXTENDED', 'TERMINATED'],
+    terminalStates: ['CLOSED', 'TERMINATED'],
   };
   fsm.register(definition);
 }

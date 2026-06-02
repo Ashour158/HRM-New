@@ -9,6 +9,7 @@ export interface OpenShiftProps {
   shiftDate: Date;
   startTime: Date;
   endTime: Date;
+  workplaceCode?: string;
   requiredSkills?: string[];
   bidDeadline?: Date;
   filledByWorkerId?: Uuid;
@@ -58,6 +59,7 @@ export class OpenShift extends AggregateRoot {
   shiftDate: Date;
   startTime: Date;
   endTime: Date;
+  workplaceCode?: string;
   requiredSkills?: string[];
   bidDeadline?: Date;
   filledByWorkerId?: Uuid;
@@ -76,6 +78,7 @@ export class OpenShift extends AggregateRoot {
     this.shiftDate = props.shiftDate;
     this.startTime = props.startTime;
     this.endTime = props.endTime;
+    this.workplaceCode = props.workplaceCode;
     this.requiredSkills = props.requiredSkills;
     this.bidDeadline = props.bidDeadline;
     this.filledByWorkerId = props.filledByWorkerId;

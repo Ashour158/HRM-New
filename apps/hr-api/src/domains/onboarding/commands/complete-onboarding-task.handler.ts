@@ -6,9 +6,10 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { OnboardingTaskRepository } from '../repositories/onboarding-task.repository.js';
 import { OnboardingEventsPublisher } from '../events/onboarding-events.publisher.js';
+import { toUuid, type UuidInput } from '../../common/uuid-normalizer.js';
 
 export interface CompleteOnboardingTaskCommandPayload {
-  taskId: Uuid;
+  taskId: UuidInput;
 }
 
 /**
@@ -29,7 +30,7 @@ export class CompleteOnboardingTaskHandler implements ICommandHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CompleteOnboardingTaskCommandPayload;
-    const task = await this.taskRepo.findById(payload.taskId);
+    const task = await this.taskRepo.findById(toUuid(payload.taskId));
     if (!task) {
       throw new NotFoundException('Onboarding task not found');
     }

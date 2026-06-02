@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
-import { isHeadcountRequestApprovedEvent, isWorkerTerminatedEvent } from '@hcm/event-schemas';
+import { HR_CORE } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
 import { HeadcountRequestRepository } from '../repositories/headcount-request.repository.js';
@@ -27,29 +27,30 @@ export class PositionHeadcountSaga implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe('hrm.headcount.events', 'position-control-saga', {
+    this.eventBus.subscribe(HR_CORE, 'position-control-saga', {
       consumerGroup: 'position-control-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
-        if (isHeadcountRequestApprovedEvent(event)) {
+        if (event.eventName === 'HeadcountRequestApproved') {
           await this.onHeadcountRequestApproved(event);
         }
       },
     });
 
-    this.eventBus.subscribe('hrm.worker.events', 'position-control-saga', {
+    this.eventBus.subscribe(HR_CORE, 'position-control-saga', {
       consumerGroup: 'position-control-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
-        if (isWorkerTerminatedEvent(event)) {
+        if (event.eventName === 'WorkerTerminated') {
           await this.onWorkerTerminated(event);
         }
       },
     });
   }
 
-  private async onHeadcountRequestApproved(event: HrEventEnvelope<{ headcountRequestId: Uuid; approvedBy: Uuid; approvedPositionId?: Uuid }>): Promise<void> {
-    const request = await this.headcountRepo.findById(event.payload.headcountRequestId);
+  private async onHeadcountRequestApproved(event: HrEventEnvelope<unknown>): Promise<void> {
+    const headcountRequestId = this.payloadUuid(event.payload, 'headcountRequestId') ?? event.aggregateId;
+    const request = await this.headcountRepo.findById(headcountRequestId);
     if (!request) {
-      this.logger.warn(`Headcount request ${event.payload.headcountRequestId.value} not found for saga`);
+      this.logger.warn(`Headcount request ${headcountRequestId.value} not found for saga`);
       return;
     }
 
@@ -80,8 +81,9 @@ export class PositionHeadcountSaga implements OnModuleInit {
     });
   }
 
-  private async onWorkerTerminated(event: HrEventEnvelope<{ workerId: Uuid }>): Promise<void> {
-    const position = await this.positionRepo.findByFilledWorkerId(event.payload.workerId);
+  private async onWorkerTerminated(event: HrEventEnvelope<unknown>): Promise<void> {
+    const workerId = this.payloadUuid(event.payload, 'workerId') ?? event.aggregateId;
+    const position = await this.positionRepo.findByFilledWorkerId(workerId);
     if (!position) {
       return;
     }
@@ -93,7 +95,19 @@ export class PositionHeadcountSaga implements OnModuleInit {
     this.logger.log({
       type: 'SAGA_VACATED_POSITION',
       positionId: position.id.value,
-      workerId: event.payload.workerId.value,
+      workerId: workerId.value,
     });
+  }
+
+  private payloadUuid(payload: unknown, key: string): Uuid | undefined {
+    if (typeof payload !== 'object' || payload === null) return undefined;
+    const value = (payload as Record<string, unknown>)[key];
+    if (value instanceof Uuid) return value;
+    if (typeof value === 'string' && Uuid.isValid(value)) return new Uuid(value);
+    if (typeof value === 'object' && value !== null && 'value' in value) {
+      const raw = (value as { value?: unknown }).value;
+      return typeof raw === 'string' && Uuid.isValid(raw) ? new Uuid(raw) : undefined;
+    }
+    return undefined;
   }
 }

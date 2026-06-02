@@ -14,6 +14,7 @@
     "test": "turbo run test",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+    "secret:scan": "node scripts/secret-scan.mjs",
     "db:migrate": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate",
     "db:migrate:create": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate:create",
     "db:seed": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database seed",

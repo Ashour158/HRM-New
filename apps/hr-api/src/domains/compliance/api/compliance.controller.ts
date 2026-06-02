@@ -90,6 +90,31 @@ export class ComplianceController {
   /*  Policy Documents                                                  */
   /* ---------------------------------------------------------------- */
 
+  @Get('summary')
+  async getComplianceSummary() {
+    const policyStatuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PUBLISHED', 'ARCHIVED', 'REJECTED'];
+    const policies = (await Promise.all(policyStatuses.map((status) => this.policyDocumentRepo.findByStatus(status)))).flat();
+    return {
+      policies: policies.map((policy) => ({
+        id: policy.id.value,
+        title: policy.title,
+        version: policy.documentVersion,
+        documentType: policy.documentType,
+        effectiveDate: policy.effectiveFrom?.toISOString() ?? policy.createdAt.toISOString(),
+        status: policy.status,
+        requiresAcknowledgement: policy.content.requiresAcknowledgement === true,
+      })),
+      acknowledgements: [],
+      legalHolds: (await this.legalHoldRepo.findActive()).map((hold) => ({
+        id: hold.id.value,
+        description: hold.description ?? hold.holdName,
+        issuedAt: hold.placedAt.toISOString(),
+        status: hold.status,
+      })),
+      statutoryReports: [],
+    };
+  }
+
   @Post('policy-documents')
   async createPolicyDocument(
     @Body(new ZodValidationPipe(CreatePolicyDocumentDtoSchema)) dto: dtos.CreatePolicyDocumentDto,

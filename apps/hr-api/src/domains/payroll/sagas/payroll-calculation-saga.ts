@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
-import { isPayrollCycleOpenedEvent } from '@hcm/event-schemas';
+import { HR_PAYROLL, isPayrollCycleOpenedEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
@@ -22,7 +22,7 @@ export class PayrollCalculationSaga implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe('hrm.payroll.events', 'payroll-calculation-saga', {
+    this.eventBus.subscribe(HR_PAYROLL, 'payroll-calculation-saga', {
       consumerGroup: 'payroll-calculation-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isPayrollCycleOpenedEvent(event)) {

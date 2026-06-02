@@ -1,0 +1,24 @@
+{
+  "name": "@hcm/hr-auditor-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "audit:dry": "node dist/cli.js --dry-run",
+    "audit:agent": "dotenv -e .env.local -- node dist/cli.js"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.11.6",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
+  }
+}

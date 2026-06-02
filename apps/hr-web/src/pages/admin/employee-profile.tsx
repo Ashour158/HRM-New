@@ -1,6 +1,25 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { ArrowLeft, Briefcase, Contact, DollarSign, FileText, GraduationCap, HeartHandshake, KeyRound, Landmark, MapPin, ShieldCheck, UserCheck, UserMinus } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Briefcase,
+  ClipboardList,
+  Contact,
+  DollarSign,
+  FileText,
+  GitBranch,
+  GraduationCap,
+  HeartHandshake,
+  KeyRound,
+  Landmark,
+  MapPin,
+  PauseCircle,
+  RotateCcw,
+  ShieldCheck,
+  UserCheck,
+  UserMinus,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,6 +32,45 @@ import type { EmployeeProfileData } from '@/types';
 
 function valueOrDash(value?: string | null) {
   return value && value.trim() ? value : '-';
+}
+
+function displayValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-';
+  if (value instanceof Date) return formatDate(value.toISOString());
+  if (typeof value === 'string') return valueOrDash(value);
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(displayValue).filter((item) => item !== '-').join(', ') || '-';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function humanizeKey(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+type LooseRecord = Record<string, unknown>;
+
+function recordArray(value: unknown, nestedKeys: string[] = []): LooseRecord[] {
+  if (Array.isArray(value)) return value.filter((item): item is LooseRecord => Boolean(item) && typeof item === 'object' && !Array.isArray(item));
+  if (value && typeof value === 'object') {
+    const record = value as LooseRecord;
+    for (const key of nestedKeys) {
+      const nested = record[key];
+      if (Array.isArray(nested)) return recordArray(nested);
+    }
+  }
+  return [];
+}
+
+function firstValue(record: LooseRecord, keys: string[]): string {
+  for (const key of keys) {
+    const rendered = displayValue(record[key]);
+    if (rendered !== '-') return rendered;
+  }
+  return '-';
 }
 
 function Detail({ label, children }: { label: string; children: ReactNode }) {
@@ -44,7 +102,7 @@ function Section({
   );
 }
 
-function EntryRows({ entries }: { entries?: Array<Record<string, string>> }) {
+function EntryRows({ entries }: { entries?: Array<Record<string, unknown>> }) {
   const visibleEntries = entries?.filter((entry) => Object.values(entry).some(Boolean)) ?? [];
   if (visibleEntries.length === 0) {
     return <p className="border-t py-4 text-sm text-muted-foreground">No records captured.</p>;
@@ -57,8 +115,8 @@ function EntryRows({ entries }: { entries?: Array<Record<string, string>> }) {
           <div key={index} className="grid gap-2 py-4 md:grid-cols-5">
             {values.map(([key, value]) => (
               <div key={key}>
-                <p className="text-xs text-muted-foreground">{key.replace(/([A-Z])/g, ' $1')}</p>
-                <p className="text-sm font-medium">{valueOrDash(String(value))}</p>
+                <p className="text-xs text-muted-foreground">{humanizeKey(key)}</p>
+                <p className="text-sm font-medium">{displayValue(value)}</p>
               </div>
             ))}
           </div>
@@ -66,6 +124,24 @@ function EntryRows({ entries }: { entries?: Array<Record<string, string>> }) {
       })}
     </div>
   );
+}
+
+interface MasterProfileData extends EmployeeProfileData {
+  profileSections?: Record<string, Record<string, unknown> | undefined>;
+  relationships?: unknown;
+  employmentRelationships?: unknown;
+  jobAssignments?: unknown;
+  positionAssignments?: unknown;
+  contracts?: unknown;
+  employmentContracts?: unknown;
+  digitalEmployeeFile?: unknown;
+  digitalFile?: unknown;
+  documentFile?: unknown;
+  expiryAlerts?: unknown;
+  lifecycleTimeline?: unknown;
+  timeline?: unknown;
+  custom?: Record<string, unknown>;
+  customFields?: Record<string, unknown>;
 }
 
 export function AdminEmployeeProfile() {
@@ -76,24 +152,59 @@ export function AdminEmployeeProfile() {
     `/hr/core/workers/${id}/profile`,
     { enabled: Boolean(id) },
   );
+  const { data: masterProfile, refetch: refetchMaster } = useApiQuery<MasterProfileData>(
+    ['admin-employee-master-profile', id],
+    `/hr/core/workers/${id}/master-profile`,
+    { enabled: Boolean(id), retry: false },
+  );
 
   const activateMutation = useApiMutation<void, { employeeId: string }>(
     (vars) => `/hr/core/workers/${vars.employeeId}/commands/activate`,
     'post',
-    [['admin-workers'], ['admin-employee-profile', id]],
+    [['admin-workers'], ['admin-employee-profile', id], ['admin-employee-master-profile', id]],
   );
 
   const terminateMutation = useApiMutation<void, { employeeId: string; reason: string; terminationDate: string }>(
     (vars) => `/hr/core/workers/${vars.employeeId}/commands/terminate`,
     'post',
-    [['admin-workers'], ['admin-employee-profile', id]],
+    [['admin-workers'], ['admin-employee-profile', id], ['admin-employee-master-profile', id]],
   );
 
-  if (isLoading || !profile) {
+  const suspendMutation = useApiMutation<void, { employeeId: string; reason: string; effectiveDate: string }>(
+    (vars) => `/hr/core/workers/${vars.employeeId}/commands/suspend`,
+    'post',
+    [['admin-workers'], ['admin-employee-profile', id], ['admin-employee-master-profile', id]],
+  );
+
+  const reinstateMutation = useApiMutation<void, { employeeId: string; effectiveDate: string }>(
+    (vars) => `/hr/core/workers/${vars.employeeId}/commands/reinstate`,
+    'post',
+    [['admin-workers'], ['admin-employee-profile', id], ['admin-employee-master-profile', id]],
+  );
+
+  const rehireMutation = useApiMutation<void, { employeeId: string }>(
+    (vars) => `/hr/core/workers/${vars.employeeId}/commands/rehire`,
+    'post',
+    [['admin-workers'], ['admin-employee-profile', id], ['admin-employee-master-profile', id]],
+  );
+
+  if (isLoading && !profile) {
     return (
       <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
         <Skeleton className="h-8 w-48" />
         <Skeleton className="mt-8 h-48 w-full" />
+      </div>
+    );
+  }
+
+  const currentProfile = profile;
+
+  if (!currentProfile) {
+    return (
+      <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+          Employee profile could not be loaded.
+        </div>
       </div>
     );
   }
@@ -114,7 +225,7 @@ export function AdminEmployeeProfile() {
     skills,
     consents,
     governance,
-  } = profile;
+  } = currentProfile;
   const address = contact.address ?? {};
   const workLocation = contact.workLocation ?? {};
   const socialLinks = contact.socialLinks ?? {};
@@ -134,12 +245,23 @@ export function AdminEmployeeProfile() {
   const consentRows = consents?.consents ?? [];
   const privacyRows = consents?.privacyNotices ?? [];
   const retentionRows = consents?.retentionHolds ?? [];
-  const canActivate = worker.status === 'DRAFT' || worker.status === 'PENDING_ACTIVATION';
+  const relationships = recordArray(masterProfile?.relationships ?? masterProfile?.employmentRelationships, ['items', 'relationships']);
+  const assignments = recordArray(masterProfile?.jobAssignments ?? masterProfile?.positionAssignments, ['items', 'assignments']);
+  const contracts = recordArray(masterProfile?.contracts ?? masterProfile?.employmentContracts, ['items', 'contracts']);
+  const digitalFile = recordArray(masterProfile?.digitalEmployeeFile ?? masterProfile?.digitalFile ?? masterProfile?.documentFile, ['items', 'documents']);
+  const expiryAlerts = recordArray(masterProfile?.expiryAlerts, ['items', 'alerts']);
+  const lifecycleTimeline = recordArray(masterProfile?.lifecycleTimeline ?? masterProfile?.timeline, ['items', 'events']);
+  const customFields = masterProfile?.profileSections?.CUSTOM ?? masterProfile?.customFields ?? masterProfile?.custom ?? {};
+  const canActivate = worker.status === 'DRAFT' || worker.status === 'PENDING_ACTIVATION' || worker.status === 'REHIRED';
   const canTerminate = worker.status === 'ACTIVE';
+  const canSuspend = worker.status === 'ACTIVE';
+  const canReinstate = worker.status === 'SUSPENDED';
+  const canRehire = worker.status === 'TERMINATED';
 
   const activate = async () => {
     await activateMutation.mutateAsync({ employeeId: worker.id });
     refetch();
+    refetchMaster();
   };
 
   const terminate = async () => {
@@ -151,6 +273,34 @@ export function AdminEmployeeProfile() {
       terminationDate: new Date().toISOString(),
     });
     refetch();
+    refetchMaster();
+  };
+
+  const suspend = async () => {
+    const reason = window.prompt('Enter suspension reason:');
+    if (!reason) return;
+    await suspendMutation.mutateAsync({
+      employeeId: worker.id,
+      reason,
+      effectiveDate: new Date().toISOString(),
+    });
+    refetch();
+    refetchMaster();
+  };
+
+  const reinstate = async () => {
+    await reinstateMutation.mutateAsync({
+      employeeId: worker.id,
+      effectiveDate: new Date().toISOString(),
+    });
+    refetch();
+    refetchMaster();
+  };
+
+  const rehire = async () => {
+    await rehireMutation.mutateAsync({ employeeId: worker.id });
+    refetch();
+    refetchMaster();
   };
 
   return (
@@ -167,10 +317,11 @@ export function AdminEmployeeProfile() {
             </div>
             <div>
               <h2 className="text-3xl font-bold">{worker.firstName} {worker.lastName}</h2>
-              <p className="text-muted-foreground">{worker.employeeId} · {worker.jobTitle || 'Unassigned'}</p>
+              <p className="text-muted-foreground">{worker.employeeId} - {worker.jobTitle || 'Unassigned'}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge>{worker.status}</Badge>
                 <Badge variant="secondary">{governance.dataClassification}</Badge>
+                {expiryAlerts.length ? <Badge variant="destructive">{expiryAlerts.length} expiry alerts</Badge> : null}
               </div>
             </div>
           </div>
@@ -185,6 +336,24 @@ export function AdminEmployeeProfile() {
               <Button variant="destructive" onClick={terminate} disabled={terminateMutation.isPending}>
                 <UserMinus className="mr-2 h-4 w-4" />
                 Terminate
+              </Button>
+            ) : null}
+            {canSuspend ? (
+              <Button variant="outline" onClick={suspend} disabled={suspendMutation.isPending}>
+                <PauseCircle className="mr-2 h-4 w-4" />
+                Suspend
+              </Button>
+            ) : null}
+            {canReinstate ? (
+              <Button variant="outline" onClick={reinstate} disabled={reinstateMutation.isPending}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Reinstate
+              </Button>
+            ) : null}
+            {canRehire ? (
+              <Button variant="outline" onClick={rehire} disabled={rehireMutation.isPending}>
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Rehire
               </Button>
             ) : null}
           </div>
@@ -254,6 +423,37 @@ export function AdminEmployeeProfile() {
             </div>
           </Section>
 
+          <Section title="Lifecycle, Position, and Contracts" icon={<GitBranch className="h-5 w-5 text-primary" />}>
+            <div className="grid gap-6 xl:grid-cols-3">
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">Employment Relationships</h4>
+                <EntryRows entries={relationships} />
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">Position Assignments</h4>
+                <EntryRows entries={assignments} />
+              </div>
+              <div>
+                <h4 className="mb-2 text-sm font-semibold">Contracts</h4>
+                <EntryRows entries={contracts} />
+              </div>
+            </div>
+            {lifecycleTimeline.length ? (
+              <div className="mt-6">
+                <h4 className="mb-2 text-sm font-semibold">Lifecycle Timeline</h4>
+                <div className="divide-y border-y">
+                  {lifecycleTimeline.slice(0, 8).map((event, index) => (
+                    <div key={`${firstValue(event, ['id', 'eventId', 'eventName', 'action'])}-${index}`} className="grid gap-2 py-3 text-sm md:grid-cols-[1fr_1fr_2fr]">
+                      <p className="font-medium">{firstValue(event, ['eventName', 'action', 'type', 'status'])}</p>
+                      <p className="text-muted-foreground">{firstValue(event, ['occurredAt', 'effectiveDate', 'createdAt'])}</p>
+                      <p className="text-muted-foreground">{firstValue(event, ['summary', 'reason', 'description'])}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </Section>
+
           <Section title="Compensation" icon={<DollarSign className="h-5 w-5 text-primary" />}>
             <div className="grid gap-x-8 md:grid-cols-3">
               <Detail label="Gross Salary">
@@ -297,6 +497,21 @@ export function AdminEmployeeProfile() {
                 <Detail label="Contract End">{valueOrDash(String(documents.employmentContract.endDate ?? ''))}</Detail>
               </div>
             ) : null}
+            {digitalFile.length ? (
+              <div className="mb-6">
+                <h4 className="mb-2 text-sm font-semibold">Digital Employee File</h4>
+                <div className="divide-y border-y">
+                  {digitalFile.map((document, index) => (
+                    <div key={`${firstValue(document, ['id', 'fileName', 'name'])}-${index}`} className="grid gap-2 py-4 md:grid-cols-[2fr_1fr_1fr_1fr]">
+                      <p className="text-sm font-medium">{firstValue(document, ['fileName', 'name', 'title'])}</p>
+                      <p className="text-sm text-muted-foreground">{firstValue(document, ['type', 'documentType', 'requirementLabel'])}</p>
+                      <p className="text-sm text-muted-foreground">{firstValue(document, ['status', 'verificationStatus', 'state'])}</p>
+                      <p className="text-sm text-muted-foreground">{firstValue(document, ['expiryDate', 'expiresAt', 'validUntil'])}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {attachedDocuments.length ? (
               <div className="divide-y border-y">
                 {attachedDocuments.map((document, index) => (
@@ -328,11 +543,11 @@ export function AdminEmployeeProfile() {
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-semibold">Skills</h4>
-                <EntryRows entries={skillRows as Array<Record<string, string>>} />
+                <EntryRows entries={skillRows as Array<Record<string, unknown>>} />
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-semibold">Licenses</h4>
-                <EntryRows entries={licenseRows as Array<Record<string, string>>} />
+                <EntryRows entries={licenseRows as Array<Record<string, unknown>>} />
               </div>
             </div>
           </Section>
@@ -341,23 +556,31 @@ export function AdminEmployeeProfile() {
             <div className="space-y-6">
               <div>
                 <h4 className="mb-2 text-sm font-semibold">Benefits Dependents</h4>
-                <EntryRows entries={dependentRows as Array<Record<string, string>>} />
+                <EntryRows entries={dependentRows as Array<Record<string, unknown>>} />
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-semibold">Beneficiaries</h4>
-                <EntryRows entries={beneficiaryRows as Array<Record<string, string>>} />
+                <EntryRows entries={beneficiaryRows as Array<Record<string, unknown>>} />
               </div>
               <div>
                 <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold"><KeyRound className="h-4 w-4" /> Assets and Access Badges</h4>
-                <EntryRows entries={[...(assetRows as Array<Record<string, string>>), ...(badgeRows as Array<Record<string, string>>)]} />
+                <EntryRows entries={[...(assetRows as Array<Record<string, unknown>>), ...(badgeRows as Array<Record<string, unknown>>)]} />
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-semibold">Consents and Privacy Notices</h4>
-                <EntryRows entries={[...(consentRows as Array<Record<string, string>>), ...(privacyRows as Array<Record<string, string>>)]} />
+                <EntryRows entries={[...(consentRows as Array<Record<string, unknown>>), ...(privacyRows as Array<Record<string, unknown>>)]} />
               </div>
               <div>
                 <h4 className="mb-2 text-sm font-semibold">Retention Holds</h4>
-                <EntryRows entries={retentionRows as Array<Record<string, string>>} />
+                <EntryRows entries={retentionRows as Array<Record<string, unknown>>} />
+              </div>
+              <div>
+                <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold"><ClipboardList className="h-4 w-4" /> Custom and Local Fields</h4>
+                {Object.keys(customFields).length ? (
+                  <EntryRows entries={[customFields]} />
+                ) : (
+                  <p className="border-t py-4 text-sm text-muted-foreground">No custom fields captured.</p>
+                )}
               </div>
             </div>
           </Section>
@@ -367,15 +590,34 @@ export function AdminEmployeeProfile() {
           </Section>
         </main>
 
-        <aside className="border-l px-5 py-6">
+        <aside className="space-y-6 border-l px-5 py-6">
+          <section className="space-y-4">
+            <h3 className="flex items-center gap-2 text-lg font-semibold">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Expiry Watch
+            </h3>
+            <div className="divide-y border-y">
+              {expiryAlerts.length ? expiryAlerts.slice(0, 8).map((alert, index) => (
+                <div key={`${firstValue(alert, ['id', 'source', 'label'])}-${index}`} className="py-3">
+                  <p className="text-sm font-medium">{firstValue(alert, ['label', 'documentType', 'type', 'source'])}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {firstValue(alert, ['expiryDate', 'expiresAt', 'validUntil'])} - {firstValue(alert, ['severity', 'status', 'daysUntilExpiry'])}
+                  </p>
+                </div>
+              )) : (
+                <p className="py-3 text-sm text-muted-foreground">No expiring documents or registrations found.</p>
+              )}
+            </div>
+          </section>
+
           <section className="space-y-4">
             <h3 className="text-lg font-semibold">Governance</h3>
-            <AllowedActions aggregateType="WORKER" aggregateId={worker.id} onAction={() => undefined} />
+            <AllowedActions aggregateType="WORKER" aggregateId={worker.id} state={worker.status} onAction={() => undefined} />
             <div className="divide-y border-y">
               {governance.personalDataRecords.map((record) => (
                 <div key={record.id} className="py-3">
                   <p className="text-sm font-medium">{record.dataCategory}</p>
-                  <p className="text-xs text-muted-foreground">{record.dataClassification} · {record.consentStatus} · {record.state}</p>
+                  <p className="text-xs text-muted-foreground">{record.dataClassification} - {record.consentStatus} - {record.state}</p>
                 </div>
               ))}
             </div>

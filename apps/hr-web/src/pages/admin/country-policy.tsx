@@ -1,46 +1,104 @@
 import * as React from 'react';
-import { useApiQuery, useApiMutation } from '@/hooks/use-api';
+import { Link } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
-import { CheckCircle2, Globe, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Globe, AlertCircle, Upload } from 'lucide-react';
 import type { CountryPolicyPack, ValidationResult } from '@/types';
+
+type CountryPolicyPackApi = CountryPolicyPack & {
+  countryPackVersion?: string;
+  effectiveFrom?: string;
+};
+
+type PackForm = {
+  countryCode: string;
+  version: string;
+  effectiveFrom: string;
+};
+
+function apiData<T>(payload: unknown): T {
+  const response = payload as { data?: T; success?: boolean };
+  if (response.success === true && response.data !== undefined) return response.data;
+  return payload as T;
+}
+
+function unwrap<T>(response: { data: unknown }) {
+  return apiData<T>(response.data);
+}
 
 /**
  * Country Policy v1.4 management page with packs, validation, simulation, and approval.
  */
 export function AdminCountryPolicy() {
+  const queryClient = useQueryClient();
   const [simulationResult, setSimulationResult] = React.useState<ValidationResult | null>(null);
+  const [packForm, setPackForm] = React.useState<PackForm>({
+    countryCode: 'EG',
+    version: '2026.1',
+    effectiveFrom: new Date().toISOString().slice(0, 10),
+  });
 
-  const { data: policyPacks, isLoading } = useApiQuery<CountryPolicyPack[]>(
-    ['admin-country-policies'],
-    '/admin/country-policies'
-  );
+  const { data: policyPacks, isLoading } = useQuery({
+    queryKey: ['admin-country-policies'],
+    queryFn: async () => unwrap<CountryPolicyPackApi[]>(await apiClient.get('/country-policy/policy-packs')),
+  });
 
-  const validateMutation = useApiMutation<ValidationResult, string>(
-    '/admin/country-policies/validate',
-    'post'
-  );
+  const refreshPacks = () => queryClient.invalidateQueries({ queryKey: ['admin-country-policies'] });
 
-  const simulateMutation = useApiMutation<ValidationResult, string>(
-    '/admin/country-policies/simulate',
-    'post'
-  );
+  const uploadMutation = useMutation({
+    mutationFn: async (form: PackForm) => apiClient.post('/country-policy/policy-packs', {
+      packId: crypto.randomUUID(),
+      countryCode: form.countryCode.toUpperCase(),
+      version: form.version,
+      effectiveFrom: form.effectiveFrom,
+      uploadedBy: crypto.randomUUID(),
+      sections: {
+        leave: { source: 'admin-ui' },
+        payroll: { source: 'admin-ui' },
+      },
+    }),
+    onSuccess: refreshPacks,
+  });
 
-  const approveMutation = useApiMutation<void, string>(
-    '/admin/country-policies/approve',
-    'post',
-    [['admin-country-policies']]
-  );
+  const validateMutation = useMutation({
+    mutationFn: async (packId: string) => unwrap<ValidationResult>(await apiClient.post('/country-policy/policy-packs/validate', {
+      packId,
+      validationRunId: crypto.randomUUID(),
+      validationType: 'FULL_POLICY_PACK',
+    })),
+  });
 
-  const publishMutation = useApiMutation<void, string>(
-    '/admin/country-policies/publish',
-    'post',
-    [['admin-country-policies']]
-  );
+  const simulateMutation = useMutation({
+    mutationFn: async (packId: string) => unwrap<ValidationResult>(await apiClient.post('/country-policy/policy-packs/simulate', {
+      packId,
+      simulationRunId: crypto.randomUUID(),
+      simulationScope: 'TENANT_ACTIVE_WORKFORCE',
+    })),
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (packId: string) => apiClient.post('/country-policy/policy-packs/approve', {
+      packId,
+      approvedBy: crypto.randomUUID(),
+    }),
+    onSuccess: refreshPacks,
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: async (packId: string) => apiClient.post('/country-policy/policy-packs/publish', {
+      packId,
+      publishedBy: crypto.randomUUID(),
+    }),
+    onSuccess: refreshPacks,
+  });
 
   const handleValidate = async (packId: string) => {
     const result = await validateMutation.mutateAsync(packId);
@@ -53,22 +111,22 @@ export function AdminCountryPolicy() {
   };
 
   const columns = [
-    { key: 'name', header: 'Name', cell: (row: CountryPolicyPack) => row.name },
+    { key: 'name', header: 'Name', cell: (row: CountryPolicyPackApi) => row.name ?? `${row.countryCode} policy pack` },
     {
       key: 'country',
       header: 'Country',
-      cell: (row: CountryPolicyPack) => (
+      cell: (row: CountryPolicyPackApi) => (
         <div className="flex items-center gap-2">
           <Globe className="h-4 w-4" />
           {row.countryCode}
         </div>
       ),
     },
-    { key: 'version', header: 'Version', cell: (row: CountryPolicyPack) => row.version },
+    { key: 'version', header: 'Version', cell: (row: CountryPolicyPackApi) => row.version ?? row.countryPackVersion ?? '-' },
     {
       key: 'status',
       header: 'Status',
-      cell: (row: CountryPolicyPack) => {
+      cell: (row: CountryPolicyPackApi) => {
         const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
           DRAFT: 'outline',
           PENDING_APPROVAL: 'secondary',
@@ -82,12 +140,12 @@ export function AdminCountryPolicy() {
     {
       key: 'updated',
       header: 'Updated',
-      cell: (row: CountryPolicyPack) => formatDate(row.updatedAt),
+      cell: (row: CountryPolicyPackApi) => formatDate(row.updatedAt),
     },
     {
       key: 'actions',
       header: 'Actions',
-      cell: (row: CountryPolicyPack) => (
+      cell: (row: CountryPolicyPackApi) => (
         <AllowedActions
           aggregateType="COUNTRY_POLICY"
           aggregateId={row.id}
@@ -112,7 +170,42 @@ export function AdminCountryPolicy() {
           </h2>
           <p className="text-muted-foreground">Manage country-specific policy packs</p>
         </div>
+        <Button asChild variant="outline">
+          <Link to="/admin/policies">Policy Center</Link>
+        </Button>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Upload className="h-5 w-5" />
+            Add Country Policy Pack
+          </CardTitle>
+          <CardDescription>Upload a versioned policy pack and then validate, approve, and publish it.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form className="grid gap-4 md:grid-cols-[9rem_10rem_12rem_auto]" onSubmit={(event) => {
+            event.preventDefault();
+            uploadMutation.mutate(packForm);
+          }}>
+            <div className="space-y-2">
+              <Label htmlFor="country-code">Country</Label>
+              <Input id="country-code" maxLength={2} value={packForm.countryCode} onChange={(event) => setPackForm({ ...packForm, countryCode: event.target.value.toUpperCase() })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pack-version">Version</Label>
+              <Input id="pack-version" value={packForm.version} onChange={(event) => setPackForm({ ...packForm, version: event.target.value })} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="effective-from">Effective From</Label>
+              <Input id="effective-from" type="date" value={packForm.effectiveFrom} onChange={(event) => setPackForm({ ...packForm, effectiveFrom: event.target.value })} required />
+            </div>
+            <div className="flex items-end">
+              <Button type="submit" disabled={uploadMutation.isPending}>Upload Pack</Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
 
       {/* Validation/Simulation Result */}
       {simulationResult && (

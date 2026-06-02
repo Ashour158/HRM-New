@@ -17,6 +17,7 @@ import {
   Bell,
   CheckCircle2,
   ClipboardCheck,
+  Download,
   Gauge,
   GitBranch,
   Grid3X3,
@@ -154,6 +155,8 @@ interface Kpi {
   unit?: string;
   frequency?: string;
   ownerId?: string;
+  formula?: string;
+  dataSource?: string;
   department?: string;
   status: string;
 }
@@ -209,9 +212,10 @@ interface PerformanceActionPlan {
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   currentPerformance: {
     latestRating: number | null;
-    goalProgress: number;
+    averageGoalProgress: number;
     peerFeedbackRating: number | null;
-    reviewCompletionStatus: string;
+    activeGoalCount: number;
+    openDevelopmentPlan: boolean;
   };
   timeline: {
     durationDays: number;
@@ -247,6 +251,23 @@ interface PerformanceAnalyticsSummary {
   recognitions: PerformanceRecognition[];
   feedbackSummaries: Record<string, FeedbackSummary>;
   actionPlans: PerformanceActionPlan[];
+  scoreExplainability?: Record<string, {
+    employeeName: string;
+    performanceScore: number;
+    potentialScore: number;
+    summary: string;
+  }>;
+  biasChecks?: {
+    suppressionThreshold: number;
+    departmentRatingDistribution: Array<{ group: string; count: number; averageRating: number | null; suppressed: boolean }>;
+  };
+  trendSignals?: Array<{ workerId: string; employeeName: string; signal: string; riskLevel: string; recommendedAction: string }>;
+  governance?: {
+    anonymityThreshold: number;
+    performanceFormulaVersion: string;
+    generatedAt: string;
+    inputCounts: Record<string, number>;
+  };
 }
 
 function splitValues(value: string): string[] {
@@ -321,6 +342,34 @@ function readApiError(error: unknown): string {
   if (Array.isArray(responseData?.message)) return responseData.message.join(', ');
   if (typeof responseData?.error === 'string') return responseData.error;
   return error instanceof Error ? error.message : 'Request failed';
+}
+
+function downloadTextFile(fileName: string, mimeType: string, content: string): void {
+  const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function analyticsCsv(analytics: PerformanceAnalyticsSummary): string {
+  const rows = [
+    ['employee', 'performanceScore', 'potentialScore', 'box', 'risk', 'trend', 'recommendation'],
+    ...analytics.nineBox.map((placement) => {
+      const actionPlan = analytics.actionPlans.find((plan) => plan.workerId === placement.workerId);
+      return [
+        placement.employeeName,
+        String(placement.performanceScore),
+        String(placement.potentialScore),
+        placement.box,
+        actionPlan?.riskLevel ?? '',
+        actionPlan?.progressTrend ?? '',
+        actionPlan?.recommendedActions[0] ?? '',
+      ];
+    }),
+  ];
+  return rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 
 function FieldTextarea({
@@ -454,7 +503,17 @@ export function AdminPerformanceOperations() {
   const [developmentForm, setDevelopmentForm] = React.useState({ workerId: '', managerId: '', title: '', description: '', objective: '', skill: '', resource: '', endDate: '' });
   const [objectiveForm, setObjectiveForm] = React.useState({ ownerId: '', orgUnitId: '', reviewCycleId: '', title: '', period: '2026-Q2' });
   const [keyResultForm, setKeyResultForm] = React.useState({ objectiveId: '', title: '', targetValue: '100', unit: '%' });
-  const [kpiForm, setKpiForm] = React.useState({ orgUnitId: '', ownerId: '', name: '', category: 'HR', targetValue: '100', unit: '%', frequency: 'MONTHLY' });
+  const [kpiForm, setKpiForm] = React.useState({
+    orgUnitId: '',
+    ownerId: '',
+    name: '',
+    category: 'HR',
+    targetValue: '100',
+    unit: '%',
+    frequency: 'MONTHLY',
+    formula: '(measuredValue / targetValue) * 100',
+    dataSource: 'MANUAL',
+  });
   const [measurementForm, setMeasurementForm] = React.useState({ kpiId: '', period: new Date().toISOString().slice(0, 7), measuredValue: '', notes: '' });
 
   const { data: workers = [] } = useApiQuery<Worker[]>(['performance-ops-workers'], '/hr/core/workers?page=1&pageSize=100');
@@ -967,6 +1026,37 @@ export function AdminPerformanceOperations() {
 
       {section === 'analytics' ? (
         <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-white p-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">Analytics Governance</p>
+              <p className="text-xs text-slate-600">
+                {analytics?.governance?.performanceFormulaVersion ?? 'performance-analytics'} - anonymous threshold {analytics?.governance?.anonymityThreshold ?? 3}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!analytics}
+                onClick={() => analytics && downloadTextFile(`performance-analytics-${effectiveCycleId}.json`, 'application/json', JSON.stringify(analytics, null, 2))}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export JSON
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!analytics}
+                onClick={() => analytics && downloadTextFile(`performance-analytics-${effectiveCycleId}.csv`, 'text/csv', analyticsCsv(analytics))}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            </div>
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card className="rounded-md">
               <CardHeader className="pb-2">
@@ -1100,7 +1190,7 @@ export function AdminPerformanceOperations() {
                       </div>
                       <div className="rounded border bg-white px-2 py-1">
                         <span className="text-muted-foreground">Goal progress</span>
-                        <p className="font-medium">{Math.round(plan.currentPerformance.goalProgress)}%</p>
+                        <p className="font-medium">{Math.round(plan.currentPerformance.averageGoalProgress)}%</p>
                       </div>
                       <div className="rounded border bg-white px-2 py-1">
                         <span className="text-muted-foreground">Trend</span>
@@ -1137,6 +1227,44 @@ export function AdminPerformanceOperations() {
                   </div>
                 ))}
                 {!Object.values(analytics?.feedbackSummaries ?? {}).some((item) => item.responseCount > 0) ? <EmptyNote text="No submitted peer feedback yet" /> : null}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-[#0b76d1]" /> Bias Checks</CardTitle>
+                <CardDescription>Department distributions use suppression when group counts are below the analytics threshold.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {(analytics?.biasChecks?.departmentRatingDistribution ?? []).map((item) => (
+                  <div key={item.group} className="grid grid-cols-[1fr_80px_90px] items-center gap-2 rounded-md border bg-slate-50 p-3 text-sm">
+                    <span className="font-medium">{item.group}</span>
+                    <span>{item.count} reviews</span>
+                    <Badge variant={item.suppressed ? 'secondary' : 'outline'}>{item.suppressed ? 'Suppressed' : item.averageRating ?? '-'}</Badge>
+                  </div>
+                ))}
+                {analytics?.biasChecks?.departmentRatingDistribution?.length ? null : <EmptyNote text="No bias checks available yet" />}
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-md">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg"><Activity className="h-5 w-5 text-[#0b76d1]" /> Score Explainability</CardTitle>
+                <CardDescription>Why the analytics engine placed employees in a risk, recognition, or 9-box segment.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {Object.entries(analytics?.scoreExplainability ?? {}).slice(0, 6).map(([workerId, explanation]) => (
+                  <div key={workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{explanation.employeeName}</p>
+                      <Badge variant="outline">{Math.round(explanation.performanceScore)}%</Badge>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{explanation.summary}</p>
+                  </div>
+                ))}
+                {Object.keys(analytics?.scoreExplainability ?? {}).length ? null : <EmptyNote text="No score explanations available yet" />}
               </CardContent>
             </Card>
           </div>
@@ -1558,6 +1686,8 @@ export function AdminPerformanceOperations() {
                       targetValue: Number(kpiForm.targetValue),
                       unit: kpiForm.unit,
                       frequency: kpiForm.frequency,
+                      formula: kpiForm.formula || undefined,
+                      dataSource: kpiForm.dataSource || undefined,
                     }, refetchKpis);
                   }}
                 >
@@ -1567,6 +1697,8 @@ export function AdminPerformanceOperations() {
                   <div className="space-y-2"><Label>Org Unit</Label><Select value={kpiForm.orgUnitId} onValueChange={(value) => setKpiForm({ ...kpiForm, orgUnitId: value })} disabled={orgUnits.length === 0}><SelectTrigger><SelectValue placeholder="Select org unit" /></SelectTrigger><SelectContent>{orgUnits.map((unit) => <SelectItem key={unit.id} value={unit.id}>{`${'  '.repeat(unit.depth)}${unit.name}`}</SelectItem>)}</SelectContent></Select></div>
                   <div className="space-y-2"><Label htmlFor="kpi-target">Target</Label><Input id="kpi-target" type="number" value={kpiForm.targetValue} onChange={(event) => setKpiForm({ ...kpiForm, targetValue: event.target.value })} required /></div>
                   <div className="space-y-2"><Label htmlFor="kpi-unit">Unit</Label><Input id="kpi-unit" value={kpiForm.unit} onChange={(event) => setKpiForm({ ...kpiForm, unit: event.target.value })} /></div>
+                  <div className="space-y-2 md:col-span-2"><Label htmlFor="kpi-formula">Formula</Label><Input id="kpi-formula" value={kpiForm.formula} onChange={(event) => setKpiForm({ ...kpiForm, formula: event.target.value })} placeholder="(measuredValue / targetValue) * 100" /></div>
+                  <div className="space-y-2 md:col-span-2"><Label htmlFor="kpi-data-source">Data Source</Label><Input id="kpi-data-source" value={kpiForm.dataSource} onChange={(event) => setKpiForm({ ...kpiForm, dataSource: event.target.value })} placeholder="MANUAL, HRIS, SALES, ATTENDANCE" /></div>
                   <div className="md:col-span-2"><Button className="w-full" disabled={busyKey === 'kpis' || !kpiForm.orgUnitId}><Gauge className="mr-2 h-4 w-4" />Create KPI</Button></div>
                 </form>
               </CardContent>

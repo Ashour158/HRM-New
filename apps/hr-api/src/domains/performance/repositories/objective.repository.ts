@@ -31,6 +31,11 @@ export class ObjectiveRepository extends BaseRepository<'objectives', Objective>
     return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
+  async findByParent(parentObjectiveId: Uuid): Promise<Objective[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('parent_objective_id', '=', parentObjectiveId.value).execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: Objective): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

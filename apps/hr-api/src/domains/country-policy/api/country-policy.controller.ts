@@ -162,7 +162,7 @@ export class CountryPolicyController {
     if (countryCode) {
       return this.policyPackRepo.findByCountryCode(countryCode);
     }
-    return [];
+    return this.policyPackRepo.findAll();
   }
 
   @Get('policy-packs/:id')

@@ -21,9 +21,26 @@ export class CreateReviewTemplateHandler {
       name: string;
       description?: string;
       templateType?: string;
-      sections: Array<{ title: string; questions: string[]; competencyIds: string[]; weight: number }>;
-      ratingScale: { min: number; max: number; labels: Record<string, string> };
+      sections: Array<{
+        title: string;
+        questions: Array<string | {
+          id?: string;
+          label: string;
+          type?: 'RATING' | 'COMMENT' | 'EVIDENCE' | 'YES_NO';
+          mandatoryComment?: boolean;
+          evidenceRequired?: boolean;
+          rubric?: Record<string, string>;
+        }>;
+        competencyIds: string[];
+        weight: number;
+        reviewerRoles?: string[];
+        mandatoryCommentBelowRating?: number;
+        evidenceRequired?: boolean;
+      }>;
+      ratingScale: { min: number; max: number; labels: Record<string, string>; behavioralAnchors?: Record<string, string> };
       applicableRoles: string[];
+      scoringRubric?: Record<string, unknown>;
+      workflow?: Record<string, unknown>;
     };
     const ar = ReviewTemplate.create(
       {
@@ -34,6 +51,10 @@ export class CreateReviewTemplateHandler {
         templateType: payload.templateType ?? 'PERFORMANCE_REVIEW',
         sections: payload.sections,
         ratingScale: payload.ratingScale,
+        competencies: {
+          scoringRubric: payload.scoringRubric,
+          workflow: payload.workflow,
+        },
         applicableRoles: payload.applicableRoles,
       },
       command.correlationId,

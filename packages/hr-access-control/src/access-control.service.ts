@@ -17,6 +17,7 @@ export interface HrActor {
   workerId?: Uuid;
   roles: string[];
   actorType: 'SYSTEM' | 'INTEGRATION' | 'EMPLOYEE' | 'MANAGER' | 'HR_ADMIN' | 'HRBP' | 'EXECUTIVE' | 'EXTERNAL';
+  employmentStatus?: string;
 }
 
 /** Command envelope for command-level access checks. */
@@ -65,6 +66,7 @@ export class AccessControlService {
     command: HrCommandEnvelope,
     actor: HrActor,
   ): AccessControlDecision {
+    const activeSelfServiceActor = this.isActiveSelfServiceActor(actor);
     // RBAC check
     const rbacAllowed = this.rbac.hasAnyPermission(actor.roles, this.inferPermissions(command));
 
@@ -89,7 +91,7 @@ export class AccessControlService {
         ? this.selfService.requiresApproval(command.commandName, actor.actorType)
         : false;
 
-    const allowed = rbacAllowed && selfServiceAllowed && !sodResult.violated;
+    const allowed = activeSelfServiceActor && rbacAllowed && selfServiceAllowed && !sodResult.violated;
 
     return {
       allowed,
@@ -100,7 +102,7 @@ export class AccessControlService {
       requiresApproval,
       reason: allowed
         ? undefined
-        : this.buildDenialReason(rbacAllowed, selfServiceAllowed, sodResult),
+        : this.buildDenialReason(activeSelfServiceActor, rbacAllowed, selfServiceAllowed, sodResult),
     };
   }
 
@@ -164,6 +166,9 @@ export class AccessControlService {
     aggregateId?: Uuid,
   ): string[] {
     void aggregateId;
+    if (!this.isActiveSelfServiceActor(actor)) {
+      return [];
+    }
     const perms = this.rbac.getEffectivePermissions(actor.roles);
     // Map permissions to action names based on aggregate type
     const actions: string[] = [];
@@ -179,15 +184,27 @@ export class AccessControlService {
   private inferPermissions(command: HrCommandEnvelope): string[] {
     const perms: string[] = [];
     const prefix = this.mapAggregateTypeToPermissionPrefix(command.aggregateType);
-    const commandName = command.commandName.toUpperCase();
+    const commandName = this.normalizeCommandName(command.commandName);
 
     if (prefix === 'TIME') {
-      if (commandName === 'RECORDTIMECLOCKEVENT' || commandName === 'CREATEATTENDANCECORRECTIONREQUEST' || commandName === 'CREATEATTENDANCEEXCEPTION') return ['TIME_READ'];
-      if (commandName === 'REVIEWATTENDANCECORRECTIONREQUEST') return ['TIME_APPROVE'];
-      if (commandName === 'FINALIZEATTENDANCEDAILYLEDGER') return ['PAYROLL_CREATE'];
+      if (commandName === 'RECORD_TIME_CLOCK_EVENT' || commandName === 'CREATE_ATTENDANCE_CORRECTION_REQUEST' || commandName === 'CREATE_ATTENDANCE_EXCEPTION') return ['TIME_READ'];
+      if (commandName === 'REVIEW_ATTENDANCE_CORRECTION_REQUEST') return ['TIME_APPROVE'];
+      if (commandName === 'FINALIZE_ATTENDANCE_DAILY_LEDGER') return ['PAYROLL_CREATE'];
       if (commandName.includes('APPROVE')) return ['TIME_APPROVE'];
       if (commandName.includes('GET') || commandName.includes('READ')) return ['TIME_READ'];
       return ['TIME_MANAGE'];
+    }
+
+    if (prefix === 'WORKFORCE') {
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['WORKFORCE_READ'];
+      if (commandName.includes('APPROVE') || commandName.includes('REJECT') || commandName.includes('FILL') || commandName.includes('PUBLISH') || commandName.includes('ACTIVATE') || commandName.includes('CLOSE')) return ['WORKFORCE_APPROVE'];
+      return ['WORKFORCE_SCHEDULE'];
+    }
+
+    if (prefix === 'SERVICE') {
+      if (commandName === 'OPEN_HR_SERVICE_CASE' || commandName === 'SUBMIT_HR_CASE') return ['SERVICE_REQUEST'];
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['SERVICE_READ'];
+      return ['SERVICE_MANAGE'];
     }
 
     if (prefix === 'PAYROLL') {
@@ -198,8 +215,8 @@ export class AccessControlService {
     }
 
     if (prefix === 'ABSENCE') {
-      if (commandName === 'CREATEABSENCEREQUEST' || commandName === 'SUBMITABSENCEREQUEST' || commandName === 'CANCELABSENCEREQUEST') return ['ABSENCE_READ', 'ABSENCE_MANAGE'];
-      if (commandName === 'APPROVEABSENCEREQUEST' || commandName === 'REJECTABSENCEREQUEST') return ['ABSENCE_APPROVE', 'ABSENCE_MANAGE'];
+      if (commandName === 'CREATE_ABSENCE_REQUEST' || commandName === 'SUBMIT_ABSENCE_REQUEST' || commandName === 'CANCEL_ABSENCE_REQUEST') return ['ABSENCE_READ', 'ABSENCE_MANAGE'];
+      if (commandName === 'APPROVE_ABSENCE_REQUEST' || commandName === 'REJECT_ABSENCE_REQUEST') return ['ABSENCE_APPROVE', 'ABSENCE_MANAGE'];
       if (commandName.includes('APPROVE') || commandName.includes('REJECT')) return ['ABSENCE_APPROVE', 'ABSENCE_MANAGE'];
       return ['ABSENCE_MANAGE', 'ABSENCE_READ'];
     }
@@ -209,6 +226,42 @@ export class AccessControlService {
       if (commandName.includes('CREATE') || commandName.includes('ADD')) return ['PERFORMANCE_CREATE'];
       if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['PERFORMANCE_READ'];
       return ['PERFORMANCE_WRITE'];
+    }
+
+    if (prefix === 'BENEFITS') {
+      if (commandName.includes('APPROVE') || commandName.includes('RECONCILE')) return ['BENEFITS_APPROVE'];
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['BENEFITS_READ'];
+      return ['BENEFITS_ENROLL'];
+    }
+
+    if (prefix === 'COMPENSATION') {
+      if (commandName.includes('APPROVE')) return ['COMPENSATION_APPROVE'];
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['COMPENSATION_READ'];
+      return ['COMPENSATION_CHANGE'];
+    }
+
+    if (prefix === 'RECRUITING') {
+      if (commandName.includes('PUBLISH')) return ['RECRUITING_PUBLISH'];
+      if (commandName.includes('APPROVE')) return ['RECRUITING_APPROVE'];
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['RECRUITING_READ'];
+      return ['RECRUITING_CREATE'];
+    }
+
+    if (prefix === 'LEARNING') {
+      if (commandName.includes('APPROVE')) return ['LEARNING_APPROVE'];
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['LEARNING_READ'];
+      return ['LEARNING_ASSIGN'];
+    }
+
+    if (prefix === 'COMPLIANCE') {
+      if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['COMPLIANCE_READ'];
+      return ['COMPLIANCE_MANAGE'];
+    }
+
+    if (prefix === 'REPORT') {
+      if (commandName.includes('EXPORT')) return ['REPORT_EXPORT'];
+      if (commandName.includes('CREATE') || commandName.includes('GENERATE')) return ['REPORT_CREATE'];
+      return ['REPORT_READ'];
     }
 
     switch (command.commandType) {
@@ -247,14 +300,52 @@ export class AccessControlService {
       AttendanceCorrectionRequest: 'TIME',
       AttendanceDailyLedger: 'TIME',
       OvertimeApproval: 'TIME',
+      ShiftSchedule: 'WORKFORCE',
+      OpenShift: 'WORKFORCE',
+      ShiftBid: 'WORKFORCE',
+      ShiftSwapRequest: 'WORKFORCE',
+      WfmOvertimeApproval: 'WORKFORCE',
+      CoverageGap: 'WORKFORCE',
       AbsenceRequest: 'ABSENCE',
       LeaveCase: 'ABSENCE',
       AbsenceAccrualBalance: 'ABSENCE',
       LeaveEntitlementCalculation: 'ABSENCE',
+      LeavePolicy: 'ABSENCE',
       PayrollCycle: 'PAYROLL',
       PayrollInput: 'PAYROLL',
       PayrollCalculationRun: 'PAYROLL',
       PayrollResultLine: 'PAYROLL',
+      PayrollRun: 'PAYROLL',
+      Payslip: 'PAYROLL',
+      BenefitsProgram: 'BENEFITS',
+      BenefitsEnrollment: 'BENEFITS',
+      BenefitsLifeEvent: 'BENEFITS',
+      SpendingAccount: 'BENEFITS',
+      CarrierReconciliationRun: 'BENEFITS',
+      HrServiceCase: 'SERVICE',
+      HrCaseTask: 'SERVICE',
+      HrKnowledgeArticle: 'SERVICE',
+      HrServiceCatalogItem: 'SERVICE',
+      HrCaseSlaInstance: 'SERVICE',
+      CompensationBand: 'COMPENSATION',
+      CompensationChange: 'COMPENSATION',
+      CompensationPlan: 'COMPENSATION',
+      BonusCycle: 'COMPENSATION',
+      EquityGrant: 'COMPENSATION',
+      Requisition: 'RECRUITING',
+      JobRequisition: 'RECRUITING',
+      Candidate: 'RECRUITING',
+      CandidateApplication: 'RECRUITING',
+      Application: 'RECRUITING',
+      Offer: 'RECRUITING',
+      Interview: 'RECRUITING',
+      LegalEntity: 'ORG',
+      OrgUnit: 'ORG',
+      OrganizationUnit: 'ORG',
+      Department: 'ORG',
+      BusinessUnit: 'ORG',
+      ManagerRelationship: 'ORG',
+      Position: 'POSITION',
       PerformanceReviewCycle: 'PERFORMANCE',
       PerformanceReview: 'PERFORMANCE',
       Goal: 'PERFORMANCE',
@@ -269,41 +360,71 @@ export class AccessControlService {
       DevelopmentPlan: 'PERFORMANCE',
       CalibrationSession: 'PERFORMANCE',
       PerformanceImprovementPlan: 'PERFORMANCE',
+      LearningCourse: 'LEARNING',
+      LearningAssignment: 'LEARNING',
+      Certification: 'LEARNING',
+      Course: 'LEARNING',
+      PolicyDocument: 'COMPLIANCE',
+      PolicyAcknowledgement: 'COMPLIANCE',
+      CompliancePolicy: 'COMPLIANCE',
+      LegalHold: 'COMPLIANCE',
+      CountryPolicyPack: 'COMPLIANCE',
+      StatutoryReport: 'COMPLIANCE',
+      Report: 'REPORT',
+      Dashboard: 'REPORT',
+      Analytics: 'REPORT',
     };
     return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }
 
   private domainMatchesAggregate(domain: string, aggregateType: string): boolean {
     const mapping: Record<string, string[]> = {
-      WORKER: ['Worker', 'Employee', 'Candidate'],
-      ORG: ['Organization', 'Department', 'BusinessUnit'],
+      WORKER: ['Worker', 'Employee', 'Candidate', 'PersonalDataRecord'],
+      ORG: ['Organization', 'OrgUnit', 'LegalEntity', 'Department', 'BusinessUnit', 'ManagerRelationship'],
       POSITION: ['Position', 'Job'],
-      RECRUITING: ['Requisition', 'Candidate', 'Application'],
-      PAYROLL: ['Payroll', 'PayrollRun', 'Payslip'],
-      BENEFITS: ['Benefit', 'Enrollment', 'Carrier'],
-      COMPENSATION: ['Compensation', 'Salary', 'Bonus', 'Equity'],
+      RECRUITING: ['Requisition', 'Candidate', 'Application', 'Offer', 'Interview'],
+      PAYROLL: ['Payroll', 'PayrollRun', 'Payslip', 'PayrollCycle', 'PayrollInput'],
+      BENEFITS: ['Benefit', 'BenefitsProgram', 'BenefitsEnrollment', 'Enrollment', 'Carrier', 'SpendingAccount'],
+      COMPENSATION: ['Compensation', 'Salary', 'Bonus', 'Equity', 'CompensationChange'],
       PERFORMANCE: ['PerformanceReviewCycle', 'PerformanceReview', 'Goal', 'PerformanceFeedback360Cycle', 'PerformanceFeedback360Response', 'Objective', 'KeyResult', 'KeyPerformanceIndicator', 'KpiMeasurement', 'ReviewTemplate', 'Competency', 'DevelopmentPlan', 'CalibrationSession', 'PerformanceImprovementPlan'],
       LEARNING: ['Learning', 'Course', 'Certification'],
       ABSENCE: ['Absence', 'Leave', 'TimeOff'],
       TIME: ['Timesheet', 'TimeEntry'],
+      WORKFORCE: ['ShiftSchedule', 'OpenShift', 'ShiftBid', 'ShiftSwapRequest', 'WfmOvertimeApproval', 'CoverageGap'],
       ER: ['ERCase', 'Investigation'],
+      SERVICE: ['HrServiceCase', 'HrCaseTask', 'HrKnowledgeArticle', 'HrServiceCatalogItem', 'HrCaseSlaInstance', 'ServiceCatalog', 'ServiceCase'],
       COMPLIANCE: ['Compliance', 'Policy', 'LegalHold'],
       REPORT: ['Report', 'Analytics', 'Dashboard'],
       ADMIN: ['Tenant', 'System', 'Security'],
     };
     const aggregates = mapping[domain] ?? [];
-    return aggregates.includes(aggregateType);
+    return aggregates.some((item) => aggregateType === item || aggregateType.includes(item));
+  }
+
+  private normalizeCommandName(commandName: string): string {
+    return commandName
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .replace(/[\s.-]+/g, '_')
+      .toUpperCase();
   }
 
   private buildDenialReason(
+    activeSelfServiceActor: boolean,
     rbacAllowed: boolean,
     selfServiceAllowed: boolean,
     sodResult: SodResult,
   ): string {
     const parts: string[] = [];
+    if (!activeSelfServiceActor) parts.push('Inactive worker denied');
     if (!rbacAllowed) parts.push('RBAC denied');
     if (!selfServiceAllowed) parts.push('Self-service allowlist denied');
     if (sodResult.violated) parts.push(`SoD violated: ${sodResult.message}`);
     return parts.join('; ');
+  }
+
+  private isActiveSelfServiceActor(actor: HrActor): boolean {
+    if (actor.actorType !== 'EMPLOYEE' && actor.actorType !== 'MANAGER') return true;
+    if (!actor.employmentStatus) return false;
+    return actor.employmentStatus === 'ACTIVE' || actor.employmentStatus === 'REHIRED';
   }
 }

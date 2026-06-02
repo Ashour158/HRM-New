@@ -117,13 +117,13 @@ export const RestructureOrgUnitCommandName = 'RestructureOrgUnit' as const;
 
 export interface RestructureOrgUnitPayload {
   orgUnitId: Uuid;
-  newParentOrgUnitId?: Uuid;
+  newParentOrgUnitId?: Uuid | null;
   newName?: string;
 }
 
 export const RestructureOrgUnitPayloadSchema = z.object({
   orgUnitId: z.string().uuid(),
-  newParentOrgUnitId: z.string().uuid().optional(),
+  newParentOrgUnitId: z.string().uuid().nullable().optional(),
   newName: z.string().min(1).optional(),
 });
 
@@ -167,4 +167,26 @@ export interface EndManagerRelationshipPayload {
 export const EndManagerRelationshipPayloadSchema = z.object({
   relationshipId: z.string().uuid(),
   endDate: z.coerce.date().optional(),
+});
+
+/* ------------------------------------------------------------------ */
+/*  Worker organization assignment commands                            */
+/* ------------------------------------------------------------------ */
+
+export const UpdateWorkerOrganizationAssignmentCommandName = 'UpdateWorkerOrganizationAssignment' as const;
+
+export interface UpdateWorkerOrganizationAssignmentPayload {
+  workerId: Uuid;
+  legalEntityId?: Uuid | null;
+  departmentId?: Uuid | null;
+  managerId?: Uuid | null;
+  jobTitle?: string | null;
+}
+
+export const UpdateWorkerOrganizationAssignmentPayloadSchema = z.object({
+  workerId: z.string().uuid(),
+  legalEntityId: z.string().uuid().nullable().optional(),
+  departmentId: z.string().uuid().nullable().optional(),
+  managerId: z.string().uuid().nullable().optional(),
+  jobTitle: z.string().min(1).nullable().optional(),
 });

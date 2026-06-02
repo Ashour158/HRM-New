@@ -24,7 +24,7 @@ export class ActivateWorkerHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as ActivateWorkerPayload;
 
-    const worker = await this.workerRepo.findById(payload.workerId);
+    const worker = await this.workerRepo.findByIdForTenant(payload.workerId, command.tenantId);
     if (!worker) {
       throw new NotFoundError('Worker not found');
     }

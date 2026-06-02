@@ -3,8 +3,8 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
 export const OpenHrServiceCaseDtoSchema = z.object({
-  caseNumber: z.string().min(1),
-  requesterWorkerId: z.string().uuid(),
+  caseNumber: z.string().min(1).optional(),
+  requesterWorkerId: z.string().uuid().optional(),
   caseType: z.string().min(1),
   priority: z.string().min(1),
   description: z.string().min(1),
@@ -13,8 +13,8 @@ export const OpenHrServiceCaseDtoSchema = z.object({
 });
 
 export class OpenHrServiceCaseDto {
-  @ApiProperty() caseNumber!: string;
-  @ApiProperty() requesterWorkerId!: string;
+  @ApiPropertyOptional() caseNumber?: string;
+  @ApiPropertyOptional() requesterWorkerId?: string;
   @ApiProperty() caseType!: string;
   @ApiProperty() priority!: string;
   @ApiProperty() description!: string;

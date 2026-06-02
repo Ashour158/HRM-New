@@ -14,8 +14,8 @@ describe('CreateWorkerHandler profile intake validation', () => {
   const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440001');
 
   const workerRepo = {
-    findByEmail: vi.fn(),
-    findByEmployeeNumber: vi.fn(),
+    findByEmailForTenant: vi.fn(),
+    findByEmployeeNumberForTenant: vi.fn(),
     save: vi.fn(),
   } as unknown as WorkerRepository;
 
@@ -24,10 +24,10 @@ describe('CreateWorkerHandler profile intake validation', () => {
   } as unknown as EmploymentRelationshipRepository;
 
   const personalDataRepo = {
-    findByPayloadField: vi.fn(),
+    findByPayloadFieldForTenant: vi.fn(),
     save: vi.fn(),
   } as unknown as PersonalDataRecordRepository & {
-    findByPayloadField: ReturnType<typeof vi.fn>;
+    findByPayloadFieldForTenant: ReturnType<typeof vi.fn>;
   };
 
   const fsm = {
@@ -100,9 +100,9 @@ describe('CreateWorkerHandler profile intake validation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(workerRepo.findByEmail).mockResolvedValue(undefined);
-    vi.mocked(workerRepo.findByEmployeeNumber).mockResolvedValue(undefined);
-    vi.mocked(personalDataRepo.findByPayloadField).mockResolvedValue(undefined);
+    vi.mocked(workerRepo.findByEmailForTenant).mockResolvedValue(undefined);
+    vi.mocked(workerRepo.findByEmployeeNumberForTenant).mockResolvedValue(undefined);
+    vi.mocked(personalDataRepo.findByPayloadFieldForTenant).mockResolvedValue(undefined);
     vi.mocked(hcmSetup.getSetup).mockResolvedValue({
       employeeIdPolicy: { mode: 'MANUAL_ONLY' },
       departments: [{ code: 'PEOPLE_OPS', label: 'People Operations', active: true }],
@@ -128,7 +128,7 @@ describe('CreateWorkerHandler profile intake validation', () => {
   });
 
   it('rejects an exact duplicate phone number before creating an employee', async () => {
-    vi.mocked(personalDataRepo.findByPayloadField).mockResolvedValue({ id: Uuid.generate() });
+    vi.mocked(personalDataRepo.findByPayloadFieldForTenant).mockResolvedValue({ id: Uuid.generate() });
 
     await expect(handler.handle(command({ phoneNumber: '+201001112233' }))).rejects.toThrow(
       'Phone number already in use',
@@ -139,7 +139,7 @@ describe('CreateWorkerHandler profile intake validation', () => {
   });
 
   it('rejects an exact duplicate work phone number before creating an employee', async () => {
-    vi.mocked(personalDataRepo.findByPayloadField).mockImplementation(async (_category, field) =>
+    vi.mocked(personalDataRepo.findByPayloadFieldForTenant).mockImplementation(async (_category, field) =>
       field === 'workPhoneNumber' ? ({ id: Uuid.generate() } as never) : undefined,
     );
 
@@ -153,7 +153,7 @@ describe('CreateWorkerHandler profile intake validation', () => {
   it('allows manual employee ID assignment when the tenant policy is manual only', async () => {
     await handler.handle(command({ employeeNumber: 'EMP-MANUAL-001' }));
 
-    expect(workerRepo.findByEmployeeNumber).toHaveBeenCalledWith('EMP-MANUAL-001');
+    expect(workerRepo.findByEmployeeNumberForTenant).toHaveBeenCalledWith('EMP-MANUAL-001', tenantId);
     expect(workerRepo.save).toHaveBeenCalled();
   });
 

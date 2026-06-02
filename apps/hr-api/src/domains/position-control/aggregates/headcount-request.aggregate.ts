@@ -101,6 +101,13 @@ export class HeadcountRequest extends AggregateRoot {
   }
 
   /**
+   * Rehydrate an existing HeadcountRequest without emitting creation events.
+   */
+  static restore(props: HeadcountRequestProps): HeadcountRequest {
+    return new HeadcountRequest(props);
+  }
+
+  /**
    * Submit the request (DRAFT → SUBMITTED).
    */
   submit(correlationId: Uuid): void {
