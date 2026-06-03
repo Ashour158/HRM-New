@@ -37,6 +37,7 @@ import {
   Users,
   TrendingUp,
   Briefcase,
+  Network,
 } from 'lucide-react';
 
 interface PortalNavItem {
@@ -99,6 +100,7 @@ const portalConfigs: Record<string, PortalConfig> = {
     theme: 'admin',
     navItems: [
       { label: 'Dashboard', path: '/admin' },
+      { label: 'System Console', path: '/admin/system-console' },
       { label: 'Modules', path: '/admin/modules' },
       { label: 'Employees', path: '/admin/employees' },
       { label: 'Organization', path: '/admin/organization' },
@@ -135,6 +137,7 @@ const managerRailItems = [
 
 const adminRailItems = [
   { label: 'Home', path: '/admin', icon: Home },
+  { label: 'System Console', path: '/admin/system-console', icon: Network },
   { label: 'Modules', path: '/admin/modules', icon: Layers3 },
   { label: 'Operations', path: '/admin/modules/service-delivery/operations', icon: Briefcase },
   { label: 'Employees', path: '/admin/employees', icon: Users },
@@ -162,6 +165,7 @@ function portalNavGroups(portalType: keyof typeof portalConfigs): PortalNavGroup
   if (portalType === 'admin') {
     return [
       { label: 'HCM Home', path: '/admin' },
+      { label: 'System Console', path: '/admin/system-console' },
       {
         label: 'People & Organization',
         items: [
@@ -203,6 +207,7 @@ function portalNavGroups(portalType: keyof typeof portalConfigs): PortalNavGroup
         label: 'Governance',
         items: [
           { label: 'Policy Center', path: '/admin/policies' },
+          { label: 'System Console', path: '/admin/system-console' },
           { label: 'Compliance Center', path: '/admin/compliance' },
           { label: 'Country Policy', path: '/admin/country-policy' },
           { label: 'Employee Relations', path: '/admin/modules/employee-relations/operations' },

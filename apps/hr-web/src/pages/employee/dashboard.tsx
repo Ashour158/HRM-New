@@ -1,7 +1,18 @@
 import * as React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { apiClient } from '@/lib/api-client';
+import {
+  buildClockActionPath,
+  buildGoogleMapsEmbedUrl,
+  buildGoogleMapsSearchUrl,
+  geolocationFailureMessage,
+  hasCoordinateEvidence,
+  sanitizeGeolocationCoordinates,
+  type CoordinateEvidence,
+  type GeolocationFailureReason,
+} from '@/lib/attendance-location';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -214,41 +225,52 @@ const statusCopy: Record<AttendanceClockStatus, { label: string; tone: string; h
   },
 };
 
-function finiteNumber(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
 const GEOLOCATION_CAPTURE_TIMEOUT_MS = 2500;
 
-function getBrowserPosition(): Promise<Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>> {
-  if (!navigator.geolocation) return Promise.resolve({});
+interface GeolocationCapture {
+  evidence: Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>;
+  failureReason?: GeolocationFailureReason;
+}
+
+function mapGeolocationError(error: GeolocationPositionError): GeolocationFailureReason {
+  if (error.code === error.PERMISSION_DENIED) return 'permission_denied';
+  if (error.code === error.POSITION_UNAVAILABLE) return 'position_unavailable';
+  if (error.code === error.TIMEOUT) return 'timeout';
+  return 'unknown';
+}
+
+function captureBrowserPosition(): Promise<GeolocationCapture> {
+  if (!navigator.geolocation) return Promise.resolve({ evidence: {}, failureReason: 'unsupported' });
   return new Promise((resolve) => {
     let settled = false;
     let timeoutId: number | undefined;
 
-    const finish = (payload: Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>) => {
+    const finish = (capture: GeolocationCapture) => {
       if (settled) return;
       settled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-      resolve(payload);
+      resolve(capture);
     };
 
-    timeoutId = window.setTimeout(() => finish({}), GEOLOCATION_CAPTURE_TIMEOUT_MS);
+    timeoutId = window.setTimeout(() => finish({ evidence: {}, failureReason: 'timeout' }), GEOLOCATION_CAPTURE_TIMEOUT_MS);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const latitude = finiteNumber(position.coords.latitude);
-        const longitude = finiteNumber(position.coords.longitude);
-        const accuracy = finiteNumber(position.coords.accuracy);
         finish({
-          ...(latitude !== undefined ? { latitude } : {}),
-          ...(longitude !== undefined ? { longitude } : {}),
-          ...(accuracy !== undefined ? { accuracyMeters: Math.round(accuracy) } : {}),
+          evidence: sanitizeGeolocationCoordinates({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          }),
         });
       },
-      () => finish({}),
+      (error) => finish({ evidence: {}, failureReason: mapGeolocationError(error) }),
       { enableHighAccuracy: true, timeout: GEOLOCATION_CAPTURE_TIMEOUT_MS },
     );
   });
+}
+
+async function getBrowserPosition(): Promise<Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>> {
+  return (await captureBrowserPosition()).evidence;
 }
 
 function formatDuration(totalSeconds: number) {
@@ -320,6 +342,10 @@ export function EmployeeDashboard() {
   const [clockMessage, setClockMessage] = React.useState('');
   const [clockError, setClockError] = React.useState('');
   const [clockPendingDirection, setClockPendingDirection] = React.useState<'in' | 'out' | null>(null);
+  const [pendingClockCommand, setPendingClockCommand] = React.useState<'in' | 'out' | null>(() => {
+    const stored = window.localStorage.getItem('pending-attendance-clock');
+    return stored === 'in' || stored === 'out' ? stored : null;
+  });
 
   const today = React.useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
@@ -443,6 +469,42 @@ export function EmployeeDashboard() {
     }
   };
 
+  React.useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const queryAction = params.get('clock');
+    const hashAction = location.hash === '#clock-in' ? 'in' : location.hash === '#clock-out' ? 'out' : null;
+    const action = queryAction === 'in' || queryAction === 'out' ? queryAction : hashAction;
+    if (action !== 'in' && action !== 'out') return;
+    window.localStorage.setItem('pending-attendance-clock', action);
+    setPendingClockCommand(action);
+    window.history.replaceState(null, '', `${location.pathname}#attendance`);
+  }, [location.hash, location.pathname, location.search]);
+
+  React.useEffect(() => {
+    const storedCommand = window.localStorage.getItem('pending-attendance-clock');
+    const action = pendingClockCommand ?? (storedCommand === 'in' || storedCommand === 'out' ? storedCommand : null);
+    if (!action || !selectedWorkerId || !todayState || clockPendingDirection !== null) return;
+
+    if (action === 'in' && !todayState?.canCheckIn) {
+      window.localStorage.removeItem('pending-attendance-clock');
+      setPendingClockCommand(null);
+      setClockMessage('');
+      setClockError('Check-in is not available for the current attendance state.');
+      return;
+    }
+    if (action === 'out' && !todayState?.canCheckOut) {
+      window.localStorage.removeItem('pending-attendance-clock');
+      setPendingClockCommand(null);
+      setClockMessage('');
+      setClockError('Check-out is not available until an active check-in exists.');
+      return;
+    }
+
+    window.localStorage.removeItem('pending-attendance-clock');
+    setPendingClockCommand(null);
+    void recordClock(action);
+  }, [clockPendingDirection, pendingClockCommand, selectedWorkerId, todayState, todayState?.canCheckIn, todayState?.canCheckOut]);
+
   const submitOnDuty = async () => {
     if (!selectedWorkerId || !onDutyReason.trim()) return;
     const startAt = new Date();
@@ -483,6 +545,10 @@ export function EmployeeDashboard() {
   };
 
   const timeline = todayState?.events ?? [];
+  const latestMappedEvent = React.useMemo(
+    () => [...timeline].reverse().find((event) => hasCoordinateEvidence(event.location)),
+    [timeline],
+  );
 
   return (
     <div className="min-h-[calc(100vh-96px)] bg-[#e9eef5]">
@@ -515,17 +581,28 @@ export function EmployeeDashboard() {
                 ))}
               </div>
 
-              <button
-                type="button"
-                className={cn(
-                  'mt-3 inline-flex h-10 w-[112px] items-center justify-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold shadow-none transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
+              {(() => {
+                const direction = todayState?.canCheckOut ? 'out' : 'in';
+                const disabled = !activeWorker || attendanceLoading || clockPendingDirection !== null || checkInMutation.isPending || checkOutMutation.isPending || (!todayState?.canCheckIn && !todayState?.canCheckOut);
+                const className = cn(
+                  'mt-3 inline-flex h-10 w-[112px] items-center justify-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold shadow-none transition-all duration-200 active:scale-[0.98]',
+                  disabled && 'pointer-events-none opacity-50',
                   todayState?.canCheckOut ? 'border-red-500 text-red-600 hover:bg-red-50' : 'border-emerald-500 text-emerald-700 hover:bg-emerald-50',
-                )}
-                onClick={() => recordClock(todayState?.canCheckOut ? 'out' : 'in')}
-                disabled={!activeWorker || attendanceLoading || clockPendingDirection !== null || checkInMutation.isPending || checkOutMutation.isPending || (!todayState?.canCheckIn && !todayState?.canCheckOut)}
-              >
-                {clockPendingDirection ? 'Recording...' : todayState?.canCheckOut ? 'Check-out' : 'Check-in'}
-              </button>
+                );
+                const label = clockPendingDirection ? 'Recording...' : todayState?.canCheckOut ? 'Check-out' : 'Check-in';
+                const actionHref = buildClockActionPath(direction, workplaceCode);
+                return disabled ? (
+                  <span aria-disabled="true" className={className}>{label}</span>
+                ) : (
+                  <a
+                    className={className}
+                    data-attendance-clock-action={direction}
+                    href={actionHref}
+                  >
+                    {label}
+                  </a>
+                );
+              })()}
 
               <p className="mt-3 text-xs leading-5 text-slate-500">{statusMeta.helper}</p>
             </div>
@@ -690,6 +767,19 @@ export function EmployeeDashboard() {
                             <EvidenceMetric label="Worked today" value={formatMinutes(todayState?.totalWorkedMinutes)} />
                             <EvidenceMetric label="Workplace" value={workplace ? `${workplace.flag} ${workplace.label}` : workplaceCode || '--'} />
                           </div>
+                          {latestMappedEvent?.location ? (
+                            <div className="mt-4">
+                              <AttendanceLocationMap
+                                point={latestMappedEvent.location}
+                                subtitle={`${latestMappedEvent.eventType.replace('_', ' ')} at ${new Date(latestMappedEvent.timestamp).toLocaleString()}`}
+                                title="Latest Captured Location"
+                              />
+                            </div>
+                          ) : (
+                            <div className="mt-4 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                              No mapped attendance point yet. Once the browser grants location access, each punch can show the exact captured point here.
+                            </div>
+                          )}
 
                           <div className="mt-4 space-y-2">
                             {attendanceLoading ? <Skeleton className="h-16 w-full" /> : null}
@@ -764,22 +854,32 @@ export function EmployeeDashboard() {
                           </SelectContent>
                         </Select>
                         <div className="grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            className="inline-flex h-10 items-center justify-center rounded-lg bg-[#006c49] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,108,73,0.18)] transition-all duration-200 hover:bg-[#005236] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
-                            onClick={() => recordClock('in')}
-                            disabled={!todayState?.canCheckIn || clockPendingDirection !== null || checkInMutation.isPending}
-                          >
-                            {clockPendingDirection === 'in' || checkInMutation.isPending ? 'Recording...' : 'Check-in'}
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-all duration-200 hover:bg-[#eff4ff] hover:text-[#006c49] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
-                            onClick={() => recordClock('out')}
-                            disabled={!todayState?.canCheckOut || clockPendingDirection !== null || checkOutMutation.isPending}
-                          >
-                            {clockPendingDirection === 'out' || checkOutMutation.isPending ? 'Recording...' : 'Check-out'}
-                          </button>
+                          {todayState?.canCheckIn && clockPendingDirection === null && !checkInMutation.isPending ? (
+                            <a
+                              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#006c49] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,108,73,0.18)] transition-all duration-200 hover:bg-[#005236] active:scale-[0.98]"
+                              data-attendance-clock-action="in"
+                              href={buildClockActionPath('in', workplaceCode)}
+                            >
+                              Check-in
+                            </a>
+                          ) : (
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg bg-[#006c49] px-4 py-2 text-sm font-semibold text-white opacity-50">
+                              {clockPendingDirection === 'in' || checkInMutation.isPending ? 'Recording...' : 'Check-in'}
+                            </span>
+                          )}
+                          {todayState?.canCheckOut && clockPendingDirection === null && !checkOutMutation.isPending ? (
+                            <a
+                              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-all duration-200 hover:bg-[#eff4ff] hover:text-[#006c49] active:scale-[0.98]"
+                              data-attendance-clock-action="out"
+                              href={buildClockActionPath('out', workplaceCode)}
+                            >
+                              Check-out
+                            </a>
+                          ) : (
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] opacity-50">
+                              {clockPendingDirection === 'out' || checkOutMutation.isPending ? 'Recording...' : 'Check-out'}
+                            </span>
+                          )}
                         </div>
                       </div>
                       {clockMessage ? <p className="mt-3 rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{clockMessage}</p> : null}
@@ -857,6 +957,175 @@ export function EmployeeDashboard() {
             </div>
           </div>
         </section>
+      </div>
+    </div>
+  );
+}
+
+export function EmployeeAttendanceAction() {
+  const { direction } = useParams();
+  const routeLocation = useLocation();
+  const [message, setMessage] = React.useState('Preparing attendance command...');
+  const [error, setError] = React.useState('');
+  const [capturedLocation, setCapturedLocation] = React.useState<CoordinateEvidence>();
+  const [attempt, setAttempt] = React.useState(0);
+  const [isRunning, setIsRunning] = React.useState(false);
+  const runKeyRef = React.useRef('');
+
+  const action = direction === 'check-out' ? 'out' : direction === 'check-in' ? 'in' : null;
+  const actionLabel = action === 'out' ? 'Check-out' : 'Check-in';
+  const requestedWorkplaceCode = new URLSearchParams(routeLocation.search).get('workplaceCode') ?? undefined;
+  const { data: setup = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['employee-attendance-action-setup'], '/employee/attendance-setup');
+  const { data: activeWorker, isLoading: workerLoading } = useApiQuery<Worker>(
+    ['employee-attendance-action-profile'],
+    '/employee/profile',
+  );
+  const workplaceCode = requestedWorkplaceCode ?? setup.locations.find((location) => location.active)?.code ?? DEFAULT_HCM_SETUP.locations[0]?.code;
+  const geofenceProfile = setup.attendancePolicy.geofenceProfiles?.find((item) => item.active && item.locationCode === workplaceCode);
+  const requiresGeolocation = Boolean(setup.attendancePolicy.geofenceEnabled && geofenceProfile?.requireGeolocation);
+
+  React.useEffect(() => {
+    if (!action) {
+      setMessage('');
+      setError('Unknown attendance action.');
+      return;
+    }
+    if (workerLoading || !activeWorker?.id) return;
+
+    const runKey = `${action}:${activeWorker.id}:${workplaceCode ?? ''}:${attempt}`;
+    if (runKeyRef.current === runKey) return;
+    runKeyRef.current = runKey;
+
+    const run = async () => {
+      setError('');
+      setMessage('Capturing attendance evidence...');
+      setIsRunning(true);
+      try {
+        const capture = await captureBrowserPosition();
+        setCapturedLocation(capture.evidence);
+        if (requiresGeolocation && !hasCoordinateEvidence(capture.evidence)) {
+          setMessage('');
+          setError(geolocationFailureMessage(capture.failureReason ?? 'unknown'));
+          return;
+        }
+
+        await apiClient.post(`/time/attendance/${action === 'in' ? 'check-in' : 'check-out'}`, {
+          workerId: activeWorker.id,
+          workplaceCode,
+          deviceId: 'browser',
+          timestamp: new Date().toISOString(),
+          ...capture.evidence,
+        });
+        setMessage(`${actionLabel} recorded with timestamp and location evidence.`);
+      } catch (err) {
+        setMessage('');
+        setError(apiErrorMessage(err, `${actionLabel} failed.`));
+      } finally {
+        setIsRunning(false);
+      }
+    };
+
+    void run();
+  }, [action, actionLabel, activeWorker?.id, attempt, requiresGeolocation, workplaceCode, workerLoading]);
+
+  return (
+    <div className="grid min-h-[calc(100vh-96px)] place-items-center bg-[#e9eef5] px-4 py-12">
+      <div className="w-full max-w-2xl rounded-md border border-[#ced8e4] bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Clock3 className="h-5 w-5 text-[#006c49]" />
+          <h1 className="text-xl font-semibold text-[#0b1c30]">{actionLabel}</h1>
+        </div>
+        <p className="mt-3 text-sm text-slate-600">
+          Attendance is recorded through the policy engine with timestamp, workplace, device, and geolocation evidence.
+        </p>
+        <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+          Workplace: <span className="font-semibold">{workplaceCode ?? 'Not selected'}</span>
+          {requiresGeolocation ? <span className="ml-2 text-amber-700">Location required by policy</span> : null}
+        </div>
+        {message ? <p className="mt-5 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
+        {error ? <p className="mt-5 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+        {hasCoordinateEvidence(capturedLocation) ? (
+          <div className="mt-5">
+            <AttendanceLocationMap point={capturedLocation} title={`${actionLabel} Location`} />
+          </div>
+        ) : (
+          <div className="mt-5 rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+            Google Maps will show the exact punch location after the browser returns latitude and longitude.
+          </div>
+        )}
+        <div className="mt-6 flex flex-wrap gap-3">
+          {error ? (
+            <Button
+              type="button"
+              onClick={() => {
+                setAttempt((value) => value + 1);
+                setMessage('Preparing attendance command...');
+                setError('');
+              }}
+              disabled={isRunning}
+            >
+              Retry Location Capture
+            </Button>
+          ) : null}
+          <Link
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#eff4ff]"
+            to="/employee#attendance"
+          >
+            Back to attendance
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AttendanceLocationMap({
+  point,
+  subtitle,
+  title,
+}: {
+  point: CoordinateEvidence;
+  subtitle?: string;
+  title: string;
+}) {
+  const embedUrl = buildGoogleMapsEmbedUrl(point, import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
+  const searchUrl = buildGoogleMapsSearchUrl(point);
+  if (!hasCoordinateEvidence(point)) return null;
+
+  return (
+    <div className="overflow-hidden rounded-md border border-[#d7e1ec] bg-white">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
+        <div>
+          <h4 className="font-semibold text-[#0b1c30]">{title}</h4>
+          {subtitle ? <p className="mt-1 text-xs text-slate-600">{subtitle}</p> : null}
+        </div>
+        {searchUrl ? (
+          <a className="text-sm font-semibold text-[#006c49] underline" href={searchUrl} rel="noreferrer" target="_blank">
+            Open in Google Maps
+          </a>
+        ) : null}
+      </div>
+      {embedUrl ? (
+        <iframe
+          className="h-64 w-full border-0"
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          src={embedUrl}
+          title={title}
+        />
+      ) : (
+        <div className="grid h-64 place-items-center bg-slate-50 px-5 text-center text-sm text-slate-600">
+          <div>
+            <MapPin className="mx-auto mb-3 h-6 w-6 text-[#006c49]" />
+            <p className="font-medium text-slate-800">Google Maps API key is not configured.</p>
+            <p className="mt-1">Set VITE_GOOGLE_MAPS_API_KEY to render the embedded map.</p>
+          </div>
+        </div>
+      )}
+      <div className="grid gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 md:grid-cols-3">
+        <span>Latitude: <strong>{point.latitude}</strong></span>
+        <span>Longitude: <strong>{point.longitude}</strong></span>
+        <span>Accuracy: <strong>{point.accuracyMeters !== undefined ? `${point.accuracyMeters}m` : 'not reported'}</strong></span>
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ import { AppLayout } from '@/layouts/app-layout';
 import { PortalLayout } from '@/layouts/portal-layout';
 import { useAuth } from '@/hooks/use-auth';
 import { LoginPage } from '@/pages/login';
-import { EmployeeDashboard } from '@/pages/employee/dashboard';
+import { EmployeeAttendanceAction, EmployeeDashboard } from '@/pages/employee/dashboard';
 import { EmployeeProfile } from '@/pages/employee/profile';
 import { EmployeePayslip } from '@/pages/employee/payslip';
 import { EmployeeBenefits } from '@/pages/employee/benefits';
@@ -33,17 +33,23 @@ import { AdminCompliance } from '@/pages/admin/compliance';
 import { AdminCountryPolicy } from '@/pages/admin/country-policy';
 import { AdminPolicies } from '@/pages/admin/policies';
 import { AdminSettings } from '@/pages/admin/settings';
+import { AdminSystemConsole } from '@/pages/admin/system-console';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
   const { isAuthenticated, isLoading } = useAuth();
+  const from = `${location.pathname}${location.search}${location.hash}`;
 
   if (isLoading) {
     return null;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const clockAction = new URLSearchParams(location.search).get('clock');
+    if (location.pathname.startsWith('/employee') && (clockAction === 'in' || clockAction === 'out')) {
+      window.localStorage.setItem('pending-attendance-clock', clockAction);
+    }
+    return <Navigate to="/login" replace state={{ from }} />;
   }
 
   return <>{children}</>;
@@ -110,6 +116,7 @@ export function AppRoutes() {
                   <Route path="payslip" element={<EmployeePayslip />} />
                   <Route path="benefits" element={<EmployeeBenefits />} />
                   <Route path="time-off" element={<EmployeeTimeOff />} />
+                  <Route path="attendance/:direction" element={<EmployeeAttendanceAction />} />
                   <Route path="onboarding" element={<EmployeeOnboarding />} />
                   <Route path="performance" element={<EmployeePerformance />} />
                   <Route path="services" element={<EmployeeServices />} />
@@ -152,6 +159,7 @@ export function AppRoutes() {
                 <PortalLayout>
                   <Routes>
                     <Route index element={<AdminDashboard />} />
+                    <Route path="system-console" element={<AdminSystemConsole />} />
                     <Route path="modules" element={<AdminModuleCatalog />} />
                     <Route path="modules/:moduleId/operations" element={<AdminModuleOperations />} />
                     <Route path="modules/:moduleId" element={<AdminModuleWorkbench />} />
