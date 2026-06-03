@@ -390,7 +390,7 @@ export function AdminSystemConsole() {
   const adminDisplayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || 'System Administrator';
   const primaryRole = user?.roles?.[0]?.name?.replace(/_/g, ' ') ?? 'Administrator';
   const adminPanelTools: AdminPanelTool[] = [
-    { label: 'Access Governance', description: 'Role, permission, ABAC, SoD, and service-account administration. Tables exist; admin API/UI still required.', group: 'Foundation', icon: UserCog, tone: 'text-[#ff9800]', status: 'backend-required' },
+    { label: 'Access Governance', description: 'Users, roles, permissions, service accounts, access reviews, ABAC, field-access, and SoD.', group: 'Foundation', path: '/admin/access-governance', icon: UserCog, tone: 'text-[#ff9800]' },
     { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/settings', icon: Settings, tone: 'text-[#ff9800]' },
     { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#2aa9de]' },
     { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#006c49]' },
@@ -498,14 +498,17 @@ export function AdminSystemConsole() {
     },
     {
       title: 'Identity, Roles, And Access',
-      description: 'Authentication and RBAC exist, but a real user/role administration console is still a missing admin surface.',
-      status: 'backend-required',
-      statusLabel: 'Backend/UI gap',
+      description: 'Authentication, RBAC, service accounts, access reviews, ABAC, field policy, and SoD are managed from Access Governance.',
+      status: 'live',
+      statusLabel: 'Admin managed',
       icon: KeyRound,
+      link: '/admin/access-governance',
+      linkLabel: 'Open Access Governance',
       evidence: [
         'Auth guard and admin role gates protect admin routes',
-        'Permission catalog exists in access-control packages',
-        'Missing: native user, role, permission assignment, and service-account admin APIs',
+        'Native APIs manage roles, permissions, role-permission joins, and user-role grants',
+        'Service-account identities and access-review campaigns/items are persisted and editable',
+        'Policy overrides are evaluated in the command bus before domain handlers run',
       ],
     },
     {

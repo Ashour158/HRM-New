@@ -35,6 +35,7 @@ import { AdminPolicies } from '@/pages/admin/policies';
 import { AdminSettings } from '@/pages/admin/settings';
 import { AdminSystemConsole } from '@/pages/admin/system-console';
 import { AdminIntegrations } from '@/pages/admin/integrations';
+import { AdminAccessGovernance } from '@/pages/admin/access-governance';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -178,6 +179,14 @@ export function AppRoutes() {
                       element={
                         <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
                           <AdminIntegrations />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="access-governance"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminAccessGovernance />
                         </RequireRoles>
                       }
                     />

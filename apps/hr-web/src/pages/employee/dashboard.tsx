@@ -967,9 +967,12 @@ export function EmployeeAttendanceAction() {
   const routeLocation = useLocation();
   const [message, setMessage] = React.useState('Preparing attendance command...');
   const [error, setError] = React.useState('');
+  const [correctionMessage, setCorrectionMessage] = React.useState('');
+  const [correctionError, setCorrectionError] = React.useState('');
   const [capturedLocation, setCapturedLocation] = React.useState<CoordinateEvidence>();
   const [attempt, setAttempt] = React.useState(0);
   const [isRunning, setIsRunning] = React.useState(false);
+  const [isSubmittingCorrection, setIsSubmittingCorrection] = React.useState(false);
   const runKeyRef = React.useRef('');
 
   const action = direction === 'check-out' ? 'out' : direction === 'check-in' ? 'in' : null;
@@ -983,6 +986,30 @@ export function EmployeeAttendanceAction() {
   const workplaceCode = requestedWorkplaceCode ?? setup.locations.find((location) => location.active)?.code ?? DEFAULT_HCM_SETUP.locations[0]?.code;
   const geofenceProfile = setup.attendancePolicy.geofenceProfiles?.find((item) => item.active && item.locationCode === workplaceCode);
   const requiresGeolocation = Boolean(setup.attendancePolicy.geofenceEnabled && geofenceProfile?.requireGeolocation);
+  const canRequestCorrection = Boolean(error && activeWorker?.id && action);
+
+  const requestManualPunchReview = async () => {
+    if (!activeWorker?.id || !action) return;
+    setCorrectionMessage('');
+    setCorrectionError('');
+    setIsSubmittingCorrection(true);
+    try {
+      const now = new Date();
+      await apiClient.post('/time/attendance/correction-requests', {
+        workerId: activeWorker.id,
+        workDate: now.toISOString().slice(0, 10),
+        correctionType: 'ADD_CLOCK_EVENT',
+        requestedEventType: action === 'out' ? 'CLOCK_OUT' : 'CLOCK_IN',
+        requestedTimestamp: now.toISOString(),
+        reason: `${actionLabel} could not capture browser geolocation. ${error || 'Manual review requested from the employee attendance workflow.'}`,
+      });
+      setCorrectionMessage('Manual punch review sent to your manager. It will not affect payroll until approved and applied.');
+    } catch (err) {
+      setCorrectionError(apiErrorMessage(err, 'Could not submit manual punch review.'));
+    } finally {
+      setIsSubmittingCorrection(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!action) {
@@ -998,6 +1025,8 @@ export function EmployeeAttendanceAction() {
 
     const run = async () => {
       setError('');
+      setCorrectionMessage('');
+      setCorrectionError('');
       setMessage('Capturing attendance evidence...');
       setIsRunning(true);
       try {
@@ -1044,6 +1073,17 @@ export function EmployeeAttendanceAction() {
         </div>
         {message ? <p className="mt-5 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
         {error ? <p className="mt-5 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
+        {correctionMessage ? <p className="mt-5 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{correctionMessage}</p> : null}
+        {correctionError ? <p className="mt-5 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{correctionError}</p> : null}
+        {canRequestCorrection ? (
+          <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-semibold">Policy controlled fallback</p>
+            <p className="mt-1">
+              Because this workplace requires geolocation, the system cannot create a verified punch without browser location evidence.
+              You can send a manual punch review to your manager; payroll is updated only after manager approval and HR/payroll application.
+            </p>
+          </div>
+        ) : null}
         {hasCoordinateEvidence(capturedLocation) ? (
           <div className="mt-5">
             <AttendanceLocationMap point={capturedLocation} title={`${actionLabel} Location`} />
@@ -1065,6 +1105,16 @@ export function EmployeeAttendanceAction() {
               disabled={isRunning}
             >
               Retry Location Capture
+            </Button>
+          ) : null}
+          {canRequestCorrection ? (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={requestManualPunchReview}
+              disabled={isSubmittingCorrection || Boolean(correctionMessage)}
+            >
+              {isSubmittingCorrection ? 'Sending...' : 'Request manual punch review'}
             </Button>
           ) : null}
           <Link

@@ -32,7 +32,9 @@ import { OrganizationModule } from './domains/organization/organization.module.j
 import { PositionControlModule } from './domains/position-control/position-control.module.js';
 import { HcmSetupModule } from './domains/hcm-setup/hcm-setup.module.js';
 import { AdminModuleOperationsModule } from './domains/admin-module-operations/admin-module-operations.module.js';
+import { AccessGovernanceModule } from './domains/access-governance/access-governance.module.js';
 import { PolicyCenterModule } from './domains/policy-center/policy-center.module.js';
+import { AuditInterceptor } from './interceptors/audit.interceptor.js';
 import { TenantInterceptor } from './interceptors/tenant.interceptor.js';
 import { TransformInterceptor } from './interceptors/transform.interceptor.js';
 import { AppService } from './app.service.js';
@@ -43,13 +45,17 @@ import { AuditController } from './audit.controller.js';
 import { ManagerTeamController } from './manager-team.controller.js';
 
 @Module({
-  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, PolicyCenterModule],
+  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule],
   controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController, ManagerTeamController],
   providers: [
     AppService,
     {
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

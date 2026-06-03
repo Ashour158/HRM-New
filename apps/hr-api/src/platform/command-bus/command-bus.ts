@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { Kysely, Transaction } from 'kysely';
 import { Uuid, AggregateRoot } from '@hcm/shared-kernel';
@@ -22,6 +22,13 @@ import { EventBus } from '../event-bus/event-bus.js';
 import type { FsmInstance } from '../workflow/fsm-framework.js';
 import { FsmFramework } from '../workflow/fsm-framework.js';
 import { TransitionLedgerService } from '../workflow/transition-ledger.js';
+import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
+import type {
+  AllowedActionPolicyOverride,
+  FieldAccessPolicyOverride,
+  HcmPolicyScope,
+  PolicyGovernanceConfig,
+} from '../../domains/hcm-setup/hcm-setup.types.js';
 import { COMMAND_HANDLER_METADATA } from './command-handler.decorator.js';
 
 export interface CommandHandler {
@@ -43,6 +50,15 @@ type AggregateStateRow = {
   aggregate_version?: number | string | bigint | null;
   status?: string | null;
   state?: string | null;
+};
+
+type ActorScopeClaims = {
+  legalEntityIds?: string[];
+  countryCodes?: string[];
+  departmentIds?: string[];
+  orgUnitIds?: string[];
+  locationCodes?: string[];
+  employeeTypes?: string[];
 };
 
 function aggregateLoader(table: string, stateColumn: 'status' | 'state' = 'status'): AggregateLoaderConfig {
@@ -245,6 +261,7 @@ export class CommandBus implements OnModuleInit {
     private readonly fsmFramework: FsmFramework,
     private readonly transitionLedger: TransitionLedgerService,
     _eventBus: EventBus,
+    @Optional() private readonly hcmSetup?: Pick<HcmSetupService, 'getSetup'>,
   ) {
     this.db = createKyselyInstance(getPool());
     this.tenantValidator = new TenantValidator(this.db);
@@ -307,6 +324,9 @@ export class CommandBus implements OnModuleInit {
 
         step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
         await this.stepEvaluateRbac(command);
+
+        step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
+        await this.stepEvaluateRuntimeAccessGovernance(command);
 
         step = CommandPipelineStep.EVALUATE_MANAGER_HRBP_RELATIONSHIP;
         await this.stepEvaluateManagerRelationship(command);
@@ -655,6 +675,7 @@ export class CommandBus implements OnModuleInit {
         false,
       );
     }
+
   }
 
   private async stepEvaluateRbac(command: HrCommandEnvelope<unknown>): Promise<void> {
@@ -682,6 +703,221 @@ export class CommandBus implements OnModuleInit {
         false,
       );
     }
+
+  }
+
+  private async stepEvaluateRuntimeAccessGovernance(command: HrCommandEnvelope<unknown>): Promise<void> {
+    await this.stepEvaluateRuntimeAllowedActionOverrides(command);
+    await this.stepEvaluateRuntimeFieldAccessOverrides(command);
+  }
+
+  private async stepEvaluateRuntimeAllowedActionOverrides(command: HrCommandEnvelope<unknown>): Promise<void> {
+    if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT') {
+      return;
+    }
+
+    const governance = await this.getRuntimeGovernance(command);
+    if (!governance) return;
+
+    const blockedAction = governance.allowedActionOverrides?.find((candidate) => (
+      candidate.effect === 'HIDE' && this.allowedActionOverrideMatches(candidate, command)
+    ));
+    if (blockedAction) {
+      throw this.makeError(
+        command,
+        CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE,
+        'RUNTIME_POLICY_ACTION_DENIED',
+        blockedAction.reason ?? `Applied access policy hides or denies ${command.commandName} for ${command.aggregateType}`,
+        false,
+      );
+    }
+  }
+
+  private async stepEvaluateRuntimeFieldAccessOverrides(command: HrCommandEnvelope<unknown>): Promise<void> {
+    if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT') {
+      return;
+    }
+
+    const governance = await this.getRuntimeGovernance(command);
+    if (!governance) return;
+
+    const payloadPaths = this.flattenPayloadPaths(command.payload);
+    const blockedField = governance.fieldAccessOverrides?.find((candidate) => (
+      this.fieldAccessOverrideBlocksWrite(candidate, command, payloadPaths)
+    ));
+    if (!blockedField) return;
+
+    throw this.makeError(
+      command,
+      CommandPipelineStep.EVALUATE_HR_DATA_PRIVACY_FIELD_POLICY,
+      'RUNTIME_POLICY_FIELD_DENIED',
+      blockedField.reason ?? `Applied field access policy denies mutation of ${blockedField.fieldPath}`,
+      false,
+    );
+  }
+
+  private async getRuntimeGovernance(command: HrCommandEnvelope<unknown>): Promise<PolicyGovernanceConfig | undefined> {
+    if (this.hcmSetup) {
+      const setup = await this.hcmSetup.getSetup(command.tenantId);
+      return setup.policyGovernance;
+    }
+    if (!this.db) return undefined;
+
+    const row = await this.db
+      .selectFrom('hcm_setup_configs')
+      .select(['config'])
+      .where('tenant_id', '=', command.tenantId.value)
+      .executeTakeFirst();
+    const setup = row?.config as { policyGovernance?: PolicyGovernanceConfig } | undefined;
+    return setup?.policyGovernance;
+  }
+
+  private allowedActionOverrideMatches(
+    override: AllowedActionPolicyOverride,
+    command: HrCommandEnvelope<unknown>,
+  ): boolean {
+    return Boolean(
+      override.active
+      && this.aggregateTypeMatches(override.aggregateType, command.aggregateType)
+      && this.commandActionMatches(override.action, command)
+      && this.rolesMatch(override.roles, command.actor.roles)
+      && this.policyScopeMatches(override.scope, command),
+    );
+  }
+
+  private fieldAccessOverrideBlocksWrite(
+    override: FieldAccessPolicyOverride,
+    command: HrCommandEnvelope<unknown>,
+    payloadPaths: string[],
+  ): boolean {
+    return Boolean(
+      override.active
+      && this.fieldDecisionBlocksWrite(override, command)
+      && this.aggregateTypeMatches(override.resourceType, command.aggregateType)
+      && this.rolesMatch(override.roles, command.actor.roles)
+      && this.policyScopeMatches(override.scope, command)
+      && payloadPaths.some((path) => this.fieldPathMatchesOverride(path, override.fieldPath)),
+    );
+  }
+
+  private fieldDecisionBlocksWrite(
+    override: FieldAccessPolicyOverride,
+    command: HrCommandEnvelope<unknown>,
+  ): boolean {
+    if (override.decision === 'DENIED' || override.decision === 'HIDDEN') return true;
+    if (override.decision === 'REQUIRES_BREAK_GLASS') return !command.actor.breakGlassSessionId;
+    if (override.decision === 'REQUIRES_STEP_UP') return !command.actor.mfaAuthenticated;
+    return false;
+  }
+
+  private aggregateTypeMatches(policyAggregateType: string, commandAggregateType: string): boolean {
+    return this.normalizePolicyToken(policyAggregateType) === this.normalizePolicyToken(commandAggregateType);
+  }
+
+  private commandActionMatches(policyAction: string, command: HrCommandEnvelope<unknown>): boolean {
+    const normalizedPolicyAction = this.normalizePolicyToken(policyAction);
+    return this.commandActionCandidates(command).some((candidate) => (
+      this.normalizePolicyToken(candidate) === normalizedPolicyAction
+    ));
+  }
+
+  private commandActionCandidates(command: HrCommandEnvelope<unknown>): string[] {
+    const normalizedCommandName = this.normalizePolicyToken(command.commandName);
+    const normalizedAggregateType = this.normalizePolicyToken(command.aggregateType);
+    const aggregateParts = normalizedAggregateType.split('_').filter(Boolean);
+    const commandParts = normalizedCommandName.split('_').filter(Boolean);
+    const verb = commandParts[0];
+    const aggregateTail = aggregateParts[aggregateParts.length - 1];
+    const candidates = new Set<string>([
+      command.commandName,
+      this.inferActionFromCommand(command.commandName),
+      normalizedCommandName,
+      this.inferCommandType(command.commandName),
+    ]);
+
+    if (verb && aggregateTail) {
+      candidates.add(`${verb}_${aggregateTail}`);
+    }
+    if (verb) {
+      candidates.add(verb);
+    }
+
+    return Array.from(candidates);
+  }
+
+  private fieldPathMatchesOverride(payloadPath: string, overrideFieldPath: string): boolean {
+    const normalizedPayloadPath = this.normalizeFieldPath(payloadPath);
+    const normalizedOverridePath = this.normalizeFieldPath(overrideFieldPath);
+    return (
+      normalizedPayloadPath === normalizedOverridePath
+      || normalizedPayloadPath.endsWith(`.${normalizedOverridePath}`)
+      || normalizedOverridePath.endsWith(`.${normalizedPayloadPath}`)
+      || normalizedPayloadPath.startsWith(`${normalizedOverridePath}.`)
+    );
+  }
+
+  private rolesMatch(policyRoles: string[] | undefined, actorRoles: string[]): boolean {
+    if (!policyRoles || policyRoles.length === 0) return true;
+    const actorRoleSet = new Set(actorRoles);
+    return policyRoles.some((role) => actorRoleSet.has(role));
+  }
+
+  private policyScopeMatches(
+    scope: HcmPolicyScope | undefined,
+    command: HrCommandEnvelope<unknown>,
+  ): boolean {
+    if (!scope) return true;
+    if (scope.tenantId && scope.tenantId !== command.tenantId.value) return false;
+
+    const now = Date.now();
+    if (scope.effectiveFrom && new Date(`${scope.effectiveFrom}T00:00:00.000Z`).getTime() > now) return false;
+    if (scope.effectiveUntil && new Date(`${scope.effectiveUntil}T23:59:59.999Z`).getTime() < now) return false;
+
+    const actorScope = command.actor as typeof command.actor & ActorScopeClaims;
+    return this.claimsMatch(scope.countryCodes, actorScope.countryCodes)
+      && this.claimsMatch(scope.legalEntityIds, actorScope.legalEntityIds)
+      && this.claimsMatch(scope.orgUnitIds, actorScope.orgUnitIds)
+      && this.claimsMatch(scope.departmentIds, actorScope.departmentIds)
+      && this.claimsMatch(scope.locationCodes, actorScope.locationCodes)
+      && this.claimsMatch(scope.employeeTypes, actorScope.employeeTypes)
+      && this.workerScopeMatches(scope.workerIds, command);
+  }
+
+  private claimsMatch(policyValues: string[] | undefined, actorValues: string[] | undefined): boolean {
+    if (!policyValues || policyValues.length === 0) return true;
+    const actorSet = new Set(actorValues ?? []);
+    return policyValues.some((value) => actorSet.has(value));
+  }
+
+  private workerScopeMatches(
+    policyWorkerIds: string[] | undefined,
+    command: HrCommandEnvelope<unknown>,
+  ): boolean {
+    if (!policyWorkerIds || policyWorkerIds.length === 0) return true;
+    const subjectWorkerId = this.resolveSubjectWorkerId(command);
+    const payloadWorkerId = this.extractPayloadUuid(command.payload, 'workerId')
+      ?? this.extractPayloadUuid(command.payload, 'employeeId');
+    return policyWorkerIds.some((workerId) => (
+      workerId === command.actor.actorId.value
+      || workerId === subjectWorkerId?.value
+      || workerId === command.aggregateId?.value
+      || workerId === payloadWorkerId?.value
+    ));
+  }
+
+  private normalizePolicyToken(value: string): string {
+    return value
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+      .replace(/[\s.-]+/g, '_')
+      .toUpperCase();
+  }
+
+  private normalizeFieldPath(value: string): string {
+    return value
+      .trim()
+      .replace(/\.\d+(?=\.|$)/g, '')
+      .toLowerCase();
   }
 
   private async resolveActorEmploymentStatus(

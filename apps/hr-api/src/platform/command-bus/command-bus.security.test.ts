@@ -189,6 +189,91 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it('blocks direct command execution when an applied access policy hides the action', async () => {
+    const query = {
+      select: () => query,
+      where: () => query,
+      executeTakeFirst: async () => ({
+        config: {
+          policyGovernance: {
+            allowedActionOverrides: [{
+              id: 'deny-worker-update',
+              active: true,
+              aggregateType: 'WorkerProfile',
+              action: 'UpdateWorkerPersonalData',
+              roles: ['HR_ADMIN'],
+              effect: 'HIDE',
+              reason: 'Employees cannot update this worker section during policy freeze.',
+            }],
+            fieldAccessOverrides: [],
+          },
+        },
+      }),
+    };
+    const bus = commandBusWith({
+      db: {
+        selectFrom: () => query,
+      },
+    });
+
+    const command = makeCommand({
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440017'),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_UPDATE'],
+        mfaAuthenticated: true,
+      },
+    });
+
+    await expect(bus.stepEvaluateRbac(command)).resolves.toBeUndefined();
+    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+      errorCode: 'RUNTIME_POLICY_ACTION_DENIED',
+    });
+  });
+
+  it('blocks direct command execution when an applied field policy denies a payload field', async () => {
+    const query = {
+      select: () => query,
+      where: () => query,
+      executeTakeFirst: async () => ({
+        config: {
+          policyGovernance: {
+            allowedActionOverrides: [],
+            fieldAccessOverrides: [{
+              id: 'deny-bank-account',
+              active: true,
+              resourceType: 'WorkerProfile',
+              fieldPath: 'homeAddress.line1',
+              roles: ['EMPLOYEE'],
+              decision: 'DENIED',
+              reason: 'Home address changes require administrator review.',
+            }],
+          },
+        },
+      }),
+    };
+    const bus = commandBusWith({
+      db: {
+        selectFrom: () => query,
+      },
+    });
+
+    const command = makeCommand({
+      payload: {
+        workerId,
+        homeAddress: {
+          line1: '12 Nile Street',
+        },
+      },
+    });
+
+    await expect(bus.stepEvaluateFieldPolicy(command)).resolves.toBeUndefined();
+    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+      errorCode: 'RUNTIME_POLICY_FIELD_DENIED',
+    });
+  });
+
   it('blocks worker mutations while the subject worker has an active legal hold', async () => {
     const executeTakeFirst = async () => ({ id: workerId.value, legal_hold_status: 'ACTIVE' });
     const query = {
@@ -278,6 +363,99 @@ describe('CommandBus security gates', () => {
       expectedVersion: undefined,
       payload: {},
     }))).resolves.toBeUndefined();
+  });
+
+  it('blocks statically allowed commands when applied allowed-action overrides hide the command action', async () => {
+    const query = {
+      select: () => query,
+      where: () => query,
+      executeTakeFirst: async () => ({ status: 'ACTIVE' }),
+    };
+    const bus = commandBusWith({
+      db: {
+        selectFrom: () => query,
+      },
+      hcmSetup: {
+        getSetup: async () => ({
+          policyGovernance: {
+            allowedActionOverrides: [
+              {
+                id: 'deny-submit-absence',
+                active: true,
+                aggregateType: 'AbsenceRequest',
+                action: 'SubmitAbsenceRequest',
+                roles: ['HR_ADMIN'],
+                effect: 'HIDE',
+                reason: 'Leave submissions are temporarily paused.',
+              },
+            ],
+            fieldAccessOverrides: [],
+          },
+        }),
+      },
+    });
+
+    const command = makeCommand({
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440018'),
+        roles: ['HR_ADMIN'],
+        permissions: ['ABSENCE_ADMIN'],
+        mfaAuthenticated: true,
+      },
+      payload: { workerId },
+    });
+
+    await expect(bus.stepEvaluateRbac(command)).resolves.toBeUndefined();
+    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+      errorCode: 'RUNTIME_POLICY_ACTION_DENIED',
+    });
+  });
+
+  it('blocks command payload writes when applied field-access overrides deny the written field', async () => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          policyGovernance: {
+            allowedActionOverrides: [],
+            fieldAccessOverrides: [
+              {
+                id: 'deny-hr-home-address',
+                active: true,
+                resourceType: 'WorkerProfile',
+                fieldPath: 'homeAddress.line1',
+                roles: ['HR_ADMIN'],
+                decision: 'DENIED',
+                reason: 'Address updates are locked during audit.',
+              },
+            ],
+          },
+        }),
+      },
+    });
+
+    const command = makeCommand({
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440017'),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_UPDATE'],
+        mfaAuthenticated: true,
+      },
+      payload: {
+        workerId,
+        homeAddress: {
+          line1: '12 Nile Street',
+        },
+      },
+    });
+
+    await expect(bus.stepEvaluateFieldPolicy(command)).resolves.toBeUndefined();
+    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+      errorCode: 'RUNTIME_POLICY_FIELD_DENIED',
+    });
   });
 
   it('enforces the self-service policy engine before executing employee commands', async () => {

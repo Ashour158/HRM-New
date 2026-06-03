@@ -1,6 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { AuditLedgerService } from '@hcm/platform-core';
 import { Uuid } from '@hcm/shared-kernel';
+import { createPrivacyForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
+import { createHash } from 'node:crypto';
 import { PlatformNotificationRepository } from '../../platform/notifications/platform-notification.repository.js';
+import { OutboxPublisher } from '../../platform/outbox-inbox/outbox-publisher.js';
 import { HcmSetupService } from '../hcm-setup/hcm-setup.service.js';
 import type {
   AttendanceDeviceTrustRule,
@@ -62,6 +66,15 @@ type ScopedPolicy =
   | AttendanceGeofenceProfile
   | AttendanceDeviceTrustRule
   | AttendanceFlexibleHoursRule;
+
+type PolicyLifecycleEvidenceInput = {
+  revision: PolicyRevisionRecord;
+  actor: PolicyActor;
+  eventName: string;
+  fromStatus: PolicyRevisionStatus | 'INITIAL';
+  toStatus: PolicyRevisionStatus;
+  payload?: Record<string, unknown>;
+};
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -213,6 +226,8 @@ export class PolicyCenterService {
     @Optional() @Inject(PolicyCenterRepository) private readonly repository: PolicyCenterRepositoryPort = new PolicyCenterRepository(),
     @Optional() private readonly hcmSetup: Pick<HcmSetupService, 'getSetup' | 'updateSetup'> = new HcmSetupService(),
     @Optional() private readonly notificationRepository: Pick<PlatformNotificationRepository, 'createMany'> = new PlatformNotificationRepository(),
+    @Optional() @Inject(AuditLedgerService) private readonly auditLedger?: Pick<AuditLedgerService, 'write'>,
+    @Optional() @Inject(OutboxPublisher) private readonly outbox?: Pick<OutboxPublisher, 'schedule'>,
   ) {}
 
   async getSummary(tenantId: Uuid) {
@@ -242,6 +257,14 @@ export class PolicyCenterService {
       aggregateVersion: 0,
     };
 
+    await this.recordLifecycleGovernance(tenantId, {
+      revision: record,
+      actor,
+      eventName: 'PolicyRevisionDrafted',
+      fromStatus: 'INITIAL',
+      toStatus: 'DRAFT',
+      payload: { changedFields: ['baselineConfig', 'draftConfig', 'scope'] },
+    });
     return this.repository.createRevision(record);
   }
 
@@ -250,6 +273,18 @@ export class PolicyCenterService {
     if (!['DRAFT', 'IN_REVIEW', 'REVIEWED'].includes(revision.status)) {
       throw new BadRequestException('Only draft, in-review, or reviewed policy revisions can be edited.');
     }
+
+    const updatedFields = Object.entries(input)
+      .filter(([, value]) => value !== undefined)
+      .map(([key]) => key);
+    await this.recordLifecycleGovernance(tenantId, {
+      revision,
+      actor,
+      eventName: 'PolicyRevisionUpdated',
+      fromStatus: revision.status,
+      toStatus: revision.status,
+      payload: { changedFields: updatedFields },
+    });
 
     return this.repository.updateRevision(id, {
       title: input.title ?? revision.title,
@@ -328,6 +363,14 @@ export class PolicyCenterService {
       await this.repository.updateRevision(id, { validationResult: validation, updatedAt: nowIso() });
       throw new BadRequestException(`Policy cannot be published: ${validation.errors.join(' ')}`);
     }
+    await this.recordLifecycleGovernance(tenantId, {
+      revision,
+      actor,
+      eventName: 'PolicyRevisionPublished',
+      fromStatus: revision.status,
+      toStatus: 'PUBLISHED',
+      payload: { validation },
+    });
     const updated = await this.repository.updateRevision(id, {
       status: 'PUBLISHED',
       validationResult: validation,
@@ -354,6 +397,23 @@ export class PolicyCenterService {
 
     const simulation = await this.simulatePolicyRevision(tenantId, revision);
     const runtimeSnapshot = this.buildRuntimeSnapshot(revision);
+    await this.recordLifecycleGovernance(tenantId, {
+      revision,
+      actor,
+      eventName: 'PolicyRevisionApplied',
+      fromStatus: revision.status,
+      toStatus: 'APPLIED',
+      payload: {
+        validation,
+        simulation: {
+          impactedEmployees: simulation.impactedEmployees,
+          pendingRecords: simulation.pendingRecords,
+          warnings: simulation.warnings,
+          engineName: simulation.engineName,
+          engineVersion: simulation.engineVersion,
+        },
+      },
+    });
     await this.hcmSetup.updateSetup(tenantId, runtimeSnapshot);
     await this.repository.createApplicationRun({
       id: Uuid.generate().value,
@@ -404,6 +464,13 @@ export class PolicyCenterService {
     if (!allowed.includes(revision.status)) {
       throw new BadRequestException(`Policy revision ${revision.id} cannot move from ${revision.status} to ${status}.`);
     }
+    await this.recordLifecycleGovernance(tenantId, {
+      revision,
+      actor,
+      eventName: LIFECYCLE_EVENT_NAMES[status],
+      fromStatus: revision.status,
+      toStatus: status,
+    });
     const updated = await this.repository.updateRevision(id, {
       status,
       ...extra,
@@ -412,6 +479,76 @@ export class PolicyCenterService {
     });
     await this.notifyLifecycle(updated, tenantId, LIFECYCLE_EVENT_NAMES[status], actor);
     return updated;
+  }
+
+  private async recordLifecycleGovernance(
+    tenantId: Uuid,
+    input: PolicyLifecycleEvidenceInput,
+  ): Promise<void> {
+    if (!this.auditLedger || !this.outbox) {
+      throw new Error('Policy Center audit/outbox governance is not configured.');
+    }
+
+    const correlationId = Uuid.generate();
+    const resourceId = this.uuidFromValue(input.revision.id);
+    const actorId = this.uuidFromValue(input.actor.actorId);
+    const basePayload = {
+      policyRevisionId: input.revision.id,
+      policyArea: input.revision.area,
+      title: input.revision.title,
+      actorId: input.actor.actorId,
+      actorName: input.actor.actorName,
+      fromStatus: input.fromStatus,
+      toStatus: input.toStatus,
+      aggregateVersion: input.revision.aggregateVersion,
+      governanceStage: 'BLOCKING_PRE_MUTATION',
+      ...input.payload,
+    };
+
+    await this.auditLedger.write({
+      id: Uuid.generate(),
+      tenantId,
+      actorType: 'USER',
+      actorId,
+      action: input.eventName,
+      resourceType: 'PolicyRevision',
+      resourceId,
+      payload: basePayload,
+      occurredAt: new Date(),
+      correlationId,
+      dataClassification: 'CONFIDENTIAL',
+      legalHoldStatus: 'NONE',
+      retentionClass: input.toStatus === 'APPLIED' || input.toStatus === 'PUBLISHED' ? 'EXTENDED' : 'STANDARD',
+    });
+
+    const event: HrEventEnvelope<Record<string, unknown>> = {
+      eventId: Uuid.generate(),
+      eventName: input.eventName,
+      eventSchemaVersion: 1,
+      tenantId,
+      aggregateType: 'PolicyRevision',
+      aggregateId: resourceId,
+      payload: basePayload,
+      metadata: {
+        correlationId,
+        requestHash: `${input.eventName}:${input.revision.id}:${input.revision.aggregateVersion}:${input.toStatus}`,
+        clientType: 'HR_ADMIN',
+        hrDataSensitivity: 'LOW',
+      },
+      privacy: createPrivacyForEvent('LOW', undefined, 'PROFILE'),
+      occurredAt: new Date(),
+      version: input.revision.aggregateVersion + 1,
+    };
+
+    await this.outbox.schedule(event, tenantId, correlationId);
+  }
+
+  private uuidFromValue(value: string): Uuid {
+    if (Uuid.isValid(value)) {
+      return new Uuid(value);
+    }
+    const hex = createHash('sha256').update(value).digest('hex');
+    return new Uuid(`${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`);
   }
 
   private async getRevisionOrThrow(tenantId: Uuid, id: string): Promise<PolicyRevisionRecord> {

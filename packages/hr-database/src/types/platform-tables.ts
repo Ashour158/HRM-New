@@ -114,6 +114,160 @@ export interface HcmSetupConfigsTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface RolesTable {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  tier: string;
+  description: string | null;
+  is_system: boolean;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface PermissionsTable {
+  id: string;
+  tenant_id: string;
+  code: string;
+  description: string | null;
+  domain: string;
+  data_classification: string | null;
+  audit_on_access: boolean;
+}
+
+export interface RolePermissionsTable {
+  role_id: string;
+  permission_id: string;
+}
+
+export interface UserRolesTable {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  role_id: string | null;
+  assigned_by: string | null;
+  assigned_at: ColumnType<Date, string | undefined, never>;
+  expires_at: Date | null;
+}
+
+export interface ServiceAccountsTable {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  owner_worker_id: string | null;
+  status: string;
+  scopes: unknown;
+  credential_rotation_days: number;
+  last_rotated_at: Date | null;
+  expires_at: Date | null;
+  created_by: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ServiceAccountCredentialsTable {
+  id: string;
+  tenant_id: string;
+  service_account_id: string;
+  name: string;
+  secret_hash: string;
+  secret_prefix: string;
+  status: string;
+  scopes: unknown;
+  issued_at: ColumnType<Date, string | undefined, never>;
+  expires_at: Date | null;
+  last_used_at: Date | null;
+  rotated_at: Date | null;
+  revoked_at: Date | null;
+  revoked_reason: string | null;
+  created_by: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AccessReviewCampaignsTable {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  scope: unknown;
+  reviewer_role: string;
+  status: string;
+  due_at: Date | null;
+  created_by: string | null;
+  launched_at: Date | null;
+  last_reminder_at: Date | null;
+  escalated_at: Date | null;
+  escalation_count: number;
+  completed_at: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AccessReviewItemsTable {
+  id: string;
+  tenant_id: string;
+  campaign_id: string;
+  subject_user_id: string | null;
+  subject_worker_id: string | null;
+  role_id: string | null;
+  permission_id: string | null;
+  service_account_id: string | null;
+  decision: string;
+  reviewer_id: string | null;
+  reviewed_at: Date | null;
+  evidence: unknown;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AccessReviewWorkflowEventsTable {
+  id: string;
+  tenant_id: string;
+  campaign_id: string;
+  event_type: string;
+  actor_id: string | null;
+  target_role: string | null;
+  message: string | null;
+  pending_item_count: number;
+  payload: unknown;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface AbacPoliciesTable {
+  id: string;
+  tenant_id: string;
+  dimension: string;
+  conditions: unknown;
+  effect: string;
+  priority: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface FieldAccessPoliciesTable {
+  id: string;
+  tenant_id: string;
+  field_path: string;
+  data_classification: string;
+  role_decisions: unknown;
+  self_service_decision: string | null;
+  manager_decision: string | null;
+  masking_rule: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
+export interface SodRulesTable {
+  id: string;
+  tenant_id: string;
+  code: string;
+  description: string | null;
+  incompatible_role_pairs: unknown | null;
+  incompatible_permission_pairs: unknown | null;
+  enforcement_point: string | null;
+  break_glass_allowed: boolean;
+  created_at: ColumnType<Date, string | undefined, never>;
+}
+
 export interface AdminPolicyRevisionsTable {
   id: string;
   tenant_id: string;
@@ -1837,6 +1991,17 @@ export interface Database {
   inbox_events: InboxEventsTable;
   platform_notifications: PlatformNotificationsTable;
   hcm_setup_configs: HcmSetupConfigsTable;
+  roles: RolesTable;
+  permissions: PermissionsTable;
+  user_roles: UserRolesTable;
+  service_accounts: ServiceAccountsTable;
+  service_account_credentials: ServiceAccountCredentialsTable;
+  access_review_campaigns: AccessReviewCampaignsTable;
+  access_review_items: AccessReviewItemsTable;
+  access_review_workflow_events: AccessReviewWorkflowEventsTable;
+  abac_policies: AbacPoliciesTable;
+  field_access_policies: FieldAccessPoliciesTable;
+  sod_rules: SodRulesTable;
   admin_policy_revisions: AdminPolicyRevisionsTable;
   admin_policy_revision_scopes: AdminPolicyRevisionScopesTable;
   admin_policy_application_runs: AdminPolicyApplicationRunsTable;

@@ -8,11 +8,11 @@ import type {
 } from './policy-center.types.js';
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
-const actor = { actorId: 'hr-admin-1', actorName: 'HR Admin' };
+const actor = { actorId: '00000000-0000-0000-0000-000000000010', actorName: 'HR Admin' };
 
 function revision(overrides: Partial<PolicyRevisionRecord> = {}): PolicyRevisionRecord {
   return {
-    id: 'revision-1',
+    id: '00000000-0000-0000-0000-000000000101',
     tenantId: tenantId.value,
     area: 'LEAVE',
     title: 'Annual leave policy',
@@ -90,19 +90,53 @@ function buildService(seed: PolicyRevisionRecord[] = []) {
     updateSetup: vi.fn(async (_tenantId: Uuid, update: unknown) => update),
   };
   const notifications = { createMany: vi.fn(async () => undefined) };
+  const auditLedger = { write: vi.fn(async () => undefined) };
+  const outbox = { schedule: vi.fn(async () => undefined) };
   return {
-    service: new PolicyCenterService(repository, hcmSetup, notifications),
+    service: new (PolicyCenterService as never)(repository, hcmSetup, notifications, auditLedger, outbox) as PolicyCenterService,
     repository,
     hcmSetup,
     notifications,
+    auditLedger,
+    outbox,
   };
 }
 
 describe('PolicyCenterService', () => {
+  it('writes blocking audit and outbox evidence when a revision is drafted', async () => {
+    const { service, repository, auditLedger, outbox } = buildService();
+
+    const created = await service.createRevision(tenantId, {
+      area: 'LEAVE',
+      title: 'Annual leave policy',
+      draftConfig: revision().draftConfig,
+      scope: { departmentIds: ['dept-a'] },
+    }, actor);
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionDrafted',
+      resourceType: 'PolicyRevision',
+      resourceId: expect.objectContaining({ value: created.id }),
+      payload: expect.objectContaining({
+        policyRevisionId: created.id,
+        fromStatus: 'INITIAL',
+        toStatus: 'DRAFT',
+      }),
+    }));
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: 'PolicyRevisionDrafted' }),
+      tenantId,
+      expect.any(Uuid),
+    );
+    expect(vi.mocked(auditLedger.write).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(repository.createRevision).mock.invocationCallOrder[0],
+    );
+  });
+
   it('blocks applying a policy with an overlapping active scope at the same precedence', async () => {
     const draft = revision();
     const active = revision({
-      id: 'active-revision',
+      id: '00000000-0000-0000-0000-000000000102',
       status: 'APPLIED',
       scope: {
         tenantId: tenantId.value,
@@ -115,7 +149,30 @@ describe('PolicyCenterService', () => {
     const validation = await service.validateRevision(tenantId, draft.id, actor);
 
     expect(validation.valid).toBe(false);
-    expect(validation.errors).toContain('Active LEAVE policy active-revision already targets the same scope and effective window.');
+    expect(validation.errors).toContain('Active LEAVE policy 00000000-0000-0000-0000-000000000102 already targets the same scope and effective window.');
+  });
+
+  it('writes blocking audit and outbox evidence when an editable revision is updated', async () => {
+    const draft = revision({ status: 'DRAFT' });
+    const { service, auditLedger, outbox } = buildService([draft]);
+
+    await service.updateRevision(tenantId, draft.id, { title: 'Updated leave policy' }, actor);
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionUpdated',
+      resourceId: expect.objectContaining({ value: draft.id }),
+      payload: expect.objectContaining({
+        policyRevisionId: draft.id,
+        fromStatus: 'DRAFT',
+        toStatus: 'DRAFT',
+        changedFields: ['title'],
+      }),
+    }));
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: 'PolicyRevisionUpdated' }),
+      tenantId,
+      expect.any(Uuid),
+    );
   });
 
   it('only applies published revisions and writes their runtime policy snapshot into HCM setup', async () => {
@@ -166,6 +223,139 @@ describe('PolicyCenterService', () => {
         title: 'Leave policy changed',
       }),
     ]));
+  });
+
+  it('writes blocking audit and outbox evidence when a revision is submitted for review', async () => {
+    const draft = revision({ status: 'DRAFT' });
+    const { service, auditLedger, outbox } = buildService([draft]);
+
+    await service.submitForReview(tenantId, draft.id, actor);
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      action: 'PolicyRevisionSubmittedForReview',
+      resourceType: 'PolicyRevision',
+      resourceId: expect.objectContaining({ value: draft.id }),
+      payload: expect.objectContaining({
+        policyRevisionId: draft.id,
+        fromStatus: 'DRAFT',
+        toStatus: 'IN_REVIEW',
+      }),
+    }));
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventName: 'PolicyRevisionSubmittedForReview',
+        aggregateType: 'PolicyRevision',
+        aggregateId: expect.objectContaining({ value: draft.id }),
+        payload: expect.objectContaining({
+          policyRevisionId: draft.id,
+          fromStatus: 'DRAFT',
+          toStatus: 'IN_REVIEW',
+        }),
+      }),
+      tenantId,
+      expect.any(Uuid),
+    );
+  });
+
+  it('writes blocking audit and outbox evidence for review and approval transitions', async () => {
+    const inReview = revision({ status: 'IN_REVIEW' });
+    const reviewed = revision({ id: '00000000-0000-0000-0000-000000000103', status: 'REVIEWED' });
+    const { service, auditLedger, outbox } = buildService([inReview, reviewed]);
+
+    await service.markReviewed(tenantId, inReview.id, actor);
+    await service.approveRevision(tenantId, reviewed.id, actor);
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionReviewed',
+      resourceId: expect.objectContaining({ value: inReview.id }),
+      payload: expect.objectContaining({
+        fromStatus: 'IN_REVIEW',
+        toStatus: 'REVIEWED',
+      }),
+    }));
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionApproved',
+      resourceId: expect.objectContaining({ value: reviewed.id }),
+      payload: expect.objectContaining({
+        fromStatus: 'REVIEWED',
+        toStatus: 'APPROVED',
+      }),
+    }));
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: 'PolicyRevisionReviewed' }),
+      tenantId,
+      expect.any(Uuid),
+    );
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: 'PolicyRevisionApproved' }),
+      tenantId,
+      expect.any(Uuid),
+    );
+  });
+
+  it('writes publish governance before mutating approved revisions', async () => {
+    const approved = revision({ status: 'APPROVED' });
+    const { service, repository, auditLedger, outbox } = buildService([approved]);
+
+    await service.publishRevision(tenantId, approved.id, actor);
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionPublished',
+      resourceId: expect.objectContaining({ value: approved.id }),
+      payload: expect.objectContaining({
+        fromStatus: 'APPROVED',
+        toStatus: 'PUBLISHED',
+      }),
+    }));
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: 'PolicyRevisionPublished' }),
+      tenantId,
+      expect.any(Uuid),
+    );
+    expect(vi.mocked(auditLedger.write).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(repository.updateRevision).mock.invocationCallOrder[0],
+    );
+    expect(vi.mocked(outbox.schedule).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(repository.updateRevision).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('blocks publish when outbox evidence cannot be scheduled', async () => {
+    const approved = revision({ status: 'APPROVED' });
+    const { service, repository, outbox } = buildService([approved]);
+    vi.mocked(outbox.schedule).mockRejectedValueOnce(new Error('outbox down'));
+
+    await expect(service.publishRevision(tenantId, approved.id, actor)).rejects.toThrow('outbox down');
+
+    expect(repository.updateRevision).not.toHaveBeenCalled();
+  });
+
+  it('writes apply governance before mutating runtime setup', async () => {
+    const published = revision({ status: 'PUBLISHED' });
+    const { service, hcmSetup, auditLedger, outbox } = buildService([published]);
+
+    await service.applyRevision(tenantId, published.id, actor);
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionApplied',
+      resourceId: expect.objectContaining({ value: published.id }),
+      payload: expect.objectContaining({
+        fromStatus: 'PUBLISHED',
+        toStatus: 'APPLIED',
+      }),
+    }));
+    expect(outbox.schedule).toHaveBeenCalledWith(
+      expect.objectContaining({ eventName: 'PolicyRevisionApplied' }),
+      tenantId,
+      expect.any(Uuid),
+    );
+    expect(vi.mocked(auditLedger.write).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(hcmSetup.updateSetup).mock.invocationCallOrder[0],
+    );
+    expect(vi.mocked(outbox.schedule).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(hcmSetup.updateSetup).mock.invocationCallOrder[0],
+    );
   });
 
   it('enforces lifecycle transitions before a policy can be published or applied', async () => {

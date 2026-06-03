@@ -20,6 +20,7 @@ import { PlatformNotificationRepository } from './notifications/platform-notific
 import { PlatformNotificationService } from './notifications/platform-notification.service.js';
 import { EventNotificationBridge } from './notifications/event-notification-bridge.js';
 import { PlatformNotificationsController } from './notifications/platform-notifications.controller.js';
+import { HcmSetupModule } from '../domains/hcm-setup/hcm-setup.module.js';
 
 const eventBusProvider = {
   provide: EventBus,
@@ -34,7 +35,7 @@ const eventBusProvider = {
 
 @Global()
 @Module({
-  imports: [ConfigModule, DiscoveryModule],
+  imports: [ConfigModule, DiscoveryModule, HcmSetupModule],
   controllers: [PlatformNotificationsController],
   providers: [
     eventBusProvider,
