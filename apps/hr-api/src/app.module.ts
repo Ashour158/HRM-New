@@ -40,10 +40,11 @@ import { PolicyActionsController } from './policy-actions.controller.js';
 import { EmployeeSelfServiceController } from './employee-self-service.controller.js';
 import { AdminDashboardController } from './admin-dashboard.controller.js';
 import { AuditController } from './audit.controller.js';
+import { ManagerTeamController } from './manager-team.controller.js';
 
 @Module({
   imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, PolicyCenterModule],
-  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController],
+  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController, ManagerTeamController],
   providers: [
     AppService,
     {

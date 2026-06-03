@@ -72,6 +72,13 @@ import {
   TotalCompStatementAcknowledged,
 } from '../aggregates/total-compensation-statement.aggregate.js';
 
+type CompensationEventAggregate = {
+  id: Uuid;
+  tenantId: Uuid;
+  status: string;
+  workerId?: Uuid;
+  domainEvents: DomainEvent[];
+};
 
 /**
  * Publishes canonical HrEventEnvelope events derived from
@@ -81,19 +88,15 @@ import {
 export class CompensationEventsPublisher {
   constructor(private readonly eventBus: EventBus) {}
 
-  async publishAll(aggregate: {
-    id: Uuid;
-    tenantId: Uuid;
-    status: string;
-    domainEvents: DomainEvent[];
-  }, command: HrCommandEnvelope<unknown>): Promise<void> {
-    const envelopes = aggregate.domainEvents.map((event) => this.map(event, command));
+  async publishAll(aggregate: CompensationEventAggregate, command: HrCommandEnvelope<unknown>): Promise<void> {
+    const envelopes = aggregate.domainEvents.map((event) => this.map(event, command, aggregate));
     if (envelopes.length > 0) {
       await this.eventBus.publishAll(envelopes);
     }
   }
 
-  private map(event: DomainEvent, command: HrCommandEnvelope<unknown>): HrEventEnvelope<unknown> {
+  private map(event: DomainEvent, command: HrCommandEnvelope<unknown>, aggregate: CompensationEventAggregate): HrEventEnvelope<unknown> {
+    const workerId = this.workerIdFor(event, aggregate);
     const base = {
       eventId: Uuid.generate(),
       eventName: event.eventName,
@@ -107,7 +110,7 @@ export class CompensationEventsPublisher {
         requestHash: command.metadata.requestHash,
         clientType: command.metadata.clientType,
       },
-      privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
+      privacy: createPrivacyForEvent(workerId ? 'HIGH' : 'NONE', workerId, 'COMPENSATION'),
       occurredAt: new Date(),
       version: 1,
     };
@@ -134,13 +137,13 @@ export class CompensationEventsPublisher {
       case event instanceof CompensationChangeSubmitted:
         return { ...base, payload: { changeId: event.aggregateId.value, workerId: event.workerId, changeType: event.changeType, newAmount: event.newAmount } };
       case event instanceof CompensationChangeApproved:
-        return { ...base, payload: { changeId: event.aggregateId.value, approvedBy: event.approvedBy } };
+        return { ...base, payload: { changeId: event.aggregateId.value, workerId, approvedBy: event.approvedBy } };
       case event instanceof CompensationChangeEffective:
-        return { ...base, payload: { changeId: event.aggregateId.value } };
+        return { ...base, payload: { changeId: event.aggregateId.value, workerId } };
       case event instanceof CompensationChangeRejected:
-        return { ...base, payload: { changeId: event.aggregateId.value } };
+        return { ...base, payload: { changeId: event.aggregateId.value, workerId } };
       case event instanceof CompensationChangeCancelled:
-        return { ...base, payload: { changeId: event.aggregateId.value } };
+        return { ...base, payload: { changeId: event.aggregateId.value, workerId } };
 
       case event instanceof BonusCycleCreated:
         return { ...base, payload: { cycleId: event.aggregateId.value, cycleName: event.cycleName, cycleYear: event.cycleYear } };
@@ -194,5 +197,20 @@ export class CompensationEventsPublisher {
       default:
         throw new Error(`Unknown compensation event type: ${event.eventName}`);
     }
+  }
+
+  private workerIdFor(event: DomainEvent, aggregate: CompensationEventAggregate): string | undefined {
+    const eventWorkerId = this.readUuidValue((event as { workerId?: unknown }).workerId);
+    return eventWorkerId ?? aggregate.workerId?.value;
+  }
+
+  private readUuidValue(value: unknown): string | undefined {
+    if (value instanceof Uuid) return value.value;
+    if (typeof value === 'string' && Uuid.isValid(value)) return value;
+    if (typeof value === 'object' && value !== null && 'value' in value) {
+      const raw = (value as { value?: unknown }).value;
+      return typeof raw === 'string' && Uuid.isValid(raw) ? raw : undefined;
+    }
+    return undefined;
   }
 }

@@ -279,4 +279,56 @@ describe('CommandBus security gates', () => {
       payload: {},
     }))).resolves.toBeUndefined();
   });
+
+  it('enforces the self-service policy engine before executing employee commands', async () => {
+    const bus = commandBusWith();
+
+    await expect(bus.stepEvaluatePolicyEngine(makeCommand({
+      commandName: 'ApprovePayrollCycle',
+      aggregateType: 'PayrollCycle',
+      payload: { workerId },
+      metadata: { requestHash: 'hash', clientType: 'EMPLOYEE_PORTAL' },
+    }))).rejects.toMatchObject({
+      errorCode: 'POLICY_ENGINE_DENIED',
+    });
+  });
+
+  it('stores event privacy evidence in outbox metadata for notification targeting', async () => {
+    const inserted: Array<{ table: string; row: Record<string, unknown> }> = [];
+    const tx = {
+      insertInto: (table: string) => ({
+        values: (row: Record<string, unknown>) => ({
+          execute: async () => {
+            inserted.push({ table, row });
+          },
+        }),
+      }),
+    };
+    const bus = commandBusWith();
+
+    await bus.stepWriteOutbox(tx, makeCommand({
+      subjectWorkerId: undefined,
+      payload: { workerId },
+      metadata: { requestHash: 'hash', clientType: 'EMPLOYEE_PORTAL', hrDataSensitivity: 'LOW' },
+    }), {
+      success: true,
+      data: { workerId: workerId.value, status: 'SUBMITTED' },
+      commandId: new Uuid('550e8400-e29b-41d4-a716-446655440011'),
+      correlationId: new Uuid('550e8400-e29b-41d4-a716-446655440013'),
+      aggregateId: workerId,
+      newState: 'SUBMITTED',
+      newVersion: 3,
+      allowedNextActions: [],
+      fieldAccessDecisions: {},
+      eventsEmitted: ['AbsenceRequestSubmitted'],
+      auditRecordId: new Uuid('550e8400-e29b-41d4-a716-446655440014'),
+    });
+
+    expect(inserted[0]?.row.metadata).toMatchObject({
+      privacy: {
+        piiClassification: 'LOW',
+        subjectWorkerId: workerId.value,
+      },
+    });
+  });
 });

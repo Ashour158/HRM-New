@@ -156,7 +156,6 @@ export function AdminCompliance() {
           </Button>
           <AllowedActions
             aggregateType="COMPLIANCE"
-            onAction={(action) => console.log('Compliance action:', action)}
           />
         </div>
       </div>

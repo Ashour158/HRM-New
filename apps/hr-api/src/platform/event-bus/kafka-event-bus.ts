@@ -48,6 +48,9 @@ export class KafkaEventBus extends EventBus implements OnApplicationBootstrap, O
 
   async publish(event: HrEventEnvelope<unknown>): Promise<void> {
     const topic = getTopicForEvent(event);
+    const publication = this.recordPublicationAttempt(event, topic);
+    if (publication.duplicate) return;
+
     await this.producer.send({
       topic,
       messages: [
@@ -68,6 +71,8 @@ export class KafkaEventBus extends EventBus implements OnApplicationBootstrap, O
     const batches = new Map<string, HrEventEnvelope<unknown>[]>();
     for (const event of events) {
       const topic = getTopicForEvent(event);
+      const publication = this.recordPublicationAttempt(event, topic);
+      if (publication.duplicate) continue;
       if (!batches.has(topic)) batches.set(topic, []);
       batches.get(topic)!.push(event);
     }

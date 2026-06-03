@@ -11,6 +11,7 @@ interface AllowedActionsProps {
   state?: string;
   context?: Record<string, unknown>;
   onAction?: (action: AllowedAction) => void;
+  readOnlyReason?: string;
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   className?: string;
@@ -26,6 +27,7 @@ export function AllowedActions({
   state,
   context,
   onAction,
+  readOnlyReason = 'This action is policy-allowed but has not been connected to a workflow command on this screen.',
   variant = 'default',
   size = 'sm',
   className,
@@ -67,8 +69,10 @@ export function AllowedActions({
           key={action.id}
           variant={variant}
           size={size}
+          disabled={!onAction}
           onClick={() => onAction?.(action)}
           aria-label={action.label}
+          title={onAction ? action.label : readOnlyReason}
         >
           {action.label}
         </Button>

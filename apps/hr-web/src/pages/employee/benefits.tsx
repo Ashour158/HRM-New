@@ -66,7 +66,6 @@ export function EmployeeBenefits() {
         </div>
         <AllowedActions
           aggregateType="BENEFITS"
-          onAction={(action) => console.log('Action:', action)}
         />
       </div>
 

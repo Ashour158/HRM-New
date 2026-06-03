@@ -47,7 +47,7 @@ export class AbsenceLeaveEventsPublisher {
       aggregateType: event.aggregateType ?? 'AbsenceLeave',
       aggregateId,
       metadata: { correlationId: event.correlationId, causationId: event.causationId, requestHash: '', clientType: 'HR_ADMIN' as const },
-      privacy: this.buildPrivacy(event, aggregateId),
+      privacy: this.buildPrivacy(aggregate),
       occurredAt: event.occurredAt,
       version: event.version,
     };
@@ -91,8 +91,8 @@ export class AbsenceLeaveEventsPublisher {
     }
   }
 
-  private buildPrivacy(_event: DomainEvent, aggregateId: Uuid): HrEventPrivacy {
-    return createPrivacyForEvent('NONE', aggregateId.value, 'PROFILE');
+  private buildPrivacy(aggregate: AbsenceEventAggregate): HrEventPrivacy {
+    return createPrivacyForEvent('LOW', aggregate.workerId?.value, 'PROFILE');
   }
 
   private absenceRequestPayload(aggregate: AbsenceEventAggregate): Record<string, unknown> {

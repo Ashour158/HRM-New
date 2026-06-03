@@ -1,10 +1,13 @@
 import * as React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/use-auth';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { commercialModules, moduleOperationsPath, type CommercialModule } from '@/lib/commercial-modules';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
@@ -16,6 +19,7 @@ import {
   HelpCircle,
   Inbox,
   Landmark,
+  Layers3,
   LifeBuoy,
   Search,
   Send,
@@ -118,6 +122,17 @@ const fallbackCatalog: HrServiceCatalogItem[] = [
 
 const serviceIcons = [FileText, Landmark, HeartHandshake, UserCog, ShieldCheck, HelpCircle];
 
+const employeeModuleRoutes: Record<string, string> = {
+  employees: '/employee/profile',
+  attendance: '/employee#attendance',
+  leave: '/employee/time-off',
+  payroll: '/employee/payslip',
+  benefits: '/employee/benefits',
+  onboarding: '/employee/onboarding',
+  performance: '/employee/performance',
+  'service-delivery': '/employee/services',
+};
+
 const priorityOptions = [
   { value: 'LOW', label: 'Low', hint: 'Question or routine request' },
   { value: 'MEDIUM', label: 'Medium', hint: 'Needs HR follow-up' },
@@ -139,12 +154,33 @@ function statusTone(status: HrServiceCase['status']) {
   return 'border-sky-200 bg-sky-50 text-sky-700';
 }
 
+function employeeVisibleModules() {
+  return commercialModules.filter((module) => (
+    module.personas.some((persona) => ['Employee', 'New Hire'].includes(persona))
+    || Boolean(employeeModuleRoutes[module.id])
+  ));
+}
+
+function adminGovernedModules(employeeModules: CommercialModule[]) {
+  const employeeModuleIds = new Set(employeeModules.map((module) => module.id));
+  return commercialModules.filter((module) => !employeeModuleIds.has(module.id));
+}
+
+function adminPathFor(module: CommercialModule) {
+  return module.nativePath ?? moduleOperationsPath(module.id);
+}
+
 export function EmployeeServices() {
+  const { roles } = useAuth();
   const [search, setSearch] = React.useState('');
   const [selectedCode, setSelectedCode] = React.useState('HR_LETTER');
   const [priority, setPriority] = React.useState('MEDIUM');
   const [description, setDescription] = React.useState('');
   const [message, setMessage] = React.useState('');
+  const canOpenAdminWorkspaces = React.useMemo(
+    () => roles.some((role) => ['HR_ADMIN', 'SUPER_ADMIN'].includes(role.name)),
+    [roles],
+  );
 
   const {
     data: catalogData = [],
@@ -199,6 +235,9 @@ export function EmployeeServices() {
 
   const openCases = cases.filter((item) => !['RESOLVED', 'CLOSED'].includes(item.status)).length;
   const closedCases = cases.length - openCases;
+  const modules = employeeVisibleModules();
+  const adminModules = adminGovernedModules(modules);
+  const employeeNativeCount = modules.filter((module) => employeeModuleRoutes[module.id]).length;
 
   return (
     <div className="min-h-[calc(100vh-96px)] bg-[#eef3f8] px-4 py-6 md:px-6 lg:px-8">
@@ -249,6 +288,106 @@ export function EmployeeServices() {
               <p className="text-xs leading-5 text-slate-500">Submitting a request uses the HR service-delivery command workflow and audit trail.</p>
             </CardContent>
           </Card>
+        </section>
+
+        <section className="rounded-lg border border-[#c9d5e3] bg-white shadow-sm">
+          <div className="grid gap-4 border-b border-[#d7e1ec] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div>
+              <Badge variant="secondary" className="mb-3 bg-[#eff4ff] text-[#006c49]">Built Module Coverage</Badge>
+              <h2 className="font-headline text-2xl font-semibold text-slate-950">Platform coverage visible from the employee side</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                This launcher mirrors the platform module registry so employee self-service does not hide built capabilities behind unknown routes.
+              </p>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2">
+                <p className="text-xs text-slate-500">Employee routes</p>
+                <p className="text-xl font-semibold text-slate-950">{employeeNativeCount}</p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2">
+                <p className="text-xs text-slate-500">Admin governed</p>
+                <p className="text-xl font-semibold text-slate-950">{adminModules.length}</p>
+              </div>
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2">
+                <p className="text-xs text-slate-500">Registered domains</p>
+                <p className="text-xl font-semibold text-slate-950">{commercialModules.length}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-b border-[#d7e1ec] px-4 pt-4">
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Employee self-service launchers</h3>
+          </div>
+          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
+            {modules.map((module) => {
+              const employeePath = employeeModuleRoutes[module.id];
+              return (
+                <div key={module.id} className="flex min-h-[210px] flex-col rounded-lg border border-[#d7e1ec] bg-[#fbfdff] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="grid h-10 w-10 place-items-center rounded-md bg-[#e7f8ef] text-[#006c49]">
+                      <Layers3 className="h-5 w-5" />
+                    </span>
+                    <Badge variant="outline" className="capitalize">{module.maturity.replace('-', ' ')}</Badge>
+                  </div>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#006c49]">{module.category}</p>
+                  <h3 className="mt-1 text-base font-semibold text-slate-950">{module.label}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-5 text-slate-600">{module.summary}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {employeePath ? (
+                      <Button asChild size="sm">
+                        <Link to={employeePath}>Open Employee View</Link>
+                      </Button>
+                    ) : (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600">No employee screen yet</Badge>
+                    )}
+                    {canOpenAdminWorkspaces ? (
+                      <Button asChild size="sm" variant="outline">
+                        <Link to={adminPathFor(module)}>Admin Workspace</Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="border-t border-[#d7e1ec] bg-slate-50 px-4 py-4">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Admin-governed platform domains</h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  These modules are built into the platform operations layer, but are not employee self-service actions.
+                </p>
+              </div>
+              {canOpenAdminWorkspaces ? (
+                <Button asChild size="sm" variant="outline">
+                  <Link to="/admin/modules">Open Full Catalog</Link>
+                </Button>
+              ) : null}
+            </div>
+            <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {adminModules.map((module) => (
+                <div key={module.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-950">{module.label}</p>
+                    <p className="truncate text-xs text-slate-500">{module.category} / {module.backendRoot}</p>
+                  </div>
+                  {canOpenAdminWorkspaces ? (
+                    <Button asChild size="sm" variant="outline">
+                      <Link to={adminPathFor(module)}>Admin</Link>
+                    </Button>
+                  ) : (
+                    <Badge variant="secondary" className="shrink-0 bg-slate-100 text-slate-600">Admin</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          {canOpenAdminWorkspaces ? (
+            <div className="border-t border-[#d7e1ec] bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              HR admin preview is enabled. The full admin catalog is available at{' '}
+              <Link to="/admin/modules" className="font-semibold text-[#006c49] underline">Module Catalog</Link>.
+            </div>
+          ) : null}
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">

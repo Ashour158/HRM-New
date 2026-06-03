@@ -4,6 +4,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { sql } from 'kysely';
 
 export type PlatformNotificationAudience = 'EMPLOYEE' | 'MANAGER' | 'HR_OPERATIONS';
+export const HR_OPERATIONS_NOTIFICATION_ROLE = 'HR_OPERATIONS';
 
 export interface PlatformNotificationInput {
   tenantId: string;

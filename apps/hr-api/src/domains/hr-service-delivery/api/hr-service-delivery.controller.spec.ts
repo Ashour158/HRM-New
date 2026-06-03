@@ -1,3 +1,4 @@
+import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
@@ -5,7 +6,11 @@ import { HrServiceDeliveryController } from './hr-service-delivery.controller.js
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const workerId = new Uuid('00000000-0000-0000-0000-000000000012');
+const otherWorkerId = new Uuid('00000000-0000-0000-0000-000000000013');
 const caseId = new Uuid('00000000-0000-4000-8000-000000000999');
+const taskId = new Uuid('00000000-0000-4000-8000-000000000998');
+const catalogItemId = new Uuid('00000000-0000-4000-8000-000000000997');
+const knowledgeArticleId = new Uuid('00000000-0000-4000-8000-000000000996');
 
 function request(): Request {
   return {
@@ -60,6 +65,47 @@ function controller(overrides: Record<string, unknown> = {}) {
     findByTenant: vi.fn().mockResolvedValue([]),
     findById: vi.fn(),
   };
+  const hrCaseTaskRepo = {
+    findById: vi.fn().mockResolvedValue({
+      id: taskId,
+      tenantId,
+      caseId,
+      title: 'Upload supporting document',
+      assignedTo: otherWorkerId,
+      status: 'PENDING',
+      aggregateVersion: 1,
+    }),
+  };
+  const hrKnowledgeArticleRepo = {
+    findById: vi.fn().mockResolvedValue({
+      id: knowledgeArticleId,
+      tenantId,
+      title: 'Payroll FAQ',
+      content: 'Confidential HR operations draft.',
+      category: 'PAYROLL',
+      status: 'DRAFT',
+      aggregateVersion: 1,
+    }),
+  };
+  const hrServiceCatalogItemRepo = {
+    findActive: vi.fn().mockResolvedValue([]),
+    findByTenant: vi.fn().mockResolvedValue([]),
+    findById: vi.fn().mockResolvedValue({
+      id: catalogItemId,
+      tenantId,
+      serviceCode: 'PAYROLL_QUESTION',
+      serviceName: 'Payroll question',
+      description: 'Ask payroll a question',
+      category: 'PAYROLL',
+      slaHours: 24,
+      fulfillmentProcess: 'Payroll team review',
+      status: 'SUSPENDED',
+      aggregateVersion: 1,
+    }),
+  };
+  const hrCaseSlaInstanceRepo = {
+    findById: vi.fn(),
+  };
   const commandBus = {
     execute: vi.fn().mockResolvedValue(commandResult()),
   };
@@ -72,11 +118,15 @@ function controller(overrides: Record<string, unknown> = {}) {
       (overrides.commandBus ?? commandBus) as never,
       (overrides.workerRepo ?? workerRepo) as never,
       (overrides.serviceCaseRepo ?? serviceCaseRepo) as never,
-      {} as never,
-      {} as never,
-      { findActive: vi.fn().mockResolvedValue([]), findByTenant: vi.fn().mockResolvedValue([]), findById: vi.fn() } as never,
-      {} as never,
+      (overrides.hrCaseTaskRepo ?? hrCaseTaskRepo) as never,
+      (overrides.hrKnowledgeArticleRepo ?? hrKnowledgeArticleRepo) as never,
+      (overrides.hrServiceCatalogItemRepo ?? hrServiceCatalogItemRepo) as never,
+      (overrides.hrCaseSlaInstanceRepo ?? hrCaseSlaInstanceRepo) as never,
     ),
+    hrCaseTaskRepo,
+    hrKnowledgeArticleRepo,
+    hrServiceCatalogItemRepo,
+    hrCaseSlaInstanceRepo,
   };
 }
 
@@ -110,5 +160,57 @@ describe('HrServiceDeliveryController employee services', () => {
 
     expect(serviceCaseRepo.findByRequester).toHaveBeenCalledWith(tenantId, workerId);
     expect(serviceCaseRepo.findByTenant).not.toHaveBeenCalled();
+  });
+
+  it('rejects employee attempts to mutate HR service catalog items', async () => {
+    const { instance, commandBus } = controller();
+
+    await expect(instance.createHrServiceCatalogItem({
+      serviceCode: 'PAYROLL_QUESTION',
+      serviceName: 'Payroll question',
+      description: 'Ask payroll a question',
+      category: 'PAYROLL',
+      slaHours: 24,
+      fulfillmentProcess: 'Payroll team review',
+    }, request())).rejects.toBeInstanceOf(ForbiddenException);
+
+    await expect(instance.activateHrServiceCatalogItem(catalogItemId.value, request())).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects employee attempts to create HR case tasks', async () => {
+    const { instance, commandBus } = controller();
+
+    await expect(instance.createHrCaseTask({
+      caseId: caseId.value,
+      title: 'Verify payroll evidence',
+      assignedTo: workerId.value,
+    }, request())).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects employee attempts to mutate tasks assigned to another worker', async () => {
+    const { instance, commandBus } = controller();
+
+    await expect(instance.startHrCaseTask(taskId.value, request())).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(instance.completeHrCaseTask(taskId.value, request())).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects employee attempts to mutate HR knowledge articles', async () => {
+    const { instance, commandBus } = controller();
+
+    await expect(instance.createHrKnowledgeArticle({
+      title: 'Payroll FAQ',
+      content: 'Confidential HR operations draft.',
+      category: 'PAYROLL',
+    }, request())).rejects.toBeInstanceOf(ForbiddenException);
+
+    await expect(instance.publishHrKnowledgeArticle(knowledgeArticleId.value, request())).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });

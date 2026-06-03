@@ -1,7 +1,7 @@
 import { Controller, ForbiddenException, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
-import { PlatformNotificationRepository } from './platform-notification.repository.js';
+import { HR_OPERATIONS_NOTIFICATION_ROLE, PlatformNotificationRepository } from './platform-notification.repository.js';
 import type { Request } from 'express';
 
 const HR_NOTIFICATION_ROLES = new Set([
@@ -10,6 +10,7 @@ const HR_NOTIFICATION_ROLES = new Set([
   'HRBP',
   'COMPLIANCE_ADMIN',
   'WORKFORCE_PLANNING_ADMIN',
+  'HR_OPERATIONS_ANALYST',
 ]);
 
 @UseGuards(AuthGuard)
@@ -34,7 +35,7 @@ export class PlatformNotificationsController {
   @Get('hr-operations')
   async getHrOperationsNotifications(@Req() req: Request) {
     this.assertHrNotificationRole(req);
-    return this.repository.findByRole(this.getTenantId(req), 'HR_ADMIN', 100);
+    return this.repository.findByRole(this.getTenantId(req), HR_OPERATIONS_NOTIFICATION_ROLE, 100);
   }
 
   private async resolveActorWorkerId(req: Request, tenantId: string): Promise<string> {
@@ -50,7 +51,7 @@ export class PlatformNotificationsController {
   private assertHrNotificationRole(req: Request): void {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => HR_NOTIFICATION_ROLES.has(role))) return;
-    throw new ForbiddenException('Only HR administrators can view HR operations notifications');
+    throw new ForbiddenException('Only HR operations roles can view HR operations notifications');
   }
 
   private getTenantId(req: Request): string {

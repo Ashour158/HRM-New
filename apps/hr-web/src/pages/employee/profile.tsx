@@ -102,7 +102,6 @@ export function EmployeeProfile() {
         <AllowedActions
           aggregateType="WORKER"
           aggregateId={displayProfile.id}
-          onAction={(action) => console.log('Action:', action)}
         />
       </div>
 

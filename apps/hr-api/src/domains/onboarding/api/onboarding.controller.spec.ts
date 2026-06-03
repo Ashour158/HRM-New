@@ -1,3 +1,5 @@
+import { ForbiddenException } from '@nestjs/common';
+import type { Request } from 'express';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import { OnboardingPlan } from '../aggregates/onboarding-plan.aggregate.js';
@@ -10,8 +12,23 @@ import { CreateOnboardingPlanDto, CreateOnboardingTaskDto } from './dtos.js';
 const tenantId = '00000000-0000-0000-0000-000000000001';
 const actorId = '00000000-0000-0000-0000-000000000010';
 const workerId = '00000000-0000-0000-0000-000000000020';
+const otherWorkerId = '00000000-0000-0000-0000-000000000021';
 const planId = '00000000-0000-0000-0000-000000000030';
 const taskId = '00000000-0000-0000-0000-000000000040';
+
+function employeeRequest(worker = workerId): Request {
+  return {
+    tenantId,
+    actor: {
+      actorType: 'USER',
+      actorId: new Uuid(worker),
+      roles: ['EMPLOYEE'],
+      permissions: [],
+      mfaAuthenticated: true,
+      email: 'employee@example.com',
+    },
+  } as unknown as Request;
+}
 
 function plan(overrides: Partial<OnboardingPlan> = {}) {
   return OnboardingPlan.restore({
@@ -61,6 +78,7 @@ describe('OnboardingController', () => {
   const taskRepo = {
     findByTenant: vi.fn(),
     findByPlan: vi.fn(),
+    findById: vi.fn(),
   };
   const templates = new OnboardingTemplateService();
   const readiness = new OnboardingReadinessService();
@@ -136,5 +154,47 @@ describe('OnboardingController', () => {
       commandName: 'CreateOnboardingTask',
       aggregateType: 'OnboardingTask',
     }));
+  });
+
+  it('rejects an employee fetching another worker onboarding plan', async () => {
+    planRepo.findByWorker.mockResolvedValue(plan({ workerId: new Uuid(otherWorkerId) }));
+
+    await expect(controller.getPlanByWorker(otherWorkerId, employeeRequest(workerId))).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(planRepo.findByWorker).not.toHaveBeenCalled();
+  });
+
+  it('rejects an employee fetching tasks for another worker onboarding plan', async () => {
+    planRepo.findById.mockResolvedValue(plan({ workerId: new Uuid(otherWorkerId) }));
+    taskRepo.findByPlan.mockResolvedValue([task()]);
+
+    await expect(controller.getTasksByPlan(planId, employeeRequest(workerId))).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(taskRepo.findByPlan).not.toHaveBeenCalled();
+  });
+
+  it('rejects an employee completing another worker onboarding task', async () => {
+    planRepo.findById.mockResolvedValue(plan({ workerId: new Uuid(otherWorkerId) }));
+    taskRepo.findById.mockResolvedValue(task({ assignedTo: new Uuid(otherWorkerId) }));
+
+    await expect(controller.completeTask(taskId, tenantId, workerId, 'EMPLOYEE', employeeRequest(workerId))).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects an employee recording evidence on another worker onboarding task', async () => {
+    planRepo.findById.mockResolvedValue(plan({ workerId: new Uuid(otherWorkerId) }));
+    taskRepo.findById.mockResolvedValue(task({ assignedTo: new Uuid(otherWorkerId) }));
+
+    await expect(controller.recordTaskEvidence(
+      taskId,
+      { evidenceType: 'DOCUMENT_UPLOAD', evidencePayload: { document: 'id.pdf' } },
+      tenantId,
+      workerId,
+      'EMPLOYEE',
+      employeeRequest(workerId),
+    )).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });

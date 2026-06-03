@@ -54,7 +54,6 @@ export function ManagerDashboard() {
         <AllowedActions
           aggregateType="ABSENCE"
           aggregateId={row.id}
-          onAction={(action) => console.log('Action:', action)}
         />
       ),
     },

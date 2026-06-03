@@ -48,7 +48,9 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
     this.eventBus.subscribe(HR_BENEFITS, 'payroll-input-builder-saga', {
       consumerGroup: 'payroll-input-builder-saga',
       handle: async (event: HrEventEnvelope<unknown>) => {
-        if (isBenefitsEnrollmentFinalizedEvent(event)) await this.createInputFromBenefits(event);
+        if (isBenefitsEnrollmentFinalizedEvent(event) || event.eventName === 'BenefitsEnrollmentEffective') {
+          await this.createInputFromBenefits(event);
+        }
       },
     });
 
@@ -60,25 +62,25 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
     });
   }
 
-  private async createInputFromTimesheet(event: HrEventEnvelope<{ timesheetId: Uuid; workerId: Uuid; approvedBy: Uuid }>): Promise<void> {
+  private async createInputFromTimesheet(event: HrEventEnvelope<{ timesheetId: Uuid | string; workerId: Uuid | string; approvedBy: Uuid | string }>): Promise<void> {
     await this.createInputFromEvent(event, {
       source: 'TimesheetApproved',
-      workerId: event.payload.workerId,
+      workerId: this.toUuid(event.payload.workerId),
       inputType: 'TIMESHEET_HOURS',
       amount: this.readNumber(event.payload, 'amount') ?? 0,
       currency: this.readString(event.payload, 'currency') ?? 'EGP',
-      description: `Timesheet ${event.payload.timesheetId.value}`,
+      description: `Timesheet ${this.uuidValue(event.payload.timesheetId)}`,
     });
   }
 
-  private async createInputFromOvertime(event: HrEventEnvelope<{ overtimeRequestId: Uuid; workerId: Uuid; approvedBy: Uuid }>): Promise<void> {
+  private async createInputFromOvertime(event: HrEventEnvelope<{ overtimeRequestId: Uuid | string; workerId: Uuid | string; approvedBy: Uuid | string }>): Promise<void> {
     await this.createInputFromEvent(event, {
       source: 'OvertimeApproved',
-      workerId: event.payload.workerId,
+      workerId: this.toUuid(event.payload.workerId),
       inputType: 'OVERTIME_PAY',
       amount: this.readNumber(event.payload, 'amount') ?? 0,
       currency: this.readString(event.payload, 'currency') ?? 'EGP',
-      description: `Overtime ${event.payload.overtimeRequestId.value}`,
+      description: `Overtime ${this.uuidValue(event.payload.overtimeRequestId)}`,
     });
   }
 
@@ -101,26 +103,31 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
     });
   }
 
-  private async createInputFromBenefits(event: HrEventEnvelope<{ enrollmentId: Uuid; workerId: Uuid; finalizedBy: Uuid }>): Promise<void> {
+  private async createInputFromBenefits(event: HrEventEnvelope<unknown>): Promise<void> {
+    const payload = event.payload as {
+      enrollmentId?: Uuid | string;
+      workerId?: Uuid | string;
+      finalizedBy?: Uuid | string;
+    };
     await this.createInputFromEvent(event, {
-      source: 'BenefitsEnrollmentFinalized',
-      workerId: event.payload.workerId,
+      source: event.eventName,
+      workerId: this.toUuid(payload.workerId),
       inputType: 'BENEFITS_DEDUCTION',
-      amount: this.readNumber(event.payload, 'amount') ?? 0,
-      currency: this.readString(event.payload, 'currency') ?? 'EGP',
-      description: `Benefits ${event.payload.enrollmentId.value}`,
+      amount: this.readNumber(payload, 'amount') ?? 0,
+      currency: this.readString(payload, 'currency') ?? 'EGP',
+      description: `Benefits ${this.uuidValue(payload.enrollmentId)}`,
     });
   }
 
   private async createInputFromCompensation(event: HrEventEnvelope<unknown>): Promise<void> {
-    const payload = event.payload as { workerId?: Uuid; changeId?: Uuid; amount?: number; currency?: string };
+    const payload = event.payload as { workerId?: Uuid | string; changeId?: Uuid | string; amount?: number; currency?: string };
     await this.createInputFromEvent(event, {
       source: event.eventName,
-      workerId: payload.workerId,
+      workerId: this.toUuid(payload.workerId),
       inputType: 'COMPENSATION_CHANGE',
       amount: this.readNumber(payload, 'amount') ?? 0,
       currency: this.readString(payload, 'currency') ?? 'EGP',
-      description: `Compensation ${event.eventName}`,
+      description: `Compensation ${event.eventName} ${this.uuidValue(payload.changeId)}`.trim(),
     });
   }
 

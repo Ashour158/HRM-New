@@ -44,6 +44,14 @@ import {
   CarrierReconciliationFailed,
 } from '../aggregates/carrier-reconciliation-run.aggregate.js';
 
+type BenefitsEventAggregate = {
+  id: Uuid;
+  tenantId: Uuid;
+  status: string;
+  workerId?: Uuid;
+  programId?: Uuid;
+  domainEvents: DomainEvent[];
+};
 
 /**
  * Publishes canonical HrEventEnvelope events derived from
@@ -53,19 +61,15 @@ import {
 export class BenefitsEventsPublisher {
   constructor(private readonly eventBus: EventBus) {}
 
-  async publishAll(aggregate: {
-    id: Uuid;
-    tenantId: Uuid;
-    status: string;
-    domainEvents: DomainEvent[];
-  }, command: HrCommandEnvelope<unknown>): Promise<void> {
-    const envelopes = aggregate.domainEvents.map((event) => this.map(event, command));
+  async publishAll(aggregate: BenefitsEventAggregate, command: HrCommandEnvelope<unknown>): Promise<void> {
+    const envelopes = aggregate.domainEvents.map((event) => this.map(event, command, aggregate));
     if (envelopes.length > 0) {
       await this.eventBus.publishAll(envelopes);
     }
   }
 
-  private map(event: DomainEvent, command: HrCommandEnvelope<unknown>): HrEventEnvelope<unknown> {
+  private map(event: DomainEvent, command: HrCommandEnvelope<unknown>, aggregate: BenefitsEventAggregate): HrEventEnvelope<unknown> {
+    const workerId = this.workerIdFor(event, aggregate);
     const base = {
       eventId: Uuid.generate(),
       eventName: event.eventName,
@@ -79,7 +83,7 @@ export class BenefitsEventsPublisher {
         requestHash: command.metadata.requestHash,
         clientType: command.metadata.clientType,
       },
-      privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
+      privacy: createPrivacyForEvent(workerId ? 'LOW' : 'NONE', workerId, 'BENEFITS'),
       occurredAt: new Date(),
       version: 1,
     };
@@ -97,13 +101,13 @@ export class BenefitsEventsPublisher {
       case event instanceof BenefitsEnrollmentSubmitted:
         return { ...base, payload: { enrollmentId: event.aggregateId.value, workerId: event.workerId, programId: event.programId } };
       case event instanceof BenefitsEnrollmentApproved:
-        return { ...base, payload: { enrollmentId: event.aggregateId.value } };
+        return { ...base, payload: { enrollmentId: event.aggregateId.value, workerId, programId: aggregate.programId?.value } };
       case event instanceof BenefitsEnrollmentEffective:
-        return { ...base, payload: { enrollmentId: event.aggregateId.value } };
+        return { ...base, payload: { enrollmentId: event.aggregateId.value, workerId, programId: aggregate.programId?.value } };
       case event instanceof BenefitsEnrollmentTerminated:
-        return { ...base, payload: { enrollmentId: event.aggregateId.value } };
+        return { ...base, payload: { enrollmentId: event.aggregateId.value, workerId, programId: aggregate.programId?.value } };
       case event instanceof BenefitsEnrollmentRejected:
-        return { ...base, payload: { enrollmentId: event.aggregateId.value } };
+        return { ...base, payload: { enrollmentId: event.aggregateId.value, workerId, programId: aggregate.programId?.value } };
 
       case event instanceof LifeEventRecorded:
         return { ...base, payload: { lifeEventId: event.aggregateId.value, workerId: event.workerId, eventType: event.eventType } };
@@ -131,5 +135,20 @@ export class BenefitsEventsPublisher {
       default:
         throw new Error(`Unknown benefits event type: ${event.eventName}`);
     }
+  }
+
+  private workerIdFor(event: DomainEvent, aggregate: BenefitsEventAggregate): string | undefined {
+    const eventWorkerId = this.readUuidValue((event as { workerId?: unknown }).workerId);
+    return eventWorkerId ?? aggregate.workerId?.value;
+  }
+
+  private readUuidValue(value: unknown): string | undefined {
+    if (value instanceof Uuid) return value.value;
+    if (typeof value === 'string' && Uuid.isValid(value)) return value;
+    if (typeof value === 'object' && value !== null && 'value' in value) {
+      const raw = (value as { value?: unknown }).value;
+      return typeof raw === 'string' && Uuid.isValid(raw) ? raw : undefined;
+    }
+    return undefined;
   }
 }

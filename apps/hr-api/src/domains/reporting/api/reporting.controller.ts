@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { ReportDefinitionRepository } from '../repositories/report-definition.repository.js';
 import { ReportExecutionRepository } from '../repositories/report-execution.repository.js';
 import { ReportScheduleRepository } from '../repositories/report-schedule.repository.js';
@@ -15,8 +16,12 @@ import {
   CreateReportDefinitionDtoSchema, CreateReportExecutionDtoSchema, CompleteReportExecutionDtoSchema,
   FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, ZodValidationPipe,
 } from './dtos.js';
+import { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
+
+const REPORTING_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP', 'REPORTING_ADMIN', 'HR_ANALYST']);
 
 @ApiTags('Reporting')
+@UseGuards(AuthGuard)
 @Controller('reporting')
 export class ReportingController {
   constructor(
@@ -25,6 +30,7 @@ export class ReportingController {
     private readonly reportExecutionRepo: ReportExecutionRepository,
     private readonly reportScheduleRepo: ReportScheduleRepository,
     private readonly calculatedFieldRepo: CalculatedFieldRepository,
+    private readonly serviceUsageReporting: ServiceUsageReportingService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -32,9 +38,14 @@ export class ReportingController {
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const actor = req.actor;
+    if (!actor) throw new ForbiddenException('Reporting commands require an authenticated actor');
+    if (!actor.roles.some((role) => REPORTING_ADMIN_ROLES.has(role))) {
+      throw new ForbiddenException('Only reporting administrators can manage report definitions and executions');
+    }
     return {
       commandId: Uuid.generate(), commandName, commandSchemaVersion: 1, tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN', 'REPORTING_ADMIN'], permissions: ['REPORTING_CREATE', 'REPORTING_UPDATE', 'REPORTING_READ'], mfaAuthenticated: true },
+      actor,
       aggregateType, aggregateId: options?.aggregateId, expectedState: options?.expectedState, expectedVersion: options?.expectedVersion,
       idempotencyKey: randomUUID(), correlationId: Uuid.generate(), reason: 'API request', payload,
       metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
@@ -165,5 +176,42 @@ export class ReportingController {
   @Get('calculated-fields/:id')
   async getCalculatedField(@Param('id') id: string) {
     return this.calculatedFieldRepo.findById(new Uuid(id));
+  }
+
+  @Get('service-usage/summary')
+  async getServiceUsageSummary(
+    @Req() req: Request,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    this.assertReportingAdmin(req);
+    return this.serviceUsageReporting.getSummary(this.getTenantId(req), {
+      from: this.parseOptionalDate('from', from),
+      to: this.parseOptionalDate('to', to),
+    });
+  }
+
+  private getTenantId(req: Request): Uuid {
+    const tenantId = req.tenantId as string | undefined;
+    if (!tenantId || !Uuid.isValid(tenantId)) {
+      throw new ForbiddenException('Reporting requires an authenticated tenant');
+    }
+    return new Uuid(tenantId);
+  }
+
+  private assertReportingAdmin(req: Request): void {
+    const actor = req.actor;
+    if (!actor || !actor.roles.some((role) => REPORTING_ADMIN_ROLES.has(role))) {
+      throw new ForbiddenException('Only reporting administrators can access service usage reporting');
+    }
+  }
+
+  private parseOptionalDate(field: string, value?: string): Date | undefined {
+    if (!value) return undefined;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      throw new BadRequestException(`${field} must be a valid date`);
+    }
+    return parsed;
   }
 }

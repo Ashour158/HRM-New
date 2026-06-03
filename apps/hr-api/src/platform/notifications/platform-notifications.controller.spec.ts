@@ -44,13 +44,18 @@ describe('PlatformNotificationsController', () => {
     expect(repository.findByWorker).not.toHaveBeenCalled();
   });
 
-  it('returns HR operations notifications only to HR administrators', async () => {
+  it('returns HR operations notifications only to normalized HR operations roles', async () => {
     const repository = {
       findByRole: vi.fn().mockResolvedValue([{ id: 'hr-feed-1' }]),
     } as unknown as PlatformNotificationRepository;
     const controller = new PlatformNotificationsController(repository);
 
-    await expect(controller.getHrOperationsNotifications(request('HR_ADMIN'))).resolves.toEqual([{ id: 'hr-feed-1' }]);
+    await expect(controller.getHrOperationsNotifications(request('HR_OPERATIONS_ANALYST'))).resolves.toEqual([{ id: 'hr-feed-1' }]);
+    expect(repository.findByRole).toHaveBeenCalledWith(
+      '00000000-0000-0000-0000-000000000001',
+      'HR_OPERATIONS',
+      100,
+    );
     await expect(controller.getHrOperationsNotifications(request('EMPLOYEE'))).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

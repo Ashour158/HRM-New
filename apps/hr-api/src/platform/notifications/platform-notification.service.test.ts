@@ -61,7 +61,7 @@ describe('PlatformNotificationService', () => {
       }),
       expect.objectContaining({
         audience: 'HR_OPERATIONS',
-        recipientRole: 'HR_ADMIN',
+        recipientRole: 'HR_OPERATIONS',
         relatedAggregateType: 'AbsenceRequest',
       }),
     ]));
@@ -91,8 +91,36 @@ describe('PlatformNotificationService', () => {
     expect(repository.createMany).toHaveBeenCalledWith([
       expect.objectContaining({
         audience: 'HR_OPERATIONS',
-        recipientRole: 'HR_ADMIN',
+        recipientRole: 'HR_OPERATIONS',
         category: 'MEDICAL',
+      }),
+    ]);
+  });
+
+  it('does not resolve manager recipients for HR-restricted privacy events', async () => {
+    const repository = {
+      findManagerWorkerIdForWorker: vi.fn().mockResolvedValue(Uuid.generate().value),
+      createMany: vi.fn().mockResolvedValue(undefined),
+    } as unknown as PlatformNotificationRepository;
+    const service = new PlatformNotificationService(repository);
+
+    await service.createFromEvent(event({
+      privacy: {
+        piiClassification: 'SPECIAL_CATEGORY',
+        employeeDataCategory: 'MEDICAL',
+        subjectWorkerId: Uuid.generate().value,
+        managerVisible: true,
+        employeeVisible: true,
+        hrRestricted: true,
+        redactionApplied: true,
+      },
+    }));
+
+    expect(repository.findManagerWorkerIdForWorker).not.toHaveBeenCalled();
+    expect(repository.createMany).toHaveBeenCalledWith([
+      expect.objectContaining({
+        audience: 'HR_OPERATIONS',
+        recipientRole: 'HR_OPERATIONS',
       }),
     ]);
   });

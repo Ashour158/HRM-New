@@ -47,4 +47,31 @@ describe('InMemoryEventBus canonical routing', () => {
     expect(absenceHandler.handle).toHaveBeenCalledTimes(1);
     expect(coreHandler.handle).not.toHaveBeenCalled();
   });
+
+  it('records direct publish diagnostics when events reach the bus without outbox evidence', async () => {
+    const bus = new InMemoryEventBus();
+
+    await bus.publish(eventFor('absenceRequest', 'AbsenceRequestApproved'));
+
+    const diagnostics = (bus as {
+      getPublicationDiagnostics?: () => {
+        directPublications: Array<{ eventName: string }>;
+      };
+    }).getPublicationDiagnostics?.();
+    expect(diagnostics?.directPublications).toEqual([
+      expect.objectContaining({ eventName: 'AbsenceRequestApproved' }),
+    ]);
+  });
+
+  it('suppresses duplicate event ids before handlers observe them', async () => {
+    const bus = new InMemoryEventBus();
+    const handler = { consumerGroup: 'absence-consumer-v1', handle: vi.fn().mockResolvedValue(undefined) };
+    const event = eventFor('absenceRequest', 'AbsenceRequestApproved');
+
+    bus.subscribe(HR_ABSENCE, handler.consumerGroup, handler);
+    await bus.publish(event);
+    await bus.publish(event);
+
+    expect(handler.handle).toHaveBeenCalledTimes(1);
+  });
 });

@@ -10,32 +10,40 @@ import {
   PayrollResultLineCalculated, PayrollResultLineExplained, PayrollResultLineReviewed, PayrollResultLineLocked,
 } from '../aggregates/index.js';
 
+type PayrollEventAggregate = {
+  id: Uuid;
+  tenantId: Uuid;
+  status: string;
+  workerId?: Uuid;
+  payrollCycleId?: Uuid;
+  inputType?: string;
+  amount?: number;
+  currency?: string;
+  domainEvents: DomainEvent[];
+};
+
 @Injectable()
 export class PayrollEventsPublisher {
   constructor(private readonly eventBus: EventBus) {}
 
-  async publishFromAggregate(aggregate: {
-    id: Uuid;
-    tenantId: Uuid;
-    status: string;
-    domainEvents: DomainEvent[];
-  }): Promise<void> {
+  async publishFromAggregate(aggregate: PayrollEventAggregate): Promise<void> {
     const events = aggregate.domainEvents
-      .map((e) => this.toEnvelope(e, aggregate.id, aggregate.tenantId))
+      .map((e) => this.toEnvelope(e, aggregate))
       .filter((e): e is HrEventEnvelope<unknown> => !!e);
     await Promise.all(events.map((e) => this.eventBus.publish(e)));
   }
 
-  private toEnvelope(event: DomainEvent, aggregateId: Uuid, tenantId: Uuid): HrEventEnvelope<unknown> | undefined {
+  private toEnvelope(event: DomainEvent, aggregate: PayrollEventAggregate): HrEventEnvelope<unknown> | undefined {
+    const aggregateId = aggregate.id;
     const base = {
       eventId: event.eventId,
       eventName: event.eventName,
       eventSchemaVersion: 1,
-      tenantId,
+      tenantId: aggregate.tenantId,
       aggregateType: event.aggregateType ?? 'Payroll',
       aggregateId,
       metadata: { correlationId: event.correlationId, causationId: event.causationId, requestHash: '', clientType: 'HR_ADMIN' as const },
-      privacy: this.buildPrivacy(event, aggregateId),
+      privacy: this.buildPrivacy(aggregate),
       occurredAt: event.occurredAt,
       version: event.version,
     };
@@ -49,13 +57,13 @@ export class PayrollEventsPublisher {
       case event instanceof PayrollCycleCancelled:
         return { ...base, payload: { payrollCycleId: aggregateId.value } };
       case event instanceof PayrollInputSubmitted:
-        return { ...base, payload: { payrollInputId: aggregateId.value } };
+        return { ...base, payload: this.payrollInputPayload(aggregateId, aggregate) };
       case event instanceof PayrollInputApproved:
-        return { ...base, payload: { payrollInputId: aggregateId.value } };
+        return { ...base, payload: this.payrollInputPayload(aggregateId, aggregate) };
       case event instanceof PayrollInputRejected:
-        return { ...base, payload: { payrollInputId: aggregateId.value } };
+        return { ...base, payload: this.payrollInputPayload(aggregateId, aggregate) };
       case event instanceof PayrollInputCorrected:
-        return { ...base, payload: { payrollInputId: aggregateId.value } };
+        return { ...base, payload: this.payrollInputPayload(aggregateId, aggregate) };
       case event instanceof PayrollCalculationStarted:
         return { ...base, payload: { payrollCalculationRunId: aggregateId.value } };
       case event instanceof PayrollCalculationValidated:
@@ -77,7 +85,18 @@ export class PayrollEventsPublisher {
     }
   }
 
-  private buildPrivacy(_event: DomainEvent, aggregateId: Uuid): HrEventPrivacy {
-    return createPrivacyForEvent('HIGH', aggregateId.value, 'PAYROLL');
+  private buildPrivacy(aggregate: PayrollEventAggregate): HrEventPrivacy {
+    return createPrivacyForEvent('HIGH', aggregate.workerId?.value, 'PAYROLL');
+  }
+
+  private payrollInputPayload(aggregateId: Uuid, aggregate: PayrollEventAggregate): Record<string, unknown> {
+    return {
+      payrollInputId: aggregateId.value,
+      workerId: aggregate.workerId?.value,
+      payrollCycleId: aggregate.payrollCycleId?.value,
+      inputType: aggregate.inputType,
+      amount: aggregate.amount,
+      currency: aggregate.currency,
+    };
   }
 }

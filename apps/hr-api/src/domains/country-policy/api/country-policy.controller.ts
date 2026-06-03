@@ -7,6 +7,8 @@ import {
   Query,
   Req,
   BadRequestException,
+  ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -15,6 +17,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
 import { CountryPolicyValidationRunRepository } from '../repositories/country-policy-validation-run.repository.js';
 import { CountryPolicyImpactSimulationRepository } from '../repositories/country-policy-impact-simulation.repository.js';
@@ -29,7 +32,20 @@ import {
   ZodValidationPipe,
 } from './dtos.js';
 
+const COUNTRY_POLICY_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'COUNTRY_POLICY_ADMIN',
+  'GLOBAL_HR_ADMIN',
+  'COMPLIANCE_ADMIN',
+  'COMPLIANCE_OFFICER',
+]);
+
 @ApiTags('Country Policy')
+@UseGuards(AuthGuard)
 @Controller('country-policy')
 export class CountryPolicyController {
   constructor(
@@ -55,18 +71,17 @@ export class CountryPolicyController {
     const tenantId = new Uuid(
       (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001',
     );
+    const actor = req.actor;
+    if (!actor) throw new ForbiddenException('Country policy commands require an authenticated actor');
+    if (!actor.roles.some((role) => COUNTRY_POLICY_ADMIN_ROLES.has(role))) {
+      throw new ForbiddenException('Only country policy administrators can manage country policy packs');
+    }
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: {
-        actorType: 'SYSTEM',
-        actorId: Uuid.generate(),
-        roles: ['HR_ADMIN', 'COUNTRY_POLICY_ADMIN'],
-        permissions: ['COUNTRY_POLICY_CREATE', 'COUNTRY_POLICY_UPDATE', 'COUNTRY_POLICY_READ', 'COUNTRY_POLICY_APPROVE'],
-        mfaAuthenticated: true,
-      },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,

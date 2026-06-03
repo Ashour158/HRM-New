@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
-import { PlatformNotificationRepository, type PlatformNotificationInput } from './platform-notification.repository.js';
+import {
+  HR_OPERATIONS_NOTIFICATION_ROLE,
+  PlatformNotificationRepository,
+  type PlatformNotificationInput,
+} from './platform-notification.repository.js';
 
 @Injectable()
 export class PlatformNotificationService {
@@ -57,7 +61,7 @@ export class PlatformNotificationService {
     notifications.push({
       ...base,
       audience: 'HR_OPERATIONS',
-      recipientRole: 'HR_ADMIN',
+      recipientRole: HR_OPERATIONS_NOTIFICATION_ROLE,
       body: `${humanizeEventName(event.eventName)} was recorded in the HCM event stream.`,
     });
 

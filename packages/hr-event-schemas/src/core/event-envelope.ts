@@ -17,6 +17,8 @@ export interface EventMetadata {
   correlationId: Uuid;
   causationId?: Uuid;
   sourceEventId?: Uuid;
+  sourceOutboxEventId?: string;
+  publicationSource?: 'OUTBOX' | 'DIRECT';
   processInstanceId?: string;
   requestHash: string;
   clientType: ClientType;
@@ -49,6 +51,8 @@ export const EventMetadataSchema = z.object({
   correlationId: z.string().uuid(),
   causationId: z.string().uuid().optional(),
   sourceEventId: z.string().uuid().optional(),
+  sourceOutboxEventId: z.string().uuid().optional(),
+  publicationSource: z.enum(['OUTBOX', 'DIRECT']).optional(),
   processInstanceId: z.string().optional(),
   requestHash: z.string().min(1),
   clientType: z.enum(['EMPLOYEE_PORTAL', 'MANAGER_PORTAL', 'HR_ADMIN', 'MOBILE', 'BFF', 'SYSTEM', 'INTEGRATION']),

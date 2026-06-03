@@ -2,11 +2,14 @@ import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/com
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
+import { AuditLedgerService } from '@hcm/platform-core';
 import { AuthGuard } from '../../../guards/auth.guard.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
 import { PayrollResultLineRepository } from '../repositories/payroll-result-line.repository.js';
+import { PayrollPayslipArtifactRepository } from '../repositories/payroll-payslip-artifact.repository.js';
+import type { PayrollPayslipArtifactRecord } from '../services/payroll-artifact.service.js';
 import { PayrollCycleCalculationService, type PayrollCycleEmployeeInput, type PayrollPayslipLine } from '../services/payroll-cycle-calculation.service.js';
 
 function datePart(date: Date): string {
@@ -23,14 +26,61 @@ export class EmployeePayrollController {
     private readonly payrollCycleRepo: PayrollCycleRepository,
     private readonly resultLineRepo: PayrollResultLineRepository,
     private readonly payrollCalculation: PayrollCycleCalculationService,
+    private readonly payslipArtifactRepo: PayrollPayslipArtifactRepository,
+    private readonly auditLedger: AuditLedgerService,
   ) {}
 
   @Get('payslips')
   async getOwnPayslips(@Req() req: Request) {
-    const worker = await this.resolveSelfWorker(req);
-    if (!worker) return [];
+    const tenantId = this.getTenantId(req);
+    const worker = await this.resolveSelfWorker(req, tenantId);
 
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const cycles = await this.payrollCycleRepo.findByTenant(tenantId);
+    const cycleById = new Map(cycles.map((cycle) => [cycle.id.value, cycle]));
+    const artifactPayslips = [];
+    const cyclesWithoutPublishedArtifact = [];
+
+    for (const cycle of cycles) {
+      const artifact = await this.payslipArtifactRepo.findByCycleAndWorker(tenantId, cycle.id, worker.id);
+      if (artifact?.status === 'PUBLISHED') {
+        artifactPayslips.push(this.toPublishedArtifactPayslip(artifact, cycle, `${worker.firstName} ${worker.lastName}`.trim()));
+      } else {
+        cyclesWithoutPublishedArtifact.push(cycle);
+      }
+    }
+
+    const fallbackPayslips = cyclesWithoutPublishedArtifact.length > 0
+      ? await this.buildPayslipsFromLockedLines(worker, cycleById, new Set(artifactPayslips.map((payslip) => payslip.payrollCycleId)))
+      : [];
+
+    const payslips = [...artifactPayslips, ...fallbackPayslips]
+      .sort((left, right) => right.payDate.localeCompare(left.payDate));
+
+    if (payslips.length > 0) {
+      await this.auditLedger.writeAuditOnAccess(
+        req.actor!,
+        tenantId,
+        'Payslip',
+        worker.id,
+        ['grossPay', 'netPay', 'payPeriodStart', 'payPeriodEnd', 'payDate', 'lines'],
+        'Employee payslip self-service view',
+      );
+    }
+
+    return payslips;
+  }
+
+  private async buildPayslipsFromLockedLines(
+    worker: {
+      id: Uuid;
+      employeeNumber: string;
+      firstName: string;
+      lastName: string;
+      email: { toString(): string };
+    },
+    cycleById: Map<string, { id: Uuid; payPeriodStart: Date; payPeriodEnd: Date; payDate?: Date }>,
+    excludedCycleIds: Set<string>,
+  ) {
     const records = await this.personalDataRepo.findByWorker(worker.id);
     const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
     const basic = payloadByCategory.BASIC ?? {};
@@ -44,10 +94,8 @@ export class EmployeePayrollController {
       currency: String(compensation.salaryCurrency ?? 'EGP'),
     };
 
-    const cycles = await this.payrollCycleRepo.findByTenant(tenantId);
-    const cycleById = new Map(cycles.map((cycle) => [cycle.id.value, cycle]));
     const lockedLines = (await this.resultLineRepo.findByWorker(worker.id))
-      .filter((line) => line.status === 'LOCKED');
+      .filter((line) => line.status === 'LOCKED' && !excludedCycleIds.has(line.payrollCycleId.value));
     const linesByCycle = new Map<string, PayrollPayslipLine[]>();
 
     for (const line of lockedLines) {
@@ -83,26 +131,62 @@ export class EmployeePayrollController {
           employees: [employee],
           resultLines,
         });
-      })
-      .sort((left, right) => right.payDate.localeCompare(left.payDate));
+      });
   }
 
-  private async resolveSelfWorker(req: Request) {
+  private toPublishedArtifactPayslip(
+    artifact: PayrollPayslipArtifactRecord,
+    cycle: { id: Uuid; payPeriodStart: Date; payPeriodEnd: Date; payDate?: Date },
+    employeeName: string,
+  ) {
+    return {
+      id: artifact.id,
+      payrollCycleId: cycle.id.value,
+      workerId: artifact.workerId,
+      employeeId: artifact.employeeId,
+      employeeName,
+      payPeriodStart: datePart(cycle.payPeriodStart),
+      payPeriodEnd: datePart(cycle.payPeriodEnd),
+      payDate: datePart(cycle.payDate ?? cycle.payPeriodEnd),
+      grossPay: artifact.grossPay,
+      netPay: artifact.netPay,
+      deductions: Math.max(0, artifact.grossPay - artifact.netPay),
+      taxes: 0,
+      currency: artifact.currency,
+      lines: [],
+      contentHash: artifact.contentHash,
+      artifactStatus: artifact.status,
+      dataClassification: artifact.dataClassification,
+      generatedAt: artifact.createdAt,
+      publishedAt: artifact.publishedAt,
+    };
+  }
+
+  private async resolveSelfWorker(req: Request, tenantId: Uuid) {
     const actorId = this.getActorId(req);
     try {
-      const worker = await this.workerRepo.findById(new Uuid(actorId));
-      if (worker) return worker;
+      const worker = await this.workerRepo.findByIdForTenant(new Uuid(actorId), tenantId);
+      if (worker) return this.assertActiveWorker(worker);
     } catch {
       // Demo auth subjects may be user IDs instead of employee profile IDs.
     }
 
     const email = (req.actor as { email?: string } | undefined)?.email;
     if (email) {
-      const worker = await this.workerRepo.findByEmail(email);
-      if (worker) return worker;
+      const worker = await this.workerRepo.findByEmailForTenant(email, tenantId);
+      if (worker) return this.assertActiveWorker(worker);
     }
 
-    return undefined;
+    throw new ForbiddenException('No active employee profile is linked to the authenticated user');
+  }
+
+  private assertActiveWorker<TWorker extends { status?: string }>(worker: TWorker): TWorker {
+    if (worker.status === 'ACTIVE') return worker;
+    throw new ForbiddenException('Only active employees can access payslips');
+  }
+
+  private getTenantId(req: Request): Uuid {
+    return new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
   }
 
   private getActorId(req: Request): string {

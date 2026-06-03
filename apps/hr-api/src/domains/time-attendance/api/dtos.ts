@@ -14,6 +14,7 @@ export const CaptureMethodSchema = z.enum([
 ]);
 
 export const VerificationStatusSchema = z.enum(['FAILED', 'NOT_REQUIRED', 'PENDING', 'VERIFIED']);
+const OptionalNullableNumberSchema = z.preprocess((value) => value === null ? undefined : value, z.number().optional());
 
 export const CreateWorkScheduleDtoSchema = z.object({
   workerId: z.string().uuid(),
@@ -68,9 +69,9 @@ export const RecordTimeClockEventDtoSchema = z.object({
   eventType: z.enum(['CLOCK_IN', 'CLOCK_OUT', 'BREAK_START', 'BREAK_END']),
   timestamp: z.coerce.date(),
   location: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
-  accuracyMeters: z.number().optional(),
+  latitude: OptionalNullableNumberSchema,
+  longitude: OptionalNullableNumberSchema,
+  accuracyMeters: OptionalNullableNumberSchema,
   workplaceCode: z.string().optional(),
   deviceId: z.string().optional(),
   captureMethod: CaptureMethodSchema.optional(),
@@ -100,9 +101,9 @@ export class RecordTimeClockEventDto {
 export const CheckInOutDtoSchema = z.object({
   workerId: z.string().uuid(),
   workplaceCode: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
-  accuracyMeters: z.number().optional(),
+  latitude: OptionalNullableNumberSchema,
+  longitude: OptionalNullableNumberSchema,
+  accuracyMeters: OptionalNullableNumberSchema,
   deviceId: z.string().optional(),
   timestamp: z.coerce.date().optional(),
   captureMethod: CaptureMethodSchema.optional(),

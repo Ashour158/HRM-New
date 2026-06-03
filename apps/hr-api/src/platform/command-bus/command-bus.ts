@@ -4,7 +4,7 @@ import { Kysely, Transaction } from 'kysely';
 import { Uuid, AggregateRoot } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
 import { getPool, createKyselyInstance, runWithTransaction } from '@hcm/database';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
+import type { HrEventEnvelope, HrEventPrivacy } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import type {
   HrCommandEnvelope,
@@ -17,8 +17,7 @@ import type { TenantConfig } from '@hcm/platform-core';
 import { TenantValidator, RedisCacheService, tenantResolver } from '@hcm/platform-core';
 import { AccessControlService } from '@hcm/access-control';
 import { FieldAccessDecision } from '@hcm/access-control';
-// Phase 3: EngineRegistry and EngineInvoker will be wired when policy engines
-// are integrated into the command pipeline.
+import { selfServiceAuthorityEngine } from '@hcm/policy-engines';
 import { EventBus } from '../event-bus/event-bus.js';
 import type { FsmInstance } from '../workflow/fsm-framework.js';
 import { FsmFramework } from '../workflow/fsm-framework.js';
@@ -311,6 +310,9 @@ export class CommandBus implements OnModuleInit {
 
         step = CommandPipelineStep.EVALUATE_MANAGER_HRBP_RELATIONSHIP;
         await this.stepEvaluateManagerRelationship(command);
+
+        step = CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE;
+        await this.stepEvaluatePolicyEngine(command);
 
         step = CommandPipelineStep.EVALUATE_WORKFLOW_GUARD_EXPECTED_STATE_VERSION_EFFECTIVE_DATE;
         await this.stepEvaluateFsm(command, aggregate);
@@ -736,6 +738,34 @@ export class CommandBus implements OnModuleInit {
     return typeof value === 'string' ? value : undefined;
   }
 
+  private resolveSubjectWorkerId(
+    command: HrCommandEnvelope<unknown>,
+    result?: CommandResult<unknown>,
+  ): Uuid | undefined {
+    return (
+      command.subjectWorkerId ??
+      this.extractPayloadUuid(command.payload, 'subjectWorkerId') ??
+      this.extractPayloadUuid(command.payload, 'workerId') ??
+      this.extractPayloadUuid(command.payload, 'employeeId') ??
+      this.extractPayloadUuid(result?.data, 'subjectWorkerId') ??
+      this.extractPayloadUuid(result?.data, 'workerId') ??
+      this.extractPayloadUuid(result?.data, 'employeeId')
+    );
+  }
+
+  private inferEmployeeDataCategory(aggregateType: string): HrEventPrivacy['employeeDataCategory'] {
+    const normalized = aggregateType.toLowerCase();
+    if (normalized.includes('payroll') || normalized.includes('payslip')) return 'PAYROLL';
+    if (normalized.includes('compensation') || normalized.includes('bonus') || normalized.includes('equity')) return 'COMPENSATION';
+    if (normalized.includes('benefits')) return 'BENEFITS';
+    if (normalized.includes('performance') || normalized.includes('objective') || normalized.includes('goal')) return 'PERFORMANCE';
+    if (normalized.includes('relations') || normalized.includes('disciplinary') || normalized.includes('grievance')) return 'ER_CASE';
+    if (normalized.includes('medical') || normalized.includes('wellness') || normalized.includes('eap')) return 'MEDICAL';
+    if (normalized.includes('authorization') || normalized.includes('visa') || normalized.includes('immigration')) return 'IMMIGRATION';
+    if (normalized.includes('survey')) return 'SURVEY';
+    return 'PROFILE';
+  }
+
   private async selectAggregateState(
     tx: Transaction<Database>,
     loader: AggregateLoaderConfig,
@@ -867,6 +897,43 @@ export class CommandBus implements OnModuleInit {
       'Manager commands can only target direct reports',
       false,
     );
+  }
+
+  private async stepEvaluatePolicyEngine(command: HrCommandEnvelope<unknown>): Promise<void> {
+    if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT') {
+      return;
+    }
+
+    const subjectWorkerId = this.resolveSubjectWorkerId(command);
+    const decision = await selfServiceAuthorityEngine.execute({
+      actorType: this.mapActorType(command.actor.actorType, command.actor.roles),
+      commandName: command.commandName,
+      actorRoles: command.actor.roles,
+      abacContext: {
+        aggregateType: command.aggregateType,
+        aggregateId: command.aggregateId?.value,
+        commandType: this.inferCommandType(command.commandName),
+        subjectWorkerId: subjectWorkerId?.value,
+        expectedState: command.expectedState,
+        clientType: command.metadata.clientType,
+      },
+    }, {
+      tenantId: command.tenantId,
+      actorId: command.actor.actorId,
+      correlationId: command.correlationId,
+      effectiveDate: new Date(),
+      workerId: subjectWorkerId,
+    });
+
+    if (decision.decisionCode === 'FORBIDDEN') {
+      throw this.makeError(
+        command,
+        CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE,
+        'POLICY_ENGINE_DENIED',
+        decision.explanation,
+        false,
+      );
+    }
   }
 
   private async stepEvaluateFsm(
@@ -1027,6 +1094,12 @@ export class CommandBus implements OnModuleInit {
       : [`${command.aggregateType}${this.inferActionFromCommand(command.commandName)}ed`];
 
     for (const eventName of eventNames) {
+      const subjectWorkerId = this.resolveSubjectWorkerId(command, result);
+      const privacy = createPrivacyForEvent(
+        command.metadata.hrDataSensitivity ?? 'NONE',
+        subjectWorkerId?.value,
+        this.inferEmployeeDataCategory(command.aggregateType),
+      );
       const event: HrEventEnvelope<unknown> = {
         eventId: crypto.randomUUID() as unknown as Uuid,
         eventName,
@@ -1045,11 +1118,7 @@ export class CommandBus implements OnModuleInit {
           dataResidencyRegion: command.metadata.dataResidencyRegion,
           hrDataSensitivity: command.metadata.hrDataSensitivity,
         },
-        privacy: createPrivacyForEvent(
-          command.metadata.hrDataSensitivity ?? 'NONE',
-          command.subjectWorkerId?.value,
-          'PROFILE',
-        ),
+        privacy,
         occurredAt: new Date(),
         version: result.newVersion,
       };
@@ -1063,7 +1132,10 @@ export class CommandBus implements OnModuleInit {
           aggregate_type: event.aggregateType,
           aggregate_id: event.aggregateId.value,
           payload: event.payload as unknown as Record<string, never>,
-          metadata: event.metadata as unknown as Record<string, never>,
+          metadata: {
+            ...event.metadata,
+            privacy: event.privacy,
+          } as unknown as Record<string, never>,
           correlation_id: event.metadata.correlationId.value,
           causation_id: event.metadata.causationId?.value ?? null,
           created_at: new Date().toISOString(),

@@ -218,6 +218,14 @@ const NATIVE_SOURCE_REGISTRY: Record<string, NativeSourceConfig[]> = {
   ],
 };
 
+export function nativeOperationModuleIds(): string[] {
+  return Object.keys(NATIVE_SOURCE_REGISTRY).sort();
+}
+
+export function nativeOperationSourceKeys(moduleId: string): string[] {
+  return (NATIVE_SOURCE_REGISTRY[moduleId] ?? []).map((source) => source.sourceKey);
+}
+
 function mapNativeStatus(status: string | null): OperationRecordStatus {
   const value = (status ?? '').toUpperCase();
   if (value.includes('DRAFT')) return 'Draft';

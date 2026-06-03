@@ -89,6 +89,18 @@ export class HrServiceDeliveryController {
     return this.hasAnyRole(req, ['HR_ADMIN', 'HRBP', 'ER_SPECIALIST', 'SUPER_ADMIN']);
   }
 
+  private assertServiceAdminScope(req: Request): void {
+    if (this.hasServiceAdminScope(req)) return;
+    throw new ForbiddenException('Only HR service delivery administrators can perform this action');
+  }
+
+  private async assertTaskMutationScope(req: Request, task: { assignedTo?: Uuid }): Promise<void> {
+    if (this.hasServiceAdminScope(req)) return;
+    const self = await this.resolveSelfWorker(req);
+    if (task.assignedTo?.value === self.id.value) return;
+    throw new ForbiddenException('Employees can only update HR case tasks assigned to them');
+  }
+
   private async resolveSelfWorker(req: Request): Promise<WorkerProfile> {
     const tenantId = this.getTenantId(req);
     const actorId = this.getActorId(req);
@@ -208,6 +220,7 @@ export class HrServiceDeliveryController {
 
   @Post('cases/:id/commands/mark-in-progress')
   async markInProgressHrServiceCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCaseRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service case not found');
     return this.commandBus.execute(this.buildCommand('MarkInProgressHrServiceCase', 'HrServiceCase', { hrServiceCaseId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -215,6 +228,7 @@ export class HrServiceDeliveryController {
 
   @Post('cases/:id/commands/mark-pending-customer')
   async markPendingCustomerHrServiceCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCaseRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service case not found');
     return this.commandBus.execute(this.buildCommand('MarkPendingCustomerHrServiceCase', 'HrServiceCase', { hrServiceCaseId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -222,6 +236,7 @@ export class HrServiceDeliveryController {
 
   @Post('cases/:id/commands/resolve')
   async resolveHrServiceCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCaseRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service case not found');
     return this.commandBus.execute(this.buildCommand('ResolveHrServiceCase', 'HrServiceCase', { hrServiceCaseId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -229,6 +244,7 @@ export class HrServiceDeliveryController {
 
   @Post('cases/:id/commands/close')
   async closeHrServiceCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCaseRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service case not found');
     return this.commandBus.execute(this.buildCommand('CloseHrServiceCase', 'HrServiceCase', { hrServiceCaseId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -250,6 +266,7 @@ export class HrServiceDeliveryController {
   /* HR Case Tasks */
   @Post('tasks')
   async createHrCaseTask(@Body(new ZodValidationPipe(CreateHrCaseTaskDtoSchema)) dto: dtos.CreateHrCaseTaskDto, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     return this.commandBus.execute(this.buildCommand('CreateHrCaseTask', 'HrCaseTask', dto, req));
   }
 
@@ -257,6 +274,7 @@ export class HrServiceDeliveryController {
   async startHrCaseTask(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.hrCaseTaskRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case task not found');
+    await this.assertTaskMutationScope(req, ar);
     return this.commandBus.execute(this.buildCommand('StartHrCaseTask', 'HrCaseTask', { hrCaseTaskId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
@@ -264,11 +282,13 @@ export class HrServiceDeliveryController {
   async completeHrCaseTask(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.hrCaseTaskRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case task not found');
+    await this.assertTaskMutationScope(req, ar);
     return this.commandBus.execute(this.buildCommand('CompleteHrCaseTask', 'HrCaseTask', { hrCaseTaskId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('tasks/:id/commands/mark-overdue')
   async markOverdueHrCaseTask(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrCaseTaskRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case task not found');
     return this.commandBus.execute(this.buildCommand('MarkOverdueHrCaseTask', 'HrCaseTask', { hrCaseTaskId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -276,6 +296,7 @@ export class HrServiceDeliveryController {
 
   @Post('tasks/:id/commands/cancel')
   async cancelHrCaseTask(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrCaseTaskRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case task not found');
     return this.commandBus.execute(this.buildCommand('CancelHrCaseTask', 'HrCaseTask', { hrCaseTaskId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -289,11 +310,13 @@ export class HrServiceDeliveryController {
   /* HR Knowledge Articles */
   @Post('knowledge-articles')
   async createHrKnowledgeArticle(@Body(new ZodValidationPipe(CreateHrKnowledgeArticleDtoSchema)) dto: dtos.CreateHrKnowledgeArticleDto, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     return this.commandBus.execute(this.buildCommand('CreateHrKnowledgeArticle', 'HrKnowledgeArticle', dto, req));
   }
 
   @Post('knowledge-articles/:id/commands/publish')
   async publishHrKnowledgeArticle(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrKnowledgeArticleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR knowledge article not found');
     return this.commandBus.execute(this.buildCommand('PublishHrKnowledgeArticle', 'HrKnowledgeArticle', { hrKnowledgeArticleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -301,6 +324,7 @@ export class HrServiceDeliveryController {
 
   @Post('knowledge-articles/:id/commands/archive')
   async archiveHrKnowledgeArticle(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrKnowledgeArticleRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR knowledge article not found');
     return this.commandBus.execute(this.buildCommand('ArchiveHrKnowledgeArticle', 'HrKnowledgeArticle', { hrKnowledgeArticleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -323,12 +347,14 @@ export class HrServiceDeliveryController {
 
   @Post('catalog-items')
   async createHrServiceCatalogItem(@Body(new ZodValidationPipe(CreateHrServiceCatalogItemDtoSchema)) dto: dtos.CreateHrServiceCatalogItemDto, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const outcome = await this.commandBus.execute(this.buildCommand('CreateHrServiceCatalogItem', 'HrServiceCatalogItem', dto, req));
     return this.assertCommandSucceeded(outcome);
   }
 
   @Post('catalog-items/:id/commands/activate')
   async activateHrServiceCatalogItem(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCatalogItemRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service catalog item not found');
     return this.commandBus.execute(this.buildCommand('ActivateHrServiceCatalogItem', 'HrServiceCatalogItem', { hrServiceCatalogItemId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -336,6 +362,7 @@ export class HrServiceDeliveryController {
 
   @Post('catalog-items/:id/commands/suspend')
   async suspendHrServiceCatalogItem(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCatalogItemRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service catalog item not found');
     return this.commandBus.execute(this.buildCommand('SuspendHrServiceCatalogItem', 'HrServiceCatalogItem', { hrServiceCatalogItemId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -343,6 +370,7 @@ export class HrServiceDeliveryController {
 
   @Post('catalog-items/:id/commands/retire')
   async retireHrServiceCatalogItem(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrServiceCatalogItemRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR service catalog item not found');
     return this.commandBus.execute(this.buildCommand('RetireHrServiceCatalogItem', 'HrServiceCatalogItem', { hrServiceCatalogItemId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -358,11 +386,13 @@ export class HrServiceDeliveryController {
   /* HR Case SLA Instances */
   @Post('sla-instances')
   async createHrCaseSlaInstance(@Body(new ZodValidationPipe(CreateHrCaseSlaInstanceDtoSchema)) dto: dtos.CreateHrCaseSlaInstanceDto, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     return this.commandBus.execute(this.buildCommand('CreateHrCaseSlaInstance', 'HrCaseSlaInstance', dto, req));
   }
 
   @Post('sla-instances/:id/commands/breach')
   async breachHrCaseSlaInstance(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrCaseSlaInstanceRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case SLA instance not found');
     return this.commandBus.execute(this.buildCommand('BreachHrCaseSlaInstance', 'HrCaseSlaInstance', { hrCaseSlaInstanceId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -370,6 +400,7 @@ export class HrServiceDeliveryController {
 
   @Post('sla-instances/:id/commands/meet')
   async meetHrCaseSlaInstance(@Param('id') id: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrCaseSlaInstanceRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case SLA instance not found');
     return this.commandBus.execute(this.buildCommand('MeetHrCaseSlaInstance', 'HrCaseSlaInstance', { hrCaseSlaInstanceId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
@@ -377,6 +408,7 @@ export class HrServiceDeliveryController {
 
   @Post('sla-instances/:id/commands/exempt')
   async exemptHrCaseSlaInstance(@Param('id') id: string, @Body() body: { exemptReason: string }, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
     const ar = await this.hrCaseSlaInstanceRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('HR case SLA instance not found');
     return this.commandBus.execute(this.buildCommand('ExemptHrCaseSlaInstance', 'HrCaseSlaInstance', { hrCaseSlaInstanceId: new Uuid(id), exemptReason: body.exemptReason }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));

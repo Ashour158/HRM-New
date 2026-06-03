@@ -214,17 +214,39 @@ const statusCopy: Record<AttendanceClockStatus, { label: string; tone: string; h
   },
 };
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+const GEOLOCATION_CAPTURE_TIMEOUT_MS = 2500;
+
 function getBrowserPosition(): Promise<Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>> {
   if (!navigator.geolocation) return Promise.resolve({});
   return new Promise((resolve) => {
+    let settled = false;
+    let timeoutId: number | undefined;
+
+    const finish = (payload: Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>) => {
+      if (settled) return;
+      settled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      resolve(payload);
+    };
+
+    timeoutId = window.setTimeout(() => finish({}), GEOLOCATION_CAPTURE_TIMEOUT_MS);
     navigator.geolocation.getCurrentPosition(
-      (position) => resolve({
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracyMeters: Math.round(position.coords.accuracy),
-      }),
-      () => resolve({}),
-      { enableHighAccuracy: true, timeout: 7000 },
+      (position) => {
+        const latitude = finiteNumber(position.coords.latitude);
+        const longitude = finiteNumber(position.coords.longitude);
+        const accuracy = finiteNumber(position.coords.accuracy);
+        finish({
+          ...(latitude !== undefined ? { latitude } : {}),
+          ...(longitude !== undefined ? { longitude } : {}),
+          ...(accuracy !== undefined ? { accuracyMeters: Math.round(accuracy) } : {}),
+        });
+      },
+      () => finish({}),
+      { enableHighAccuracy: true, timeout: GEOLOCATION_CAPTURE_TIMEOUT_MS },
     );
   });
 }
@@ -257,6 +279,23 @@ function dateKey(value = new Date()) {
   return value.toISOString().slice(0, 10);
 }
 
+function apiErrorMessage(error: unknown, fallback: string) {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: unknown; status?: number } }).response;
+    const data = response?.data;
+    if (typeof data === 'string') return data;
+    if (data && typeof data === 'object') {
+      const record = data as { message?: unknown; errorMessage?: unknown; _errors?: unknown };
+      if (typeof record.errorMessage === 'string') return record.errorMessage;
+      if (typeof record.message === 'string') return record.message;
+      if (Array.isArray(record.message)) return record.message.join(', ');
+      return JSON.stringify(data);
+    }
+    if (response?.status) return `Request failed with status code ${response.status}`;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 function currentWeekDays(today: Date) {
   const start = new Date(today);
   start.setDate(today.getDate() - today.getDay());
@@ -280,6 +319,7 @@ export function EmployeeDashboard() {
   const [correctionReason, setCorrectionReason] = React.useState('');
   const [clockMessage, setClockMessage] = React.useState('');
   const [clockError, setClockError] = React.useState('');
+  const [clockPendingDirection, setClockPendingDirection] = React.useState<'in' | 'out' | null>(null);
 
   const today = React.useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
@@ -378,10 +418,16 @@ export function EmployeeDashboard() {
   };
 
   const recordClock = async (direction: 'in' | 'out') => {
-    const payload = await buildClockPayload();
-    if (!payload) return;
     setClockError('');
+    setClockMessage('Capturing attendance evidence...');
+    setClockPendingDirection(direction);
     try {
+      const payload = await buildClockPayload();
+      if (!payload) {
+        setClockMessage('');
+        setClockError('No linked employee profile was found for attendance capture.');
+        return;
+      }
       if (direction === 'in') {
         await checkInMutation.mutateAsync(payload);
         setClockMessage('Check-in recorded with timestamp and location evidence.');
@@ -390,8 +436,10 @@ export function EmployeeDashboard() {
         setClockMessage('Check-out recorded with timestamp and location evidence.');
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Attendance action failed.';
-      setClockError(message);
+      setClockMessage('');
+      setClockError(apiErrorMessage(error, 'Attendance action failed.'));
+    } finally {
+      setClockPendingDirection(null);
     }
   };
 
@@ -411,8 +459,7 @@ export function EmployeeDashboard() {
       setOnDutyReason('');
       setClockMessage('On-duty request submitted for approval.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'On-duty request failed.';
-      setClockError(message);
+      setClockError(apiErrorMessage(error, 'On-duty request failed.'));
     }
   };
 
@@ -431,8 +478,7 @@ export function EmployeeDashboard() {
       setCorrectionReason('');
       setClockMessage('Attendance correction request sent to your manager.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Correction request failed.';
-      setClockError(message);
+      setClockError(apiErrorMessage(error, 'Correction request failed.'));
     }
   };
 
@@ -469,17 +515,17 @@ export function EmployeeDashboard() {
                 ))}
               </div>
 
-              <Button
+              <button
+                type="button"
                 className={cn(
-                  'mt-3 w-[112px] border bg-white shadow-none',
+                  'mt-3 inline-flex h-10 w-[112px] items-center justify-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold shadow-none transition-all duration-200 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50',
                   todayState?.canCheckOut ? 'border-red-500 text-red-600 hover:bg-red-50' : 'border-emerald-500 text-emerald-700 hover:bg-emerald-50',
                 )}
-                variant="outline"
                 onClick={() => recordClock(todayState?.canCheckOut ? 'out' : 'in')}
-                disabled={!activeWorker || attendanceLoading || checkInMutation.isPending || checkOutMutation.isPending || (!todayState?.canCheckIn && !todayState?.canCheckOut)}
+                disabled={!activeWorker || attendanceLoading || clockPendingDirection !== null || checkInMutation.isPending || checkOutMutation.isPending || (!todayState?.canCheckIn && !todayState?.canCheckOut)}
               >
-                {todayState?.canCheckOut ? 'Check-out' : 'Check-in'}
-              </Button>
+                {clockPendingDirection ? 'Recording...' : todayState?.canCheckOut ? 'Check-out' : 'Check-in'}
+              </button>
 
               <p className="mt-3 text-xs leading-5 text-slate-500">{statusMeta.helper}</p>
             </div>
@@ -718,8 +764,22 @@ export function EmployeeDashboard() {
                           </SelectContent>
                         </Select>
                         <div className="grid grid-cols-2 gap-2">
-                          <Button onClick={() => recordClock('in')} disabled={!todayState?.canCheckIn || checkInMutation.isPending}>Check-in</Button>
-                          <Button variant="outline" onClick={() => recordClock('out')} disabled={!todayState?.canCheckOut || checkOutMutation.isPending}>Check-out</Button>
+                          <button
+                            type="button"
+                            className="inline-flex h-10 items-center justify-center rounded-lg bg-[#006c49] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,108,73,0.18)] transition-all duration-200 hover:bg-[#005236] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+                            onClick={() => recordClock('in')}
+                            disabled={!todayState?.canCheckIn || clockPendingDirection !== null || checkInMutation.isPending}
+                          >
+                            {clockPendingDirection === 'in' || checkInMutation.isPending ? 'Recording...' : 'Check-in'}
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-all duration-200 hover:bg-[#eff4ff] hover:text-[#006c49] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50"
+                            onClick={() => recordClock('out')}
+                            disabled={!todayState?.canCheckOut || clockPendingDirection !== null || checkOutMutation.isPending}
+                          >
+                            {clockPendingDirection === 'out' || checkOutMutation.isPending ? 'Recording...' : 'Check-out'}
+                          </button>
                         </div>
                       </div>
                       {clockMessage ? <p className="mt-3 rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{clockMessage}</p> : null}

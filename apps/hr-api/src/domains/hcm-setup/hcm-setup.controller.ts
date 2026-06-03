@@ -2,14 +2,14 @@ import { Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
-import { OptionalAuthGuard } from '../../guards/optional-auth.guard.js';
+import { AuthGuard } from '../../guards/auth.guard.js';
 import { HcmSetupService } from './hcm-setup.service.js';
 import type { HcmSetupUpdate } from './hcm-setup.types.js';
 
 const SETUP_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
 
 @ApiTags('HCM Setup')
-@UseGuards(OptionalAuthGuard)
+@UseGuards(AuthGuard)
 @Controller('admin/hcm-setup')
 export class HcmSetupController {
   constructor(private readonly service: HcmSetupService) {}

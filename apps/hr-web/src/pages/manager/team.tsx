@@ -189,7 +189,6 @@ export function ManagerTeam() {
                 <AllowedActions
                   aggregateType="PERFORMANCE"
                   aggregateId={member.id}
-                  onAction={(action) => console.log('Performance action:', action)}
                 />
               </CardContent>
             </Card>
@@ -212,7 +211,6 @@ export function ManagerTeam() {
                 <AllowedActions
                   aggregateType="COMPENSATION"
                   aggregateId={member.id}
-                  onAction={(action) => console.log('Compensation action:', action)}
                 />
               </CardContent>
             </Card>
@@ -235,7 +233,6 @@ export function ManagerTeam() {
         </div>
         <AllowedActions
           aggregateType="TEAM"
-          onAction={(action) => console.log('Team action:', action)}
         />
       </div>
 

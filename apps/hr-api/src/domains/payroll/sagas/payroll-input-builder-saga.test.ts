@@ -89,4 +89,38 @@ describe('PayrollInputBuilderSaga', () => {
 
     expect(saved).toHaveLength(0);
   });
+
+  it('creates benefits payroll inputs from effective enrollment events with string UUID payloads', async () => {
+    const tenantId = Uuid.generate();
+    const cycle = activeCycle(tenantId);
+    const workerId = Uuid.generate();
+    const enrollmentId = Uuid.generate();
+    const saved: Array<{ payrollCycleId: Uuid; workerId: Uuid; inputType: string; description?: string }> = [];
+    const saga = new PayrollInputBuilderSaga(
+      { subscribe: vi.fn() } as never,
+      { save: vi.fn(async (input) => saved.push(input)) } as never,
+      { publishFromAggregate: vi.fn() } as never,
+      { findByTenant: vi.fn(async () => [cycle]) } as never,
+    );
+
+    await (saga as unknown as {
+      createInputFromBenefits: (event: HrEventEnvelope<unknown>) => Promise<void>;
+    }).createInputFromBenefits({
+      ...eventFor('2026-05-15', tenantId),
+      eventName: 'BenefitsEnrollmentEffective',
+      aggregateType: 'BenefitsEnrollment',
+      payload: {
+        enrollmentId: enrollmentId.value,
+        workerId: workerId.value,
+      },
+    } as HrEventEnvelope<unknown>);
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      workerId,
+      payrollCycleId: cycle.id,
+      inputType: 'BENEFITS_DEDUCTION',
+      description: `Benefits ${enrollmentId.value}`,
+    });
+  });
 });

@@ -50,8 +50,25 @@ function balance(balanceHours: number) {
   });
 }
 
+function futureWorkingDate(offsetWorkingDays: number): Date {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  let remaining = offsetWorkingDays;
+
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    if ([0, 1, 2, 3, 4].includes(date.getUTCDay())) {
+      remaining -= 1;
+    }
+  }
+
+  return new Date(date);
+}
+
 describe('absence balance enforcement', () => {
   it('blocks create when requested leave exceeds the active balance', async () => {
+    const startDate = futureWorkingDate(3);
+    const endDate = futureWorkingDate(4);
     const repo = {
       findOverlappingByWorker: vi.fn().mockResolvedValue([]),
       save: vi.fn(),
@@ -68,8 +85,8 @@ describe('absence balance enforcement', () => {
     await expect(handler.handle(command({
       workerId,
       absenceType: 'VACATION',
-      startDate: new Date('2026-06-01T00:00:00.000Z'),
-      endDate: new Date('2026-06-02T00:00:00.000Z'),
+      startDate,
+      endDate,
     }))).rejects.toThrow(/available balance/);
     expect(repo.save).not.toHaveBeenCalled();
   });

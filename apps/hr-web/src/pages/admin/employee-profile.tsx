@@ -612,7 +612,7 @@ export function AdminEmployeeProfile() {
 
           <section className="space-y-4">
             <h3 className="text-lg font-semibold">Governance</h3>
-            <AllowedActions aggregateType="WORKER" aggregateId={worker.id} state={worker.status} onAction={() => undefined} />
+            <AllowedActions aggregateType="WORKER" aggregateId={worker.id} state={worker.status} />
             <div className="divide-y border-y">
               {governance.personalDataRecords.map((record) => (
                 <div key={record.id} className="py-3">

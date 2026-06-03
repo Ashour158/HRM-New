@@ -2,7 +2,7 @@ import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, R
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
-import { OptionalAuthGuard } from '../../guards/optional-auth.guard.js';
+import { AuthGuard } from '../../guards/auth.guard.js';
 import { PolicyCenterService } from './policy-center.service.js';
 import { POLICY_AREAS, type CreatePolicyRevisionInput, type PolicyActor, type PolicyArea, type UpdatePolicyRevisionInput } from './policy-center.types.js';
 
@@ -23,7 +23,7 @@ function areaFromQuery(area: string | undefined): PolicyArea | undefined {
 }
 
 @ApiTags('Policy Center')
-@UseGuards(OptionalAuthGuard)
+@UseGuards(AuthGuard)
 @Controller('admin/policies')
 export class PolicyCenterController {
   constructor(private readonly service: PolicyCenterService) {}
@@ -97,6 +97,9 @@ export class PolicyCenterController {
   }
 
   private getActor(req: Request): PolicyActor {
+    if (!req.actor) {
+      throw new ForbiddenException('Policy Center requires an authenticated policy administrator.');
+    }
     return {
       actorId: req.actor?.actorId?.value ?? req.actor?.email ?? 'local-policy-admin',
       actorName: req.actor?.email,
@@ -104,7 +107,7 @@ export class PolicyCenterController {
   }
 
   private assertPolicyAdmin(req: Request): void {
-    const roles = req.actor?.roles ?? ['HR_ADMIN'];
+    const roles = req.actor?.roles ?? [];
     if (!roles.some((role) => POLICY_ADMIN_ROLES.has(role))) {
       throw new ForbiddenException('Only policy administrators can manage Policy Center revisions.');
     }

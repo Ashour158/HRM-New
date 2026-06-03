@@ -3,7 +3,7 @@ import { Kysely, sql } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
 import { getPool, createKyselyInstance } from '@hcm/database';
-import type { ClientType, EventMetadata, HrEventEnvelope } from '@hcm/event-schemas';
+import type { ClientType, EventMetadata, HrEventEnvelope, HrEventPrivacy } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import { EventBus } from '../event-bus/event-bus.js';
 
@@ -46,7 +46,10 @@ export class OutboxPublisher {
         aggregate_type: event.aggregateType,
         aggregate_id: event.aggregateId.value,
         payload: event.payload as unknown as Record<string, never>,
-        metadata: event.metadata as unknown as Record<string, never>,
+        metadata: {
+          ...event.metadata,
+          privacy: event.privacy,
+        } as unknown as Record<string, never>,
         correlation_id: correlationId.value,
         causation_id: event.metadata.causationId?.value ?? null,
         created_at: new Date().toISOString(),
@@ -115,6 +118,7 @@ export class OutboxPublisher {
   }
 
   private rowToEnvelope(row: OutboxEvent): HrEventEnvelope<unknown> {
+    const metadata = this.normalizeMetadata(row);
     return {
       eventId: new Uuid(row.id),
       eventName: row.event_name,
@@ -123,8 +127,8 @@ export class OutboxPublisher {
       aggregateType: row.aggregate_type,
       aggregateId: new Uuid(row.aggregate_id),
       payload: row.payload,
-      metadata: this.normalizeMetadata(row),
-      privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
+      metadata,
+      privacy: this.normalizePrivacy(row, metadata),
       occurredAt: row.created_at,
       version: 1,
     };
@@ -139,7 +143,7 @@ export class OutboxPublisher {
       ? stored.requestHash
       : row.id;
 
-    return {
+    const metadata: EventMetadata = {
       correlationId,
       causationId,
       sourceEventId: this.uuidFrom(stored.sourceEventId),
@@ -149,6 +153,11 @@ export class OutboxPublisher {
       dataResidencyRegion: typeof stored.dataResidencyRegion === 'string' ? stored.dataResidencyRegion : undefined,
       hrDataSensitivity: isHrDataSensitivity(stored.hrDataSensitivity) ? stored.hrDataSensitivity : undefined,
     };
+    return {
+      ...metadata,
+      sourceOutboxEventId: row.id,
+      publicationSource: 'OUTBOX',
+    } as EventMetadata;
   }
 
   private uuidFrom(value: unknown): Uuid | undefined {
@@ -161,6 +170,47 @@ export class OutboxPublisher {
     if (isRecord(value) && typeof value.value === 'string' && Uuid.isValid(value.value)) {
       return new Uuid(value.value);
     }
+    return undefined;
+  }
+
+  private normalizePrivacy(row: OutboxEvent, metadata: EventMetadata): HrEventPrivacy {
+    const stored = isRecord(row.metadata) ? row.metadata : {};
+    if (isHrEventPrivacy(stored.privacy)) {
+      return stored.privacy;
+    }
+
+    const classification = metadata.hrDataSensitivity ?? 'NONE';
+    return createPrivacyForEvent(
+      classification,
+      this.extractWorkerId(row.payload),
+      inferEmployeeDataCategory(row.aggregate_type),
+    );
+  }
+
+  private extractWorkerId(value: unknown): string | undefined {
+    if (!isRecord(value) && !Array.isArray(value)) return undefined;
+    const preferredKeys = ['subjectWorkerId', 'workerId', 'employeeId', 'recipientWorkerId'];
+    const queue = Array.isArray(value) ? [...value] : [value];
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (Array.isArray(current)) {
+        queue.push(...current);
+        continue;
+      }
+      if (!isRecord(current)) continue;
+      for (const key of preferredKeys) {
+        const candidate = this.readUuidLike(current[key]);
+        if (candidate) return candidate;
+      }
+      queue.push(...Object.values(current));
+    }
+    return undefined;
+  }
+
+  private readUuidLike(value: unknown): string | undefined {
+    if (value instanceof Uuid) return value.value;
+    if (typeof value === 'string' && Uuid.isValid(value)) return value;
+    if (isRecord(value) && typeof value.value === 'string' && Uuid.isValid(value.value)) return value.value;
     return undefined;
   }
 }
@@ -191,4 +241,40 @@ function isHrDataSensitivity(
     'RESTRICTED',
     'SPECIAL_CATEGORY',
   ].includes(value);
+}
+
+function isHrEventPrivacy(value: unknown): value is HrEventPrivacy {
+  if (!isRecord(value)) return false;
+  return (
+    isPrivacyClassification(value.piiClassification) &&
+    (value.subjectWorkerId === undefined || (typeof value.subjectWorkerId === 'string' && Uuid.isValid(value.subjectWorkerId))) &&
+    typeof value.managerVisible === 'boolean' &&
+    typeof value.employeeVisible === 'boolean' &&
+    typeof value.hrRestricted === 'boolean' &&
+    typeof value.redactionApplied === 'boolean'
+  );
+}
+
+function isPrivacyClassification(value: unknown): value is HrEventPrivacy['piiClassification'] {
+  return typeof value === 'string' && [
+    'NONE',
+    'LOW',
+    'MEDIUM',
+    'HIGH',
+    'RESTRICTED',
+    'SPECIAL_CATEGORY',
+  ].includes(value);
+}
+
+function inferEmployeeDataCategory(aggregateType: string): HrEventPrivacy['employeeDataCategory'] {
+  const value = aggregateType.toLowerCase();
+  if (value.includes('payroll') || value.includes('payslip')) return 'PAYROLL';
+  if (value.includes('compensation') || value.includes('bonus') || value.includes('equity')) return 'COMPENSATION';
+  if (value.includes('benefits')) return 'BENEFITS';
+  if (value.includes('performance') || value.includes('objective') || value.includes('goal')) return 'PERFORMANCE';
+  if (value.includes('relations') || value.includes('disciplinary') || value.includes('grievance')) return 'ER_CASE';
+  if (value.includes('medical') || value.includes('wellness') || value.includes('eap')) return 'MEDICAL';
+  if (value.includes('authorization') || value.includes('visa') || value.includes('immigration')) return 'IMMIGRATION';
+  if (value.includes('survey')) return 'SURVEY';
+  return 'PROFILE';
 }
