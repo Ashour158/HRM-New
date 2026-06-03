@@ -239,7 +239,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <Link to="/employee/profile">Profile</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link to="/settings">Settings</Link>
+                <Link to="/admin/system-console">Admin Panel</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout} className="text-destructive">

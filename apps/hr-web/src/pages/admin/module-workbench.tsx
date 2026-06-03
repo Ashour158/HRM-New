@@ -106,7 +106,7 @@ export function AdminModuleWorkbench() {
                 </Button>
               ) : null}
               <Button asChild variant="outline" className="border-white/40 bg-white/10 text-white hover:bg-white/20 hover:text-white">
-                <Link to="/admin/settings">Open Setup</Link>
+                <Link to="/admin/system-console">Open Admin Panel</Link>
               </Button>
             </div>
           </div>

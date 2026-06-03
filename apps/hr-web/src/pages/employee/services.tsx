@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { commercialModules, moduleOperationsPath, type CommercialModule } from '@/lib/commercial-modules';
+import { commercialModules, type CommercialModule } from '@/lib/commercial-modules';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
@@ -164,10 +164,6 @@ function employeeVisibleModules() {
 function adminGovernedModules(employeeModules: CommercialModule[]) {
   const employeeModuleIds = new Set(employeeModules.map((module) => module.id));
   return commercialModules.filter((module) => !employeeModuleIds.has(module.id));
-}
-
-function adminPathFor(module: CommercialModule) {
-  return module.nativePath ?? moduleOperationsPath(module.id);
 }
 
 export function EmployeeServices() {
@@ -342,7 +338,7 @@ export function EmployeeServices() {
                     )}
                     {canOpenAdminWorkspaces ? (
                       <Button asChild size="sm" variant="outline">
-                        <Link to={adminPathFor(module)}>Admin Workspace</Link>
+                        <Link to="/admin/system-console">Admin Panel</Link>
                       </Button>
                     ) : null}
                   </div>
@@ -360,7 +356,7 @@ export function EmployeeServices() {
               </div>
               {canOpenAdminWorkspaces ? (
                 <Button asChild size="sm" variant="outline">
-                  <Link to="/admin/modules">Open Full Catalog</Link>
+                  <Link to="/admin/system-console">Open Admin Panel</Link>
                 </Button>
               ) : null}
             </div>
@@ -373,7 +369,7 @@ export function EmployeeServices() {
                   </div>
                   {canOpenAdminWorkspaces ? (
                     <Button asChild size="sm" variant="outline">
-                      <Link to={adminPathFor(module)}>Admin</Link>
+                      <Link to="/admin/system-console">Admin Panel</Link>
                     </Button>
                   ) : (
                     <Badge variant="secondary" className="shrink-0 bg-slate-100 text-slate-600">Admin</Badge>
@@ -385,7 +381,7 @@ export function EmployeeServices() {
           {canOpenAdminWorkspaces ? (
             <div className="border-t border-[#d7e1ec] bg-slate-50 px-4 py-3 text-sm text-slate-600">
               HR admin preview is enabled. The full admin catalog is available at{' '}
-              <Link to="/admin/modules" className="font-semibold text-[#006c49] underline">Module Catalog</Link>.
+              <Link to="/admin/system-console" className="font-semibold text-[#006c49] underline">Admin Panel</Link>.
             </div>
           ) : null}
         </section>

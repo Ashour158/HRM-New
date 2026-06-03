@@ -5,12 +5,19 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
+  BadgeDollarSign,
   BellRing,
+  BookOpen,
+  Bot,
+  Briefcase,
   Building2,
+  CalendarCheck,
   CheckCircle2,
-  Clock3,
+  ClipboardCheck,
+  Code2,
   DatabaseZap,
   FileText,
+  FolderOpen,
   GitBranch,
   KeyRound,
   Landmark,
@@ -18,18 +25,27 @@ import {
   LifeBuoy,
   LockKeyhole,
   Network,
+  Plane,
   PlugZap,
   Radar,
   RefreshCcw,
+  Search,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
+  Store,
+  Timer,
+  Trophy,
   Umbrella,
+  UserCog,
+  UserRoundPlus,
   Users,
+  Wrench,
   Workflow,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { commercialModules, moduleOperationsPath, type CommercialModule } from '@/lib/commercial-modules';
+import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,6 +113,11 @@ interface HealthStatus {
   timestamp: string;
 }
 
+interface LivenessStatus {
+  status: 'alive';
+  timestamp: string;
+}
+
 interface ReadinessStatus {
   status: 'ready' | 'not_ready';
   checks: Array<{
@@ -142,6 +163,16 @@ interface ConsoleControl {
   link?: string;
   linkLabel?: string;
   evidence: string[];
+}
+
+interface AdminPanelTool {
+  label: string;
+  description: string;
+  group: 'Foundation' | 'Workforce Operations' | 'Reward And Talent' | 'Governance And Insights' | 'Custom Services';
+  path?: string;
+  icon: React.ElementType;
+  tone: string;
+  status?: 'live' | 'backend-required';
 }
 
 function unwrapApiData<T>(payload: unknown): T {
@@ -235,6 +266,10 @@ function ControlCard({ control }: { control: ConsoleControl }) {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
+        ) : control.status !== 'backend-required' ? (
+          <div className="mt-auto rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3 text-sm font-semibold text-[#3c4a42]">
+            Observed directly in this console.
+          </div>
         ) : (
           <div className="mt-auto rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3 text-sm font-semibold text-[#3c4a42]">
             Backend endpoint required before this can be safely operated.
@@ -245,7 +280,49 @@ function ControlCard({ control }: { control: ConsoleControl }) {
   );
 }
 
+function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
+  const Icon = tool.icon;
+  const content = (
+    <div className="group relative flex h-full min-h-[132px] flex-col rounded-lg border border-[#d5dfec] bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-[#10b981]/60 hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+      <div className="flex items-start gap-3">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eff4ff]">
+          <Icon className={`h-5 w-5 ${tool.tone}`} strokeWidth={1.9} />
+        </div>
+        <div className="min-w-0">
+          <p className="font-semibold leading-5 text-[#0b1c30]">{tool.label}</p>
+          <p className="mt-1 text-sm leading-5 text-[#3c4a42]">{tool.description}</p>
+        </div>
+        {tool.status === 'backend-required' ? (
+          <span className="absolute right-3 top-3 rounded-full border border-[#e29100]/40 bg-[#ffddb8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#523200]">
+            Backend
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-auto flex items-center justify-between pt-4 text-xs font-semibold uppercase tracking-wide text-[#006c49]">
+        <span>{tool.path ? 'Open admin area' : 'Needs admin API'}</span>
+        {tool.path ? <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /> : null}
+      </div>
+    </div>
+  );
+
+  if (!tool.path) {
+    return (
+      <div aria-label={`${tool.label} requires backend support`} className="cursor-not-allowed opacity-80" title="Backend/admin API required">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link to={tool.path} className="focus:outline-none focus:ring-2 focus:ring-[#006c49]/30">
+      {content}
+    </Link>
+  );
+}
+
 export function AdminSystemConsole() {
+  const { user } = useAuth();
+  const [adminToolQuery, setAdminToolQuery] = React.useState('');
   const mapsConfigured = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
   const authBypassEnabled = import.meta.env.VITE_AUTH_BYPASS === 'true';
@@ -260,13 +337,18 @@ export function AdminSystemConsole() {
     retry: false,
   });
   const notificationsQuery = useApiQuery<PlatformNotification[]>(
-    ['platform-notifications', 'system-console'],
+    ['platform-notifications', 'admin'],
     '/notifications/hr-operations',
     { retry: false },
   );
   const healthQuery = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => unwrapApiData<HealthStatus>(await apiClient.get('/health')),
+    retry: false,
+  });
+  const livenessQuery = useQuery({
+    queryKey: ['system-liveness'],
+    queryFn: async () => unwrapApiData<LivenessStatus>(await apiClient.get('/health/live')),
     retry: false,
   });
   const readinessQuery = useQuery({
@@ -297,8 +379,6 @@ export function AdminSystemConsole() {
   const activeSetupCounts = {
     departments: setupQuery.data?.departments?.filter((item) => item.active).length ?? 0,
     locations: setupQuery.data?.locations?.filter((item) => item.active).length ?? 0,
-    leavePolicies: setupQuery.data?.leavePolicies?.filter((item) => item.active).length ?? 0,
-    documents: setupQuery.data?.documentRequirements?.filter((item) => item.active).length ?? 0,
   };
   const readinessDown = readinessQuery.data?.checks.filter((check) => check.status === 'down').length ?? 0;
   const integrationAdapterCount = Array.isArray(integrationQuery.data?.adapters)
@@ -307,6 +387,100 @@ export function AdminSystemConsole() {
       ? Object.keys(integrationQuery.data.adapters).length
       : 0;
   const usageTotals = serviceUsageQuery.data?.totals;
+  const adminDisplayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || 'System Administrator';
+  const primaryRole = user?.roles?.[0]?.name?.replace(/_/g, ' ') ?? 'Administrator';
+  const adminPanelTools: AdminPanelTool[] = [
+    { label: 'Access Governance', description: 'Role, permission, ABAC, SoD, and service-account administration. Tables exist; admin API/UI still required.', group: 'Foundation', icon: UserCog, tone: 'text-[#ff9800]', status: 'backend-required' },
+    { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/settings', icon: Settings, tone: 'text-[#ff9800]' },
+    { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#2aa9de]' },
+    { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#006c49]' },
+    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, protected worker data, and runtime field decisions.', group: 'Foundation', path: '/admin/settings', icon: DatabaseZap, tone: 'text-[#4648d4]' },
+    { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/settings', icon: FolderOpen, tone: 'text-[#2aa9de]' },
+    { label: 'Leave Management', description: 'Entitlements, balances, requests, approvals, holidays, and payroll impact.', group: 'Workforce Operations', path: '/admin/leave', icon: Umbrella, tone: 'text-[#2aa9de]' },
+    { label: 'Attendance And Time', description: 'Check-in policies, geolocation evidence, exceptions, ledgers, and exports.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#ff7043]' },
+    { label: 'Shift Scheduling', description: 'Roster planning, coverage gaps, shift bids, swaps, and fatigue controls.', group: 'Workforce Operations', path: '/admin/modules/workforce-management/operations', icon: Timer, tone: 'text-[#ff9800]' },
+    { label: 'HR Service Delivery', description: 'Cases, tasks, service catalog, SLA rules, and employee support queues.', group: 'Workforce Operations', path: '/admin/modules/service-delivery/operations', icon: ClipboardCheck, tone: 'text-[#ff7043]' },
+    { label: 'Travel And Expenses', description: 'Travel requests, expenses, approvals, and reimbursement integrations.', group: 'Workforce Operations', icon: Plane, tone: 'text-[#2aa9de]', status: 'backend-required' },
+    { label: 'Payroll Control', description: 'Cycles, statutory packs, blockers, payroll inputs, payslips, and GL handoff.', group: 'Reward And Talent', path: '/admin/payroll', icon: FileText, tone: 'text-[#ff9800]' },
+    { label: 'Compensation', description: 'Bands, pay changes, bonus cycles, equity, and total reward operations.', group: 'Reward And Talent', path: '/admin/modules/compensation/operations', icon: BadgeDollarSign, tone: 'text-[#dc3f92]' },
+    { label: 'Benefits Administration', description: 'Programs, enrollment, life events, carrier reconciliation, and deductions.', group: 'Reward And Talent', path: '/admin/modules/benefits/operations', icon: Umbrella, tone: 'text-[#2aa9de]' },
+    { label: 'Performance Management', description: 'Review cycles, goals, feedback, calibration, action plans, and KPIs.', group: 'Reward And Talent', path: '/admin/performance', icon: Trophy, tone: 'text-[#8bb42a]' },
+    { label: 'Learning Management', description: 'Courses, assignments, certifications, content packages, and renewals.', group: 'Reward And Talent', path: '/admin/modules/learning/operations', icon: BookOpen, tone: 'text-[#5e84ff]' },
+    { label: 'Onboarding', description: 'Preboarding, joining checklists, provisioning, 30/60/90 plans, and probation.', group: 'Reward And Talent', path: '/admin/onboarding', icon: UserRoundPlus, tone: 'text-[#ff9800]' },
+    { label: 'Employee Engagement', description: 'Surveys, recognition programs, engagement signals, and response controls.', group: 'Reward And Talent', path: '/admin/modules/engagement/operations', icon: Radar, tone: 'text-[#dc3f92]' },
+    { label: 'Policy Center', description: 'Scoped policies, lifecycle approval, simulation, application, and evidence.', group: 'Governance And Insights', path: '/admin/policies', icon: ShieldCheck, tone: 'text-[#8a4fff]' },
+    { label: 'Compliance Center', description: 'Policies, acknowledgements, legal holds, statutory reporting, and evidence.', group: 'Governance And Insights', path: '/admin/compliance', icon: ShieldCheck, tone: 'text-[#006c49]' },
+    { label: 'Country Policy', description: 'Country packs, validations, simulations, approvals, publish, and rollback.', group: 'Governance And Insights', path: '/admin/country-policy', icon: Landmark, tone: 'text-[#4648d4]' },
+    { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#dc3f92]' },
+    { label: 'Reporting And Analytics', description: 'Report builder operations, scheduled reports, usage, and calculated fields.', group: 'Governance And Insights', path: '/admin/modules/reporting/operations', icon: FileText, tone: 'text-[#2aa9de]' },
+    { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#2f6fc2]' },
+    { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#5e84ff]', status: 'backend-required' },
+    { label: 'Development Controls', description: 'Runtime health, workflow controls, integrations, outbox, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#development-controls', icon: Code2, tone: 'text-[#ff7043]' },
+  ];
+  const filteredAdminPanelTools = adminPanelTools.filter((tool) => (
+    tool.label.toLowerCase().includes(adminToolQuery.trim().toLowerCase())
+  ));
+  const adminPanelGroups: AdminPanelTool['group'][] = [
+    'Foundation',
+    'Workforce Operations',
+    'Reward And Talent',
+    'Governance And Insights',
+  ];
+  const adminJourneySteps = [
+    {
+      step: '01',
+      title: 'Set Tenant Foundation',
+      description: 'Company setup, IDs, departments, locations, documents, required fields, and sensitive data rules.',
+      path: '/admin/settings',
+      status: setupQuery.isSuccess ? 'live' : 'attention',
+      label: setupQuery.isSuccess ? 'Ready' : 'Check setup API',
+      icon: Settings,
+    },
+    {
+      step: '02',
+      title: 'Build Organization',
+      description: 'Create legal entities, org units, departments, manager relationships, and workforce planning scenarios.',
+      path: '/admin/organization',
+      status: 'live',
+      label: 'Operational',
+      icon: Building2,
+    },
+    {
+      step: '03',
+      title: 'Create Employees',
+      description: 'Create worker records, assign employment details, lifecycle status, department, and manager ownership.',
+      path: '/admin/employees/new',
+      status: 'live',
+      label: 'Operational',
+      icon: UserRoundPlus,
+    },
+    {
+      step: '04',
+      title: 'Govern Policies',
+      description: 'Create, scope, validate, simulate, approve, publish, and apply policies into live runtime behavior.',
+      path: '/admin/policies',
+      status: policyQuery.isSuccess ? 'live' : 'attention',
+      label: policyQuery.isSuccess ? 'Policy API live' : 'Check policy API',
+      icon: ShieldCheck,
+    },
+    {
+      step: '05',
+      title: 'Verify Runtime',
+      description: 'Monitor health, events, notifications, service usage, audit evidence, integrations, and workflow wiring.',
+      path: '/admin/system-console#development-controls',
+      status: readinessQuery.data?.status === 'ready' ? 'live' : readinessQuery.isSuccess ? 'attention' : 'partial',
+      label: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch',
+      icon: Activity,
+    },
+  ] satisfies Array<{
+    step: string;
+    title: string;
+    description: string;
+    path: string;
+    status: ConsoleStatus;
+    label: string;
+    icon: React.ElementType;
+  }>;
 
   const controls = React.useMemo<ConsoleControl[]>(() => [
     {
@@ -315,40 +489,11 @@ export function AdminSystemConsole() {
       status: readinessQuery.data?.status === 'ready' ? 'live' : readinessQuery.isSuccess ? 'attention' : 'partial',
       statusLabel: readinessQuery.data?.status === 'ready' ? 'Ready' : readinessQuery.isSuccess ? 'Not ready' : 'Endpoint check',
       icon: Activity,
-      link: '/admin/modules/reporting/operations',
-      linkLabel: 'Open Reporting Ops',
       evidence: [
         `API health: ${healthQuery.data?.status ?? 'not loaded'}${healthQuery.data?.version ? ` / v${healthQuery.data.version}` : ''}`,
+        `Liveness: ${livenessQuery.data?.status ?? 'not loaded'}`,
         `${readinessQuery.data?.checks.length ?? 0} readiness checks, ${readinessDown} down`,
         'Uses /health, /health/ready, and /health/live backend endpoints',
-      ],
-    },
-    {
-      title: 'Tenant, Company, And Setup',
-      description: 'Low-code setup for departments, locations, IDs, field rules, leave policy defaults, and documents.',
-      status: setupQuery.isSuccess ? 'live' : 'attention',
-      statusLabel: setupQuery.isSuccess ? 'Live API' : 'Needs attention',
-      icon: Settings,
-      link: '/admin/settings',
-      linkLabel: 'Open Setup',
-      evidence: [
-        'Uses GET/PATCH /admin/hcm-setup',
-        `${activeSetupCounts.departments} active departments and ${activeSetupCounts.locations} active locations loaded`,
-        'Generated runtime setup is consumed by employee, leave, attendance, and payroll screens',
-      ],
-    },
-    {
-      title: 'Policy Center',
-      description: 'Scoped policy revisions, validation, simulation, lifecycle approval, publish, apply, and decision evidence.',
-      status: policyQuery.isSuccess ? 'live' : 'attention',
-      statusLabel: policyQuery.isSuccess ? 'Live API' : 'Needs attention',
-      icon: ShieldCheck,
-      link: '/admin/policies',
-      linkLabel: 'Manage Policies',
-      evidence: [
-        'Uses /admin/policies summary, revisions, validate, simulate, and lifecycle commands',
-        `${policyQuery.data?.totalRevisions ?? 0} revisions, ${policyQuery.data?.byStatus?.APPLIED ?? 0} applied`,
-        'APPLIED revisions are the only state that changes live service behavior',
       ],
     },
     {
@@ -369,8 +514,6 @@ export function AdminSystemConsole() {
       status: 'partial',
       statusLabel: 'Domain-backed',
       icon: Workflow,
-      link: '/admin/modules/service-delivery/operations',
-      linkLabel: 'Open Operations',
       evidence: [
         'Module operations API supports records and workflows per commercial module',
         'Domain command handlers emit audit and workflow states',
@@ -383,8 +526,6 @@ export function AdminSystemConsole() {
       status: notificationsQuery.isSuccess ? 'partial' : 'attention',
       statusLabel: notificationsQuery.isSuccess ? 'Partial live' : 'Needs attention',
       icon: BellRing,
-      link: '/admin/modules/service-delivery/operations',
-      linkLabel: 'Open Service Delivery',
       evidence: [
         'Uses /notifications/hr-operations for admin notification visibility',
         `${unreadNotifications} unread HR operations notifications in the current inbox`,
@@ -393,12 +534,12 @@ export function AdminSystemConsole() {
     },
     {
       title: 'Integrations',
-      description: 'Adapter status and manual triggers exist; runtime secret/config management still needs a governed admin API.',
+      description: 'System development control for external adapters, health checks, metrics, and safe manual integration probes.',
       status: integrationQuery.isSuccess ? 'partial' : 'attention',
       statusLabel: integrationQuery.isSuccess ? 'Status API' : 'Needs attention',
       icon: PlugZap,
-      link: '/admin/settings',
-      linkLabel: 'Open Settings',
+      link: '/admin/system-console/integrations',
+      linkLabel: 'Open Integration Controls',
       evidence: [
         `API base URL: ${apiBaseUrl}`,
         `${integrationAdapterCount} integration adapters reported by /hr/integrations/status`,
@@ -425,8 +566,6 @@ export function AdminSystemConsole() {
       status: auditQuery.isSuccess ? 'partial' : 'attention',
       statusLabel: auditQuery.isSuccess ? 'Audit API' : 'Needs attention',
       icon: Radar,
-      link: '/admin/compliance',
-      linkLabel: 'Open Compliance',
       evidence: [
         'Uses GET /audit for recent tenant audit entries',
         `${auditQuery.data?.length ?? 0} recent audit records available to this actor`,
@@ -446,8 +585,6 @@ export function AdminSystemConsole() {
       ],
     },
   ], [
-    activeSetupCounts.departments,
-    activeSetupCounts.locations,
     apiBaseUrl,
     auditQuery.data?.length,
     auditQuery.isSuccess,
@@ -455,12 +592,9 @@ export function AdminSystemConsole() {
     healthQuery.data?.version,
     integrationAdapterCount,
     integrationQuery.isSuccess,
+    livenessQuery.data?.status,
     mapsConfigured,
     notificationsQuery.isSuccess,
-    policyQuery.data?.byStatus?.APPLIED,
-    policyQuery.data?.totalRevisions,
-    policyQuery.isSuccess,
-    setupQuery.isSuccess,
     readinessDown,
     readinessQuery.data?.checks.length,
     readinessQuery.data?.status,
@@ -528,27 +662,184 @@ export function AdminSystemConsole() {
               <Network className="h-3.5 w-3.5 text-[#006c49]" />
               Platform Administration
             </div>
-            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0b1c30]">System Admin Console</h2>
+            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0b1c30]">Administrator Settings</h2>
             <p className="mt-2 max-w-3xl text-lg leading-8 text-[#3c4a42]">
-              Central control for the HCM platform: setup, policies, modules, identity, workflows, notifications,
-              integrations, audit, and controlled data operations.
+              One administration panel for system management: setup, policies, organization, services, compliance,
+              payroll, workforce, reporting, and controlled platform operations.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link to="/admin">
-                <Activity className="mr-2 h-4 w-4" />
-                HR Overview
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link to="/admin/policies">
-                <ShieldCheck className="mr-2 h-4 w-4" />
-                Policy Center
-              </Link>
-            </Button>
+          <div className="rounded-lg border border-[#d5dfec] bg-white px-4 py-3 text-sm leading-6 text-[#3c4a42]">
+            Setup and control starts here. Sidebar tabs stay for using the system as an employee, manager, or HR operator.
           </div>
         </header>
+
+        <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
+          <Card className="overflow-hidden border-[#d5dfec] bg-white">
+            <CardContent className="p-0">
+              <div className="border-b border-[#d5dfec] bg-[#0b1c30] px-5 py-5 text-white">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-mono text-xs uppercase tracking-wider text-[#6ffbbe]">Admin Panel Home</p>
+                    <h3 className="mt-2 font-headline text-2xl font-bold">Enterprise HR Administration Center</h3>
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-[#eaf1ff]">
+                      Manage business configuration, policies, workforce services, compliance, reporting, and operational
+                      modules from one governed control surface.
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-white/20 bg-white/10 p-3 text-sm">
+                    <p className="font-semibold">{adminDisplayName}</p>
+                    <p className="mt-1 text-[#eaf1ff]">{primaryRole}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid gap-0 divide-y divide-[#d5dfec] md:grid-cols-4 md:divide-x md:divide-y-0">
+                {[
+                  { label: 'Employees', value: formatNumber(dashboardQuery.data?.headcount), helper: 'active workforce signal' },
+                  { label: 'Setup Data', value: `${activeSetupCounts.departments}/${activeSetupCounts.locations}`, helper: 'departments / locations' },
+                  { label: 'Policies', value: formatNumber(policyQuery.data?.totalRevisions), helper: 'versioned revisions' },
+                  { label: 'Runtime', value: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch', helper: `${readinessDown} readiness blockers` },
+                ].map((item) => (
+                  <div key={item.label} className="p-4">
+                    <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">{item.label}</p>
+                    <p className="mt-2 text-2xl font-bold text-[#0b1c30]">{item.value}</p>
+                    <p className="mt-1 text-sm text-[#3c4a42]">{item.helper}</p>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-[#d5dfec] bg-white">
+            <CardHeader>
+              <CardTitle className="text-lg">Admin Scope</CardTitle>
+              <CardDescription>What this panel controls today.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm leading-6 text-[#3c4a42]">
+              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+                <span>Business administration</span>
+                <StatusBadge status="live" label="Grouped" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+                <span>Policies and setup</span>
+                <StatusBadge status={policyQuery.isSuccess && setupQuery.isSuccess ? 'live' : 'attention'} label="Panel only" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+                <span>Development controls</span>
+                <StatusBadge status="partial" label="Separated" />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+                <span>Admin APIs still needed</span>
+                <StatusBadge status="attention" label="Visible" />
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="space-y-4">
+          <div>
+            <h3 className="font-headline text-xl font-bold text-[#0b1c30]">Administrator Journey</h3>
+            <p className="mt-1 text-sm text-[#3c4a42]">
+              Follow this path to make changes that affect the whole system: setup first, structure second, people third,
+              policies fourth, runtime verification last.
+            </p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-5">
+            {adminJourneySteps.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link key={item.step} to={item.path} className="group focus:outline-none focus:ring-2 focus:ring-[#006c49]/30">
+                  <div className="flex h-full min-h-[190px] flex-col rounded-lg border border-[#d5dfec] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#10b981]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6c7a71]">{item.step}</span>
+                      <StatusBadge status={item.status} label={item.label} />
+                    </div>
+                    <div className="mt-4 grid h-11 w-11 place-items-center rounded-lg bg-[#eff4ff] text-[#006c49]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h4 className="mt-4 font-semibold text-[#0b1c30]">{item.title}</h4>
+                    <p className="mt-2 flex-1 text-sm leading-5 text-[#3c4a42]">{item.description}</p>
+                    <div className="mt-4 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[#006c49]">
+                      <span>Open step</span>
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="space-y-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-headline text-xl font-bold text-[#0b1c30]">Administration Areas</h3>
+              <p className="mt-1 text-sm text-[#3c4a42]">Grouped by how HR administrators actually manage the platform.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
+                <input
+                  aria-label="Search admin services"
+                  className="h-9 w-64 rounded-lg border border-[#d5dfec] bg-white pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-[#6c7a71] focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                  onChange={(event) => setAdminToolQuery(event.target.value)}
+                  placeholder="Search services"
+                  type="search"
+                  value={adminToolQuery}
+                />
+              </div>
+              <Button asChild aria-label="Open general settings" size="icon" variant="outline">
+                <Link to="/admin/settings">
+                  <Wrench className="h-4 w-4" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+          <div className="space-y-5">
+            {adminPanelGroups.map((group) => {
+              const groupTools = filteredAdminPanelTools.filter((tool) => tool.group === group);
+              if (groupTools.length === 0) return null;
+              return (
+                <Card key={group} className="border-[#d5dfec] bg-[#f8fbff]">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">{group}</CardTitle>
+                    <CardDescription>
+                      {group === 'Foundation' ? 'Core tenant, organization, identity, employee data, and setup controls.' : null}
+                      {group === 'Workforce Operations' ? 'Daily workforce execution, service cases, schedules, attendance, and leave.' : null}
+                      {group === 'Reward And Talent' ? 'Payroll, rewards, benefits, performance, learning, onboarding, and engagement.' : null}
+                      {group === 'Governance And Insights' ? 'Policies, compliance, country controls, reporting, AI governance, and system development controls.' : null}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    {groupTools.map((tool) => (
+                      <AdminPanelTile key={tool.label} tool={tool} />
+                    ))}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {filteredAdminPanelTools.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-5 text-sm text-[#3c4a42]">
+              No services match this search.
+            </div>
+          ) : null}
+        </section>
+
+        <section className="space-y-5">
+          <h3 className="font-headline text-xl font-bold text-[#0b1c30]">Custom Services</h3>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            <AdminPanelTile
+              tool={{
+                label: 'Add Service',
+                description: 'Configure a custom HR service catalog item, routing rule, SLA, or request workflow.',
+                group: 'Custom Services',
+                path: '/admin/modules/service-delivery/operations',
+                icon: LifeBuoy,
+                tone: 'text-[#0077ff]',
+              }}
+            />
+          </div>
+        </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {topMetrics.map((metric) => {
@@ -578,16 +869,16 @@ export function AdminSystemConsole() {
           })}
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1fr_24rem]">
+        <section id="development-controls" className="grid gap-4 scroll-mt-28 xl:grid-cols-[1fr_24rem]">
           <Card className="relative overflow-hidden">
             <div className="absolute left-0 top-0 h-1 w-full bg-[#006c49]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <SlidersHorizontal className="h-5 w-5 text-[#006c49]" />
-                Control Surface
+                Development Controls
               </CardTitle>
               <CardDescription>
-                Every tile is either wired to a real admin/API surface or marked as a backend gap that must be built before use.
+                Runtime and development-control tools stay here. Business administration lives in the Admin Panel above.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 p-5 pt-0 md:grid-cols-2">
@@ -758,87 +1049,6 @@ export function AdminSystemConsole() {
           </CardContent>
         </Card>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            {
-              label: 'Organization Master Data',
-              value: `${activeSetupCounts.departments} departments`,
-              helper: 'Departments, locations, cities, IDs',
-              icon: Building2,
-              path: '/admin/organization',
-            },
-            {
-              label: 'Leave Policies',
-              value: `${activeSetupCounts.leavePolicies} active`,
-              helper: 'Employee-facing leave service policies',
-              icon: Umbrella,
-              path: '/admin/policies',
-            },
-            {
-              label: 'Attendance Evidence',
-              value: mapsConfigured ? 'Maps ready' : 'Maps missing',
-              helper: 'Geolocation evidence and workplace policy',
-              icon: Clock3,
-              path: '/admin/attendance',
-            },
-            {
-              label: 'Compliance Documents',
-              value: `${activeSetupCounts.documents} configured`,
-              helper: 'Policy acknowledgements and required documents',
-              icon: FileText,
-              path: '/admin/compliance',
-            },
-            {
-              label: 'Country Policy',
-              value: 'Versioned',
-              helper: 'Validate, simulate, approve, publish',
-              icon: Landmark,
-              path: '/admin/country-policy',
-            },
-            {
-              label: 'Service Delivery',
-              value: 'Operations',
-              helper: 'Cases, tasks, catalog, SLA workspace',
-              icon: LifeBuoy,
-              path: '/admin/modules/service-delivery/operations',
-            },
-            {
-              label: 'Payroll Control',
-              value: 'Policy linked',
-              helper: 'Payroll cycles, blockers, payslip flow',
-              icon: FileText,
-              path: '/admin/payroll',
-            },
-            {
-              label: 'Module Catalog',
-              value: `${commercialModules.length} modules`,
-              helper: 'Commercial depth and backend readiness',
-              icon: Layers3,
-              path: '/admin/modules',
-            },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.label} to={item.path}>
-                <Card className="relative h-full overflow-hidden transition-all hover:-translate-y-1 hover:border-[#10b981]/60 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
-                  <div className="absolute left-0 top-0 h-1 w-full bg-[#10b981]" />
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-[#0b1c30]">{item.label}</p>
-                        <p className="mt-1 text-lg font-bold text-[#0b1c30]">{item.value}</p>
-                        <p className="mt-1 text-xs leading-5 text-[#3c4a42]">{item.helper}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </section>
       </div>
     </div>
   );

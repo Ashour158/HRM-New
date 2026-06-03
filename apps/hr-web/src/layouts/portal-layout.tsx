@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { resolvePortalSearchPath } from '@/lib/portal-search';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
@@ -16,27 +17,22 @@ import {
 import {
   BarChart3,
   Bell,
-  Building2,
   ChevronDown,
   ChevronUp,
   Clock3,
   FileText,
   HelpCircle,
   Home,
-  Landmark,
-  Layers3,
   LifeBuoy,
   LogOut,
   Search,
   Settings,
   Heart,
-  ShieldCheck,
   Umbrella,
   UserCircle,
   UserRoundCheck,
   Users,
   TrendingUp,
-  Briefcase,
   Network,
 } from 'lucide-react';
 
@@ -44,19 +40,27 @@ interface PortalNavItem {
   label: string;
   path: string;
   badge?: number;
+  systemOnly?: boolean;
 }
+
+interface PortalRailItem extends PortalNavItem {
+  icon: React.ElementType;
+}
+
+type PortalType = 'employee' | 'manager' | 'admin';
 
 interface PortalConfig {
   title: string;
   description: string;
   navItems: PortalNavItem[];
-  theme: 'employee' | 'manager' | 'admin';
+  theme: PortalType;
 }
 
 interface PortalNavGroup {
   label: string;
   path?: string;
   items?: PortalNavItem[];
+  systemOnly?: boolean;
 }
 
 interface PlatformNotification {
@@ -68,7 +72,7 @@ interface PlatformNotification {
   createdAt: string;
 }
 
-const portalConfigs: Record<string, PortalConfig> = {
+const portalConfigs: Record<PortalType, PortalConfig> = {
   employee: {
     title: 'Employee Self-Service',
     description: 'Manage your profile, benefits, payslips, leave, and attendance',
@@ -99,25 +103,20 @@ const portalConfigs: Record<string, PortalConfig> = {
     description: 'Full administrative access to all HR domains',
     theme: 'admin',
     navItems: [
-      { label: 'Dashboard', path: '/admin' },
-      { label: 'System Console', path: '/admin/system-console' },
-      { label: 'Modules', path: '/admin/modules' },
-      { label: 'Employees', path: '/admin/employees' },
-      { label: 'Organization', path: '/admin/organization' },
-      { label: 'Workforce Planning', path: '/admin/workforce-planning' },
-      { label: 'Time & Attendance', path: '/admin/attendance' },
-      { label: 'Leave', path: '/admin/leave' },
-      { label: 'Onboarding', path: '/admin/onboarding' },
-      { label: 'Payroll', path: '/admin/payroll' },
-      { label: 'Performance', path: '/admin/performance' },
-      { label: 'Compliance', path: '/admin/compliance' },
-      { label: 'Country Policy', path: '/admin/country-policy' },
-      { label: 'Settings', path: '/admin/settings' },
+      { label: 'Admin Panel', path: '/admin/system-console', systemOnly: true },
+      { label: 'Home', path: '/employee' },
+      { label: 'Profile', path: '/employee/profile' },
+      { label: 'Payroll', path: '/employee/payslip' },
+      { label: 'Benefits', path: '/employee/benefits' },
+      { label: 'Onboarding', path: '/employee/onboarding' },
+      { label: 'Leave', path: '/employee/time-off' },
+      { label: 'Performance', path: '/employee/performance' },
+      { label: 'Services', path: '/employee/services' },
     ],
   },
 };
 
-const employeeRailItems = [
+const employeeRailItems: PortalRailItem[] = [
   { label: 'Home', path: '/employee', icon: Home },
   { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
   { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
@@ -129,107 +128,72 @@ const employeeRailItems = [
   { label: 'Services', path: '/employee/services', icon: LifeBuoy },
 ];
 
-const managerRailItems = [
+const managerRailItems: PortalRailItem[] = [
   { label: 'Home', path: '/manager', icon: Home },
   { label: 'Team', path: '/manager/team', icon: Users },
   { label: 'Approvals', path: '/manager/approvals', icon: BarChart3 },
 ];
 
-const adminRailItems = [
-  { label: 'Home', path: '/admin', icon: Home },
-  { label: 'System Console', path: '/admin/system-console', icon: Network },
-  { label: 'Modules', path: '/admin/modules', icon: Layers3 },
-  { label: 'Operations', path: '/admin/modules/service-delivery/operations', icon: Briefcase },
-  { label: 'Employees', path: '/admin/employees', icon: Users },
-  { label: 'Organization', path: '/admin/organization', icon: Building2 },
-  { label: 'Planning', path: '/admin/workforce-planning', icon: BarChart3 },
-  { label: 'Time & Attendance', path: '/admin/attendance', icon: Clock3 },
-  { label: 'Leave', path: '/admin/leave', icon: Umbrella },
-  { label: 'Onboarding', path: '/admin/onboarding', icon: UserRoundCheck },
-  { label: 'Payroll', path: '/admin/payroll', icon: FileText },
-  { label: 'Performance', path: '/admin/performance', icon: TrendingUp },
-  { label: 'Perf Ops', path: '/admin/performance/operations', icon: BarChart3 },
-  { label: 'Policies', path: '/admin/policies', icon: ShieldCheck },
-  { label: 'Compliance', path: '/admin/compliance', icon: ShieldCheck },
-  { label: 'Country', path: '/admin/country-policy', icon: Landmark },
-  { label: 'Settings', path: '/admin/settings', icon: Settings },
+const adminRailItems: PortalRailItem[] = [
+  { label: 'Admin Panel', path: '/admin/system-console', icon: Network, systemOnly: true },
+  { label: 'Home', path: '/employee', icon: Home },
+  { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
+  { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
+  { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
+  { label: 'Payslips', path: '/employee/payslip', icon: FileText },
+  { label: 'Benefits', path: '/employee/benefits', icon: Heart },
+  { label: 'Onboarding', path: '/employee/onboarding', icon: UserRoundCheck },
+  { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
+  { label: 'Services', path: '/employee/services', icon: LifeBuoy },
 ];
 
-function portalRailItems(portalType: keyof typeof portalConfigs) {
+function portalRailItems(portalType: PortalType) {
   if (portalType === 'manager') return managerRailItems;
   if (portalType === 'admin') return adminRailItems;
   return employeeRailItems;
 }
 
-function portalNavGroups(portalType: keyof typeof portalConfigs): PortalNavGroup[] {
+function portalNavGroups(portalType: PortalType): PortalNavGroup[] {
   if (portalType === 'admin') {
     return [
-      { label: 'HCM Home', path: '/admin' },
-      { label: 'System Console', path: '/admin/system-console' },
       {
-        label: 'People & Organization',
+        label: 'Admin Panel',
+        systemOnly: true,
         items: [
-          { label: 'Employee Records', path: '/admin/employees' },
-          { label: 'Add Employee', path: '/admin/employees/new' },
-          { label: 'Onboarding', path: '/admin/onboarding' },
-          { label: 'Organization Structure', path: '/admin/organization' },
-          { label: 'Workforce Planning', path: '/admin/workforce-planning' },
+          { label: 'Administrator Settings', path: '/admin/system-console' },
+          { label: 'Development Controls', path: '/admin/system-console#development-controls' },
+          { label: 'Integration Controls', path: '/admin/system-console/integrations' },
+        ],
+      },
+      {
+        label: 'Self Service',
+        items: [
+          { label: 'Home', path: '/employee' },
+          { label: 'My Profile', path: '/employee/profile' },
+          { label: 'HR Service Requests', path: '/employee/services' },
         ],
       },
       {
         label: 'Workforce',
         items: [
-          { label: 'Time, Attendance & Scheduling', path: '/admin/attendance' },
-          { label: 'Leave Management', path: '/admin/leave' },
+          { label: 'Check-in / Check-out', path: '/employee#attendance' },
+          { label: 'Apply for Leave', path: '/employee/time-off' },
         ],
       },
       {
         label: 'Payroll & Reward',
         items: [
-          { label: 'Payroll Operations', path: '/admin/payroll' },
-          { label: 'Compensation Operations', path: '/admin/modules/compensation/operations' },
-          { label: 'Benefits Admin', path: '/admin/modules/benefits/operations' },
+          { label: 'Payslips', path: '/employee/payslip' },
+          { label: 'Benefits', path: '/employee/benefits' },
         ],
       },
       {
         label: 'Talent',
         items: [
-          { label: 'Recruiting Operations', path: '/admin/modules/recruiting/operations' },
-          { label: 'Learning Operations', path: '/admin/modules/learning/operations' },
-          { label: 'Skills & Talent', path: '/admin/modules/skills-talent/operations' },
-          { label: 'Engagement Operations', path: '/admin/modules/engagement/operations' },
-          { label: 'Performance Admin', path: '/admin/performance' },
-          { label: 'Performance Operations', path: '/admin/performance/operations' },
-          { label: 'Onboarding Operations', path: '/admin/onboarding' },
+          { label: 'Preboarding', path: '/employee/onboarding' },
+          { label: 'Performance', path: '/employee/performance' },
         ],
       },
-      {
-        label: 'Governance',
-        items: [
-          { label: 'Policy Center', path: '/admin/policies' },
-          { label: 'System Console', path: '/admin/system-console' },
-          { label: 'Compliance Center', path: '/admin/compliance' },
-          { label: 'Country Policy', path: '/admin/country-policy' },
-          { label: 'Employee Relations', path: '/admin/modules/employee-relations/operations' },
-          { label: 'Global HR', path: '/admin/modules/global-hr/operations' },
-          { label: 'DEI Analytics', path: '/admin/modules/dei-analytics/operations' },
-          { label: 'HR AI Governance', path: '/admin/modules/hr-ai-governance/operations' },
-          { label: 'Union & Labor', path: '/admin/modules/union-labor/operations' },
-          { label: 'System Settings', path: '/admin/settings' },
-        ],
-      },
-      {
-        label: 'Operations',
-        items: [
-          { label: 'Reporting', path: '/admin/modules/reporting/operations' },
-          { label: 'HR Service Delivery', path: '/admin/modules/service-delivery/operations' },
-          { label: 'Contingent Workforce', path: '/admin/modules/contingent-workforce/operations' },
-          { label: 'Wellbeing & EAP', path: '/admin/modules/wellbeing-eap/operations' },
-          { label: 'Workforce Management', path: '/admin/modules/workforce-management/operations' },
-        ],
-      },
-      { label: 'Module Catalog', path: '/admin/modules' },
-      { label: 'Employee Mode', path: '/employee' },
     ];
   }
 
@@ -281,11 +245,15 @@ function portalNavGroups(portalType: keyof typeof portalConfigs): PortalNavGroup
   ];
 }
 
-function isPathActive(currentPath: string, currentHash: string, portalType: keyof typeof portalConfigs, path: string) {
+function isPathActive(currentPath: string, currentHash: string, portalType: PortalType, path: string) {
   const [targetPath, targetHash] = path.split('#');
   const isRoot = targetPath === `/${portalType}`;
   const pathMatches = currentPath === targetPath || (!isRoot && currentPath.startsWith(`${targetPath}/`));
   return pathMatches && (!targetHash || currentHash === `#${targetHash}`);
+}
+
+function hasSystemAdminRole(roleNames: Set<string>) {
+  return ['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN'].some((roleName) => roleNames.has(roleName));
 }
 
 function WorkspaceShell({
@@ -294,15 +262,24 @@ function WorkspaceShell({
   config,
 }: {
   children: React.ReactNode;
-  portalType: keyof typeof portalConfigs;
+  portalType: PortalType;
   config: PortalConfig;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const [searchTerm, setSearchTerm] = React.useState('');
   const roleNames = React.useMemo(() => new Set((user?.roles ?? []).map((role) => role.name)), [user?.roles]);
   const canSeeAdminSettings = roleNames.has('HR_ADMIN') || roleNames.has('SUPER_ADMIN');
-  const railItems = portalRailItems(portalType);
-  const navGroups = portalNavGroups(portalType);
+  const canSeeSystemConsole = hasSystemAdminRole(roleNames);
+  const railItems = portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole);
+  const navGroups = portalNavGroups(portalType)
+    .filter((group) => !group.systemOnly || canSeeSystemConsole)
+    .map((group) => ({
+      ...group,
+      items: group.items?.filter((item) => !item.systemOnly || canSeeSystemConsole),
+    }))
+    .filter((group) => group.path || (group.items?.length ?? 0) > 0);
   const notificationPath = portalType === 'admin' ? '/notifications/hr-operations' : '/notifications/me';
   const { data: notifications = [] } = useApiQuery<PlatformNotification[]>(
     ['platform-notifications', portalType],
@@ -319,6 +296,13 @@ function WorkspaceShell({
   const forwardSidebarWheel = React.useCallback((event: React.WheelEvent<HTMLElement>) => {
     window.scrollBy({ top: event.deltaY, behavior: 'auto' });
   }, []);
+  const submitSearch = React.useCallback((event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = searchTerm.trim();
+    if (!trimmed) return;
+    navigate(resolvePortalSearchPath(portalType, trimmed));
+  }, [navigate, portalType, searchTerm]);
+  const helpPath = '/employee/services';
 
   return (
     <div className="min-h-screen bg-background text-[#0b1c30]">
@@ -334,7 +318,7 @@ function WorkspaceShell({
             </div>
           </div>
           <Button asChild className="mt-6 w-full">
-            <Link to={portalType === 'admin' ? '/admin/employees/new' : '/employee/services'}>
+            <Link to="/employee/services">
               <span className="mr-2 text-lg leading-none">+</span>
               New Request
             </Link>
@@ -368,7 +352,7 @@ function WorkspaceShell({
 
         <div className="mt-auto space-y-1 border-t border-[#bbcabf]/60 px-2 pt-4">
           {canSeeAdminSettings && portalType !== 'admin' ? (
-            <Link className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#3c4a42] transition-all hover:translate-x-1 hover:bg-[#dce9ff]" to="/admin">
+            <Link className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#3c4a42] transition-all hover:translate-x-1 hover:bg-[#dce9ff]" to="/admin/system-console">
               <Settings className="h-5 w-5" />
               Admin Panel
             </Link>
@@ -379,7 +363,7 @@ function WorkspaceShell({
               Employee Mode
             </Link>
           ) : null}
-          <Link className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#3c4a42] transition-all hover:translate-x-1 hover:bg-[#dce9ff]" to={portalType === 'admin' ? '/admin/settings' : '/employee/services'}>
+          <Link className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#3c4a42] transition-all hover:translate-x-1 hover:bg-[#dce9ff]" to="/employee/services">
             <HelpCircle className="h-5 w-5" />
             Support
           </Link>
@@ -398,14 +382,17 @@ function WorkspaceShell({
               <span className="font-headline text-2xl font-bold text-[#006c49]">HRM Nexus</span>
             </div>
 
-            <div className="relative hidden min-w-0 flex-1 lg:block xl:max-w-md">
+            <form className="relative hidden min-w-0 flex-1 lg:block xl:max-w-md" onSubmit={submitSearch}>
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
               <input
+                aria-label="Search modules, people, or settings"
                 className="h-10 w-full rounded-full border-0 bg-[#f1f5f9] pl-10 pr-4 text-sm text-[#0b1c30] outline-none transition-colors placeholder:text-[#6c7a71] focus:bg-white focus:ring-2 focus:ring-[#006c49]/20"
                 placeholder="Search modules, people, or settings..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
                 type="search"
               />
-            </div>
+            </form>
 
             <div className="ml-auto flex shrink-0 items-center gap-2 md:ml-2">
               <DropdownMenu>
@@ -444,8 +431,10 @@ function WorkspaceShell({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="ghost" size="icon" aria-label="Help">
-                <HelpCircle className="h-5 w-5" />
+              <Button asChild variant="ghost" size="icon" aria-label="Help">
+                <Link to={helpPath}>
+                  <HelpCircle className="h-5 w-5" />
+                </Link>
               </Button>
               <Avatar className="h-9 w-9 border border-[#bbcabf]">
                 <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
@@ -568,7 +557,7 @@ function WorkspaceShell({
 export function PortalLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
-  const portalType = React.useMemo<keyof typeof portalConfigs | null>(() => {
+  const portalType = React.useMemo<PortalType | null>(() => {
     if (location.pathname.startsWith('/employee')) return 'employee';
     if (location.pathname.startsWith('/manager')) return 'manager';
     if (location.pathname.startsWith('/admin')) return 'admin';

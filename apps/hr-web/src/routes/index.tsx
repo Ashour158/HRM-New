@@ -34,6 +34,7 @@ import { AdminCountryPolicy } from '@/pages/admin/country-policy';
 import { AdminPolicies } from '@/pages/admin/policies';
 import { AdminSettings } from '@/pages/admin/settings';
 import { AdminSystemConsole } from '@/pages/admin/system-console';
+import { AdminIntegrations } from '@/pages/admin/integrations';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -69,6 +70,7 @@ const adminRoleNames = new Set([
 ]);
 
 const managerRoleNames = new Set(['MANAGER']);
+const systemAdminRoleNames = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
 
 function RequireRoles({
   children,
@@ -159,7 +161,26 @@ export function AppRoutes() {
                 <PortalLayout>
                   <Routes>
                     <Route index element={<AdminDashboard />} />
-                    <Route path="system-console" element={<AdminSystemConsole />} />
+                    <Route
+                      path="system-console"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminSystemConsole />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="integrations"
+                      element={<Navigate to="/admin/system-console/integrations" replace />}
+                    />
+                    <Route
+                      path="system-console/integrations"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminIntegrations />
+                        </RequireRoles>
+                      }
+                    />
                     <Route path="modules" element={<AdminModuleCatalog />} />
                     <Route path="modules/:moduleId/operations" element={<AdminModuleOperations />} />
                     <Route path="modules/:moduleId" element={<AdminModuleWorkbench />} />
@@ -189,7 +210,7 @@ export function AppRoutes() {
       />
 
       <Route path="/recruiter/*" element={<Navigate to="/employee" replace />} />
-      <Route path="/payroll/*" element={<Navigate to="/admin/payroll" replace />} />
+      <Route path="/payroll/*" element={<Navigate to="/admin/system-console" replace />} />
 
       {/* Settings */}
       <Route
@@ -198,7 +219,7 @@ export function AppRoutes() {
           <RequireAuth>
             <RequireRoles allowedRoles={adminRoleNames}>
               <AppLayout>
-                <Navigate to="/admin/settings" replace />
+                <Navigate to="/admin/system-console" replace />
               </AppLayout>
             </RequireRoles>
           </RequireAuth>
