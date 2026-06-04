@@ -44,6 +44,7 @@ import {
   Legend,
 } from "recharts";
 import "./fusion/_group.css";
+import luminaLogo from "../../../assets/lumina-logo.png";
 
 const currentUser = "Jane";
 
@@ -170,9 +171,11 @@ export function Fusion() {
       {/* Sidebar — glassmorphic (Aurora) */}
       <aside className="w-64 fusion-glass border-r border-white/40 flex-col z-10 hidden lg:flex relative">
         <div className="h-16 flex items-center px-6 border-b border-white/30">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white mr-3 shadow-lg shadow-indigo-500/25">
-            <Zap size={18} fill="currentColor" />
-          </div>
+          <img
+            src={luminaLogo}
+            alt="Lumina HR logo"
+            className="w-9 h-9 mr-3 object-contain drop-shadow-sm"
+          />
           <span className="font-extrabold text-xl tracking-tight">Lumina HR</span>
         </div>
 
@@ -250,6 +253,11 @@ export function Fusion() {
         <header className="h-16 fusion-glass border-b border-white/30 flex items-center justify-between px-6 lg:px-8 z-20">
           <div className="flex items-center lg:hidden">
             <Menu className="text-slate-500 mr-4" />
+            <img
+              src={luminaLogo}
+              alt="Lumina HR logo"
+              className="w-7 h-7 mr-2 object-contain"
+            />
             <span className="font-extrabold text-lg">Lumina HR</span>
           </div>
           <div className="hidden lg:flex items-center max-w-md w-full relative">

@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "Nn3ioc6Io1jPpi12CkmFb"
+uri = "file://artifacts/mockup-sandbox/src/assets/lumina-logo.png"
+type = "image"
+title = "lumina hr logo"
