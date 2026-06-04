@@ -30,11 +30,13 @@ export class PolicyCenterController {
 
   @Get('summary')
   async summary(@Req() req: Request) {
+    this.assertPolicyAdmin(req);
     return this.service.getSummary(this.getTenantId(req));
   }
 
   @Get('revisions')
   async list(@Req() req: Request, @Query('area') area?: string) {
+    this.assertPolicyAdmin(req);
     return this.service.listRevisions(this.getTenantId(req), areaFromQuery(area));
   }
 

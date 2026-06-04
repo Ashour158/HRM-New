@@ -27,6 +27,9 @@ export class WarehouseExportConsumer implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    this.inboxConsumer.registerReplayHandler(this.consumerName, this.consumerVersion, {
+      handle: async (event) => this.handle(event),
+    });
     for (const topic of AllHrTopics) {
       this.eventBus.subscribe(topic, this.consumerName, {
         consumerGroup: this.consumerName,
@@ -47,10 +50,19 @@ export class WarehouseExportConsumer implements OnModuleInit {
       tenantId: event.tenantId.value,
     });
 
+    const occurredAt = this.coerceEventDate(event.occurredAt);
     await this.warehouseAdapter.exportEvents(
       event.tenantId,
-      event.occurredAt,
-      event.occurredAt,
+      occurredAt,
+      occurredAt,
     );
+  }
+
+  private coerceEventDate(value: Date | string): Date {
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      throw new Error('Warehouse export event has an invalid occurredAt timestamp');
+    }
+    return date;
   }
 }

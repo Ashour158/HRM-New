@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import { OutboxPublisher } from '../../../platform/outbox-inbox/outbox-publisher.js';
 import type { HrEventEnvelope, HrEventPrivacy } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import type { DomainEvent, Uuid } from '@hcm/shared-kernel';
@@ -12,7 +12,7 @@ import {
 
 @Injectable()
 export class ReportingEventsPublisher {
-  constructor(private readonly eventBus: EventBus) {}
+  constructor(private readonly outboxPublisher: OutboxPublisher) {}
 
   async publishFromAggregate(aggregate: {
     id: Uuid;
@@ -23,7 +23,11 @@ export class ReportingEventsPublisher {
     const events = aggregate.domainEvents
       .map((e) => this.toEnvelope(e, aggregate.id, aggregate.tenantId))
       .filter((e): e is HrEventEnvelope<unknown> => !!e);
-    await Promise.all(events.map((e) => this.eventBus.publish(e)));
+    await Promise.all(events.map((e) => this.outboxPublisher.schedule(
+      e,
+      aggregate.tenantId,
+      e.metadata.correlationId,
+    )));
   }
 
   private toEnvelope(event: DomainEvent, aggregateId: Uuid, tenantId: Uuid): HrEventEnvelope<unknown> | undefined {

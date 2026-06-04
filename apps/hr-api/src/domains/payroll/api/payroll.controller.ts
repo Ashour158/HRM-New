@@ -1414,7 +1414,8 @@ export class PayrollController {
   }
 
   @Get('cycles/:id')
-  async getPayrollCycle(@Param('id') id: string) {
+  async getPayrollCycle(@Param('id') id: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
     return this.payrollCycleRepo.findById(new Uuid(id));
   }
 

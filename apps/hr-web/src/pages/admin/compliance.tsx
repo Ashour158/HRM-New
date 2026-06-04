@@ -152,7 +152,7 @@ export function AdminCompliance() {
         </div>
         <div className="flex items-center gap-2">
           <Button asChild variant="outline">
-            <Link to="/admin/policies">Policy Center</Link>
+            <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>
           <AllowedActions
             aggregateType="COMPLIANCE"

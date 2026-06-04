@@ -5,7 +5,6 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import { HeadcountRequest } from '../aggregates/headcount-request.aggregate.js';
 import { HeadcountRequestRepository } from '../repositories/headcount-request.repository.js';
-import { PositionEventsPublisher } from '../events/position-events.publisher.js';
 
 export interface SubmitHeadcountRequestCommandPayload {
   departmentId?: string;
@@ -27,7 +26,6 @@ export class SubmitHeadcountRequestHandler implements ICommandHandler {
 
   constructor(
     private readonly headcountRepo: HeadcountRequestRepository,
-    private readonly eventsPublisher: PositionEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -48,7 +46,6 @@ export class SubmitHeadcountRequestHandler implements ICommandHandler {
     });
 
     await this.headcountRepo.save(request);
-    await this.eventsPublisher.publishUncommitted(request, tenantId, command.correlationId);
 
     return {
       success: true,

@@ -12,6 +12,9 @@ import { OutboxPublisher } from './outbox-inbox/outbox-publisher.js';
 import { OutboxPublisherWorker } from './outbox-inbox/outbox-publisher.worker.js';
 import { InboxConsumer } from './outbox-inbox/inbox-consumer.js';
 import { InboxDeduplicator } from './outbox-inbox/inbox-deduplicator.js';
+import { InboxRecoveryWorker } from './outbox-inbox/inbox-recovery.worker.js';
+import { DeadLetterOperationsController } from './outbox-inbox/dead-letter-operations.controller.js';
+import { DeadLetterOperationsService } from './outbox-inbox/dead-letter-operations.service.js';
 import { FsmFramework } from './workflow/fsm-framework.js';
 import { TransitionLedgerService } from './workflow/transition-ledger.js';
 import { GuardLibrary } from './workflow/guard-library.js';
@@ -20,6 +23,8 @@ import { PlatformNotificationRepository } from './notifications/platform-notific
 import { PlatformNotificationService } from './notifications/platform-notification.service.js';
 import { EventNotificationBridge } from './notifications/event-notification-bridge.js';
 import { PlatformNotificationsController } from './notifications/platform-notifications.controller.js';
+import { EventContractsRegistryController } from './event-contracts-registry.controller.js';
+import { EventContractsRegistryService } from './event-contracts-registry.service.js';
 import { HcmSetupModule } from '../domains/hcm-setup/hcm-setup.module.js';
 
 const eventBusProvider = {
@@ -36,7 +41,7 @@ const eventBusProvider = {
 @Global()
 @Module({
   imports: [ConfigModule, DiscoveryModule, HcmSetupModule],
-  controllers: [PlatformNotificationsController],
+  controllers: [PlatformNotificationsController, DeadLetterOperationsController, EventContractsRegistryController],
   providers: [
     eventBusProvider,
     {
@@ -56,6 +61,8 @@ const eventBusProvider = {
     OutboxPublisherWorker,
     InboxConsumer,
     InboxDeduplicator,
+    InboxRecoveryWorker,
+    DeadLetterOperationsService,
     FsmFramework,
     TransitionLedgerService,
     GuardLibrary,
@@ -63,6 +70,7 @@ const eventBusProvider = {
     PlatformNotificationRepository,
     PlatformNotificationService,
     EventNotificationBridge,
+    EventContractsRegistryService,
   ],
   exports: [
     CommandBus,

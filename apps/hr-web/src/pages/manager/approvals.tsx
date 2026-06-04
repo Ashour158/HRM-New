@@ -195,7 +195,7 @@ export function ManagerApprovals() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {new Date(request.startDate).toLocaleDateString()} - {new Date(request.endDate).toLocaleDateString()}
-                  {request.reason ? ` • ${request.reason}` : ''}
+                  {request.reason ? ` - ${request.reason}` : ''}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

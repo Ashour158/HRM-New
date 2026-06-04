@@ -60,6 +60,9 @@ export interface OutboxEventsTable {
   aggregate_id: string;
   payload: unknown;
   metadata: unknown;
+  event_schema_version: number;
+  event_topic: string | null;
+  envelope_version: number;
   correlation_id: string | null;
   causation_id: string | null;
   created_at: ColumnType<Date, string | undefined, never>;

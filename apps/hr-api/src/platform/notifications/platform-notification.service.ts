@@ -21,21 +21,26 @@ export class PlatformNotificationService {
     const notifications: PlatformNotificationInput[] = [];
     const subjectWorkerId = event.privacy.subjectWorkerId;
     const category = event.privacy.employeeDataCategory ?? event.aggregateType.toUpperCase();
+    const eventId = uuidValue(event.eventId);
+    const tenantId = uuidValue(event.tenantId);
+    const aggregateId = uuidValue(event.aggregateId);
+    const correlationId = uuidValue(event.metadata.correlationId);
+    const occurredAt = dateValue(event.occurredAt);
     const base = {
-      tenantId: event.tenantId.value,
+      tenantId,
       category,
       title: humanizeEventName(event.eventName),
       body: `${humanizeEventName(event.eventName)} for ${event.aggregateType}.`,
-      sourceEventId: event.eventId.value,
+      sourceEventId: eventId,
       sourceEventName: event.eventName,
       relatedAggregateType: event.aggregateType,
-      relatedAggregateId: event.aggregateId.value,
+      relatedAggregateId: aggregateId,
       payload: {
         eventName: event.eventName,
         aggregateType: event.aggregateType,
-        aggregateId: event.aggregateId.value,
-        correlationId: event.metadata.correlationId.value,
-        occurredAt: event.occurredAt.toISOString(),
+        aggregateId,
+        correlationId,
+        occurredAt: occurredAt.toISOString(),
       },
     };
 
@@ -75,4 +80,20 @@ function humanizeEventName(value: string): string {
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function uuidValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  const uuidLike = value as { value?: unknown } | undefined;
+  if (typeof uuidLike?.value === 'string') return uuidLike.value;
+  throw new Error('Event envelope is missing a UUID value');
+}
+
+function dateValue(value: unknown): Date {
+  if (value instanceof Date) return value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const date = new Date(value);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  throw new Error('Event envelope is missing an occurredAt date value');
 }

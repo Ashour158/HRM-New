@@ -673,7 +673,7 @@ export function AdminPayroll() {
             {policyMutation.isPending ? 'Saving...' : 'Save Policies'}
           </Button>
           <Button asChild variant="secondary">
-            <Link to="/admin/policies">Policy Center</Link>
+            <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>
         </div>
         </div>

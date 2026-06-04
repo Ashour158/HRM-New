@@ -5,7 +5,6 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import { Uuid } from '@hcm/shared-kernel';
 import { CountryPolicyPack } from '../aggregates/country-policy-pack.aggregate.js';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
-import { CountryPolicyEventsPublisher } from '../events/country-policy-events.publisher.js';
 
 export interface UploadCountryPolicyPackPayload {
   packId: string;
@@ -26,7 +25,6 @@ export class UploadCountryPolicyPackHandler implements ICommandHandler {
 
   constructor(
     private readonly repo: CountryPolicyPackRepository,
-    private readonly eventsPublisher: CountryPolicyEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -46,7 +44,6 @@ export class UploadCountryPolicyPackHandler implements ICommandHandler {
 
     pack.upload(new Uuid(payload.uploadedBy), command.correlationId);
     await this.repo.save(pack);
-    await this.eventsPublisher.publishUncommitted(pack, command.tenantId, command.correlationId);
 
     return {
       success: true,

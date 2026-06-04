@@ -161,8 +161,14 @@ function portalNavGroups(portalType: PortalType): PortalNavGroup[] {
         systemOnly: true,
         items: [
           { label: 'Administrator Settings', path: '/admin/system-console' },
+          { label: 'Policy Center', path: '/admin/system-console/policies' },
+          { label: 'Access Governance', path: '/admin/system-console/access-governance' },
+          { label: 'Tenant And Data Setup', path: '/admin/system-console/settings' },
           { label: 'Development Controls', path: '/admin/system-console#development-controls' },
           { label: 'Integration Controls', path: '/admin/system-console/integrations' },
+          { label: 'Dead-Letter Events', path: '/admin/system-console/dead-letter-events' },
+          { label: 'Audit Trail', path: '/admin/system-console/audit' },
+          { label: 'Event Contracts', path: '/admin/system-console/event-contracts' },
         ],
       },
       {

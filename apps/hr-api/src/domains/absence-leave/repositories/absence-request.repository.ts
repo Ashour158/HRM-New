@@ -5,6 +5,10 @@ import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { AbsenceRequest, type AbsenceDurationUnit, type AbsencePayrollImpact, type AbsenceRequestStatus } from '../aggregates/absence-request.aggregate.js';
 
+function normalizeDateColumn(value: Date): Date {
+  return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+}
+
 @Injectable()
 export class AbsenceRequestRepository extends BaseRepository<'absence_requests', AbsenceRequest> {
   protected readonly tableName = 'absence_requests' as const;
@@ -96,8 +100,8 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
       workerId: new Uuid(row.worker_id),
       absenceType: row.absence_type,
       policyCode: row.policy_code ?? undefined,
-      startDate: row.start_date,
-      endDate: row.end_date,
+      startDate: normalizeDateColumn(row.start_date),
+      endDate: normalizeDateColumn(row.end_date),
       durationUnit: row.duration_unit as AbsenceDurationUnit,
       durationAmount: Number(row.duration_amount),
       startTime: row.start_time ?? undefined,

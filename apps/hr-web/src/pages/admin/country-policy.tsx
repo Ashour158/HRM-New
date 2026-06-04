@@ -171,7 +171,7 @@ export function AdminCountryPolicy() {
           <p className="text-muted-foreground">Manage country-specific policy packs</p>
         </div>
         <Button asChild variant="outline">
-          <Link to="/admin/policies">Policy Center</Link>
+          <Link to="/admin/system-console/policies">Policy Center</Link>
         </Button>
       </div>
 

@@ -4,7 +4,6 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import { PositionRepository } from '../repositories/position.repository.js';
-import { PositionEventsPublisher } from '../events/position-events.publisher.js';
 
 export interface VacatePositionCommandPayload {
   positionId: string;
@@ -24,7 +23,6 @@ export class VacatePositionHandler implements ICommandHandler {
 
   constructor(
     private readonly positionRepo: PositionRepository,
-    private readonly eventsPublisher: PositionEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -36,7 +34,6 @@ export class VacatePositionHandler implements ICommandHandler {
 
     position.vacate(command.correlationId);
     await this.positionRepo.save(position);
-    await this.eventsPublisher.publishUncommitted(position, command.tenantId, command.correlationId);
 
     return {
       success: true,

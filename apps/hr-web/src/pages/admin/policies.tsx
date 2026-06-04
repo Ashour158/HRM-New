@@ -131,7 +131,7 @@ type ScopeForm = {
 };
 
 const policyAreas: Array<{ area: PolicyArea; label: string; icon: React.ElementType; link?: string }> = [
-  { area: 'EMPLOYEE_SETUP', label: 'Service Policies', icon: SlidersHorizontal, link: '/admin/settings' },
+  { area: 'EMPLOYEE_SETUP', label: 'Service Policies', icon: SlidersHorizontal, link: '/admin/system-console/settings' },
   { area: 'LEAVE', label: 'Leave', icon: Umbrella, link: '/admin/leave' },
   { area: 'ATTENDANCE', label: 'Attendance', icon: Radar, link: '/admin/attendance' },
   { area: 'PAYROLL', label: 'Payroll', icon: Scale, link: '/admin/payroll' },
@@ -587,7 +587,7 @@ export function AdminPolicies() {
           </div>
           <div className="flex flex-wrap gap-2">
             <Button asChild variant="outline">
-              <Link to="/admin/settings">Setup</Link>
+              <Link to="/admin/system-console/settings">Setup</Link>
             </Button>
             <Button asChild variant="outline">
               <Link to="/admin/compliance">Compliance</Link>

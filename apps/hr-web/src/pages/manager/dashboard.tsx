@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/common/data-table';
-import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
 import { Users, CheckCircle2, Eye, TrendingUp, AlertCircle } from 'lucide-react';
 import type { AbsenceRequest, Worker } from '@/types';
@@ -51,10 +50,9 @@ export function ManagerDashboard() {
       key: 'actions',
       header: 'Actions',
       cell: (row: AbsenceRequest) => (
-        <AllowedActions
-          aggregateType="ABSENCE"
-          aggregateId={row.id}
-        />
+        <Button variant="outline" size="sm" asChild>
+          <Link to={`/manager/approvals?requestId=${row.id}`}>Review</Link>
+        </Button>
       ),
     },
   ];

@@ -56,6 +56,15 @@ interface LeaveRequestForm {
   reason: string;
 }
 
+interface LeaveRequestPayload {
+  type: string;
+  startDate: string;
+  endDate: string;
+  startTime?: string;
+  endTime?: string;
+  reason?: string;
+}
+
 const EMPTY_FORM: LeaveRequestForm = {
   type: '',
   startDate: '',
@@ -211,7 +220,7 @@ export function EmployeeTimeOff() {
     '/employee/absences/policies',
   );
 
-  const createMutation = useApiMutation<AbsenceRequest, LeaveRequestForm>(
+  const createMutation = useApiMutation<AbsenceRequest, LeaveRequestPayload>(
     '/employee/absences',
     'post',
     [['employee-absences'], ['employee-absence-balance']],
@@ -314,9 +323,14 @@ export function EmployeeTimeOff() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formValidationMessages.length > 0) return;
-    const payload: LeaveRequestForm = selectedPolicy?.unit === 'HOURS'
-      ? { ...formData, endDate: formData.startDate }
-      : formData;
+    const isHourly = selectedPolicy?.unit === 'HOURS';
+    const payload: LeaveRequestPayload = {
+      type: formData.type,
+      startDate: formData.startDate,
+      endDate: isHourly ? formData.startDate : formData.endDate,
+      ...(isHourly ? { startTime: formData.startTime, endTime: formData.endTime } : {}),
+      ...(formData.reason.trim() ? { reason: formData.reason.trim() } : {}),
+    };
     await createMutation.mutateAsync(payload);
     setShowForm(false);
     resetForm();

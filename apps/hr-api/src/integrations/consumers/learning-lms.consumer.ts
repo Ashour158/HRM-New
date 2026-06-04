@@ -30,6 +30,9 @@ export class LearningLmsConsumer implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    this.inboxConsumer.registerReplayHandler(this.consumerName, this.consumerVersion, {
+      handle: async (event) => this.handle(event),
+    });
     this.eventBus.subscribe('hr.learning.v1', this.consumerName, {
       consumerGroup: this.consumerName,
       handle: async (event: HrEventEnvelope<unknown>) => {

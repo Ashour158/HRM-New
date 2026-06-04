@@ -3,7 +3,7 @@ import type { Uuid, AggregateRoot, DomainEvent } from '@hcm/shared-kernel';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { getTopicForAggregate } from '@hcm/event-schemas';
-import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import { OutboxPublisher } from '../../../platform/outbox-inbox/outbox-publisher.js';
 
 /**
  * Domain-specific event publisher for Country Policy aggregates.
@@ -12,7 +12,7 @@ import { EventBus } from '../../../platform/event-bus/event-bus.js';
 export class CountryPolicyEventsPublisher {
   private readonly logger = new Logger(CountryPolicyEventsPublisher.name);
 
-  constructor(private readonly eventBus: EventBus) {}
+  constructor(private readonly outboxPublisher: OutboxPublisher) {}
 
   /**
    * Publish all uncommitted domain events from the given aggregate.
@@ -21,9 +21,9 @@ export class CountryPolicyEventsPublisher {
     const events = aggregate.getUncommittedEvents();
     for (const event of events) {
       const envelope = this.toEnvelope(event, tenantId, correlationId);
-      await this.eventBus.publish(envelope);
+      await this.outboxPublisher.schedule(envelope, tenantId, correlationId);
       this.logger.log({
-        type: 'COUNTRY_POLICY_EVENT_PUBLISHED',
+        type: 'COUNTRY_POLICY_EVENT_SCHEDULED',
         eventName: envelope.eventName,
         aggregateId: envelope.aggregateId.value,
         topic: getTopicForAggregate(envelope.aggregateType),

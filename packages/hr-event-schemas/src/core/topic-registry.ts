@@ -211,6 +211,12 @@ export const TopicRegistry: Record<string, string> = {
   PayEquityReview: HR_ANALYTICS,
   hrAiUseCase: HR_ANALYTICS,
   HrAiUseCase: HR_ANALYTICS,
+  calculatedField: HR_ANALYTICS,
+  CalculatedField: HR_ANALYTICS,
+  serviceUsageMetric: HR_ANALYTICS,
+  ServiceUsageMetric: HR_ANALYTICS,
+  serviceUsageSummary: HR_ANALYTICS,
+  ServiceUsageSummary: HR_ANALYTICS,
   contingentWorkerAssignment: HR_CONTINGENT,
   ContingentWorkerAssignment: HR_CONTINGENT,
   sowEngagement: HR_CONTINGENT,
@@ -238,10 +244,14 @@ export const TopicRegistry: Record<string, string> = {
 export interface EventTopicInput {
   aggregateType?: string | null;
   eventName: string;
+  metadata?: { topic?: string | null } | null;
 }
 
-const EventNameTopicPrefixes: ReadonlyArray<readonly [string, string]> = [
+export const EventNameTopicPrefixes: ReadonlyArray<readonly [string, string]> = [
   ['CountryPolicyPack', HR_GLOBAL],
+  ['ServiceUsageMetric', HR_ANALYTICS],
+  ['ServiceUsageSummary', HR_ANALYTICS],
+  ['CalculatedField', HR_ANALYTICS],
   ['TotalCompensationStatement', HR_COMPENSATION],
   ['TotalCompStatement', HR_COMPENSATION],
   ['CompensationChange', HR_COMPENSATION],
@@ -306,6 +316,47 @@ const EventNameTopicPrefixes: ReadonlyArray<readonly [string, string]> = [
   ['HeadcountRequest', HR_CORE],
 ];
 
+export interface EventContractRegistrySnapshot {
+  topics: readonly string[];
+  topicMappings: Record<string, string>;
+  eventPrefixMappings: ReadonlyArray<readonly [string, string]>;
+  defaults: {
+    topic: string;
+    eventSchemaVersion: number;
+    envelopeVersion: number;
+  };
+  consumerGroupNaming: {
+    convention: string;
+    domainExample: string;
+    purposeExample: string;
+    versionExample: number;
+    example: string;
+  };
+}
+
+/**
+ * Return a read-only event contract registry snapshot for governance/admin APIs.
+ */
+export function getEventContractRegistry(): EventContractRegistrySnapshot {
+  return {
+    topics: [...AllHrTopics],
+    topicMappings: { ...TopicRegistry },
+    eventPrefixMappings: EventNameTopicPrefixes.map(([prefix, topic]) => [prefix, topic] as const),
+    defaults: {
+      topic: HR_CORE,
+      eventSchemaVersion: 1,
+      envelopeVersion: 1,
+    },
+    consumerGroupNaming: {
+      convention: '{domain}-{purpose}-consumer-v{major}',
+      domainExample: 'payroll',
+      purposeExample: 'payslip-delivery',
+      versionExample: 1,
+      example: getConsumerGroupName('payroll', 'payslip-delivery', 1),
+    },
+  };
+}
+
 /**
  * Resolve the canonical topic for a given aggregate type.
  * Falls back to {@link HR_CORE} when the aggregate is unknown.
@@ -322,6 +373,11 @@ export function getTopicForAggregate(aggregateType: string): string {
  * even when older producers did not persist a known aggregate type.
  */
 export function getTopicForEvent(event: EventTopicInput): string {
+  const storedTopic = event.metadata?.topic?.trim();
+  if (storedTopic) {
+    return storedTopic;
+  }
+
   const topicForAggregate = event.aggregateType
     ? TopicRegistry[event.aggregateType] ?? TopicRegistry[uncapitalize(event.aggregateType)]
     : undefined;

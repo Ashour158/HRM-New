@@ -10,10 +10,13 @@ describe('resolvePortalSearchPath', () => {
 
   it('routes admin setup and policy terms through the Admin Panel', () => {
     expect(resolvePortalSearchPath('admin', 'admin panel')).toBe('/admin/system-console');
-    expect(resolvePortalSearchPath('admin', 'administrator settings')).toBe('/admin/system-console');
-    expect(resolvePortalSearchPath('admin', 'leave policy')).toBe('/admin/system-console');
-    expect(resolvePortalSearchPath('admin', 'location setup')).toBe('/admin/system-console');
-    expect(resolvePortalSearchPath('admin', 'department')).toBe('/admin/system-console');
+    expect(resolvePortalSearchPath('admin', 'administrator settings')).toBe('/admin/system-console/settings');
+    expect(resolvePortalSearchPath('admin', 'leave policy')).toBe('/admin/system-console/policies');
+    expect(resolvePortalSearchPath('admin', 'location setup')).toBe('/admin/system-console/settings');
+    expect(resolvePortalSearchPath('admin', 'department')).toBe('/admin/system-console/settings');
+    expect(resolvePortalSearchPath('admin', 'audit evidence')).toBe('/admin/system-console/audit');
+    expect(resolvePortalSearchPath('admin', 'event schema contracts')).toBe('/admin/system-console/event-contracts');
+    expect(resolvePortalSearchPath('admin', 'service account access')).toBe('/admin/system-console/access-governance');
     expect(resolvePortalSearchPath('admin', 'apply leave')).toBe('/employee/time-off');
   });
 

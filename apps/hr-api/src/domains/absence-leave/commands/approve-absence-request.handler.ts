@@ -32,7 +32,21 @@ export class ApproveAbsenceRequestHandler {
     await this.publisher.publishFromAggregate(ar);
     return {
       success: true,
-      data: { absenceRequestId: ar.id.value, status: ar.status },
+      data: {
+        absenceRequestId: ar.id.value,
+        workerId: ar.workerId.value,
+        approvedBy: payload.approvedBy.value,
+        status: ar.status,
+        absenceType: ar.absenceType,
+        policyCode: ar.policyCode,
+        startDate: ar.startDate.toISOString().slice(0, 10),
+        endDate: ar.endDate.toISOString().slice(0, 10),
+        durationAmount: ar.durationAmount,
+        durationUnit: ar.durationUnit,
+        payrollImpact: ar.payrollImpact,
+        amount: ar.payrollImpact === 'UNPAID_LEAVE' ? ar.durationAmount : 0,
+        currency: 'EGP',
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: ar.id,

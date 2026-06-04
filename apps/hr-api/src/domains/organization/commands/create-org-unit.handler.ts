@@ -3,10 +3,6 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import type { CreateOrgUnitPayload } from '@hcm/command-contracts';
-import { Uuid } from '@hcm/shared-kernel';
-import { EventBus } from '../../../platform/event-bus/event-bus.js';
-import { createPrivacyForEvent } from '@hcm/event-schemas';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { OrgUnitRepository } from '../repositories/org-unit.repository.js';
 import { OrgUnit } from '../aggregates/org-unit.aggregate.js';
 import { OrgUnitFsm } from '../fsm/org-unit.fsm.js';
@@ -21,7 +17,6 @@ export class CreateOrgUnitHandler implements ICommandHandler {
 
   constructor(
     private readonly repo: OrgUnitRepository,
-    private readonly eventBus: EventBus,
     private readonly fsm: OrgUnitFsm,
   ) {}
 
@@ -39,7 +34,6 @@ export class CreateOrgUnitHandler implements ICommandHandler {
 
     await this.repo.save(entity);
     const eventsEmitted = entity.domainEvents.map((e) => e.eventName);
-    await this.publishEvents(entity, command);
 
     return {
       success: true,
@@ -58,28 +52,5 @@ export class CreateOrgUnitHandler implements ICommandHandler {
       eventsEmitted,
       auditRecordId: command.commandId,
     };
-  }
-
-  private async publishEvents(entity: OrgUnit, command: HrCommandEnvelope<unknown>): Promise<void> {
-    const envelopes: HrEventEnvelope<unknown>[] = entity.domainEvents.map((event) => ({
-      eventId: Uuid.generate(),
-      eventName: event.eventName,
-      eventSchemaVersion: 1,
-      tenantId: command.tenantId,
-      aggregateType: 'OrgUnit',
-      aggregateId: entity.id,
-      payload: event as unknown as Record<string, unknown>,
-      metadata: {
-        correlationId: command.correlationId,
-        causationId: command.commandId,
-        requestHash: command.metadata.requestHash,
-        clientType: command.metadata.clientType,
-      },
-      privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
-      occurredAt: new Date(),
-      version: 1,
-    }));
-    await this.eventBus.publishAll(envelopes);
-    entity.clearDomainEvents();
   }
 }

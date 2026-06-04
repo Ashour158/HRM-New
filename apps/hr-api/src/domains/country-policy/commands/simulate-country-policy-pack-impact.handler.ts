@@ -6,7 +6,6 @@ import { Uuid, ValidationError } from '@hcm/shared-kernel';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
 import { CountryPolicyImpactSimulationRepository } from '../repositories/country-policy-impact-simulation.repository.js';
 import { CountryPolicyImpactSimulation } from '../aggregates/country-policy-impact-simulation.aggregate.js';
-import { CountryPolicyEventsPublisher } from '../events/country-policy-events.publisher.js';
 
 export interface SimulateCountryPolicyPackImpactPayload {
   packId: string;
@@ -25,7 +24,6 @@ export class SimulateCountryPolicyPackImpactHandler implements ICommandHandler {
   constructor(
     private readonly packRepo: CountryPolicyPackRepository,
     private readonly simRepo: CountryPolicyImpactSimulationRepository,
-    private readonly eventsPublisher: CountryPolicyEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -60,8 +58,6 @@ export class SimulateCountryPolicyPackImpactHandler implements ICommandHandler {
 
     await this.simRepo.save(sim);
     await this.packRepo.save(pack);
-    await this.eventsPublisher.publishUncommitted(pack, command.tenantId, command.correlationId);
-    await this.eventsPublisher.publishUncommitted(sim, command.tenantId, command.correlationId);
 
     return {
       success: true,

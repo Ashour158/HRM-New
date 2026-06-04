@@ -24,7 +24,17 @@ export class ApproveTimesheetHandler {
     await this.publisher.publishFromAggregate(ts);
     return {
       success: true,
-      data: { timesheetId: ts.id.value, status: ts.status },
+      data: {
+        timesheetId: ts.id.value,
+        workerId: ts.workerId.value,
+        approvedBy: payload.approvedBy.value,
+        status: ts.status,
+        periodStart: ts.periodStart.toISOString().slice(0, 10),
+        periodEnd: ts.periodEnd.toISOString().slice(0, 10),
+        totalHours: ts.totalHours,
+        amount: ts.totalHours,
+        currency: 'EGP',
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: ts.id,
@@ -33,7 +43,7 @@ export class ApproveTimesheetHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(ts.status, 'Timesheet'),
       eventsEmitted: ts.domainEvents.map((e) => e.eventName),
       auditRecordId: command.commandId,
-    fieldAccessDecisions: {},
+      fieldAccessDecisions: {},
     } as CommandResult<unknown>;
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
-import { createPrivacyForEvent } from '@hcm/event-schemas';
+import { createPrivacyForEvent, getTopicForEvent } from '@hcm/event-schemas';
 import { OutboxPublisher, type OutboxEvent } from './outbox-publisher.js';
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
@@ -77,5 +77,32 @@ describe('OutboxPublisher event schema alignment', () => {
       publicationSource: 'OUTBOX',
       sourceOutboxEventId: '550e8400-e29b-41d4-a716-446655440011',
     });
+  });
+
+  it('preserves stored schema version, envelope version, and topic when replaying outbox rows', () => {
+    const envelope = publisherShell().rowToEnvelope(row({
+      event_schema_version: 3,
+      envelope_version: 7,
+      event_topic: 'hr.absence.v3',
+      metadata: {
+        correlationId: '550e8400-e29b-41d4-a716-446655440013',
+        requestHash: 'outbox-envelope-version-test',
+        clientType: 'EMPLOYEE_PORTAL',
+        hrDataSensitivity: 'LOW',
+      },
+    })) as {
+      eventSchemaVersion: number;
+      version: number;
+      metadata: { topic?: string; eventSchemaVersion?: number; envelopeVersion?: number };
+    };
+
+    expect(envelope.eventSchemaVersion).toBe(3);
+    expect(envelope.version).toBe(7);
+    expect(envelope.metadata).toMatchObject({
+      topic: 'hr.absence.v3',
+      eventSchemaVersion: 3,
+      envelopeVersion: 7,
+    });
+    expect(getTopicForEvent(envelope)).toBe('hr.absence.v3');
   });
 });

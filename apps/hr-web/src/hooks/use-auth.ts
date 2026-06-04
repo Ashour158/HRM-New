@@ -7,6 +7,7 @@ const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
 const LOCAL_ADMIN_EMAIL = 'hr.admin@example.com';
+const LOCAL_MANAGER_EMAIL = 'manager@example.com';
 const LOCAL_EMPLOYEE_EMAIL = 'employee@example.com';
 const LOCAL_BYPASS_PASSWORD = 'Password123!';
 const AUTH_VALIDATION_TIMEOUT_MS = 5000;
@@ -22,7 +23,9 @@ function resetAuthValidation() {
 }
 
 function localBypassEmailForPath(pathname = window.location.pathname): string {
-  return pathname.startsWith('/employee') ? LOCAL_EMPLOYEE_EMAIL : LOCAL_ADMIN_EMAIL;
+  if (pathname.startsWith('/employee')) return LOCAL_EMPLOYEE_EMAIL;
+  if (pathname.startsWith('/manager')) return LOCAL_MANAGER_EMAIL;
+  return LOCAL_ADMIN_EMAIL;
 }
 
 async function authenticateWithApi(email: string, password: string, tenantId?: string): Promise<{ user: User; token: string }> {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { CountryPolicyController } from './api/country-policy.controller.js';
 import { CountryPolicyPackFsmRegistrar } from './fsm/country-policy-pack.fsm.js';
 import { CountryPolicyValidationRunFsmRegistrar } from './fsm/country-policy-validation-run.fsm.js';
@@ -22,7 +23,7 @@ import { CountryPolicyPublicationSaga } from './sagas/country-policy-publication
  * Provides command handlers, repositories, FSM registrations, event publishing, saga coordination, and API endpoints.
  */
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HcmSetupModule],
   controllers: [CountryPolicyController],
   providers: [
     // FSM registrars

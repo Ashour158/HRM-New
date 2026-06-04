@@ -18,6 +18,8 @@ export class EventNotificationBridge implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    void this.skipOrphanedLegacyInboxRows();
+
     const handler: EventHandler = {
       consumerGroup: PLATFORM_NOTIFICATION_CONSUMER,
       handle: async (event: HrEventEnvelope<unknown>) => {
@@ -26,22 +28,51 @@ export class EventNotificationBridge implements OnModuleInit {
           PLATFORM_NOTIFICATION_CONSUMER,
           PLATFORM_NOTIFICATION_CONSUMER_VERSION,
           {
-            handle: async (dedupedEvent) => {
-              const created = await this.notificationService.createFromEvent(dedupedEvent);
-              this.logger.log({
-                type: 'PLATFORM_NOTIFICATIONS_PROJECTED',
-                eventId: dedupedEvent.eventId.value,
-                eventName: dedupedEvent.eventName,
-                created,
-              });
-            },
+            handle: async (dedupedEvent) => this.projectNotification(dedupedEvent),
           },
         );
       },
     };
+    this.inboxConsumer.registerReplayHandler(
+      PLATFORM_NOTIFICATION_CONSUMER,
+      PLATFORM_NOTIFICATION_CONSUMER_VERSION,
+      {
+        handle: async (dedupedEvent) => this.projectNotification(dedupedEvent),
+      },
+    );
 
     for (const topic of AllHrTopics) {
       this.eventBus.subscribe(topic, PLATFORM_NOTIFICATION_CONSUMER, handler);
+    }
+  }
+
+  private async projectNotification(dedupedEvent: HrEventEnvelope<unknown>): Promise<void> {
+    const created = await this.notificationService.createFromEvent(dedupedEvent);
+    this.logger.log({
+      type: 'PLATFORM_NOTIFICATIONS_PROJECTED',
+      eventId: dedupedEvent.eventId.value,
+      eventName: dedupedEvent.eventName,
+      created,
+    });
+  }
+
+  private async skipOrphanedLegacyInboxRows(): Promise<void> {
+    try {
+      const skipped = await this.inboxConsumer.skipOrphanedEventsWithoutOutbox(
+        PLATFORM_NOTIFICATION_CONSUMER,
+        PLATFORM_NOTIFICATION_CONSUMER_VERSION,
+      );
+      if (skipped > 0) {
+        this.logger.warn({
+          type: 'PLATFORM_NOTIFICATIONS_ORPHANED_INBOX_SKIPPED',
+          skipped,
+        });
+      }
+    } catch (err) {
+      this.logger.error({
+        type: 'PLATFORM_NOTIFICATIONS_ORPHANED_INBOX_CLEANUP_FAILED',
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 }

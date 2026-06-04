@@ -3,7 +3,7 @@ import type { Uuid, AggregateRoot, DomainEvent } from '@hcm/shared-kernel';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { getTopicForAggregate } from '@hcm/event-schemas';
-import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import { OutboxPublisher } from '../../../platform/outbox-inbox/outbox-publisher.js';
 
 /**
  * Domain-specific event publisher for Position and HeadcountRequest aggregates.
@@ -16,7 +16,7 @@ import { EventBus } from '../../../platform/event-bus/event-bus.js';
 export class PositionEventsPublisher {
   private readonly logger = new Logger(PositionEventsPublisher.name);
 
-  constructor(private readonly eventBus: EventBus) {}
+  constructor(private readonly outboxPublisher: OutboxPublisher) {}
 
   /**
    * Publish all uncommitted domain events from the given aggregate.
@@ -25,9 +25,9 @@ export class PositionEventsPublisher {
     const events = aggregate.getUncommittedEvents();
     for (const event of events) {
       const envelope = this.toEnvelope(event, tenantId, correlationId);
-      await this.eventBus.publish(envelope);
+      await this.outboxPublisher.schedule(envelope, tenantId, correlationId);
       this.logger.log({
-        type: 'POSITION_EVENT_PUBLISHED',
+        type: 'POSITION_EVENT_SCHEDULED',
         eventName: envelope.eventName,
         aggregateId: envelope.aggregateId.value,
         topic: getTopicForAggregate(envelope.aggregateType),

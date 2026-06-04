@@ -36,6 +36,9 @@ import { AdminSettings } from '@/pages/admin/settings';
 import { AdminSystemConsole } from '@/pages/admin/system-console';
 import { AdminIntegrations } from '@/pages/admin/integrations';
 import { AdminAccessGovernance } from '@/pages/admin/access-governance';
+import { AdminDeadLetterEvents } from '@/pages/admin/dead-letter-events';
+import { AdminAuditConsole } from '@/pages/admin/audit-console';
+import { AdminEventContracts } from '@/pages/admin/event-contracts';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -183,12 +186,56 @@ export function AppRoutes() {
                       }
                     />
                     <Route
-                      path="access-governance"
+                      path="system-console/dead-letter-events"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminDeadLetterEvents />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/settings"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminSettings />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/policies"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminPolicies />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/access-governance"
                       element={
                         <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
                           <AdminAccessGovernance />
                         </RequireRoles>
                       }
+                    />
+                    <Route
+                      path="system-console/audit"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminAuditConsole />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/event-contracts"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminEventContracts />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="access-governance"
+                      element={<Navigate to="/admin/system-console/access-governance" replace />}
                     />
                     <Route path="modules" element={<AdminModuleCatalog />} />
                     <Route path="modules/:moduleId/operations" element={<AdminModuleOperations />} />
@@ -207,8 +254,8 @@ export function AppRoutes() {
                     <Route path="performance/operations" element={<AdminPerformanceOperations />} />
                     <Route path="compliance" element={<AdminCompliance />} />
                     <Route path="country-policy" element={<AdminCountryPolicy />} />
-                    <Route path="policies" element={<AdminPolicies />} />
-                    <Route path="settings" element={<AdminSettings />} />
+                    <Route path="policies" element={<Navigate to="/admin/system-console/policies" replace />} />
+                    <Route path="settings" element={<Navigate to="/admin/system-console/settings" replace />} />
                     <Route path="*" element={<Navigate to="/admin" replace />} />
                   </Routes>
                 </PortalLayout>

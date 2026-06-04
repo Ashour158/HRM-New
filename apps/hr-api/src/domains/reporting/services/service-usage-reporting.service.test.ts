@@ -6,7 +6,26 @@ describe('service usage reporting summary', () => {
     const tenantId = '00000000-0000-0000-0000-000000000001';
     const rows: ServiceUsageMetricRow[] = [
       { source: 'COMMAND', serviceArea: 'PayrollInput', total: 4, lastActivityAt: new Date('2026-06-03T08:00:00.000Z') },
-      { source: 'OUTBOX', serviceArea: 'PayrollInput', total: 3, pending: 1, lastActivityAt: new Date('2026-06-03T08:05:00.000Z') },
+      {
+        source: 'OUTBOX',
+        serviceArea: 'PayrollInput',
+        total: 3,
+        pending: 1,
+        exhausted: 1,
+        oldestQueueBacklogAt: new Date('2026-06-03T08:02:00.000Z'),
+        lastActivityAt: new Date('2026-06-03T08:05:00.000Z'),
+      },
+      {
+        source: 'INBOX_QUEUE',
+        serviceArea: 'PayrollInput',
+        total: 5,
+        inProgress: 1,
+        failedRetryable: 2,
+        failedNonRetryable: 1,
+        skipped: 1,
+        oldestQueueBacklogAt: new Date('2026-06-03T08:01:00.000Z'),
+        lastActivityAt: new Date('2026-06-03T08:08:00.000Z'),
+      },
       { source: 'NOTIFICATION', serviceArea: 'PayrollInput', total: 2, lastActivityAt: new Date('2026-06-03T08:06:00.000Z') },
       { source: 'WORKFLOW', serviceArea: 'PayrollInput', total: 5, lastActivityAt: new Date('2026-06-03T08:07:00.000Z') },
       { source: 'COMMAND', serviceArea: 'AbsenceRequest', total: 2, failed: 1, lastActivityAt: new Date('2026-06-03T07:00:00.000Z') },
@@ -22,8 +41,28 @@ describe('service usage reporting summary', () => {
         failedCommands: 1,
         events: 3,
         pendingOutboxEvents: 1,
+        exhaustedOutboxEvents: 1,
+        inboxInProgressEvents: 1,
+        inboxFailedRetryableEvents: 2,
+        inboxFailedNonRetryableEvents: 1,
+        inboxSkippedEvents: 1,
+        oldestQueueBacklogAt: '2026-06-03T08:01:00.000Z',
         notifications: 2,
         workflowTransitions: 5,
+      },
+      queueHealth: {
+        outbox: {
+          pendingEvents: 1,
+          exhaustedEvents: 1,
+          oldestBacklogAt: '2026-06-03T08:02:00.000Z',
+        },
+        inbox: {
+          inProgressEvents: 1,
+          failedRetryableEvents: 2,
+          failedNonRetryableEvents: 1,
+          skippedEvents: 1,
+          oldestBacklogAt: '2026-06-03T08:01:00.000Z',
+        },
       },
       services: [
         {
@@ -32,9 +71,15 @@ describe('service usage reporting summary', () => {
           failedCommands: 0,
           events: 3,
           pendingOutboxEvents: 1,
+          exhaustedOutboxEvents: 1,
+          inboxInProgressEvents: 1,
+          inboxFailedRetryableEvents: 2,
+          inboxFailedNonRetryableEvents: 1,
+          inboxSkippedEvents: 1,
+          oldestQueueBacklogAt: '2026-06-03T08:01:00.000Z',
           notifications: 2,
           workflowTransitions: 5,
-          lastActivityAt: '2026-06-03T08:07:00.000Z',
+          lastActivityAt: '2026-06-03T08:08:00.000Z',
         },
         {
           serviceArea: 'ABSENCE_LEAVE',
@@ -42,11 +87,63 @@ describe('service usage reporting summary', () => {
           failedCommands: 1,
           events: 0,
           pendingOutboxEvents: 0,
+          exhaustedOutboxEvents: 0,
+          inboxInProgressEvents: 0,
+          inboxFailedRetryableEvents: 0,
+          inboxFailedNonRetryableEvents: 0,
+          inboxSkippedEvents: 0,
           notifications: 0,
           workflowTransitions: 0,
           lastActivityAt: '2026-06-03T07:00:00.000Z',
         },
       ],
+    });
+  });
+
+  it('proves enterprise usage rows are counted through commands, events, notifications, workflows, and queues', () => {
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+    const rows: ServiceUsageMetricRow[] = [
+      { source: 'COMMAND', serviceArea: 'AbsenceRequest', total: 1, lastActivityAt: new Date('2026-06-03T08:00:00.000Z') },
+      { source: 'OUTBOX', serviceArea: 'AbsenceRequest', total: 1, pending: 0, exhausted: 0, lastActivityAt: new Date('2026-06-03T08:01:00.000Z') },
+      { source: 'NOTIFICATION', serviceArea: 'AbsenceRequest', total: 2, lastActivityAt: new Date('2026-06-03T08:02:00.000Z') },
+      { source: 'WORKFLOW', serviceArea: 'AbsenceRequest', total: 1, lastActivityAt: new Date('2026-06-03T08:03:00.000Z') },
+      {
+        source: 'INBOX_QUEUE',
+        serviceArea: 'AbsenceRequest',
+        total: 1,
+        inProgress: 0,
+        failedRetryable: 0,
+        failedNonRetryable: 0,
+        skipped: 0,
+        lastActivityAt: new Date('2026-06-03T08:04:00.000Z'),
+      },
+      { source: 'COMMAND', serviceArea: 'PolicyRevision', total: 1, lastActivityAt: new Date('2026-06-03T08:05:00.000Z') },
+      { source: 'OUTBOX', serviceArea: 'AccessReviewCampaign', total: 1, pending: 1, oldestQueueBacklogAt: new Date('2026-06-03T08:06:00.000Z'), lastActivityAt: new Date('2026-06-03T08:06:00.000Z') },
+      { source: 'OUTBOX', serviceArea: 'ServiceUsageMetric', total: 1, pending: 0, exhausted: 0, lastActivityAt: new Date('2026-06-03T08:07:00.000Z') },
+      { source: 'OUTBOX', serviceArea: 'EventContractRegistry', total: 1, pending: 0, exhausted: 0, lastActivityAt: new Date('2026-06-03T08:08:00.000Z') },
+    ];
+
+    const summary = buildServiceUsageSummary(tenantId, rows, new Date('2026-06-03T09:00:00.000Z'));
+    const absence = summary.services.find((service) => service.serviceArea === 'ABSENCE_LEAVE');
+
+    expect(absence).toMatchObject({
+      commands: 1,
+      events: 1,
+      notifications: 2,
+      workflowTransitions: 1,
+      inboxInProgressEvents: 0,
+    });
+    expect(summary.services.find((service) => service.serviceArea === 'POLICY_CENTER')?.commands).toBe(1);
+    expect(summary.services.find((service) => service.serviceArea === 'ACCESS_GOVERNANCE')?.pendingOutboxEvents).toBe(1);
+    expect(summary.services.find((service) => service.serviceArea === 'REPORTING')?.events).toBe(1);
+    expect(summary.services.find((service) => service.serviceArea === 'SYSTEM_GOVERNANCE')?.events).toBe(1);
+    expect(summary.queueHealth.outbox.pendingEvents).toBe(1);
+    expect(summary.totals).toMatchObject({
+      commands: 2,
+      events: 4,
+      notifications: 2,
+      workflowTransitions: 1,
+      pendingOutboxEvents: 1,
     });
   });
 });

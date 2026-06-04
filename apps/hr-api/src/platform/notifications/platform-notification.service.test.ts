@@ -124,4 +124,29 @@ describe('PlatformNotificationService', () => {
       }),
     ]);
   });
+
+  it('creates notifications from Kafka-serialized event envelopes', async () => {
+    const managerWorkerId = Uuid.generate().value;
+    const repository = {
+      findManagerWorkerIdForWorker: vi.fn().mockResolvedValue(managerWorkerId),
+      createMany: vi.fn().mockResolvedValue(undefined),
+    } as unknown as PlatformNotificationRepository;
+    const service = new PlatformNotificationService(repository);
+    const envelope = JSON.parse(JSON.stringify(event())) as HrEventEnvelope<Record<string, unknown>>;
+
+    const created = await service.createFromEvent(envelope);
+
+    expect(created).toBe(3);
+    expect(repository.createMany).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({
+        audience: 'EMPLOYEE',
+        sourceEventId: expect.any(String),
+        payload: expect.objectContaining({
+          aggregateId: expect.any(String),
+          correlationId: expect.any(String),
+          occurredAt: expect.stringContaining('T'),
+        }),
+      }),
+    ]));
+  });
 });

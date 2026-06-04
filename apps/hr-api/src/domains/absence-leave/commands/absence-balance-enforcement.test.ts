@@ -138,4 +138,51 @@ describe('absence balance enforcement', () => {
     expect(repo.save).not.toHaveBeenCalled();
     expect(balanceRepo.save).not.toHaveBeenCalled();
   });
+
+  it('returns approved leave context required by notifications and payroll input sagas', async () => {
+    const request = AbsenceRequest.create({
+      id: Uuid.generate(),
+      tenantId,
+      workerId,
+      absenceType: 'VACATION',
+      policyCode: 'VACATION',
+      startDate: new Date('2026-06-08T00:00:00.000Z'),
+      endDate: new Date('2026-06-08T00:00:00.000Z'),
+      durationUnit: 'DAYS',
+      durationAmount: 1,
+      calendarDays: 1,
+      workingDays: 1,
+      paid: true,
+      deductFromBalance: true,
+      payrollImpact: 'PAID_LEAVE',
+    }, Uuid.generate());
+    request.submit(Uuid.generate());
+    const handler = new ApproveAbsenceRequestHandler(
+      { findById: vi.fn().mockResolvedValue(request), save: vi.fn() } as never,
+      { findByWorker: vi.fn().mockResolvedValue([balance(8)]), save: vi.fn() } as never,
+      { getAllowedActionsFromState: vi.fn().mockReturnValue([]) } as never,
+      { publishFromAggregate: vi.fn() } as never,
+      { getSetup: vi.fn().mockResolvedValue(DEFAULT_HCM_SETUP) } as never,
+      new LeavePolicyService(),
+    );
+
+    const result = await handler.handle(command({
+      absenceRequestId: request.id,
+      approvedBy: actorId,
+    }, {
+      commandName: 'ApproveAbsenceRequest',
+      aggregateId: request.id,
+      expectedState: request.status,
+      expectedVersion: request.aggregateVersion,
+    }));
+
+    expect(result.data).toMatchObject({
+      absenceRequestId: request.id.value,
+      workerId: workerId.value,
+      approvedBy: actorId.value,
+      durationAmount: 1,
+      durationUnit: 'DAYS',
+      payrollImpact: 'PAID_LEAVE',
+    });
+  });
 });

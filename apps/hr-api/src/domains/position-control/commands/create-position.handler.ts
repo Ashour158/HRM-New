@@ -6,7 +6,6 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import { Position } from '../aggregates/position.aggregate.js';
 import { PositionRepository } from '../repositories/position.repository.js';
 import { HeadcountRequestRepository } from '../repositories/headcount-request.repository.js';
-import { PositionEventsPublisher } from '../events/position-events.publisher.js';
 
 export interface CreatePositionCommandPayload {
   positionCode: string;
@@ -33,7 +32,6 @@ export class CreatePositionHandler implements ICommandHandler {
   constructor(
     private readonly positionRepo: PositionRepository,
     private readonly headcountRepo: HeadcountRequestRepository,
-    private readonly eventsPublisher: PositionEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -73,7 +71,6 @@ export class CreatePositionHandler implements ICommandHandler {
     });
 
     await this.positionRepo.save(position);
-    await this.eventsPublisher.publishUncommitted(position, tenantId, command.correlationId);
 
     return {
       success: true,

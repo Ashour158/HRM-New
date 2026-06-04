@@ -16,17 +16,21 @@ export class HcmSetupController {
 
   @Get()
   async getSetup(@Req() req: Request) {
+    this.assertSetupAdmin(req);
     return this.service.getSetup(this.getTenantId(req));
   }
 
   @Patch()
   async updateSetup(@Body() body: HcmSetupUpdate, @Req() req: Request) {
+    this.assertSetupAdmin(req);
+    return this.service.updateSetup(this.getTenantId(req), body);
+  }
+
+  private assertSetupAdmin(req: Request): void {
     const roles = req.actor?.roles ?? [];
     if (!roles.some((role) => SETUP_ADMIN_ROLES.has(role))) {
       throw new ForbiddenException('Only HCM setup administrators can update employee profile setup');
     }
-
-    return this.service.updateSetup(this.getTenantId(req), body);
   }
 
   private getTenantId(req: Request): Uuid {

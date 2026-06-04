@@ -159,7 +159,7 @@ export function AdminSettings() {
         <div className="flex items-center gap-3">
           {savedAt ? <Badge variant="secondary">Saved {savedAt}</Badge> : null}
           <Button asChild type="button" variant="outline">
-            <Link to="/admin/policies">Policy Center</Link>
+            <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>
           <Button type="button" onClick={save} disabled={isLoading || mutation.isPending}>
             <Save className="mr-2 h-4 w-4" />

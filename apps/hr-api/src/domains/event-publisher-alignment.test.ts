@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { BenefitsEnrollment } from './benefits/aggregates/benefits-enrollment.aggregate.js';
 import { BenefitsEventsPublisher } from './benefits/events/benefits-events.publisher.js';
 import { AbsenceRequest } from './absence-leave/aggregates/absence-request.aggregate.js';
@@ -39,9 +38,9 @@ function command(): HrCommandEnvelope<unknown> {
 }
 
 describe('domain event publisher schema alignment', () => {
-  it('publishes attendance approvals with worker identity and employee notification privacy', async () => {
-    const published: HrEventEnvelope<unknown>[] = [];
-    const publisher = new TimeAttendanceEventsPublisher({ publish: vi.fn(async (event) => published.push(event)) } as never);
+  it('keeps attendance approvals on the aggregate for CommandBus outbox publication', async () => {
+    const eventBus = { publish: vi.fn(async () => undefined) };
+    const publisher = new TimeAttendanceEventsPublisher();
     const timesheet = Timesheet.create({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440010'),
       tenantId,
@@ -54,23 +53,16 @@ describe('domain event publisher schema alignment', () => {
     timesheet.approve(approverId, correlationId);
 
     await publisher.publishFromAggregate(timesheet);
-    const approved = published.find((event) => event.eventName === 'TimesheetApproved');
+    const eventNames = timesheet.domainEvents.map((event) => event.eventName);
 
-    expect(approved).toMatchObject({
-      payload: {
-        workerId: workerId.value,
-        approvedBy: approverId.value,
-      },
-      privacy: {
-        subjectWorkerId: workerId.value,
-        employeeDataCategory: 'PROFILE',
-      },
-    });
+    expect(eventBus.publish).not.toHaveBeenCalled();
+    expect(eventNames).toContain('TimesheetApproved');
+    expect(timesheet.workerId.value).toBe(workerId.value);
   });
 
-  it('publishes absence approvals with the worker as the privacy subject', async () => {
-    const published: HrEventEnvelope<unknown>[] = [];
-    const publisher = new AbsenceLeaveEventsPublisher({ publish: vi.fn(async (event) => published.push(event)) } as never);
+  it('keeps absence approvals on the aggregate for CommandBus outbox publication', async () => {
+    const eventBus = { publish: vi.fn(async () => undefined) };
+    const publisher = new AbsenceLeaveEventsPublisher();
     const absence = AbsenceRequest.create({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440020'),
       tenantId,
@@ -88,23 +80,17 @@ describe('domain event publisher schema alignment', () => {
     absence.approve(approverId, correlationId);
 
     await publisher.publishFromAggregate(absence);
-    const approved = published.find((event) => event.eventName === 'AbsenceRequestApproved');
+    const eventNames = absence.domainEvents.map((event) => event.eventName);
 
-    expect(approved).toMatchObject({
-      payload: {
-        workerId: workerId.value,
-        approvedBy: approverId.value,
-        payrollImpact: 'PAID_LEAVE',
-      },
-      privacy: {
-        subjectWorkerId: workerId.value,
-      },
-    });
+    expect(eventBus.publish).not.toHaveBeenCalled();
+    expect(eventNames).toContain('AbsenceRequestApproved');
+    expect(absence.workerId.value).toBe(workerId.value);
+    expect(absence.payrollImpact).toBe('PAID_LEAVE');
   });
 
-  it('publishes payroll inputs with payroll privacy tied to the worker', async () => {
-    const published: HrEventEnvelope<unknown>[] = [];
-    const publisher = new PayrollEventsPublisher({ publish: vi.fn(async (event) => published.push(event)) } as never);
+  it('keeps payroll inputs on the aggregate for CommandBus outbox publication', async () => {
+    const eventBus = { publish: vi.fn(async () => undefined) };
+    const publisher = new PayrollEventsPublisher();
     const input = PayrollInput.create({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440030'),
       tenantId,
@@ -117,23 +103,16 @@ describe('domain event publisher schema alignment', () => {
     input.submit(correlationId);
 
     await publisher.publishFromAggregate(input);
-    const submitted = published.find((event) => event.eventName === 'PayrollInputSubmitted');
+    const eventNames = input.domainEvents.map((event) => event.eventName);
 
-    expect(submitted).toMatchObject({
-      payload: {
-        workerId: workerId.value,
-      },
-      privacy: {
-        piiClassification: 'HIGH',
-        employeeDataCategory: 'PAYROLL',
-        subjectWorkerId: workerId.value,
-      },
-    });
+    expect(eventBus.publish).not.toHaveBeenCalled();
+    expect(eventNames).toContain('PayrollInputSubmitted');
+    expect(input.workerId.value).toBe(workerId.value);
   });
 
-  it('publishes benefits effective events with worker identity for payroll and notifications', async () => {
-    const published: HrEventEnvelope<unknown>[][] = [];
-    const publisher = new BenefitsEventsPublisher({ publishAll: vi.fn(async (events) => published.push(events)) } as never);
+  it('keeps benefits effective events on the aggregate for CommandBus outbox publication', async () => {
+    const eventBus = { publishAll: vi.fn(async () => undefined) };
+    const publisher = new BenefitsEventsPublisher();
     const enrollment = BenefitsEnrollment.create({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440040'),
       tenantId,
@@ -150,16 +129,21 @@ describe('domain event publisher schema alignment', () => {
     enrollment.makeEffective(correlationId);
 
     await publisher.publishAll(enrollment, command());
-    const effective = published.flat().find((event) => event.eventName === 'BenefitsEnrollmentEffective');
+    const eventNames = enrollment.domainEvents.map((event) => event.eventName);
+    const effective = enrollment.domainEvents.find((event) => event.eventName === 'BenefitsEnrollmentEffective');
 
+    expect(eventBus.publishAll).not.toHaveBeenCalled();
+    expect(eventNames).toEqual([
+      'BenefitsEnrollmentSubmitted',
+      'BenefitsEnrollmentApproved',
+      'BenefitsEnrollmentEffective',
+    ]);
     expect(effective).toMatchObject({
-      payload: {
-        workerId: workerId.value,
-      },
-      privacy: {
-        employeeDataCategory: 'BENEFITS',
-        subjectWorkerId: workerId.value,
-      },
+      aggregateType: 'BenefitsEnrollment',
+      aggregateId: enrollment.id,
+      tenantId,
+      correlationId,
     });
+    expect(enrollment.workerId.value).toBe(workerId.value);
   });
 });

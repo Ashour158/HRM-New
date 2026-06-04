@@ -11,6 +11,10 @@ import {
   HR_ONBOARDING,
   HR_PAYROLL,
   HR_WELLBEING,
+  HR_ANALYTICS,
+  EventNameTopicPrefixes,
+  getEventContractRegistry,
+  getTopicForAggregate,
   getTopicForEvent,
 } from './topic-registry.js';
 
@@ -57,6 +61,12 @@ describe('getTopicForEvent', () => {
     ['performanceReviewCycle', 'PerformanceReviewCycleCreated', HR_CORE],
     ['countryPolicyPack', 'CountryPolicyPackPublished', HR_GLOBAL],
     ['worker', 'WorkerProfileCreated', HR_CORE],
+    ['serviceUsageMetric', 'ServiceUsageMetricRecorded', HR_ANALYTICS],
+    ['ServiceUsageMetric', 'ServiceUsageMetricRecorded', HR_ANALYTICS],
+    ['serviceUsageSummary', 'ServiceUsageSummaryGenerated', HR_ANALYTICS],
+    ['ServiceUsageSummary', 'ServiceUsageSummaryGenerated', HR_ANALYTICS],
+    ['CalculatedField', 'CalculatedFieldCreated', HR_ANALYTICS],
+    ['calculatedField', 'CalculatedFieldActivated', HR_ANALYTICS],
   ])('routes %s / %s to %s', (aggregateType, eventName, expectedTopic) => {
     expect(getTopicForEvent({ aggregateType, eventName })).toBe(expectedTopic);
   });
@@ -75,5 +85,44 @@ describe('getTopicForEvent', () => {
     expect(getTopicForEvent({ eventName: 'MentalHealthCaseOpened' })).toBe(HR_WELLBEING);
     expect(getTopicForEvent({ eventName: 'RateCardCreated' })).toBe(HR_CONTINGENT);
     expect(getTopicForEvent({ eventName: 'PayrollInputSubmitted' })).toBe(HR_PAYROLL);
+    expect(getTopicForEvent({ eventName: 'ServiceUsageMetricRecorded' })).toBe(HR_ANALYTICS);
+    expect(getTopicForEvent({ eventName: 'ServiceUsageSummaryGenerated' })).toBe(HR_ANALYTICS);
+    expect(getTopicForEvent({ eventName: 'CalculatedFieldDeprecated' })).toBe(HR_ANALYTICS);
+  });
+
+  it('prefers a stored metadata topic so outbox replay keeps the original route', () => {
+    expect(getTopicForEvent({
+      aggregateType: 'AbsenceRequest',
+      eventName: 'AbsenceRequestSubmitted',
+      metadata: { topic: 'hr.absence.v3' },
+    })).toBe('hr.absence.v3');
+  });
+
+  it('publishes contract registry metadata for read-only governance surfaces', () => {
+    const registry = getEventContractRegistry();
+
+    expect(registry.defaults).toEqual({
+      topic: HR_CORE,
+      eventSchemaVersion: 1,
+      envelopeVersion: 1,
+    });
+    expect(registry.consumerGroupNaming).toEqual({
+      convention: '{domain}-{purpose}-consumer-v{major}',
+      domainExample: 'payroll',
+      purposeExample: 'payslip-delivery',
+      versionExample: 1,
+      example: 'payroll-payslip-delivery-consumer-v1',
+    });
+    expect(registry.topicMappings.CalculatedField).toBe(HR_ANALYTICS);
+    expect(registry.topicMappings.ServiceUsageMetric).toBe(HR_ANALYTICS);
+    expect(registry.eventPrefixMappings).toContainEqual(['CalculatedField', HR_ANALYTICS]);
+    expect(registry.eventPrefixMappings).toContainEqual(['ServiceUsageMetric', HR_ANALYTICS]);
+    expect(registry.eventPrefixMappings).toEqual(EventNameTopicPrefixes);
+  });
+
+  it('does not fall back to HR core for reporting/service-usage aggregate names', () => {
+    expect(getTopicForAggregate('CalculatedField')).toBe(HR_ANALYTICS);
+    expect(getTopicForAggregate('ServiceUsageMetric')).toBe(HR_ANALYTICS);
+    expect(getTopicForAggregate('ServiceUsageSummary')).toBe(HR_ANALYTICS);
   });
 });

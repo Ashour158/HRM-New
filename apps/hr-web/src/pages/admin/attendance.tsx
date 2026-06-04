@@ -693,7 +693,7 @@ export function AdminAttendance() {
             Refresh
           </Button>
           <Button asChild variant="outline">
-            <Link to="/admin/policies">Policy Center</Link>
+            <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>
         </div>
       </div>

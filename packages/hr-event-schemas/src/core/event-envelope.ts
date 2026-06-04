@@ -24,6 +24,12 @@ export interface EventMetadata {
   clientType: ClientType;
   dataResidencyRegion?: string;
   hrDataSensitivity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'RESTRICTED' | 'SPECIAL_CATEGORY';
+  /** Topic captured at initial outbox write time so replay does not drift if routing rules change. */
+  topic?: string;
+  /** Event schema version captured at initial outbox write time. */
+  eventSchemaVersion?: number;
+  /** Envelope version captured at initial outbox write time. */
+  envelopeVersion?: number;
 }
 
 /**
@@ -58,6 +64,9 @@ export const EventMetadataSchema = z.object({
   clientType: z.enum(['EMPLOYEE_PORTAL', 'MANAGER_PORTAL', 'HR_ADMIN', 'MOBILE', 'BFF', 'SYSTEM', 'INTEGRATION']),
   dataResidencyRegion: z.string().optional(),
   hrDataSensitivity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'RESTRICTED', 'SPECIAL_CATEGORY']).optional(),
+  topic: z.string().min(1).optional(),
+  eventSchemaVersion: z.number().int().positive().optional(),
+  envelopeVersion: z.number().int().positive().optional(),
 });
 
 /**

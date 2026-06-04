@@ -414,6 +414,51 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it.each([
+    ['leave', 'CreateAbsenceRequest', 'AbsenceRequest'],
+    ['attendance', 'RecordTimeClockEvent', 'TimeClockEvent'],
+    ['payroll', 'ApprovePayrollCycle', 'PayrollCycle'],
+    ['access governance', 'CreateRole', 'AccessGovernanceRole'],
+    ['compliance', 'RequirePolicyAcknowledgement', 'PolicyAcknowledgement'],
+    ['country policy', 'ValidateCountryPolicyPack', 'CountryPolicyPack'],
+  ])('consumes applied access policy overrides before %s command execution', async (_domain, commandName, aggregateType) => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          policyGovernance: {
+            allowedActionOverrides: [
+              {
+                id: `deny-${commandName}`,
+                active: true,
+                aggregateType,
+                action: commandName,
+                roles: ['HR_ADMIN'],
+                effect: 'HIDE',
+                reason: `Runtime policy blocks ${commandName}`,
+              },
+            ],
+            fieldAccessOverrides: [],
+          },
+        }),
+      },
+    });
+
+    await expect(bus.stepEvaluateRuntimeAccessGovernance(makeCommand({
+      commandName,
+      aggregateType,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440019'),
+        roles: ['HR_ADMIN'],
+        permissions: ['SYSTEM_ADMIN'],
+        mfaAuthenticated: true,
+      },
+      payload: {},
+    }))).rejects.toMatchObject({
+      errorCode: 'RUNTIME_POLICY_ACTION_DENIED',
+    });
+  });
+
   it('blocks command payload writes when applied field-access overrides deny the written field', async () => {
     const bus = commandBusWith({
       hcmSetup: {

@@ -139,8 +139,28 @@ interface ServiceUsageSummary {
     failedCommands: number;
     events: number;
     pendingOutboxEvents: number;
+    exhaustedOutboxEvents: number;
+    inboxInProgressEvents: number;
+    inboxFailedRetryableEvents: number;
+    inboxFailedNonRetryableEvents: number;
+    inboxSkippedEvents: number;
+    oldestQueueBacklogAt?: string;
     notifications: number;
     workflowTransitions: number;
+  };
+  queueHealth?: {
+    outbox: {
+      pendingEvents: number;
+      exhaustedEvents: number;
+      oldestBacklogAt?: string;
+    };
+    inbox: {
+      inProgressEvents: number;
+      failedRetryableEvents: number;
+      failedNonRetryableEvents: number;
+      skippedEvents: number;
+      oldestBacklogAt?: string;
+    };
   };
   services: Array<{
     serviceArea: string;
@@ -148,10 +168,35 @@ interface ServiceUsageSummary {
     failedCommands: number;
     events: number;
     pendingOutboxEvents: number;
+    exhaustedOutboxEvents: number;
+    inboxInProgressEvents: number;
+    inboxFailedRetryableEvents: number;
+    inboxFailedNonRetryableEvents: number;
+    inboxSkippedEvents: number;
+    oldestQueueBacklogAt?: string;
     notifications: number;
     workflowTransitions: number;
     lastActivityAt?: string;
   }>;
+}
+
+interface DeadLetterSummary {
+  generatedAt: string;
+  inbox: {
+    failedRetryable: number;
+    failedNonRetryable: number;
+    inProgress: number;
+    skipped: number;
+    success: number;
+    totalNonSuccess: number;
+  };
+  outbox: {
+    pending: number;
+    exhausted: number;
+    operatorSkipped: number;
+    published: number;
+    totalUnresolved: number;
+  };
 }
 
 interface ConsoleControl {
@@ -366,6 +411,11 @@ export function AdminSystemConsole() {
     queryFn: async () => unwrapApiData<ServiceUsageSummary>(await apiClient.get('/reporting/service-usage/summary')),
     retry: false,
   });
+  const deadLetterQuery = useQuery({
+    queryKey: ['dead-letter-summary', 'system-console'],
+    queryFn: async () => unwrapApiData<DeadLetterSummary>(await apiClient.get('/admin/dead-letter/summary')),
+    retry: false,
+  });
   const auditQuery = useQuery({
     queryKey: ['audit-trail', 'system-console'],
     queryFn: async () => unwrapApiData<AuditRecord[]>(await apiClient.get('/audit')),
@@ -387,15 +437,16 @@ export function AdminSystemConsole() {
       ? Object.keys(integrationQuery.data.adapters).length
       : 0;
   const usageTotals = serviceUsageQuery.data?.totals;
+  const usageQueueHealth = serviceUsageQuery.data?.queueHealth;
   const adminDisplayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || 'System Administrator';
   const primaryRole = user?.roles?.[0]?.name?.replace(/_/g, ' ') ?? 'Administrator';
   const adminPanelTools: AdminPanelTool[] = [
-    { label: 'Access Governance', description: 'Users, roles, permissions, service accounts, access reviews, ABAC, field-access, and SoD.', group: 'Foundation', path: '/admin/access-governance', icon: UserCog, tone: 'text-[#ff9800]' },
-    { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/settings', icon: Settings, tone: 'text-[#ff9800]' },
+    { label: 'Access Governance', description: 'Users, roles, permissions, service accounts, access reviews, ABAC, field-access, and SoD.', group: 'Foundation', path: '/admin/system-console/access-governance', icon: UserCog, tone: 'text-[#ff9800]' },
+    { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#ff9800]' },
     { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#2aa9de]' },
     { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#006c49]' },
-    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, protected worker data, and runtime field decisions.', group: 'Foundation', path: '/admin/settings', icon: DatabaseZap, tone: 'text-[#4648d4]' },
-    { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/settings', icon: FolderOpen, tone: 'text-[#2aa9de]' },
+    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, protected worker data, and runtime field decisions.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#4648d4]' },
+    { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/system-console/settings', icon: FolderOpen, tone: 'text-[#2aa9de]' },
     { label: 'Leave Management', description: 'Entitlements, balances, requests, approvals, holidays, and payroll impact.', group: 'Workforce Operations', path: '/admin/leave', icon: Umbrella, tone: 'text-[#2aa9de]' },
     { label: 'Attendance And Time', description: 'Check-in policies, geolocation evidence, exceptions, ledgers, and exports.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#ff7043]' },
     { label: 'Shift Scheduling', description: 'Roster planning, coverage gaps, shift bids, swaps, and fatigue controls.', group: 'Workforce Operations', path: '/admin/modules/workforce-management/operations', icon: Timer, tone: 'text-[#ff9800]' },
@@ -408,7 +459,7 @@ export function AdminSystemConsole() {
     { label: 'Learning Management', description: 'Courses, assignments, certifications, content packages, and renewals.', group: 'Reward And Talent', path: '/admin/modules/learning/operations', icon: BookOpen, tone: 'text-[#5e84ff]' },
     { label: 'Onboarding', description: 'Preboarding, joining checklists, provisioning, 30/60/90 plans, and probation.', group: 'Reward And Talent', path: '/admin/onboarding', icon: UserRoundPlus, tone: 'text-[#ff9800]' },
     { label: 'Employee Engagement', description: 'Surveys, recognition programs, engagement signals, and response controls.', group: 'Reward And Talent', path: '/admin/modules/engagement/operations', icon: Radar, tone: 'text-[#dc3f92]' },
-    { label: 'Policy Center', description: 'Scoped policies, lifecycle approval, simulation, application, and evidence.', group: 'Governance And Insights', path: '/admin/policies', icon: ShieldCheck, tone: 'text-[#8a4fff]' },
+    { label: 'Policy Center', description: 'Scoped policies, lifecycle approval, simulation, application, and evidence.', group: 'Governance And Insights', path: '/admin/system-console/policies', icon: ShieldCheck, tone: 'text-[#8a4fff]' },
     { label: 'Compliance Center', description: 'Policies, acknowledgements, legal holds, statutory reporting, and evidence.', group: 'Governance And Insights', path: '/admin/compliance', icon: ShieldCheck, tone: 'text-[#006c49]' },
     { label: 'Country Policy', description: 'Country packs, validations, simulations, approvals, publish, and rollback.', group: 'Governance And Insights', path: '/admin/country-policy', icon: Landmark, tone: 'text-[#4648d4]' },
     { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#dc3f92]' },
@@ -416,6 +467,9 @@ export function AdminSystemConsole() {
     { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#2f6fc2]' },
     { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#5e84ff]', status: 'backend-required' },
     { label: 'Development Controls', description: 'Runtime health, workflow controls, integrations, outbox, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#development-controls', icon: Code2, tone: 'text-[#ff7043]' },
+    { label: 'Dead-Letter Events', description: 'Inspect, retry, skip, and export failed inbox/outbox events with operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#ba1a1a]' },
+    { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#006c49]' },
+    { label: 'Event Contracts', description: 'Topics, aggregate mappings, schema versions, and consumer naming contracts.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#4648d4]' },
   ];
   const filteredAdminPanelTools = adminPanelTools.filter((tool) => (
     tool.label.toLowerCase().includes(adminToolQuery.trim().toLowerCase())
@@ -431,7 +485,7 @@ export function AdminSystemConsole() {
       step: '01',
       title: 'Set Tenant Foundation',
       description: 'Company setup, IDs, departments, locations, documents, required fields, and sensitive data rules.',
-      path: '/admin/settings',
+      path: '/admin/system-console/settings',
       status: setupQuery.isSuccess ? 'live' : 'attention',
       label: setupQuery.isSuccess ? 'Ready' : 'Check setup API',
       icon: Settings,
@@ -458,7 +512,7 @@ export function AdminSystemConsole() {
       step: '04',
       title: 'Govern Policies',
       description: 'Create, scope, validate, simulate, approve, publish, and apply policies into live runtime behavior.',
-      path: '/admin/policies',
+      path: '/admin/system-console/policies',
       status: policyQuery.isSuccess ? 'live' : 'attention',
       label: policyQuery.isSuccess ? 'Policy API live' : 'Check policy API',
       icon: ShieldCheck,
@@ -502,7 +556,7 @@ export function AdminSystemConsole() {
       status: 'live',
       statusLabel: 'Admin managed',
       icon: KeyRound,
-      link: '/admin/access-governance',
+      link: '/admin/system-console/access-governance',
       linkLabel: 'Open Access Governance',
       evidence: [
         'Auth guard and admin role gates protect admin routes',
@@ -525,14 +579,20 @@ export function AdminSystemConsole() {
     },
     {
       title: 'Notifications And Outbox',
-      description: 'HR operations notifications and service-usage totals are live; outbox retry/dead-letter control still needs an admin endpoint.',
-      status: notificationsQuery.isSuccess ? 'partial' : 'attention',
-      statusLabel: notificationsQuery.isSuccess ? 'Partial live' : 'Needs attention',
+      description: 'HR operations notifications, service-usage totals, inbox recovery, and dead-letter operator actions are now visible.',
+      status: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'live' : notificationsQuery.isSuccess ? 'partial' : 'attention',
+      statusLabel: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'Operator console' : notificationsQuery.isSuccess ? 'Partial live' : 'Needs attention',
       icon: BellRing,
+      link: '/admin/system-console/dead-letter-events',
+      linkLabel: 'Open Dead-Letter Events',
       evidence: [
         'Uses /notifications/hr-operations for admin notification visibility',
+        'Inbox recovery replays due FAILED_RETRYABLE events through registered consumers',
+        'Operator page supports tenant-scoped inspect, retry, skip, and CSV export',
         `${unreadNotifications} unread HR operations notifications in the current inbox`,
-        `${usageTotals?.pendingOutboxEvents ?? 0} pending outbox events reported by service usage summary`,
+        `${usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0} retryable pending outbox events and ${usageQueueHealth?.outbox.exhaustedEvents ?? usageTotals?.exhaustedOutboxEvents ?? 0} exhausted events in service usage`,
+        `${usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0} retryable inbox failures and ${usageQueueHealth?.inbox.failedNonRetryableEvents ?? usageTotals?.inboxFailedNonRetryableEvents ?? 0} non-retryable inbox failures`,
+        `${deadLetterQuery.data?.inbox.failedNonRetryable ?? 0} non-retryable inbox rows and ${deadLetterQuery.data?.outbox.exhausted ?? 0} exhausted outbox rows`,
       ],
     },
     {
@@ -560,19 +620,36 @@ export function AdminSystemConsole() {
       evidence: [
         `${usageTotals?.commands ?? 0} commands and ${usageTotals?.failedCommands ?? 0} failed commands in summary`,
         `${usageTotals?.events ?? 0} events, ${usageTotals?.notifications ?? 0} notifications, ${usageTotals?.workflowTransitions ?? 0} workflow transitions`,
+        `${usageTotals?.oldestQueueBacklogAt ? `Oldest queue backlog at ${new Date(usageTotals.oldestQueueBacklogAt).toLocaleString()}` : 'No queue backlog timestamp reported'}`,
         'Uses GET /reporting/service-usage/summary',
       ],
     },
     {
       title: 'Audit And Evidence',
-      description: 'Immutable audit trail is queryable by admins and auditors; this console surfaces recent events.',
-      status: auditQuery.isSuccess ? 'partial' : 'attention',
+      description: 'Immutable audit trail is queryable by admins and auditors with full search/export from the admin panel.',
+      status: auditQuery.isSuccess ? 'live' : 'attention',
       statusLabel: auditQuery.isSuccess ? 'Audit API' : 'Needs attention',
       icon: Radar,
+      link: '/admin/system-console/audit',
+      linkLabel: 'Open Audit Trail',
       evidence: [
         'Uses GET /audit for recent tenant audit entries',
         `${auditQuery.data?.length ?? 0} recent audit records available to this actor`,
-        'Missing: dedicated audit search/export page with saved filters',
+        'Dedicated admin audit page supports filters, search, and CSV export',
+      ],
+    },
+    {
+      title: 'Event Contracts',
+      description: 'Topic registry, aggregate mappings, event schema versions, and consumer group rules are visible to operators.',
+      status: 'live',
+      statusLabel: 'Registry UI',
+      icon: GitBranch,
+      link: '/admin/system-console/event-contracts',
+      linkLabel: 'Open Event Contracts',
+      evidence: [
+        'Uses GET /admin/event-contracts/registry',
+        'Displays canonical topics, aggregate routes, prefix fallbacks, and envelope defaults',
+        'Supports replay-safe governance of schema/topic alignment',
       ],
     },
     {
@@ -603,13 +680,24 @@ export function AdminSystemConsole() {
     readinessQuery.data?.status,
     readinessQuery.isSuccess,
     serviceUsageQuery.isSuccess,
+    deadLetterQuery.data?.inbox.failedNonRetryable,
+    deadLetterQuery.data?.outbox.exhausted,
+    deadLetterQuery.isSuccess,
     unreadNotifications,
     usageTotals?.commands,
     usageTotals?.events,
     usageTotals?.failedCommands,
+    usageTotals?.exhaustedOutboxEvents,
+    usageTotals?.inboxFailedNonRetryableEvents,
+    usageTotals?.inboxFailedRetryableEvents,
     usageTotals?.notifications,
+    usageTotals?.oldestQueueBacklogAt,
     usageTotals?.pendingOutboxEvents,
     usageTotals?.workflowTransitions,
+    usageQueueHealth?.inbox.failedNonRetryableEvents,
+    usageQueueHealth?.inbox.failedRetryableEvents,
+    usageQueueHealth?.outbox.exhaustedEvents,
+    usageQueueHealth?.outbox.pendingEvents,
   ]);
 
   const topMetrics: Array<{
@@ -791,7 +879,7 @@ export function AdminSystemConsole() {
                 />
               </div>
               <Button asChild aria-label="Open general settings" size="icon" variant="outline">
-                <Link to="/admin/settings">
+                <Link to="/admin/system-console/settings">
                   <Wrench className="h-4 w-4" />
                 </Link>
               </Button>
@@ -929,7 +1017,7 @@ export function AdminSystemConsole() {
                   audit evidence, and environment restrictions.
                 </p>
                 <Button asChild className="w-full" variant="outline">
-                  <Link to="/admin/settings">Manage Setup Data</Link>
+                  <Link to="/admin/system-console/settings">Manage Setup Data</Link>
                 </Button>
               </CardContent>
             </Card>

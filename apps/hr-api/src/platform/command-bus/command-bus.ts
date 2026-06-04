@@ -19,6 +19,7 @@ import { AccessControlService } from '@hcm/access-control';
 import { FieldAccessDecision } from '@hcm/access-control';
 import { selfServiceAuthorityEngine } from '@hcm/policy-engines';
 import { EventBus } from '../event-bus/event-bus.js';
+import { outboxMetadataForEvent } from '../outbox-inbox/outbox-event-envelope.js';
 import type { FsmInstance } from '../workflow/fsm-framework.js';
 import { FsmFramework } from '../workflow/fsm-framework.js';
 import { TransitionLedgerService } from '../workflow/transition-ledger.js';
@@ -1327,7 +1328,7 @@ export class CommandBus implements OnModuleInit {
   ): Promise<void> {
     const eventNames = result.eventsEmitted?.length
       ? result.eventsEmitted
-      : [`${command.aggregateType}${this.inferActionFromCommand(command.commandName)}ed`];
+      : [this.inferEventNameFromCommand(command.commandName, command.aggregateType)];
 
     for (const eventName of eventNames) {
       const subjectWorkerId = this.resolveSubjectWorkerId(command, result);
@@ -1358,6 +1359,7 @@ export class CommandBus implements OnModuleInit {
         occurredAt: new Date(),
         version: result.newVersion,
       };
+      const metadata = outboxMetadataForEvent(event);
 
       await tx
         .insertInto('outbox_events')
@@ -1368,10 +1370,10 @@ export class CommandBus implements OnModuleInit {
           aggregate_type: event.aggregateType,
           aggregate_id: event.aggregateId.value,
           payload: event.payload as unknown as Record<string, never>,
-          metadata: {
-            ...event.metadata,
-            privacy: event.privacy,
-          } as unknown as Record<string, never>,
+          metadata: metadata as unknown as Record<string, never>,
+          event_schema_version: event.eventSchemaVersion,
+          event_topic: metadata.topic,
+          envelope_version: event.version,
           correlation_id: event.metadata.correlationId.value,
           causation_id: event.metadata.causationId?.value ?? null,
           created_at: new Date().toISOString(),
@@ -1428,5 +1430,43 @@ export class CommandBus implements OnModuleInit {
 
   private inferActionFromCommand(commandName: string): string {
     return commandName.split('.').pop() ?? commandName;
+  }
+
+  private inferEventNameFromCommand(commandName: string, aggregateType: string): string {
+    return `${aggregateType}${this.inferPastTenseFromCommand(commandName)}`;
+  }
+
+  private inferPastTenseFromCommand(commandName: string): string {
+    const tail = commandName.split('.').pop() ?? commandName;
+    const verbs: Array<[RegExp, string]> = [
+      [/^Create/i, 'Created'],
+      [/^Add/i, 'Added'],
+      [/^Activate/i, 'Activated'],
+      [/^Apply/i, 'Applied'],
+      [/^Approve/i, 'Approved'],
+      [/^Archive/i, 'Archived'],
+      [/^Calculate/i, 'Calculated'],
+      [/^Cancel/i, 'Canceled'],
+      [/^Close/i, 'Closed'],
+      [/^Complete/i, 'Completed'],
+      [/^Delete/i, 'Deleted'],
+      [/^Deprecate/i, 'Deprecated'],
+      [/^Explain/i, 'Explained'],
+      [/^Fail/i, 'Failed'],
+      [/^Finalize/i, 'Finalized'],
+      [/^Launch/i, 'Launched'],
+      [/^Lock/i, 'Locked'],
+      [/^Open/i, 'Opened'],
+      [/^Publish/i, 'Published'],
+      [/^Queue/i, 'Queued'],
+      [/^Record/i, 'Recorded'],
+      [/^Reject/i, 'Rejected'],
+      [/^Review/i, 'Reviewed'],
+      [/^Start/i, 'Started'],
+      [/^Submit/i, 'Submitted'],
+      [/^Update/i, 'Updated'],
+      [/^Validate/i, 'Validated'],
+    ];
+    return verbs.find(([pattern]) => pattern.test(tail))?.[1] ?? 'CommandSucceeded';
   }
 }

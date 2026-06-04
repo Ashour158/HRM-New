@@ -19,6 +19,21 @@ function workDateFromDb(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+function serializeAuditTrail(value: AttendanceCorrectionAuditEntry[]): string {
+  return JSON.stringify(value);
+}
+
+function parseAuditTrail(value: unknown): AttendanceCorrectionAuditEntry[] {
+  if (Array.isArray(value)) return value as AttendanceCorrectionAuditEntry[];
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed as AttendanceCorrectionAuditEntry[] : [];
+  } catch {
+    return [];
+  }
+}
+
 @Injectable()
 export class AttendanceCorrectionRequestRepository {
   private readonly db = createKyselyInstance(getPool());
@@ -28,29 +43,7 @@ export class AttendanceCorrectionRequestRepository {
     const now = new Date();
     const row = await this.db
       .insertInto(this.tableName)
-      .values({
-        id: record.id ?? Uuid.generate().value,
-        tenant_id: record.tenantId,
-        worker_id: record.workerId,
-        work_date: workDateToDb(record.workDate),
-        correction_type: record.correctionType,
-        requested_event_type: record.requestedEventType ?? null,
-        requested_timestamp: record.requestedTimestamp ?? null,
-        target_event_id: record.targetEventId ?? null,
-        reason: record.reason,
-        status: record.status,
-        requested_by: record.requestedBy,
-        requested_at: record.requestedAt,
-        reviewed_by: record.reviewedBy ?? null,
-        reviewed_at: record.reviewedAt ?? null,
-        applied_by: record.appliedBy ?? null,
-        applied_at: record.appliedAt ?? null,
-        applied_event_id: record.appliedEventId ?? null,
-        audit_trail: record.auditTrail,
-        aggregate_version: 0,
-        created_at: now,
-        updated_at: now,
-      } satisfies Insertable<Database['attendance_correction_requests']>)
+      .values(this.toInsertRow(record, now))
       .returningAll()
       .executeTakeFirstOrThrow();
 
@@ -94,17 +87,7 @@ export class AttendanceCorrectionRequestRepository {
   async save(record: AttendanceCorrectionRequestRecord): Promise<AttendanceCorrectionRequestRecord> {
     const row = await this.db
       .updateTable(this.tableName)
-      .set({
-        status: record.status,
-        reviewed_by: record.reviewedBy ?? null,
-        reviewed_at: record.reviewedAt ?? null,
-        applied_by: record.appliedBy ?? null,
-        applied_at: record.appliedAt ?? null,
-        applied_event_id: record.appliedEventId ?? null,
-        audit_trail: record.auditTrail,
-        aggregate_version: 0,
-        updated_at: record.updatedAt,
-      })
+      .set(this.toUpdateRow(record))
       .where('id', '=', record.id)
       .returningAll()
       .executeTakeFirstOrThrow();
@@ -130,9 +113,52 @@ export class AttendanceCorrectionRequestRepository {
       appliedBy: row.applied_by ?? undefined,
       appliedAt: row.applied_at ?? undefined,
       appliedEventId: row.applied_event_id ?? undefined,
-      auditTrail: row.audit_trail as AttendanceCorrectionAuditEntry[],
+      auditTrail: parseAuditTrail(row.audit_trail),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  private toInsertRow(
+    record: Omit<AttendanceCorrectionRequestRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string },
+    now: Date,
+  ): Insertable<Database['attendance_correction_requests']> {
+    return {
+      id: record.id ?? Uuid.generate().value,
+      tenant_id: record.tenantId,
+      worker_id: record.workerId,
+      work_date: workDateToDb(record.workDate),
+      correction_type: record.correctionType,
+      requested_event_type: record.requestedEventType ?? null,
+      requested_timestamp: record.requestedTimestamp ?? null,
+      target_event_id: record.targetEventId ?? null,
+      reason: record.reason,
+      status: record.status,
+      requested_by: record.requestedBy,
+      requested_at: record.requestedAt,
+      reviewed_by: record.reviewedBy ?? null,
+      reviewed_at: record.reviewedAt ?? null,
+      applied_by: record.appliedBy ?? null,
+      applied_at: record.appliedAt ?? null,
+      applied_event_id: record.appliedEventId ?? null,
+      audit_trail: serializeAuditTrail(record.auditTrail),
+      aggregate_version: 0,
+      created_at: now,
+      updated_at: now,
+    } satisfies Insertable<Database['attendance_correction_requests']>;
+  }
+
+  private toUpdateRow(record: AttendanceCorrectionRequestRecord): Partial<Insertable<Database['attendance_correction_requests']>> {
+    return {
+      status: record.status,
+      reviewed_by: record.reviewedBy ?? null,
+      reviewed_at: record.reviewedAt ?? null,
+      applied_by: record.appliedBy ?? null,
+      applied_at: record.appliedAt ?? null,
+      applied_event_id: record.appliedEventId ?? null,
+      audit_trail: serializeAuditTrail(record.auditTrail),
+      aggregate_version: 0,
+      updated_at: record.updatedAt,
     };
   }
 }

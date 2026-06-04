@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { ComplianceController } from './api/compliance.controller.js';
 import { PolicyDocumentFsmRegistrar } from './fsm/policy-document.fsm.js';
 import { PolicyAcknowledgementFsmRegistrar } from './fsm/policy-acknowledgement.fsm.js';
@@ -26,7 +27,7 @@ import { ComplianceEventsPublisher } from './events/compliance-events.publisher.
  * Provides command handlers, repositories, FSM registrations, event publishing, and API endpoints.
  */
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HcmSetupModule],
   controllers: [ComplianceController],
   providers: [
     // FSM registrars

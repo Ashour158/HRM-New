@@ -39,7 +39,7 @@ describe('EventNotificationBridge', () => {
     const subscribe = vi.fn();
     const bridge = new EventNotificationBridge(
       { subscribe } as unknown as EventBus,
-      { consume: vi.fn() } as unknown as InboxConsumer,
+      { consume: vi.fn(), skipOrphanedEventsWithoutOutbox: vi.fn(), registerReplayHandler: vi.fn() } as unknown as InboxConsumer,
       { createFromEvent: vi.fn() } as unknown as PlatformNotificationService,
     );
 
@@ -55,6 +55,8 @@ describe('EventNotificationBridge', () => {
       consume: vi.fn(async (eventArg: HrEventEnvelope<unknown>, consumerName: string, version: string, handler: { handle(event: HrEventEnvelope<unknown>): Promise<void> }) => {
         await handler.handle(eventArg);
       }),
+      skipOrphanedEventsWithoutOutbox: vi.fn().mockResolvedValue(0),
+      registerReplayHandler: vi.fn(),
     };
     const notificationService = {
       createFromEvent: vi.fn().mockResolvedValue(2),
@@ -80,5 +82,31 @@ describe('EventNotificationBridge', () => {
       expect.objectContaining({ handle: expect.any(Function) }),
     );
     expect(notificationService.createFromEvent).toHaveBeenCalledWith(envelope);
+    expect(inboxConsumer.registerReplayHandler).toHaveBeenCalledWith(
+      'platform-notifications',
+      '1',
+      expect.objectContaining({ handle: expect.any(Function) }),
+    );
+  });
+
+  it('marks orphaned legacy notification inbox rows as skipped during startup', async () => {
+    const inboxConsumer = {
+      consume: vi.fn(),
+      skipOrphanedEventsWithoutOutbox: vi.fn().mockResolvedValue(14),
+      registerReplayHandler: vi.fn(),
+    };
+    const bridge = new EventNotificationBridge(
+      { subscribe: vi.fn() } as unknown as EventBus,
+      inboxConsumer as unknown as InboxConsumer,
+      { createFromEvent: vi.fn() } as unknown as PlatformNotificationService,
+    );
+
+    bridge.onModuleInit();
+    await Promise.resolve();
+
+    expect(inboxConsumer.skipOrphanedEventsWithoutOutbox).toHaveBeenCalledWith(
+      'platform-notifications',
+      '1',
+    );
   });
 });

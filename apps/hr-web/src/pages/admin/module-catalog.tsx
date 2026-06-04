@@ -153,7 +153,7 @@ export function AdminModuleCatalog() {
               </p>
             </div>
             <Button asChild className="w-fit self-end bg-white text-[#006c49] hover:bg-[#eff4ff]">
-              <Link to="/admin/settings">
+              <Link to="/admin/system-console/settings">
                 <Gauge className="mr-2 h-4 w-4" />
                 Admin Setup
               </Link>

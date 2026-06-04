@@ -328,7 +328,7 @@ export function AdminLeaveManagement() {
           <p className="text-sm text-muted-foreground">Admin leave requests, approvals, balances, policies, holidays, and payroll impact.</p>
         </div>
         <Button asChild variant="outline">
-          <Link to="/admin/policies">Policy Center</Link>
+          <Link to="/admin/system-console/policies">Policy Center</Link>
         </Button>
       </div>
 

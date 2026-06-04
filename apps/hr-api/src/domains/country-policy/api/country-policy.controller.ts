@@ -99,6 +99,14 @@ export class CountryPolicyController {
     };
   }
 
+  private assertCountryPolicyAdminScope(req: Request): void {
+    const actor = req.actor;
+    if (!actor) throw new ForbiddenException('Country policy access requires an authenticated actor');
+    if (!actor.roles.some((role) => COUNTRY_POLICY_ADMIN_ROLES.has(role))) {
+      throw new ForbiddenException('Only country policy administrators can access country policy administration');
+    }
+  }
+
   /* ---------------------------------------------------------------- */
   /*  Country Policy Packs                                              */
   /* ---------------------------------------------------------------- */
@@ -173,7 +181,8 @@ export class CountryPolicyController {
   }
 
   @Get('policy-packs')
-  async listPolicyPacks(@Query('countryCode') countryCode?: string) {
+  async listPolicyPacks(@Query('countryCode') countryCode: string | undefined, @Req() req: Request) {
+    this.assertCountryPolicyAdminScope(req);
     if (countryCode) {
       return this.policyPackRepo.findByCountryCode(countryCode);
     }
@@ -181,7 +190,8 @@ export class CountryPolicyController {
   }
 
   @Get('policy-packs/:id')
-  async getPolicyPack(@Param('id') id: string) {
+  async getPolicyPack(@Param('id') id: string, @Req() req: Request) {
+    this.assertCountryPolicyAdminScope(req);
     return this.policyPackRepo.findById(new Uuid(id));
   }
 
@@ -190,7 +200,8 @@ export class CountryPolicyController {
   /* ---------------------------------------------------------------- */
 
   @Get('validation-runs/policy-pack/:packId')
-  async getValidationRunsByPolicyPack(@Param('packId') packId: string) {
+  async getValidationRunsByPolicyPack(@Param('packId') packId: string, @Req() req: Request) {
+    this.assertCountryPolicyAdminScope(req);
     return this.validationRunRepo.findByPolicyPackId(new Uuid(packId));
   }
 
@@ -199,7 +210,8 @@ export class CountryPolicyController {
   /* ---------------------------------------------------------------- */
 
   @Get('impact-simulations/policy-pack/:packId')
-  async getImpactSimulationsByPolicyPack(@Param('packId') packId: string) {
+  async getImpactSimulationsByPolicyPack(@Param('packId') packId: string, @Req() req: Request) {
+    this.assertCountryPolicyAdminScope(req);
     return this.impactSimRepo.findByPolicyPackId(new Uuid(packId));
   }
 }

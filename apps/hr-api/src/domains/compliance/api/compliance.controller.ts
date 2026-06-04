@@ -100,12 +100,21 @@ export class ComplianceController {
     };
   }
 
+  private assertComplianceAdminScope(req: Request): void {
+    const actor = req.actor;
+    if (!actor) throw new ForbiddenException('Compliance access requires an authenticated actor');
+    if (!actor.roles.some((role) => COMPLIANCE_ADMIN_ROLES.has(role))) {
+      throw new ForbiddenException('Only compliance administrators can access compliance administration');
+    }
+  }
+
   /* ---------------------------------------------------------------- */
   /*  Policy Documents                                                  */
   /* ---------------------------------------------------------------- */
 
   @Get('summary')
-  async getComplianceSummary() {
+  async getComplianceSummary(@Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     const policyStatuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PUBLISHED', 'ARCHIVED', 'REJECTED'];
     const policies = (await Promise.all(policyStatuses.map((status) => this.policyDocumentRepo.findByStatus(status)))).flat();
     return {
@@ -175,7 +184,8 @@ export class ComplianceController {
   }
 
   @Get('policy-documents')
-  async listPolicyDocuments(@Query('status') status?: string) {
+  async listPolicyDocuments(@Query('status') status: string | undefined, @Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     if (status) {
       return this.policyDocumentRepo.findByStatus(status);
     }
@@ -183,7 +193,8 @@ export class ComplianceController {
   }
 
   @Get('policy-documents/:id')
-  async getPolicyDocument(@Param('id') id: string) {
+  async getPolicyDocument(@Param('id') id: string, @Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     return this.policyDocumentRepo.findById(new Uuid(id));
   }
 
@@ -220,7 +231,8 @@ export class ComplianceController {
   }
 
   @Get('policy-acknowledgements/worker/:workerId')
-  async getPolicyAcknowledgementsByWorker(@Param('workerId') workerId: string) {
+  async getPolicyAcknowledgementsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     return this.policyAcknowledgementRepo.findByWorker(new Uuid(workerId));
   }
 
@@ -260,12 +272,14 @@ export class ComplianceController {
   }
 
   @Get('legal-holds')
-  async listLegalHolds() {
+  async listLegalHolds(@Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     return this.legalHoldRepo.findActive();
   }
 
   @Get('legal-holds/:id')
-  async getLegalHold(@Param('id') id: string) {
+  async getLegalHold(@Param('id') id: string, @Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     return this.legalHoldRepo.findById(new Uuid(id));
   }
 
@@ -283,7 +297,8 @@ export class ComplianceController {
   }
 
   @Get('statutory-reports')
-  async listStatutoryReports(@Query('countryCode') countryCode?: string) {
+  async listStatutoryReports(@Query('countryCode') countryCode: string | undefined, @Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     if (countryCode) {
       return this.statutoryReportRepo.findByCountryCode(countryCode);
     }
@@ -291,7 +306,8 @@ export class ComplianceController {
   }
 
   @Get('statutory-reports/:id')
-  async getStatutoryReport(@Param('id') id: string) {
+  async getStatutoryReport(@Param('id') id: string, @Req() req: Request) {
+    this.assertComplianceAdminScope(req);
     return this.statutoryReportRepo.findById(new Uuid(id));
   }
 }
