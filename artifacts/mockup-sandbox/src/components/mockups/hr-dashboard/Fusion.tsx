@@ -28,6 +28,13 @@ import {
   BarChart3,
   PieChart,
   CloudSun,
+  Sun,
+  Cloud,
+  CloudRain,
+  CloudSnow,
+  CloudLightning,
+  Droplets,
+  Wind,
 } from "lucide-react";
 import {
   AreaChart as ReAreaChart,
@@ -54,10 +61,69 @@ const companyBranding = {
   logo: companyLogo,
 };
 
-const dailyWeather = {
+const weatherThemes = {
+  sunny: {
+    label: "Sunny",
+    Icon: Sun,
+    gradient: "from-amber-400 via-orange-400 to-orange-500",
+    glow: "bg-amber-200/50",
+  },
+  "partly-cloudy": {
+    label: "Partly cloudy",
+    Icon: CloudSun,
+    gradient: "from-sky-400 via-indigo-400 to-indigo-500",
+    glow: "bg-sky-200/50",
+  },
+  cloudy: {
+    label: "Cloudy",
+    Icon: Cloud,
+    gradient: "from-slate-400 via-slate-500 to-slate-600",
+    glow: "bg-slate-200/50",
+  },
+  rainy: {
+    label: "Rainy",
+    Icon: CloudRain,
+    gradient: "from-sky-500 via-blue-600 to-blue-700",
+    glow: "bg-blue-300/50",
+  },
+  stormy: {
+    label: "Stormy",
+    Icon: CloudLightning,
+    gradient: "from-indigo-600 via-violet-700 to-slate-800",
+    glow: "bg-indigo-300/50",
+  },
+  snowy: {
+    label: "Snowy",
+    Icon: CloudSnow,
+    gradient: "from-sky-300 via-cyan-300 to-cyan-400",
+    glow: "bg-white/60",
+  },
+} as const;
+
+type WeatherCondition = keyof typeof weatherThemes;
+
+const dailyWeather: {
+  city: string;
+  tempC: number;
+  hiC: number;
+  loC: number;
+  humidity: number;
+  wind: number;
+  condition: WeatherCondition;
+  forecast: { day: string; condition: WeatherCondition; tempC: number }[];
+} = {
   city: "London",
   tempC: 18,
-  condition: "Partly cloudy",
+  hiC: 21,
+  loC: 12,
+  humidity: 64,
+  wind: 11,
+  condition: "partly-cloudy",
+  forecast: [
+    { day: "Thu", condition: "sunny", tempC: 22 },
+    { day: "Fri", condition: "rainy", tempC: 17 },
+    { day: "Sat", condition: "cloudy", tempC: 19 },
+  ],
 };
 
 const dailyQuotes = [
@@ -162,6 +228,8 @@ const hiresAttrition = [
 
 export function Fusion() {
   const dailyQuote = getDailyQuote(currentUser);
+  const wx = weatherThemes[dailyWeather.condition];
+  const WxIcon = wx.Icon;
   return (
     <div className="min-h-screen fusion-bg text-slate-900 font-['Plus_Jakarta_Sans',sans-serif] flex relative">
       {/* Floating mesh blobs — artistic depth (clipping scoped to this decorative layer only) */}
@@ -291,21 +359,6 @@ export function Fusion() {
             <button aria-label="Help" className="p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
               <HelpCircle size={20} />
             </button>
-            <div
-              aria-label={`Today's weather in ${dailyWeather.city}: ${dailyWeather.tempC} degrees, ${dailyWeather.condition}`}
-              title={`${dailyWeather.city} · ${dailyWeather.condition}`}
-              className="hidden sm:flex items-center gap-2.5 h-11 px-3 rounded-2xl bg-gradient-to-br from-sky-400/90 to-indigo-500/90 text-white shadow-md shadow-indigo-500/20 border border-white/30"
-            >
-              <CloudSun size={22} className="shrink-0" />
-              <div className="flex flex-col leading-none">
-                <span className="text-base font-extrabold">
-                  {dailyWeather.tempC}°
-                </span>
-                <span className="text-[10px] font-semibold text-white/80 mt-0.5">
-                  {dailyWeather.city}
-                </span>
-              </div>
-            </div>
             <a
               href="#"
               aria-label="View your profile"
@@ -333,9 +386,9 @@ export function Fusion() {
         <div className="flex-1 p-6 lg:p-8">
           <div className="max-w-7xl mx-auto space-y-8">
             {/* Page header */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-              <div>
-                <div className="inline-flex items-center gap-2 mb-3 pl-2 pr-3 py-1 rounded-full bg-white/60 border border-white/60 backdrop-blur-md text-xs font-bold text-slate-600">
+            <div className="flex flex-col lg:flex-row lg:items-stretch justify-between gap-6">
+              <div className="flex flex-col justify-center">
+                <div className="inline-flex self-start items-center gap-2 mb-3 pl-2 pr-3 py-1 rounded-full bg-white/60 border border-white/60 backdrop-blur-md text-xs font-bold text-slate-600">
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
                     <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
@@ -353,6 +406,65 @@ export function Fusion() {
                   />
                   <span className="italic">{dailyQuote}</span>
                 </p>
+              </div>
+
+              {/* Daily weather — large graphic card */}
+              <div
+                aria-label={`Today's weather in ${dailyWeather.city}: ${dailyWeather.tempC} degrees, ${wx.label}`}
+                className={`relative overflow-hidden shrink-0 w-full lg:w-[340px] rounded-[2rem] p-6 text-white bg-gradient-to-br ${wx.gradient} shadow-xl shadow-indigo-500/20`}
+              >
+                <div
+                  className={`absolute -right-8 -top-8 w-44 h-44 rounded-full blur-2xl ${wx.glow}`}
+                  aria-hidden="true"
+                />
+                <div className="relative z-10 flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-white/80">Today</p>
+                    <p className="text-lg font-bold leading-tight">
+                      {dailyWeather.city}
+                    </p>
+                  </div>
+                  <WxIcon size={56} strokeWidth={1.75} className="fusion-float shrink-0" />
+                </div>
+
+                <div className="relative z-10 mt-3 flex items-end gap-3">
+                  <span className="text-6xl font-extrabold leading-none tracking-tighter">
+                    {dailyWeather.tempC}°
+                  </span>
+                  <div className="pb-1.5">
+                    <p className="text-base font-bold">{wx.label}</p>
+                    <p className="text-xs font-semibold text-white/80">
+                      H:{dailyWeather.hiC}° · L:{dailyWeather.loC}°
+                    </p>
+                  </div>
+                </div>
+
+                <div className="relative z-10 mt-3 flex items-center gap-4 text-xs font-semibold text-white/85">
+                  <span className="flex items-center gap-1.5">
+                    <Droplets size={14} /> {dailyWeather.humidity}%
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <Wind size={14} /> {dailyWeather.wind} km/h
+                  </span>
+                </div>
+
+                <div className="relative z-10 mt-4 pt-4 border-t border-white/25 grid grid-cols-3 gap-2">
+                  {dailyWeather.forecast.map((f) => {
+                    const FIcon = weatherThemes[f.condition].Icon;
+                    return (
+                      <div
+                        key={f.day}
+                        className="flex flex-col items-center gap-1 rounded-xl bg-white/10 py-2"
+                      >
+                        <span className="text-[11px] font-bold text-white/80">
+                          {f.day}
+                        </span>
+                        <FIcon size={20} strokeWidth={2} />
+                        <span className="text-xs font-bold">{f.tempC}°</span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
