@@ -1,1 +1,2 @@
 - [Destructuring null vs undefined](null-destructuring-trap.md) — JS `= []` default in destructuring doesn't cover `null`, only `undefined`; use `?? []` instead.
+- [Mockup screenshot HMR blanks](mockup-screenshot-hmr.md) — Firecrawl external_url screenshots of the mockup-sandbox preview can capture mid-HMR-reload as fully blank/white; re-capture after the reload settles.

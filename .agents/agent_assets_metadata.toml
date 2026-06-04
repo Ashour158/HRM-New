@@ -6,3 +6,9 @@ id = "Nn3ioc6Io1jPpi12CkmFb"
 uri = "file://artifacts/mockup-sandbox/src/assets/lumina-logo.png"
 type = "image"
 title = "lumina hr logo"
+
+[[generated]]
+id = "FXx970tnB3aCnY6gh5ye7"
+uri = "file://artifacts/mockup-sandbox/src/assets/company-logo.png"
+type = "image"
+title = "northwind company logo"

@@ -44,9 +44,14 @@ import {
   Legend,
 } from "recharts";
 import "./fusion/_group.css";
-import luminaLogo from "../../../assets/lumina-logo.png";
+import companyLogo from "../../../assets/company-logo.png";
 
 const currentUser = "Jane";
+
+const companyBranding = {
+  name: "Northwind Group",
+  logo: companyLogo,
+};
 
 const dailyQuotes = [
   "Great teams aren't built in a day — they're built every day.",
@@ -172,11 +177,13 @@ export function Fusion() {
       <aside className="w-64 fusion-glass border-r border-white/40 flex-col z-10 hidden lg:flex relative">
         <div className="h-16 flex items-center px-6 border-b border-white/30">
           <img
-            src={luminaLogo}
-            alt="Lumina HR logo"
+            src={companyBranding.logo}
+            alt={`${companyBranding.name} logo`}
             className="w-9 h-9 mr-3 object-contain drop-shadow-sm"
           />
-          <span className="font-extrabold text-xl tracking-tight">Lumina HR</span>
+          <span className="font-extrabold text-lg tracking-tight leading-tight">
+            {companyBranding.name}
+          </span>
         </div>
 
         <div className="p-4 flex-1 space-y-6">
@@ -254,11 +261,11 @@ export function Fusion() {
           <div className="flex items-center lg:hidden">
             <Menu className="text-slate-500 mr-4" />
             <img
-              src={luminaLogo}
-              alt="Lumina HR logo"
+              src={companyBranding.logo}
+              alt={`${companyBranding.name} logo`}
               className="w-7 h-7 mr-2 object-contain"
             />
-            <span className="font-extrabold text-lg">Lumina HR</span>
+            <span className="font-extrabold text-lg">{companyBranding.name}</span>
           </div>
           <div className="hidden lg:flex items-center max-w-md w-full relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
