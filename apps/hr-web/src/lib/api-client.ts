@@ -129,3 +129,7 @@ function createApiClient(): AxiosInstance {
  * Global Axios instance for API requests.
  */
 export const apiClient = createApiClient();
+
+if (import.meta.hot) {
+  import.meta.hot.decline();
+}
