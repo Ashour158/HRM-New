@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 import { generateUUID } from './utils';
+import { createMockAdapter } from './mock-adapter';
 
 /**
  * Extended Axios request config with retry metadata.
@@ -13,6 +14,7 @@ const RETRY_DELAY = 1000;
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
 function readPersistedAuthState(): { token?: string; tenantId?: string } {
   try {
@@ -63,6 +65,7 @@ function createApiClient(): AxiosInstance {
     headers: {
       'Content-Type': 'application/json',
     },
+    ...(DEMO_MODE ? { adapter: createMockAdapter() } : {}),
   });
 
   // Request interceptor: attach auth, tenant, and correlation headers

@@ -7,7 +7,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertCircle, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { AlertCircle, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck, FlaskConical } from 'lucide-react';
+
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const DEMO_PASSWORD = 'Password123!';
+
+const DEMO_ACCOUNTS = [
+  { label: 'HR Admin', email: 'hr.admin@example.com', description: 'Full admin access — all modules', color: '#10b981', redirect: '/admin' },
+  { label: 'Manager', email: 'manager@example.com', description: 'Team management & approvals', color: '#6366f1', redirect: '/manager' },
+  { label: 'Employee', email: 'employee@example.com', description: 'Self-service portal', color: '#f59e0b', redirect: '/employee' },
+];
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -17,9 +26,6 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
-/**
- * Login page with email/password authentication and tenant selection.
- */
 export function LoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated } = useAuth();
@@ -29,6 +35,7 @@ export function LoginPage() {
   const [errors, setErrors] = React.useState<Partial<Record<keyof LoginFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [loginError, setLoginError] = React.useState('');
+  const [demoLoading, setDemoLoading] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     if (isAuthenticated) {
@@ -57,15 +64,24 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
-
     if (!validate()) return;
-
     setIsSubmitting(true);
     const result = await login(formData.email, formData.password, formData.tenantId);
     setIsSubmitting(false);
-
     if (!result.success) {
       setLoginError(result.error || 'Invalid email or password');
+    }
+  };
+
+  const handleDemoLogin = async (account: typeof DEMO_ACCOUNTS[number]) => {
+    setDemoLoading(account.email);
+    setLoginError('');
+    const result = await login(account.email, DEMO_PASSWORD);
+    setDemoLoading(null);
+    if (result.success) {
+      navigate(account.redirect);
+    } else {
+      setLoginError('Demo login failed. Please try again.');
     }
   };
 
@@ -128,6 +144,44 @@ export function LoginPage() {
               </p>
             </div>
 
+            {DEMO_MODE && (
+              <div className="mb-6 rounded-xl border border-[#10b981]/30 bg-[#f0fdf8] p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <FlaskConical className="h-4 w-4 text-[#10b981]" />
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#006c49]">Demo Mode — Quick Access</span>
+                </div>
+                <div className="grid gap-2">
+                  {DEMO_ACCOUNTS.map((account) => (
+                    <button
+                      key={account.email}
+                      type="button"
+                      disabled={demoLoading !== null}
+                      onClick={() => handleDemoLogin(account)}
+                      className="flex w-full items-center justify-between rounded-lg border border-[#bbcabf]/40 bg-white px-3 py-2.5 text-left transition-all hover:border-[#10b981]/50 hover:shadow-sm disabled:opacity-60"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-white text-xs font-bold" style={{ backgroundColor: account.color }}>
+                          {account.label[0]}
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-[#0b1c30]">{account.label}</p>
+                          <p className="text-xs text-[#6c7a71]">{account.description}</p>
+                        </div>
+                      </div>
+                      {demoLoading === account.email ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-[#10b981]" />
+                      ) : (
+                        <ArrowRight className="h-4 w-4 text-[#6c7a71]" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2.5 text-center text-xs text-[#6c7a71]">
+                  Password for all accounts: <span className="font-mono font-semibold text-[#0b1c30]">{DEMO_PASSWORD}</span>
+                </p>
+              </div>
+            )}
+
             <form className="space-y-4" onSubmit={handleSubmit}>
               {loginError && (
                 <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -154,9 +208,7 @@ export function LoginPage() {
                   />
                 </div>
                 {errors.email && (
-                  <p id="email-error" className="text-sm text-red-600">
-                    {errors.email}
-                  </p>
+                  <p id="email-error" className="text-sm text-red-600">{errors.email}</p>
                 )}
               </div>
 
@@ -183,9 +235,7 @@ export function LoginPage() {
                   />
                 </div>
                 {errors.password && (
-                  <p id="password-error" className="text-sm text-red-600">
-                    {errors.password}
-                  </p>
+                  <p id="password-error" className="text-sm text-red-600">{errors.password}</p>
                 )}
               </div>
 
