@@ -71,8 +71,8 @@ const weatherThemes = {
   "partly-cloudy": {
     label: "Partly cloudy",
     Icon: CloudSun,
-    gradient: "from-sky-400 via-indigo-400 to-indigo-500",
-    glow: "bg-sky-200/50",
+    gradient: "from-amber-400 via-orange-400 to-slate-500",
+    glow: "bg-amber-200/50",
   },
   cloudy: {
     label: "Cloudy",
@@ -83,20 +83,20 @@ const weatherThemes = {
   rainy: {
     label: "Rainy",
     Icon: CloudRain,
-    gradient: "from-sky-500 via-blue-600 to-blue-700",
-    glow: "bg-blue-300/50",
+    gradient: "from-slate-500 via-slate-600 to-zinc-700",
+    glow: "bg-slate-300/50",
   },
   stormy: {
     label: "Stormy",
     Icon: CloudLightning,
-    gradient: "from-indigo-600 via-violet-700 to-slate-800",
-    glow: "bg-indigo-300/50",
+    gradient: "from-zinc-700 via-slate-800 to-neutral-900",
+    glow: "bg-zinc-400/40",
   },
   snowy: {
     label: "Snowy",
     Icon: CloudSnow,
-    gradient: "from-sky-300 via-cyan-300 to-cyan-400",
-    glow: "bg-white/60",
+    gradient: "from-violet-300 via-purple-400 to-slate-500",
+    glow: "bg-violet-200/50",
   },
 } as const;
 
@@ -411,59 +411,75 @@ export function Fusion() {
               {/* Daily weather — large graphic card */}
               <div
                 aria-label={`Today's weather in ${dailyWeather.city}: ${dailyWeather.tempC} degrees, ${wx.label}`}
-                className={`relative overflow-hidden shrink-0 w-full lg:w-[340px] rounded-[2rem] p-6 text-white bg-gradient-to-br ${wx.gradient} shadow-xl shadow-indigo-500/20`}
+                className={`relative overflow-hidden shrink-0 w-full lg:w-[460px] rounded-2xl p-6 text-white bg-gradient-to-br ${wx.gradient} shadow-xl shadow-black/10`}
               >
                 <div
-                  className={`absolute -right-8 -top-8 w-44 h-44 rounded-full blur-2xl ${wx.glow}`}
+                  className={`absolute -right-10 -top-10 w-48 h-48 rounded-full blur-2xl ${wx.glow}`}
                   aria-hidden="true"
                 />
-                <div className="relative z-10 flex items-start justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-white/80">Today</p>
-                    <p className="text-lg font-bold leading-tight">
-                      {dailyWeather.city}
-                    </p>
-                  </div>
-                  <WxIcon size={56} strokeWidth={1.75} className="fusion-float shrink-0" />
-                </div>
-
-                <div className="relative z-10 mt-3 flex items-end gap-3">
-                  <span className="text-6xl font-extrabold leading-none tracking-tighter">
-                    {dailyWeather.tempC}°
-                  </span>
-                  <div className="pb-1.5">
-                    <p className="text-base font-bold">{wx.label}</p>
-                    <p className="text-xs font-semibold text-white/80">
-                      H:{dailyWeather.hiC}° · L:{dailyWeather.loC}°
-                    </p>
-                  </div>
-                </div>
-
-                <div className="relative z-10 mt-3 flex items-center gap-4 text-xs font-semibold text-white/85">
-                  <span className="flex items-center gap-1.5">
-                    <Droplets size={14} /> {dailyWeather.humidity}%
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Wind size={14} /> {dailyWeather.wind} km/h
-                  </span>
-                </div>
-
-                <div className="relative z-10 mt-4 pt-4 border-t border-white/25 grid grid-cols-3 gap-2">
-                  {dailyWeather.forecast.map((f) => {
-                    const FIcon = weatherThemes[f.condition].Icon;
-                    return (
-                      <div
-                        key={f.day}
-                        className="flex flex-col items-center gap-1 rounded-xl bg-white/10 py-2"
-                      >
-                        <span className="text-[11px] font-bold text-white/80">
-                          {f.day}
-                        </span>
-                        <FIcon size={20} strokeWidth={2} />
-                        <span className="text-xs font-bold">{f.tempC}°</span>
+                <div className="relative z-10 flex items-stretch gap-6">
+                  {/* Current conditions */}
+                  <div className="flex flex-col justify-between flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white/80">
+                          Today
+                        </p>
+                        <p className="text-lg font-bold leading-tight truncate">
+                          {dailyWeather.city}
+                        </p>
                       </div>
-                    );
-                  })}
+                      <WxIcon
+                        size={48}
+                        strokeWidth={1.75}
+                        className="fusion-float shrink-0"
+                      />
+                    </div>
+
+                    <div className="mt-3 flex items-end gap-2.5">
+                      <span className="text-5xl font-extrabold leading-none tracking-tighter">
+                        {dailyWeather.tempC}°
+                      </span>
+                      <div className="pb-1">
+                        <p className="text-sm font-bold leading-tight">
+                          {wx.label}
+                        </p>
+                        <p className="text-[11px] font-semibold text-white/80">
+                          H:{dailyWeather.hiC}° · L:{dailyWeather.loC}°
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center gap-4 text-xs font-semibold text-white/85">
+                      <span className="flex items-center gap-1.5">
+                        <Droplets size={14} /> {dailyWeather.humidity}%
+                      </span>
+                      <span className="flex items-center gap-1.5">
+                        <Wind size={14} /> {dailyWeather.wind} km/h
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 3-day forecast */}
+                  <div className="flex flex-col gap-2 border-l border-white/25 pl-5">
+                    {dailyWeather.forecast.map((f) => {
+                      const FIcon = weatherThemes[f.condition].Icon;
+                      return (
+                        <div
+                          key={f.day}
+                          className="flex items-center gap-3 rounded-xl bg-white/10 px-3 py-2"
+                        >
+                          <span className="text-[11px] font-bold text-white/80 w-7">
+                            {f.day}
+                          </span>
+                          <FIcon size={18} strokeWidth={2} className="shrink-0" />
+                          <span className="text-sm font-bold ml-auto">
+                            {f.tempC}°
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
