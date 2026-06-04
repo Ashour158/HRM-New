@@ -561,6 +561,10 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   // ── Reporting ─────────────────────────────────────────────────────────────
   'GET /reporting/service-usage/summary': () => ok({ activeModules: 8, totalApiCalls: 42800, topModules: ['payroll', 'attendance', 'leave'] }),
 
+  // ── Notifications ─────────────────────────────────────────────────────────
+  'GET /notifications/me': () => ok([]),
+  'GET /notifications/hr-operations': () => ok([]),
+
   // ── Health ────────────────────────────────────────────────────────────────
   'GET /health': () => ({ status: 'ok' }),
   'GET /health/live': () => ({ status: 'ok' }),

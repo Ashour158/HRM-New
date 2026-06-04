@@ -1,0 +1,1 @@
+- [Destructuring null vs undefined](null-destructuring-trap.md) — JS `= []` default in destructuring doesn't cover `null`, only `undefined`; use `?? []` instead.

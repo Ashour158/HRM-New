@@ -287,11 +287,12 @@ function WorkspaceShell({
     }))
     .filter((group) => group.path || (group.items?.length ?? 0) > 0);
   const notificationPath = portalType === 'admin' ? '/notifications/hr-operations' : '/notifications/me';
-  const { data: notifications = [] } = useApiQuery<PlatformNotification[]>(
+  const { data: notificationsRaw } = useApiQuery<PlatformNotification[]>(
     ['platform-notifications', portalType],
     notificationPath,
     { enabled: Boolean(user), retry: false },
   );
+  const notifications = notificationsRaw ?? [];
   const unreadNotifications = notifications.filter((notification) => !notification.readAt).length;
   const scrollWorkspace = React.useCallback((direction: -1 | 1) => {
     window.scrollBy({
