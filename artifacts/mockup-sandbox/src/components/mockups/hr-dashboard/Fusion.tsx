@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Users,
   TrendingDown,
@@ -35,6 +35,8 @@ import {
   CloudLightning,
   Droplets,
   Wind,
+  LogIn,
+  LogOut,
 } from "lucide-react";
 import {
   AreaChart as ReAreaChart,
@@ -65,14 +67,14 @@ const weatherThemes = {
   sunny: {
     label: "Sunny",
     Icon: Sun,
-    gradient: "from-amber-400 via-orange-400 to-orange-500",
-    glow: "bg-amber-200/50",
+    gradient: "from-fuchsia-400 via-purple-500 to-violet-600",
+    glow: "bg-fuchsia-300/50",
   },
   "partly-cloudy": {
     label: "Partly cloudy",
     Icon: CloudSun,
-    gradient: "from-amber-400 via-orange-400 to-slate-500",
-    glow: "bg-amber-200/50",
+    gradient: "from-violet-400 via-purple-500 to-slate-500",
+    glow: "bg-violet-300/50",
   },
   cloudy: {
     label: "Cloudy",
@@ -225,6 +227,94 @@ const hiresAttrition = [
   { month: "May", hires: 88, exits: 44 },
   { month: "Jun", hires: 92, exits: 39 },
 ];
+
+function pad(n: number) {
+  return n.toString().padStart(2, "0");
+}
+
+function CheckInWidget() {
+  const [checkedInAt, setCheckedInAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (checkedInAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [checkedInAt]);
+
+  const isActive = checkedInAt !== null;
+  const totalSec = isActive ? Math.floor((now - checkedInAt) / 1000) : 0;
+  const hrs = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const checkInLabel = isActive
+    ? new Date(checkedInAt).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : null;
+
+  return (
+    <div className="fusion-glass rounded-[2rem] p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+      <div className="flex items-center gap-4">
+        <div
+          className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 transition-colors ${
+            isActive
+              ? "bg-gradient-to-br from-emerald-400 to-teal-500 text-white"
+              : "bg-slate-100 text-slate-400"
+          }`}
+        >
+          <Clock size={26} />
+        </div>
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-2">
+            {isActive && (
+              <span className="relative flex h-2 w-2">
+                <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+            )}
+            {isActive ? "On the clock" : "Not checked in"}
+          </p>
+          <span
+            className={`block text-4xl font-extrabold tracking-tight tabular-nums ${
+              isActive ? "fusion-gradient-text" : "text-slate-300"
+            }`}
+          >
+            {pad(hrs)}:{pad(mins)}:{pad(secs)}
+          </span>
+          <p className="text-xs font-semibold text-slate-500 mt-0.5">
+            {isActive ? `Checked in at ${checkInLabel}` : "Start your workday"}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        {!isActive ? (
+          <button
+            type="button"
+            onClick={() => {
+              const t = Date.now();
+              setCheckedInAt(t);
+              setNow(t);
+            }}
+            className="flex items-center gap-2 px-7 py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30 transition-all active:scale-95"
+          >
+            <LogIn size={18} /> Check In
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCheckedInAt(null)}
+            className="flex items-center gap-2 px-7 py-3.5 rounded-2xl font-bold text-white bg-gradient-to-r from-rose-500 to-fuchsia-600 shadow-lg shadow-rose-500/25 hover:shadow-xl hover:shadow-rose-500/30 transition-all active:scale-95"
+          >
+            <LogOut size={18} /> Check Out
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function Fusion() {
   const dailyQuote = getDailyQuote(currentUser);
@@ -484,27 +574,8 @@ export function Fusion() {
               </div>
             </div>
 
-            {/* Quick links */}
-            <div className="flex flex-wrap gap-3">
-              {[
-                "Module Workbench",
-                "Organization",
-                "Employees",
-                "Service Delivery",
-                "Attendance",
-                "Leave",
-                "Payroll",
-                "Country Policy",
-              ].map((link, i) => (
-                <a
-                  key={i}
-                  href="#"
-                  className="text-sm font-bold px-4 py-2.5 bg-white border border-slate-200/80 rounded-xl text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/50 shadow-sm hover:shadow-md transition-all whitespace-nowrap flex items-center active:scale-95"
-                >
-                  {link} <ChevronRight size={14} className="ml-1.5 opacity-50" />
-                </a>
-              ))}
-            </div>
+            {/* Check-in / time tracker */}
+            <CheckInWidget />
 
             {/* Vivid bento KPI tiles (Bento) */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
