@@ -13,7 +13,7 @@ const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 const DEMO_PASSWORD = 'Password123!';
 
 const DEMO_ACCOUNTS = [
-  { label: 'HR Admin', email: 'hr.admin@example.com', description: 'Full admin access — all modules', color: '#10b981', redirect: '/admin' },
+  { label: 'HR Admin', email: 'hr.admin@example.com', description: 'Full admin access — all modules', color: '#8b5cf6', redirect: '/admin' },
   { label: 'Manager', email: 'manager@example.com', description: 'Team management & approvals', color: '#6366f1', redirect: '/manager' },
   { label: 'Employee', email: 'employee@example.com', description: 'Self-service portal', color: '#f59e0b', redirect: '/employee' },
 ];
@@ -86,17 +86,17 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] text-[#0b1c30]">
+    <div className="min-h-screen bg-[#f6f7fb] text-[#0f172a]">
       <div className="mx-auto flex min-h-screen w-full max-w-[1440px]">
-        <section className="relative hidden flex-1 overflow-hidden bg-[#213145] lg:flex">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(111,251,190,0.32),transparent_28%),linear-gradient(135deg,#0b1c30_0%,#006c49_54%,#213145_100%)]" />
+        <section className="relative hidden flex-1 overflow-hidden bg-[#1e1b4b] lg:flex">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(165,180,252,0.38),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(45,212,191,0.20),transparent_32%),linear-gradient(135deg,#0f172a_0%,#4f46e5_52%,#7c3aed_100%)]" />
           <div className="absolute inset-x-16 top-20 grid gap-4">
             <div className="h-28 rounded-xl border border-white/10 bg-white/12 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur">
               <div className="mb-4 h-3 w-28 rounded-full bg-white/60" />
               <div className="grid grid-cols-3 gap-3">
-                <div className="h-10 rounded-lg bg-[#6ffbbe]/80" />
+                <div className="h-10 rounded-lg bg-[#a5b4fc]/80" />
                 <div className="h-10 rounded-lg bg-white/45" />
-                <div className="h-10 rounded-lg bg-[#ffb95f]/85" />
+                <div className="h-10 rounded-lg bg-[#fbbf24]/85" />
               </div>
             </div>
             <div className="ml-16 grid h-48 grid-cols-[1.1fr_0.9fr] gap-4 rounded-xl border border-white/10 bg-white/10 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.2)] backdrop-blur">
@@ -106,49 +106,49 @@ export function LoginPage() {
                 <div className="h-3 w-3/4 rounded-full bg-white/35" />
                 <div className="h-3 w-1/2 rounded-full bg-white/30" />
               </div>
-              <div className="grid place-items-center rounded-xl bg-[#6ffbbe]/18">
-                <ShieldCheck className="h-16 w-16 text-[#6ffbbe]" />
+              <div className="grid place-items-center rounded-xl bg-[#a5b4fc]/18">
+                <ShieldCheck className="h-16 w-16 text-[#a5b4fc]" />
               </div>
             </div>
           </div>
           <div className="relative z-10 mt-auto w-full p-10 xl:p-12">
             <div className="max-w-xl text-white">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-[#eaf1ff] backdrop-blur">
-                <ShieldCheck className="h-4 w-4 text-[#6ffbbe]" />
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-[#eef2ff] backdrop-blur">
+                <ShieldCheck className="h-4 w-4 text-[#a5b4fc]" />
                 Secure enterprise workspace
               </div>
               <h2 className="font-headline text-4xl font-bold leading-tight">Empowering the modern enterprise</h2>
-              <p className="mt-4 max-w-md text-lg leading-7 text-[#eaf1ff]/90">
+              <p className="mt-4 max-w-md text-lg leading-7 text-[#eef2ff]/90">
                 A unified workspace for HR administration, employee services, payroll, performance, and compliance.
               </p>
             </div>
           </div>
         </section>
 
-        <main className="flex flex-1 items-center justify-center border-l border-[#bbcabf]/40 bg-white px-5 py-10 shadow-[0_4px_20px_rgba(0,0,0,0.05)] lg:px-20 xl:px-[120px]">
+        <main className="flex flex-1 items-center justify-center border-l border-[#e2e8f0]/40 bg-white px-5 py-10 shadow-[0_4px_20px_rgba(0,0,0,0.05)] lg:px-20 xl:px-[120px]">
           <div className="w-full max-w-[440px]">
             <div className="mb-8 flex items-center gap-3">
-              <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#10b981] text-white">
+              <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#8b5cf6] text-white">
                 <Building2 className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="font-headline text-2xl font-bold tracking-tight text-[#006c49]">HRM Nexus</h1>
-                <p className="text-sm text-[#3c4a42]">Enterprise HR portal</p>
+                <h1 className="font-headline text-2xl font-bold tracking-tight text-[#4f46e5]">HRM Nexus</h1>
+                <p className="text-sm text-[#475569]">Enterprise HR portal</p>
               </div>
             </div>
 
             <div className="mb-6">
-              <h2 className="font-headline text-4xl font-semibold text-[#0b1c30]">Welcome back</h2>
-              <p className="mt-2 text-base leading-6 text-[#3c4a42]">
+              <h2 className="font-headline text-4xl font-semibold text-[#0f172a]">Welcome back</h2>
+              <p className="mt-2 text-base leading-6 text-[#475569]">
                 Please enter your enterprise credentials to access the portal.
               </p>
             </div>
 
             {DEMO_MODE && (
-              <div className="mb-6 rounded-xl border border-[#10b981]/30 bg-[#f0fdf8] p-4">
+              <div className="mb-6 rounded-xl border border-[#8b5cf6]/30 bg-indigo-50/70 p-4">
                 <div className="mb-3 flex items-center gap-2">
-                  <FlaskConical className="h-4 w-4 text-[#10b981]" />
-                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#006c49]">Demo Mode — Quick Access</span>
+                  <FlaskConical className="h-4 w-4 text-[#8b5cf6]" />
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4f46e5]">Demo Mode — Quick Access</span>
                 </div>
                 <div className="grid gap-2">
                   {DEMO_ACCOUNTS.map((account) => (
@@ -157,27 +157,27 @@ export function LoginPage() {
                       type="button"
                       disabled={demoLoading !== null}
                       onClick={() => handleDemoLogin(account)}
-                      className="flex w-full items-center justify-between rounded-lg border border-[#bbcabf]/40 bg-white px-3 py-2.5 text-left transition-all hover:border-[#10b981]/50 hover:shadow-sm disabled:opacity-60"
+                      className="flex w-full items-center justify-between rounded-lg border border-[#e2e8f0]/40 bg-white px-3 py-2.5 text-left transition-all hover:border-[#8b5cf6]/50 hover:shadow-sm disabled:opacity-60"
                     >
                       <div className="flex items-center gap-3">
                         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-white text-xs font-bold" style={{ backgroundColor: account.color }}>
                           {account.label[0]}
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-[#0b1c30]">{account.label}</p>
-                          <p className="text-xs text-[#6c7a71]">{account.description}</p>
+                          <p className="text-sm font-semibold text-[#0f172a]">{account.label}</p>
+                          <p className="text-xs text-[#94a3b8]">{account.description}</p>
                         </div>
                       </div>
                       {demoLoading === account.email ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-[#10b981]" />
+                        <Loader2 className="h-4 w-4 animate-spin text-[#8b5cf6]" />
                       ) : (
-                        <ArrowRight className="h-4 w-4 text-[#6c7a71]" />
+                        <ArrowRight className="h-4 w-4 text-[#94a3b8]" />
                       )}
                     </button>
                   ))}
                 </div>
-                <p className="mt-2.5 text-center text-xs text-[#6c7a71]">
-                  Password for all accounts: <span className="font-mono font-semibold text-[#0b1c30]">{DEMO_PASSWORD}</span>
+                <p className="mt-2.5 text-center text-xs text-[#94a3b8]">
+                  Password for all accounts: <span className="font-mono font-semibold text-[#0f172a]">{DEMO_PASSWORD}</span>
                 </p>
               </div>
             )}
@@ -191,11 +191,11 @@ export function LoginPage() {
               )}
 
               <div className="space-y-2">
-                <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]" htmlFor="email">
+                <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="email">
                   Work Email
                 </Label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6c7a71]" />
+                  <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94a3b8]" />
                   <Input
                     id="email"
                     type="email"
@@ -214,15 +214,15 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
-                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]" htmlFor="password">
+                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="password">
                     Password
                   </Label>
-                  <a className="text-sm font-semibold text-[#006c49] underline-offset-4 hover:underline" href="#">
+                  <a className="text-sm font-semibold text-[#4f46e5] underline-offset-4 hover:underline" href="#">
                     Forgot password?
                   </a>
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#6c7a71]" />
+                  <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94a3b8]" />
                   <Input
                     id="password"
                     type="password"
@@ -241,7 +241,7 @@ export function LoginPage() {
 
               {tenants.length > 1 && (
                 <div className="space-y-2">
-                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]" htmlFor="tenant">
+                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="tenant">
                     Organization
                   </Label>
                   <Select
@@ -263,8 +263,8 @@ export function LoginPage() {
                 </div>
               )}
 
-              <label className="flex cursor-pointer items-center gap-2 py-2 text-sm text-[#3c4a42]">
-                <input className="h-4 w-4 rounded border-[#bbcabf] text-[#006c49] focus:ring-[#006c49]/20" type="checkbox" />
+              <label className="flex cursor-pointer items-center gap-2 py-2 text-sm text-[#475569]">
+                <input className="h-4 w-4 rounded border-[#e2e8f0] text-[#4f46e5] focus:ring-[#4f46e5]/20" type="checkbox" />
                 Remember me
               </label>
 
@@ -284,9 +284,9 @@ export function LoginPage() {
                 </Button>
 
                 <div className="flex items-center gap-4 py-2">
-                  <div className="h-px flex-1 bg-[#bbcabf]/50" />
-                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6c7a71]">OR</span>
-                  <div className="h-px flex-1 bg-[#bbcabf]/50" />
+                  <div className="h-px flex-1 bg-[#e2e8f0]/50" />
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">OR</span>
+                  <div className="h-px flex-1 bg-[#e2e8f0]/50" />
                 </div>
 
                 <Button type="button" variant="outline" className="h-11 w-full gap-2">
@@ -296,13 +296,34 @@ export function LoginPage() {
               </div>
             </form>
 
-            <div className="mt-8 border-t border-[#bbcabf]/40 pt-6 text-center text-sm leading-6 text-[#3c4a42]">
+            <div className="mt-8 border-t border-[#e2e8f0]/40 pt-6 text-center text-sm leading-6 text-[#475569]">
               Need access or technical support?
               <br />
-              <a className="font-semibold text-[#006c49] underline-offset-4 hover:underline" href="#">
+              <a className="font-semibold text-[#4f46e5] underline-offset-4 hover:underline" href="#">
                 Contact IT Helpdesk
               </a>
             </div>
+
+            <footer className="mt-8 border-t border-[#e2e8f0]/60 pt-5">
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="flex items-center gap-2">
+                  <div className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-[#4f46e5] to-[#8b5cf6] text-white">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <span className="font-headline text-sm font-bold text-[#0f172a]">HRM Nexus</span>
+                </div>
+                <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs font-medium text-[#475569]">
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Privacy Policy</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Terms of Service</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Cookies</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Security</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Contact</a>
+                </nav>
+                <p className="text-xs text-[#94a3b8]">
+                  © {new Date().getFullYear()} HRM Nexus. All rights reserved.
+                </p>
+              </div>
+            </footer>
           </div>
         </main>
       </div>

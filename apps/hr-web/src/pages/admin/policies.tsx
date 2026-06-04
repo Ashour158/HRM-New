@@ -210,10 +210,10 @@ function displayDate(value?: string) {
 }
 
 function statusTone(status: PolicyStatus) {
-  if (status === 'APPLIED') return 'bg-[#006c49] text-white';
-  if (status === 'PUBLISHED' || status === 'APPROVED') return 'bg-[#10b981]/10 text-[#006c49] border-[#10b981]/30';
-  if (status === 'REJECTED' || status === 'ARCHIVED') return 'bg-[#ba1a1a]/10 text-[#ba1a1a] border-[#ba1a1a]/30';
-  return 'bg-[#e5eeff] text-[#0b1c30] border-[#bbcabf]';
+  if (status === 'APPLIED') return 'bg-[#4f46e5] text-white';
+  if (status === 'PUBLISHED' || status === 'APPROVED') return 'bg-[#8b5cf6]/10 text-[#4f46e5] border-[#8b5cf6]/30';
+  if (status === 'REJECTED' || status === 'ARCHIVED') return 'bg-[#e11d48]/10 text-[#e11d48] border-[#e11d48]/30';
+  return 'bg-[#e0e7ff] text-[#0f172a] border-[#e2e8f0]';
 }
 
 function areaMeta(area: PolicyArea) {
@@ -319,8 +319,8 @@ function RevisionList({
   onSelect: (revision: PolicyRevision) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-[#bbcabf] bg-white">
-      <div className="grid min-w-[760px] grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr] border-b border-[#bbcabf] bg-[#eff4ff] px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#3c4a42]">
+    <div className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white">
+      <div className="grid min-w-[760px] grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr] border-b border-[#e2e8f0] bg-[#eef2ff] px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#475569]">
         <span>Revision</span>
         <span>Area</span>
         <span>Status</span>
@@ -334,23 +334,23 @@ function RevisionList({
             type="button"
             onClick={() => onSelect(revision)}
             className={cn(
-              'grid w-full grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr] items-center gap-3 border-b border-[#bbcabf]/60 px-4 py-3 text-left text-sm transition-colors hover:bg-[#eff4ff]',
-              selectedId === revision.id && 'bg-[#10b981]/10',
+              'grid w-full grid-cols-[1.2fr_0.8fr_0.8fr_1fr_1fr] items-center gap-3 border-b border-[#e2e8f0]/60 px-4 py-3 text-left text-sm transition-colors hover:bg-[#eef2ff]',
+              selectedId === revision.id && 'bg-[#8b5cf6]/10',
             )}
           >
             <span>
-              <span className="block font-semibold text-[#0b1c30]">{revision.title}</span>
-              <span className="font-mono text-[11px] uppercase tracking-wider text-[#6c7a71]">{revision.id.slice(0, 8)}</span>
+              <span className="block font-semibold text-[#0f172a]">{revision.title}</span>
+              <span className="font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{revision.id.slice(0, 8)}</span>
             </span>
             <span>{formatEnum(revision.area)}</span>
             <span><span className={cn('inline-flex rounded-full border px-2 py-1 text-xs font-semibold', statusTone(revision.status))}>{formatEnum(revision.status)}</span></span>
-            <span className="truncate text-[#3c4a42]">
+            <span className="truncate text-[#475569]">
               {revision.scope.workerIds?.length ? `${revision.scope.workerIds.length} workers` : revision.scope.departmentIds?.length ? `${revision.scope.departmentIds.length} departments` : revision.scope.countryCodes?.length ? revision.scope.countryCodes.join(', ') : 'Tenant default'}
             </span>
-            <span className="text-[#3c4a42]">{displayDate(revision.updatedAt)}</span>
+            <span className="text-[#475569]">{displayDate(revision.updatedAt)}</span>
           </button>
         ))}
-        {revisions.length === 0 ? <div className="p-6 text-sm text-[#6c7a71]">No policy revisions yet.</div> : null}
+        {revisions.length === 0 ? <div className="p-6 text-sm text-[#94a3b8]">No policy revisions yet.</div> : null}
       </div>
     </div>
   );
@@ -364,42 +364,42 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <ShieldCheck className="h-5 w-5 text-[#006c49]" />
+            <ShieldCheck className="h-5 w-5 text-[#4f46e5]" />
             Validation
           </CardTitle>
           <CardDescription>{validation?.engineName ?? 'PolicyValidationEngine'} {validation?.engineVersion ?? ''}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <Badge className={validation?.valid ? 'bg-[#006c49] text-white' : 'bg-[#ba1a1a] text-white'}>
+          <Badge className={validation?.valid ? 'bg-[#4f46e5] text-white' : 'bg-[#e11d48] text-white'}>
             {validation ? (validation.valid ? 'Valid' : 'Blocked') : 'Not run'}
           </Badge>
-          {(validation?.errors ?? []).map((error) => <p key={error} className="rounded-md border border-[#ba1a1a]/30 bg-[#ba1a1a]/5 p-2 text-[#ba1a1a]">{error}</p>)}
-          {(validation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#e29100]/30 bg-[#ffddb8]/30 p-2 text-[#523200]">{warning}</p>)}
+          {(validation?.errors ?? []).map((error) => <p key={error} className="rounded-md border border-[#e11d48]/30 bg-[#e11d48]/5 p-2 text-[#e11d48]">{error}</p>)}
+          {(validation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#f59e0b]/30 bg-[#fde68a]/30 p-2 text-[#78350f]">{warning}</p>)}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Radar className="h-5 w-5 text-[#4648d4]" />
+            <Radar className="h-5 w-5 text-[#6366f1]" />
             Simulation
           </CardTitle>
           <CardDescription>{simulation?.engineName ?? 'PolicyImpactSimulationEngine'} {simulation?.engineVersion ?? ''}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-[#3c4a42]">
-          <div className="text-3xl font-bold text-[#0b1c30]">{simulation?.impactedEmployees ?? 0}</div>
+        <CardContent className="space-y-2 text-sm text-[#475569]">
+          <div className="text-3xl font-bold text-[#0f172a]">{simulation?.impactedEmployees ?? 0}</div>
           <p>employees in scope</p>
           <p>{pendingRecordTotal(simulation?.pendingRecords)} pending/open records flagged</p>
-          {(simulation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#e29100]/30 bg-[#ffddb8]/30 p-2 text-[#523200]">{warning}</p>)}
+          {(simulation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#f59e0b]/30 bg-[#fde68a]/30 p-2 text-[#78350f]">{warning}</p>)}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <GitBranch className="h-5 w-5 text-[#006c49]" />
+            <GitBranch className="h-5 w-5 text-[#4f46e5]" />
             Data Impact
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-[#3c4a42]">
+        <CardContent className="space-y-3 text-sm text-[#475569]">
           <p>{simulation?.newDataRule ?? 'New transactions use the applied policy active on the transaction date.'}</p>
           <p>{simulation?.oldDataRule ?? 'Locked historical records are not silently rewritten.'}</p>
           <p>{simulation?.retroactiveRule ?? 'Retroactive effects require explicit admin action.'}</p>
@@ -432,7 +432,7 @@ function AreaWorkspace({
         <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
           <div>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <Icon className="h-5 w-5 text-[#006c49]" />
+              <Icon className="h-5 w-5 text-[#4f46e5]" />
               {meta.label}
             </CardTitle>
             <CardDescription>{revisions.length} revisions in this service area</CardDescription>
@@ -449,7 +449,7 @@ function AreaWorkspace({
           <CardDescription>Generated from applied revisions</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <pre className="max-h-72 overflow-auto rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3 text-xs text-[#0b1c30]">
+          <pre className="max-h-72 overflow-auto rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-xs text-[#0f172a]">
             {safeJson(currentAreaConfig(area, setup))}
           </pre>
           {meta.link ? (
@@ -571,17 +571,17 @@ export function AdminPolicies() {
   }, [revisions]);
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff] p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen bg-[#f6f7fb] p-4 md:p-6 lg:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#006c49] text-white">
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#4f46e5] text-white">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="font-headline text-3xl font-bold text-[#0b1c30]">Policy Center</h2>
-                <p className="text-sm text-[#3c4a42]">Scoped policy revisions, lifecycle workflow, simulation, application, and notifications.</p>
+                <h2 className="font-headline text-3xl font-bold text-[#0f172a]">Policy Center</h2>
+                <p className="text-sm text-[#475569]">Scoped policy revisions, lifecycle workflow, simulation, application, and notifications.</p>
               </div>
             </div>
           </div>
@@ -606,9 +606,9 @@ export function AdminPolicies() {
             ['In Review', summary?.byStatus?.IN_REVIEW ?? 0],
             ['Open Runs', summary?.recentRuns?.length ?? 0],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-[#bbcabf] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
-              <p className="font-mono text-xs uppercase tracking-wider text-[#3c4a42]">{label}</p>
-              <p className="mt-2 text-3xl font-bold text-[#0b1c30]">{value}</p>
+            <div key={label} className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+              <p className="font-mono text-xs uppercase tracking-wider text-[#475569]">{label}</p>
+              <p className="mt-2 text-3xl font-bold text-[#0f172a]">{value}</p>
             </div>
           ))}
         </div>
@@ -632,7 +632,7 @@ export function AdminPolicies() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <GitBranch className="h-5 w-5 text-[#006c49]" />
+                    <GitBranch className="h-5 w-5 text-[#4f46e5]" />
                     Policy Brain And Engines
                   </CardTitle>
                   <CardDescription>Live service behavior changes only after APPLIED.</CardDescription>
@@ -646,9 +646,9 @@ export function AdminPolicies() {
                     ['PolicyApplicationEngine', 'Writes approved/published revisions into the runtime setup snapshot'],
                     ['Notification Engine', 'Review, approval, publish, apply, and impact events to bell/inbox'],
                   ].map(([name, body]) => (
-                    <div key={name} className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-4">
-                      <p className="font-semibold text-[#0b1c30]">{name}</p>
-                      <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{body}</p>
+                    <div key={name} className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4">
+                      <p className="font-semibold text-[#0f172a]">{name}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>
                     </div>
                   ))}
                 </CardContent>
@@ -657,7 +657,7 @@ export function AdminPolicies() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <FileText className="h-5 w-5 text-[#4648d4]" />
+                    <FileText className="h-5 w-5 text-[#6366f1]" />
                     Create Revision
                   </CardTitle>
                   <CardDescription>Start from the current runtime snapshot.</CardDescription>
@@ -665,7 +665,7 @@ export function AdminPolicies() {
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="new-area">Area</Label>
-                    <select id="new-area" className="h-10 w-full rounded-lg border border-[#bbcabf] bg-white px-3 text-sm" value={newArea} onChange={(event) => setNewArea(event.target.value as PolicyArea)}>
+                    <select id="new-area" className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={newArea} onChange={(event) => setNewArea(event.target.value as PolicyArea)}>
                       {policyAreas.map((item) => <option key={item.area} value={item.area}>{item.label}</option>)}
                     </select>
                   </div>
@@ -719,22 +719,22 @@ export function AdminPolicies() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <PlayCircle className="h-5 w-5 text-[#006c49]" />
+                  <PlayCircle className="h-5 w-5 text-[#4f46e5]" />
                   Application Runs
                 </CardTitle>
               </CardHeader>
               <CardContent className="grid gap-3 lg:grid-cols-2">
                 {(summary?.recentRuns ?? []).map((run) => (
-                  <div key={run.id} className="rounded-lg border border-[#bbcabf] bg-white p-4 text-sm">
+                  <div key={run.id} className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold text-[#0b1c30]">{run.status}</p>
-                      <span className="text-[#3c4a42]">{displayDate(run.appliedAt)}</span>
+                      <p className="font-semibold text-[#0f172a]">{run.status}</p>
+                      <span className="text-[#475569]">{displayDate(run.appliedAt)}</span>
                     </div>
-                    <p className="mt-2 text-[#3c4a42]">{run.impactedEmployees} employees impacted</p>
-                    <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#6c7a71]">{run.revisionId}</p>
+                    <p className="mt-2 text-[#475569]">{run.impactedEmployees} employees impacted</p>
+                    <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{run.revisionId}</p>
                   </div>
                 ))}
-                {(summary?.recentRuns ?? []).length === 0 ? <p className="text-sm text-[#6c7a71]">No application runs yet.</p> : null}
+                {(summary?.recentRuns ?? []).length === 0 ? <p className="text-sm text-[#94a3b8]">No application runs yet.</p> : null}
               </CardContent>
             </Card>
           </TabsContent>
@@ -743,7 +743,7 @@ export function AdminPolicies() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <BellRing className="h-5 w-5 text-[#006c49]" />
+                  <BellRing className="h-5 w-5 text-[#4f46e5]" />
                   Revision Audit Trail
                 </CardTitle>
                 <CardDescription>{selectedRevision ? selectedRevision.title : 'Select a revision'}</CardDescription>
@@ -754,15 +754,15 @@ export function AdminPolicies() {
                     const key = `${status.toLowerCase().replace(/_/g, '')}At` as keyof PolicyRevision;
                     const value = selectedRevision?.[key];
                     return (
-                      <div key={status} className="flex items-center justify-between rounded-lg border border-[#bbcabf] bg-white p-3 text-sm">
-                        <span className="font-semibold text-[#0b1c30]">{formatEnum(status)}</span>
-                        <span className="text-[#3c4a42]">{typeof value === 'string' ? displayDate(value) : '-'}</span>
+                      <div key={status} className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                        <span className="font-semibold text-[#0f172a]">{formatEnum(status)}</span>
+                        <span className="text-[#475569]">{typeof value === 'string' ? displayDate(value) : '-'}</span>
                       </div>
                     );
                   })}
                 </div>
-                <div className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-4 text-sm leading-6 text-[#3c4a42]">
-                  <p className="font-semibold text-[#0b1c30]">Decision Evidence</p>
+                <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4 text-sm leading-6 text-[#475569]">
+                  <p className="font-semibold text-[#0f172a]">Decision Evidence</p>
                   <p className="mt-2">Apply creates structured evidence with revision ID, scope match, engine name/version, decision, and reason in `admin_policy_decision_evidence`.</p>
                   <p className="mt-3">Lifecycle and application events create policy notifications for HR operations and impacted employees.</p>
                 </div>
@@ -776,7 +776,7 @@ export function AdminPolicies() {
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Save className="h-5 w-5 text-[#006c49]" />
+                  <Save className="h-5 w-5 text-[#4f46e5]" />
                   Revision Editor
                 </CardTitle>
                 <CardDescription>{formatEnum(selectedRevision.area)} - {selectedRevision.id}</CardDescription>
@@ -793,7 +793,7 @@ export function AdminPolicies() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Area</Label>
-                  <div className="flex h-10 items-center rounded-lg border border-[#bbcabf] bg-[#eff4ff] px-3 text-sm font-semibold text-[#0b1c30]">
+                  <div className="flex h-10 items-center rounded-lg border border-[#e2e8f0] bg-[#eef2ff] px-3 text-sm font-semibold text-[#0f172a]">
                     {formatEnum(selectedRevision.area)}
                   </div>
                 </div>
@@ -803,14 +803,14 @@ export function AdminPolicies() {
                 <Label htmlFor="revision-json">Policy Payload</Label>
                 <textarea
                   id="revision-json"
-                  className="min-h-[22rem] w-full rounded-lg border border-[#bbcabf] bg-white p-3 font-mono text-xs leading-5 text-[#0b1c30] outline-none focus:ring-2 focus:ring-[#006c49]/20"
+                  className="min-h-[22rem] w-full rounded-lg border border-[#e2e8f0] bg-white p-3 font-mono text-xs leading-5 text-[#0f172a] outline-none focus:ring-2 focus:ring-[#4f46e5]/20"
                   value={editorJson}
                   onChange={(event) => setEditorJson(event.target.value)}
                   spellCheck={false}
                 />
               </div>
               {editorError || updateRevision.error || commandRevision.error ? (
-                <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/5 p-3 text-sm text-[#ba1a1a]">
+                <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#e11d48]">
                   <AlertTriangle className="mr-2 inline h-4 w-4" />
                   {editorError || (updateRevision.error as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message || commandRevision.error?.message}
                 </div>

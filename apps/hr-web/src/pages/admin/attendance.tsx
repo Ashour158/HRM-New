@@ -757,7 +757,7 @@ export function AdminAttendance() {
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-[#0b7cff] data-[state=active]:bg-transparent data-[state=active]:text-[#0b7cff]"
+              className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-[#6366f1] data-[state=active]:bg-transparent data-[state=active]:text-[#6366f1]"
             >
               {tab.label}
             </TabsTrigger>

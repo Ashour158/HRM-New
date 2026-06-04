@@ -66,12 +66,12 @@ const preboardingSections = [
 ];
 
 const ownerStyles: Record<OwnerGroup, string> = {
-  HR: 'border-[#10b981]/30 bg-[#10b981]/10 text-[#006c49]',
-  IT: 'border-[#0b8cff]/30 bg-[#d8e7ff] text-[#17346c]',
-  Finance: 'border-[#e29100]/30 bg-[#ffddb8]/70 text-[#653e00]',
-  Admin: 'border-[#4648d4]/30 bg-[#4648d4]/10 text-[#4648d4]',
+  HR: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
+  IT: 'border-[#6366f1]/30 bg-[#e0e7ff] text-[#1e1b4b]',
+  Finance: 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]',
+  Admin: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
   Manager: 'border-[#7c3aed]/30 bg-[#ede9fe] text-[#5b21b6]',
-  Security: 'border-[#ba1a1a]/30 bg-[#ffdad6] text-[#93000a]',
+  Security: 'border-[#e11d48]/30 bg-[#ffe4e6] text-[#9f1239]',
   Facilities: 'border-[#64748b]/30 bg-[#f1f5f9] text-[#334155]',
 };
 
@@ -189,18 +189,18 @@ export function EmployeeOnboarding() {
   };
 
   return (
-    <div className="min-h-full bg-[#e9eef5]">
-      <div className="relative overflow-hidden bg-[#0f2f26]">
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(7,44,35,0.98),rgba(10,83,59,0.76)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
+    <div className="min-h-full bg-[#eef2ff]">
+      <div className="relative overflow-hidden bg-[#1e1b4b]">
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,27,75,0.95),rgba(49,46,129,0.7)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
         <div className="relative mx-auto grid max-w-[1740px] gap-6 px-4 py-8 text-white lg:grid-cols-[1fr_auto] lg:px-5">
           <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6ffbbe]">Employee preboarding</p>
+            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">Employee preboarding</p>
             <h2 className="mt-2 font-headline text-3xl font-bold">Welcome, {firstName}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
               Complete your preboarding checklist, sign documents, upload evidence, confirm IT provisioning, and follow your 30/60/90 plan before probation review.
             </p>
           </div>
-          <Button asChild className="w-fit self-end bg-white text-[#006c49] hover:bg-[#eff4ff]">
+          <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
             <Link to="/employee">
               Self-Service Home
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -216,12 +216,12 @@ export function EmployeeOnboarding() {
               <div className="flex flex-col items-center text-center">
                 <Avatar className="h-24 w-24 rounded-xl border-2 border-white shadow-md">
                   <AvatarImage src={worker?.photoUrl ?? user?.avatarUrl} alt={workerName(worker, user?.firstName)} />
-                  <AvatarFallback className="rounded-xl bg-[#d8e7ff] text-2xl font-bold text-[#17346c]">
+                  <AvatarFallback className="rounded-xl bg-[#e0e7ff] text-2xl font-bold text-[#1e1b4b]">
                     {(worker?.firstName ?? user?.firstName ?? 'N').charAt(0)}{(worker?.lastName ?? user?.lastName ?? 'H').charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <h3 className="mt-4 font-semibold text-[#0b1c30]">{workerName(worker, `${user?.firstName ?? 'New'} ${user?.lastName ?? 'Hire'}`)}</h3>
-                <p className="mt-1 text-sm text-[#3c4a42]">{worker?.jobTitle ?? 'Role pending'} / {worker?.departmentName ?? 'Department pending'}</p>
+                <h3 className="mt-4 font-semibold text-[#0f172a]">{workerName(worker, `${user?.firstName ?? 'New'} ${user?.lastName ?? 'Hire'}`)}</h3>
+                <p className="mt-1 text-sm text-[#475569]">{worker?.jobTitle ?? 'Role pending'} / {worker?.departmentName ?? 'Department pending'}</p>
                 <Badge className="mt-3" variant={plan?.status === 'COMPLETED' ? 'default' : 'secondary'}>{plan?.status?.replace(/_/g, ' ') ?? 'PLAN PENDING'}</Badge>
               </div>
             </CardContent>
@@ -245,23 +245,23 @@ export function EmployeeOnboarding() {
             <CardContent className="p-5">
               {planLoading ? <Skeleton className="h-24 w-full" /> : null}
               {!planLoading && (planError || !plan) ? (
-                <div className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-5">
-                  <h3 className="font-semibold text-[#0b1c30]">No active preboarding plan yet</h3>
-                  <p className="mt-2 text-sm text-[#3c4a42]">HR can launch an onboarding plan once your employee record and start date are ready.</p>
+                <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5">
+                  <h3 className="font-semibold text-[#0f172a]">No active preboarding plan yet</h3>
+                  <p className="mt-2 text-sm text-[#475569]">HR can launch an onboarding plan once your employee record and start date are ready.</p>
                 </div>
               ) : (
                 <>
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="lumina-label">Overall progress</p>
-                      <p className="mt-1 font-headline text-3xl font-bold text-[#0b1c30]">{completed}% complete</p>
+                      <p className="mt-1 font-headline text-3xl font-bold text-[#0f172a]">{completed}% complete</p>
                     </div>
-                    <Badge variant="outline" className="w-fit rounded-full border-[#10b981]/30 bg-[#10b981]/10 px-3 py-1 text-[#006c49]">
+                    <Badge variant="outline" className="w-fit rounded-full border-[#8b5cf6]/30 bg-[#8b5cf6]/10 px-3 py-1 text-[#4f46e5]">
                       Portal {plan?.preboardingPortalStatus?.replace(/_/g, ' ') ?? 'ACTIVE'}
                     </Badge>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#dce9ff]">
-                    <div className="h-full rounded-full bg-[#10b981]" style={{ width: `${completed}%` }} />
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#e0e7ff]">
+                    <div className="h-full rounded-full bg-[#8b5cf6]" style={{ width: `${completed}%` }} />
                   </div>
                 </>
               )}
@@ -280,12 +280,12 @@ export function EmployeeOnboarding() {
                 <Card key={section.label}>
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
                         <Icon className="h-5 w-5" />
                       </div>
                       <Badge variant={done ? 'default' : 'secondary'}>{done ? 'Done' : `${sectionTasks.length} items`}</Badge>
                     </div>
-                    <h3 className="mt-3 text-sm font-semibold text-[#0b1c30]">{section.label}</h3>
+                    <h3 className="mt-3 text-sm font-semibold text-[#0f172a]">{section.label}</h3>
                     <OwnerBadge ownerGroup={section.owner} />
                   </CardContent>
                 </Card>
@@ -317,7 +317,7 @@ export function EmployeeOnboarding() {
                     />
                   ))}
                   {!tasksLoading && tasks.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-5 text-sm text-[#3c4a42]">Your checklist will appear here after HR publishes onboarding tasks.</p>
+                    <p className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5 text-sm text-[#475569]">Your checklist will appear here after HR publishes onboarding tasks.</p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -328,19 +328,19 @@ export function EmployeeOnboarding() {
                 <Card>
                   <CardHeader className="p-5">
                     <CardTitle className="flex items-center gap-2 text-lg">
-                      <FileSignature className="h-5 w-5 text-[#006c49]" />
+                      <FileSignature className="h-5 w-5 text-[#4f46e5]" />
                       Signing and Evidence
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 p-5 pt-0">
                     {documents.map((task) => <TaskRow key={task.id} task={task} onComplete={() => completeTaskMutation.mutate({ id: task.id })} isPending={completeTaskMutation.isPending} />)}
-                    {documents.length === 0 ? <p className="text-sm text-[#3c4a42]">No document tasks assigned yet.</p> : null}
+                    {documents.length === 0 ? <p className="text-sm text-[#475569]">No document tasks assigned yet.</p> : null}
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="p-5">
                     <CardTitle className="flex items-center gap-2 text-lg">
-                      <UploadCloud className="h-5 w-5 text-[#006c49]" />
+                      <UploadCloud className="h-5 w-5 text-[#4f46e5]" />
                       Evidence Note
                     </CardTitle>
                   </CardHeader>
@@ -372,12 +372,12 @@ export function EmployeeOnboarding() {
               <Card>
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className="grid h-12 w-12 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+                    <div className="grid h-12 w-12 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
                       <GraduationCap className="h-6 w-6" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-[#0b1c30]">Probation Management</h3>
-                      <p className="mt-2 text-sm leading-6 text-[#3c4a42]">
+                      <h3 className="font-semibold text-[#0f172a]">Probation Management</h3>
+                      <p className="mt-2 text-sm leading-6 text-[#475569]">
                         Your manager and HR use onboarding evidence, 30/60/90 outcomes, compliance completion, and buddy feedback to prepare the probation decision.
                       </p>
                       <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -408,15 +408,15 @@ function TaskRow({
 }) {
   const ownerGroup = inferOwnerGroup(task);
   return (
-    <div className="grid gap-3 rounded-lg border border-[#bbcabf]/70 bg-white p-4 lg:grid-cols-[1fr_auto]">
+    <div className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 lg:grid-cols-[1fr_auto]">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-[#0b1c30]">{task.title}</h3>
+          <h3 className="font-semibold text-[#0f172a]">{task.title}</h3>
           <OwnerBadge ownerGroup={ownerGroup} />
           <Badge variant={task.status === 'COMPLETED' ? 'default' : task.status === 'OVERDUE' ? 'destructive' : 'secondary'}>{task.status.replace(/_/g, ' ')}</Badge>
         </div>
-        <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{task.description ?? 'No instructions provided yet.'}</p>
-        <p className="mt-2 text-xs text-[#6c7a71]">Due {formatDate(task.dueDate)}</p>
+        <p className="mt-2 text-sm leading-6 text-[#475569]">{task.description ?? 'No instructions provided yet.'}</p>
+        <p className="mt-2 text-xs text-[#94a3b8]">Due {formatDate(task.dueDate)}</p>
       </div>
       <Button size="sm" variant={task.status === 'COMPLETED' ? 'outline' : 'default'} onClick={onComplete} disabled={task.status === 'COMPLETED' || isPending}>
         <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -432,9 +432,9 @@ function OwnerBadge({ ownerGroup }: { ownerGroup: OwnerGroup }) {
 
 function Snapshot({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-3">
+    <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3">
       <p className="lumina-label">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-[#0b1c30]">{value}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-[#0f172a]">{value}</p>
     </div>
   );
 }
@@ -443,9 +443,9 @@ function PlanCard({ title, body }: { title: string; body: string }) {
   return (
     <Card>
       <CardContent className="p-5">
-        <CalendarClock className="h-6 w-6 text-[#006c49]" />
-        <h3 className="mt-4 font-semibold text-[#0b1c30]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{body}</p>
+        <CalendarClock className="h-6 w-6 text-[#4f46e5]" />
+        <h3 className="mt-4 font-semibold text-[#0f172a]">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>
       </CardContent>
     </Card>
   );

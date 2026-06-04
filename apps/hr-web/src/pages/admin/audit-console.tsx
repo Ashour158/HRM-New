@@ -96,73 +96,73 @@ export function AdminAuditConsole() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f8f9ff] p-6 text-[#0b1c30] md:p-8">
+    <main className="min-h-screen bg-[#f6f7fb] p-6 text-[#0f172a] md:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#006c49] hover:underline" to="/admin/system-console">
+            <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#4f46e5] hover:underline" to="/admin/system-console">
               <ArrowLeft className="h-4 w-4" />
               Admin Panel
             </Link>
             <h1 className="font-['Hanken_Grotesk'] text-3xl font-bold md:text-4xl">Audit Trail</h1>
-            <p className="mt-2 max-w-3xl text-sm text-[#3c4a42] md:text-base">
+            <p className="mt-2 max-w-3xl text-sm text-[#475569] md:text-base">
               Search, filter, export, and inspect administrative and service evidence from the platform audit ledger.
             </p>
           </div>
-          <Button onClick={exportCsv} disabled={!records.length} className="gap-2 bg-[#006c49] text-white hover:bg-[#005236]">
+          <Button onClick={exportCsv} disabled={!records.length} className="gap-2 bg-[#4f46e5] text-white hover:bg-[#312e81]">
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
         </div>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <Card className="rounded-lg border-[#bbcabf]">
+          <Card className="rounded-lg border-[#e2e8f0]">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Radar className="h-5 w-5 text-[#006c49]" />
+                <Radar className="h-5 w-5 text-[#4f46e5]" />
                 Records
               </CardTitle>
               <CardDescription>Filtered evidence rows</CardDescription>
             </CardHeader>
             <CardContent className="text-3xl font-bold">{records.length}</CardContent>
           </Card>
-          <Card className="rounded-lg border-[#bbcabf]">
+          <Card className="rounded-lg border-[#e2e8f0]">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldCheck className="h-5 w-5 text-[#4648d4]" />
+                <ShieldCheck className="h-5 w-5 text-[#6366f1]" />
                 Scope
               </CardTitle>
               <CardDescription>Tenant-scoped and role-gated</CardDescription>
             </CardHeader>
-            <CardContent className="text-sm text-[#3c4a42]">Audit, compliance, HR, payroll, and platform admins only</CardContent>
+            <CardContent className="text-sm text-[#475569]">Audit, compliance, HR, payroll, and platform admins only</CardContent>
           </Card>
-          <Card className="rounded-lg border-[#bbcabf]">
+          <Card className="rounded-lg border-[#e2e8f0]">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Backend Source</CardTitle>
               <CardDescription>Live ledger endpoint</CardDescription>
             </CardHeader>
-            <CardContent className="font-mono text-sm text-[#3c4a42]">GET /audit</CardContent>
+            <CardContent className="font-mono text-sm text-[#475569]">GET /audit</CardContent>
           </Card>
         </section>
 
-        <Card className="rounded-lg border-[#bbcabf]">
+        <Card className="rounded-lg border-[#e2e8f0]">
           <CardHeader>
             <CardTitle>Filters</CardTitle>
             <CardDescription>Use these controls for operator investigations, compliance evidence, and export packages.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-5">
-            <input className="rounded-lg border border-[#bbcabf] bg-white px-3 py-2 text-sm" placeholder="Resource type" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
-            <input className="rounded-lg border border-[#bbcabf] bg-white px-3 py-2 text-sm" placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} />
-            <input className="rounded-lg border border-[#bbcabf] bg-white px-3 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-            <input className="rounded-lg border border-[#bbcabf] bg-white px-3 py-2 text-sm" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Resource type" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
+            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} />
+            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
-              <input className="w-full rounded-lg border border-[#bbcabf] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search details" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+              <input className="w-full rounded-lg border border-[#e2e8f0] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search details" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-lg border-[#bbcabf]">
+        <Card className="overflow-hidden rounded-lg border-[#e2e8f0]">
           <CardHeader>
             <CardTitle>Evidence Rows</CardTitle>
             <CardDescription>Newest rows are returned by the audit API, then narrowed by the filters above.</CardDescription>
@@ -178,7 +178,7 @@ export function AdminAuditConsole() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-[#eff4ff]">
+                    <TableRow className="bg-[#eef2ff]">
                       <TableHead>Time</TableHead>
                       <TableHead>Actor</TableHead>
                       <TableHead>Action</TableHead>
@@ -194,14 +194,14 @@ export function AdminAuditConsole() {
                         <TableCell className="font-semibold">{record.action}</TableCell>
                         <TableCell>
                           <div className="font-semibold">{record.resourceType}</div>
-                          <div className="font-mono text-xs text-[#6c7a71]">{record.resourceId}</div>
+                          <div className="font-mono text-xs text-[#94a3b8]">{record.resourceId}</div>
                         </TableCell>
-                        <TableCell className="max-w-md truncate font-mono text-xs text-[#3c4a42]">{JSON.stringify(record.details ?? {})}</TableCell>
+                        <TableCell className="max-w-md truncate font-mono text-xs text-[#475569]">{JSON.stringify(record.details ?? {})}</TableCell>
                       </TableRow>
                     ))}
                     {!records.length && (
                       <TableRow>
-                        <TableCell colSpan={5} className="py-10 text-center text-[#6c7a71]">No audit records match these filters.</TableCell>
+                        <TableCell colSpan={5} className="py-10 text-center text-[#94a3b8]">No audit records match these filters.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>

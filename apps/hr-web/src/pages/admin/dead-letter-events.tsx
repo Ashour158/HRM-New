@@ -115,15 +115,15 @@ function formatDate(value: string | null | undefined) {
 
 function statusClasses(status: string) {
   if (status === 'FAILED_NON_RETRYABLE' || status === 'EXHAUSTED') {
-    return 'border-[#ba1a1a]/30 bg-[#ba1a1a]/10 text-[#ba1a1a]';
+    return 'border-[#e11d48]/30 bg-[#e11d48]/10 text-[#e11d48]';
   }
   if (status === 'FAILED_RETRYABLE' || status === 'PENDING' || status === 'IN_PROGRESS') {
-    return 'border-[#e29100]/30 bg-[#ffddb8]/60 text-[#523200]';
+    return 'border-[#f59e0b]/30 bg-[#fde68a]/60 text-[#78350f]';
   }
   if (status === 'SKIPPED' || status === 'OPERATOR_SKIPPED') {
-    return 'border-[#4648d4]/30 bg-[#4648d4]/10 text-[#4648d4]';
+    return 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]';
   }
-  return 'border-[#10b981]/30 bg-[#10b981]/10 text-[#006c49]';
+  return 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]';
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -280,16 +280,16 @@ export function AdminDeadLetterEvents() {
   const selectedIdList = React.useCallback(() => Array.from(selectedIds), [selectedIds]);
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff]">
+    <div className="min-h-screen bg-[#f6f7fb]">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#bbcabf] bg-white px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#3c4a42]">
-              <MailWarning className="h-3.5 w-3.5 text-[#ba1a1a]" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#475569]">
+              <MailWarning className="h-3.5 w-3.5 text-[#e11d48]" />
               System Console
             </div>
-            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0b1c30]">Dead-Letter Events</h2>
-            <p className="mt-2 max-w-3xl text-lg leading-8 text-[#3c4a42]">
+            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0f172a]">Dead-Letter Events</h2>
+            <p className="mt-2 max-w-3xl text-lg leading-8 text-[#475569]">
               Inspect failed inbox consumers and exhausted outbox events, then retry or skip them with operator evidence.
               Retryable inbox rows remain separated from true intervention rows.
             </p>
@@ -319,44 +319,44 @@ export function AdminDeadLetterEvents() {
               value: String(summaryQuery.data?.inbox.failedNonRetryable ?? '-'),
               helper: 'FAILED_NON_RETRYABLE rows',
               icon: AlertTriangle,
-              tone: 'text-[#ba1a1a]',
+              tone: 'text-[#e11d48]',
             },
             {
               label: 'Inbox Auto-Replay',
               value: String(summaryQuery.data?.inbox.failedRetryable ?? '-'),
               helper: 'FAILED_RETRYABLE rows',
               icon: RefreshCcw,
-              tone: 'text-[#e29100]',
+              tone: 'text-[#f59e0b]',
             },
             {
               label: 'Outbox Exhausted',
               value: String(summaryQuery.data?.outbox.exhausted ?? '-'),
               helper: 'Unpublished with max attempts',
               icon: MailWarning,
-              tone: 'text-[#ba1a1a]',
+              tone: 'text-[#e11d48]',
             },
             {
               label: 'Resolved / Skipped',
               value: String((summaryQuery.data?.inbox.skipped ?? 0) + (summaryQuery.data?.outbox.operatorSkipped ?? 0)),
               helper: 'Operator resolved rows',
               icon: CheckCircle2,
-              tone: 'text-[#006c49]',
+              tone: 'text-[#4f46e5]',
             },
           ].map((item) => {
             const Icon = item.icon;
             return (
               <Card key={item.label} className="relative overflow-hidden">
-                <div className="absolute left-0 top-0 h-1 w-full bg-[#10b981]" />
+                <div className="absolute left-0 top-0 h-1 w-full bg-[#8b5cf6]" />
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="font-mono text-xs uppercase tracking-wider text-[#3c4a42]">{item.label}</p>
-                      <p className="mt-2 font-headline text-4xl font-bold text-[#0b1c30]">
+                      <p className="font-mono text-xs uppercase tracking-wider text-[#475569]">{item.label}</p>
+                      <p className="mt-2 font-headline text-4xl font-bold text-[#0f172a]">
                         {summaryQuery.isLoading ? '-' : item.value}
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{item.helper}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#475569]">{item.helper}</p>
                     </div>
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eff4ff]">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff]">
                       <Icon className={`h-5 w-5 ${item.tone}`} />
                     </div>
                   </div>
@@ -368,12 +368,12 @@ export function AdminDeadLetterEvents() {
 
         <section className="grid gap-4 xl:grid-cols-[1fr_26rem]">
           <Card className="relative overflow-hidden">
-            <div className="absolute left-0 top-0 h-1 w-full bg-[#006c49]" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-[#4f46e5]" />
             <CardHeader className="p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-xl">
-                    <Inbox className="h-5 w-5 text-[#006c49]" />
+                    <Inbox className="h-5 w-5 text-[#4f46e5]" />
                     Operator Queue
                   </CardTitle>
                   <CardDescription>
@@ -393,7 +393,7 @@ export function AdminDeadLetterEvents() {
             <CardContent className="space-y-4 p-5 pt-0">
               <div className="grid gap-3 lg:grid-cols-[12rem_14rem_1fr]">
                 <select
-                  className="h-10 rounded-lg border border-[#d5dfec] bg-white px-3 text-sm outline-none focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                  className="h-10 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                   value={activeStatus}
                   onChange={(event) => {
                     if (queue === 'inbox') setInboxStatus(event.target.value as InboxStatus | 'ALL');
@@ -419,7 +419,7 @@ export function AdminDeadLetterEvents() {
                 </select>
                 {queue === 'inbox' ? (
                   <input
-                    className="h-10 rounded-lg border border-[#d5dfec] bg-white px-3 text-sm outline-none placeholder:text-[#6c7a71] focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                    className="h-10 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                     onChange={(event) => setConsumerName(event.target.value)}
                     placeholder="Consumer name"
                     value={consumerName}
@@ -428,9 +428,9 @@ export function AdminDeadLetterEvents() {
                   <div className="hidden lg:block" />
                 )}
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                   <input
-                    className="h-10 w-full rounded-lg border border-[#d5dfec] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#6c7a71] focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                    className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search id, event, aggregate, error"
                     value={search}
@@ -439,18 +439,18 @@ export function AdminDeadLetterEvents() {
               </div>
 
               {selectedIds.size > 0 ? (
-                <div className="flex flex-col gap-3 rounded-lg border border-[#bbcabf] bg-white p-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-3 rounded-lg border border-[#e2e8f0] bg-white p-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-[#0b1c30]">
+                    <p className="text-sm font-semibold text-[#0f172a]">
                       {selectedIds.size} {queue} event{selectedIds.size === 1 ? '' : 's'} selected
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-[#3c4a42]">
+                    <p className="mt-1 text-xs leading-5 text-[#475569]">
                       Bulk retry replays each selected row independently. Bulk skip requires an operator reason and records audit evidence per event.
                     </p>
                   </div>
                   <div className="flex flex-1 flex-col gap-2 lg:max-w-xl lg:flex-row lg:items-center">
                     <input
-                      className="h-10 min-w-0 flex-1 rounded-lg border border-[#d5dfec] bg-white px-3 text-sm outline-none placeholder:text-[#6c7a71] focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                      className="h-10 min-w-0 flex-1 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                       onChange={(event) => setOperatorReason(event.target.value)}
                       placeholder="Operator reason for bulk action"
                       value={operatorReason}
@@ -495,13 +495,13 @@ export function AdminDeadLetterEvents() {
               ) : null}
 
               {runBulkCommand.data ? (
-                <div className="rounded-lg border border-[#10b981]/30 bg-[#10b981]/10 p-3 text-sm text-[#006c49]">
+                <div className="rounded-lg border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 p-3 text-sm text-[#4f46e5]">
                   {runBulkCommand.data.action.replace(/_/g, ' ')} completed: {runBulkCommand.data.succeeded}/{runBulkCommand.data.requested} succeeded
                   {runBulkCommand.data.failed.length > 0 ? `, ${runBulkCommand.data.failed.length} failed.` : '.'}
                 </div>
               ) : null}
               {runBulkCommand.isError ? (
-                <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/10 p-3 text-sm text-[#ba1a1a]">
+                <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/10 p-3 text-sm text-[#e11d48]">
                   Bulk operator action failed. Check MFA, row state, and API logs.
                 </div>
               ) : null}
@@ -516,7 +516,7 @@ export function AdminDeadLetterEvents() {
                         <input
                           aria-label="Select all visible events"
                           checked={allVisibleSelected}
-                          className="h-4 w-4 rounded border-[#bbcabf] text-[#006c49] focus:ring-[#006c49]"
+                          className="h-4 w-4 rounded border-[#e2e8f0] text-[#4f46e5] focus:ring-[#4f46e5]"
                           onChange={(event) => toggleVisibleRows(event.target.checked)}
                           type="checkbox"
                         />
@@ -540,7 +540,7 @@ export function AdminDeadLetterEvents() {
                           <input
                             aria-label={`Select ${row.eventName}`}
                             checked={selectedIds.has(row.id)}
-                            className="h-4 w-4 rounded border-[#bbcabf] text-[#006c49] focus:ring-[#006c49]"
+                            className="h-4 w-4 rounded border-[#e2e8f0] text-[#4f46e5] focus:ring-[#4f46e5]"
                             onChange={(event) => toggleRow(row.id, event.target.checked)}
                             onClick={(event) => event.stopPropagation()}
                             type="checkbox"
@@ -548,24 +548,24 @@ export function AdminDeadLetterEvents() {
                         </TableCell>
                         <TableCell><StatusBadge status={row.status} /></TableCell>
                         <TableCell>
-                          <p className="font-semibold text-[#0b1c30]">{row.eventName}</p>
-                          <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#6c7a71]">
+                          <p className="font-semibold text-[#0f172a]">{row.eventName}</p>
+                          <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">
                             {row.aggregateType} / {shortId(row.aggregateId)}
                           </p>
                         </TableCell>
-                        <TableCell className="text-sm text-[#3c4a42]">
+                        <TableCell className="text-sm text-[#475569]">
                           {row.queue === 'inbox' ? row.consumerName : shortId(row.id)}
                         </TableCell>
                         <TableCell className="font-mono text-sm">
                           {row.queue === 'inbox' ? row.retryCount : row.publishAttemptCount}
                         </TableCell>
-                        <TableCell className="text-sm text-[#3c4a42]">{formatDate(row.createdAt)}</TableCell>
+                        <TableCell className="text-sm text-[#475569]">{formatDate(row.createdAt)}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               ) : (
-                <div className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-8 text-center text-sm text-[#3c4a42]">
+                <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-8 text-center text-sm text-[#475569]">
                   No rows match the selected queue filters.
                 </div>
               )}
@@ -573,10 +573,10 @@ export function AdminDeadLetterEvents() {
           </Card>
 
           <Card className="relative overflow-hidden">
-            <div className="absolute left-0 top-0 h-1 w-full bg-[#e29100]" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-[#f59e0b]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <ShieldCheck className="h-5 w-5 text-[#006c49]" />
+                <ShieldCheck className="h-5 w-5 text-[#4f46e5]" />
                 Event Detail And Action
               </CardTitle>
               <CardDescription>Retry or skip requires a reason and platform administrator scope.</CardDescription>
@@ -584,13 +584,13 @@ export function AdminDeadLetterEvents() {
             <CardContent className="space-y-4 p-5 pt-0">
               {selected ? (
                 <>
-                  <div className="space-y-3 rounded-lg border border-[#bbcabf] bg-white p-4 text-sm leading-6">
+                  <div className="space-y-3 rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm leading-6">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold text-[#0b1c30]">{selected.eventName}</span>
+                      <span className="font-semibold text-[#0f172a]">{selected.eventName}</span>
                       <StatusBadge status={selected.status} />
                     </div>
-                    <p className="font-mono text-xs text-[#6c7a71]">{selected.id}</p>
-                    <div className="grid gap-2 text-[#3c4a42]">
+                    <p className="font-mono text-xs text-[#94a3b8]">{selected.id}</p>
+                    <div className="grid gap-2 text-[#475569]">
                       <p><strong>Queue:</strong> {selected.queue}</p>
                       <p><strong>Aggregate:</strong> {selected.aggregateType} / {shortId(selected.aggregateId)}</p>
                       <p><strong>Created:</strong> {formatDate(selected.createdAt)}</p>
@@ -611,17 +611,17 @@ export function AdminDeadLetterEvents() {
                     </div>
                   </div>
 
-                  <label className="block text-sm font-semibold text-[#0b1c30]">
+                  <label className="block text-sm font-semibold text-[#0f172a]">
                     Operator reason
                     <textarea
-                      className="mt-2 min-h-[96px] w-full rounded-lg border border-[#d5dfec] bg-white p-3 text-sm font-normal outline-none placeholder:text-[#6c7a71] focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                      className="mt-2 min-h-[96px] w-full rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm font-normal outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                       onChange={(event) => setOperatorReason(event.target.value)}
                       placeholder="Explain the fix, reason for retry, or why this event is safe to skip."
                       value={operatorReason}
                     />
                   </label>
                   {reasonRequired && operatorReason.trim().length < 8 ? (
-                    <p className="rounded-lg border border-[#e29100]/30 bg-[#ffddb8]/40 p-3 text-sm text-[#523200]">
+                    <p className="rounded-lg border border-[#f59e0b]/30 bg-[#fde68a]/40 p-3 text-sm text-[#78350f]">
                       Enter at least 8 characters before running this operator action.
                     </p>
                   ) : null}
@@ -645,24 +645,24 @@ export function AdminDeadLetterEvents() {
                     </Button>
                   </div>
                   {runCommand.data ? (
-                    <div className="rounded-lg border border-[#10b981]/30 bg-[#10b981]/10 p-3 text-sm text-[#006c49]">
+                    <div className="rounded-lg border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 p-3 text-sm text-[#4f46e5]">
                       {runCommand.data.action.replace(/_/g, ' ')} completed. Status: {runCommand.data.status}.
                     </div>
                   ) : null}
                   {runCommand.isError ? (
-                    <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/10 p-3 text-sm text-[#ba1a1a]">
+                    <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/10 p-3 text-sm text-[#e11d48]">
                       Operator action failed. Check role, MFA, row status, and API logs.
                     </div>
                   ) : null}
-                  <details className="rounded-lg border border-[#bbcabf] bg-white p-3 text-sm">
-                    <summary className="cursor-pointer font-semibold text-[#0b1c30]">Raw evidence summary</summary>
-                    <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-5 text-[#3c4a42]">
+                  <details className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                    <summary className="cursor-pointer font-semibold text-[#0f172a]">Raw evidence summary</summary>
+                    <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-5 text-[#475569]">
                       {JSON.stringify(redactedEvidence, null, 2)}
                     </pre>
                   </details>
                 </>
               ) : (
-                <div className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-8 text-center text-sm text-[#3c4a42]">
+                <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-8 text-center text-sm text-[#475569]">
                   Select an inbox or outbox row to inspect evidence and run operator actions.
                 </div>
               )}

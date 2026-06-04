@@ -114,7 +114,7 @@ export function ManagerDashboard() {
                 <p className="text-sm text-muted-foreground">Open Goals</p>
                 <p className="text-2xl font-bold">{data?.teamMetrics.openGoals ?? 0}</p>
               </div>
-              <TrendingUp className="h-8 w-8 text-blue-500" />
+              <TrendingUp className="h-8 w-8 text-indigo-500" />
             </div>
           </CardContent>
         </Card>

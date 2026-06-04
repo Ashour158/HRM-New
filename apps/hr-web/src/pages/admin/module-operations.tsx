@@ -317,16 +317,16 @@ function mapWorkflow(workflow: OperationWorkflowApi): WorkflowItem {
 }
 
 function statusTone(status: OperationalRecord['status'] | WorkflowItem['state']) {
-  if (status === 'Blocked' || status === 'Needs Approval') return 'border-[#ba1a1a]/25 bg-[#ffdad6] text-[#93000a]';
-  if (status === 'Ready' || status === 'Active' || status === 'Closed') return 'border-[#10b981]/25 bg-[#10b981]/10 text-[#006c49]';
-  if (status === 'In Review' || status === 'In Progress') return 'border-[#4648d4]/25 bg-[#4648d4]/10 text-[#4648d4]';
-  return 'border-[#e29100]/30 bg-[#ffddb8]/70 text-[#653e00]';
+  if (status === 'Blocked' || status === 'Needs Approval') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
+  if (status === 'Ready' || status === 'Active' || status === 'Closed') return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
+  if (status === 'In Review' || status === 'In Progress') return 'border-[#6366f1]/25 bg-[#6366f1]/10 text-[#6366f1]';
+  return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
 }
 
 function riskTone(risk: OperationalRecord['risk']) {
-  if (risk === 'High') return 'border-[#ba1a1a]/25 bg-[#ffdad6] text-[#93000a]';
-  if (risk === 'Medium') return 'border-[#e29100]/30 bg-[#ffddb8]/70 text-[#653e00]';
-  return 'border-[#10b981]/25 bg-[#10b981]/10 text-[#006c49]';
+  if (risk === 'High') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
+  if (risk === 'Medium') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
+  return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
 }
 
 function canAdvanceRecordInOperations(record: OperationalRecord): boolean {
@@ -356,13 +356,13 @@ function MetricCard({ label, value, detail, icon: Icon }: {
     <Card className="relative overflow-hidden">
       <div className="lumina-accent-strip" />
       <CardContent className="flex min-h-[132px] items-center gap-4 p-5">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
           <Icon className="h-6 w-6" />
         </div>
         <div>
           <p className="lumina-label">{label}</p>
-          <p className="mt-1 font-headline text-3xl font-bold text-[#0b1c30]">{value}</p>
-          <p className="mt-1 text-sm leading-5 text-[#3c4a42]">{detail}</p>
+          <p className="mt-1 font-headline text-3xl font-bold text-[#0f172a]">{value}</p>
+          <p className="mt-1 text-sm leading-5 text-[#475569]">{detail}</p>
         </div>
       </CardContent>
     </Card>
@@ -373,7 +373,7 @@ function ChipList({ items }: { items: string[] }) {
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((item) => (
-        <span key={item} className="rounded-md border border-[#bbcabf]/70 bg-[#eff4ff] px-2 py-1 text-xs font-medium text-[#3c4a42]">
+        <span key={item} className="rounded-md border border-[#e2e8f0]/70 bg-[#eef2ff] px-2 py-1 text-xs font-medium text-[#475569]">
           {item}
         </span>
       ))}
@@ -383,7 +383,7 @@ function ChipList({ items }: { items: string[] }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#bbcabf] bg-[#eff4ff]/60 p-8 text-center text-sm text-[#3c4a42]">
+    <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-[#eef2ff]/60 p-8 text-center text-sm text-[#475569]">
       {label}
     </div>
   );
@@ -556,7 +556,7 @@ export function AdminModuleOperations() {
   };
 
   return (
-    <div className="min-h-full bg-[#f8f9ff]">
+    <div className="min-h-full bg-[#f6f7fb]">
       <div className="lumina-canvas space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button asChild variant="ghost" size="sm">
@@ -578,13 +578,13 @@ export function AdminModuleOperations() {
         </div>
 
         <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#bbcabf] bg-[#006c49] p-6 text-white lg:grid-cols-[1fr_auto]">
+          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="border-white/40 bg-white/10 font-mono text-xs uppercase tracking-wider text-white">
                   {module.category}
                 </Badge>
-                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6ffbbe]">
+                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">
                   {module.backendRoot}
                 </span>
               </div>
@@ -593,7 +593,7 @@ export function AdminModuleOperations() {
             </div>
             <div className="flex flex-col gap-2 lg:items-end lg:justify-end">
               <Button
-                className="bg-white text-[#006c49] hover:bg-[#eff4ff]"
+                className="bg-white text-[#4f46e5] hover:bg-[#eef2ff]"
                 disabled={createRecord.isPending}
                 onClick={() => createRecord.mutate({ action: profile.primaryAction, lastEvent: `${profile.primaryAction} staged` })}
               >
@@ -641,7 +641,7 @@ export function AdminModuleOperations() {
                     <button
                       key={action}
                       type="button"
-                      className="rounded-lg border border-[#bbcabf] bg-white p-4 text-left transition-colors hover:border-[#006c49]/50 hover:bg-[#eff4ff]"
+                      className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-left transition-colors hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]"
                       disabled={createRecord.isPending}
                       onClick={() => createRecord.mutate({
                         action,
@@ -651,10 +651,10 @@ export function AdminModuleOperations() {
                       })}
                     >
                       <div className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#006c49]" />
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#4f46e5]" />
                         <div>
-                          <p className="font-semibold text-[#0b1c30]">{action}</p>
-                          <p className="mt-1 text-sm leading-5 text-[#3c4a42]">Creates an auditable operational checkpoint for {module.label.toLowerCase()}.</p>
+                          <p className="font-semibold text-[#0f172a]">{action}</p>
+                          <p className="mt-1 text-sm leading-5 text-[#475569]">Creates an auditable operational checkpoint for {module.label.toLowerCase()}.</p>
                         </div>
                       </div>
                     </button>
@@ -670,7 +670,7 @@ export function AdminModuleOperations() {
                 <CardContent className="space-y-3">
                   {activityLog.length > 0 ? (
                     activityLog.map((item) => (
-                      <div key={item} className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-3 text-sm text-[#3c4a42]">
+                      <div key={item} className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3 text-sm text-[#475569]">
                         {item}
                       </div>
                     ))
@@ -691,7 +691,7 @@ export function AdminModuleOperations() {
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <div className="relative min-w-[240px]">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                     <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records" />
                   </div>
                   <Select value={recordStatus} onValueChange={setRecordStatus}>
@@ -728,33 +728,33 @@ export function AdminModuleOperations() {
                       return (
                         <TableRow key={record.id}>
                           <TableCell>
-                            <p className="font-mono text-xs font-semibold text-[#006c49]">{record.id}</p>
-                            <p className="font-semibold text-[#0b1c30]">{record.object}</p>
+                            <p className="font-mono text-xs font-semibold text-[#4f46e5]">{record.id}</p>
+                            <p className="font-semibold text-[#0f172a]">{record.object}</p>
                             {record.source || record.nativeSource ? (
                               <div className="mt-2 flex flex-wrap gap-1">
                                 {record.source ? (
-                                  <Badge variant="outline" className="border-[#bbcabf] bg-[#eff4ff] text-[10px] uppercase tracking-wider text-[#3c4a42]">
+                                  <Badge variant="outline" className="border-[#e2e8f0] bg-[#eef2ff] text-[10px] uppercase tracking-wider text-[#475569]">
                                     {record.source}
                                   </Badge>
                                 ) : null}
                                 {record.nativeSource ? (
-                                  <Badge variant="outline" className="border-[#10b981]/25 bg-[#10b981]/10 text-[10px] uppercase tracking-wider text-[#006c49]">
+                                  <Badge variant="outline" className="border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[10px] uppercase tracking-wider text-[#4f46e5]">
                                     {record.nativeSource}
                                   </Badge>
                                 ) : null}
                               </div>
                             ) : null}
-                            {record.nativeId ? <p className="mt-1 font-mono text-[11px] text-[#6c7a71]">Native: {record.nativeId}</p> : null}
+                            {record.nativeId ? <p className="mt-1 font-mono text-[11px] text-[#94a3b8]">Native: {record.nativeId}</p> : null}
                           </TableCell>
                           <TableCell>{record.owner}</TableCell>
-                          <TableCell className="max-w-[320px] text-[#3c4a42]">{record.workflow}</TableCell>
+                          <TableCell className="max-w-[320px] text-[#475569]">{record.workflow}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn('border', statusTone(record.status))}>{record.status}</Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn('border', riskTone(record.risk))}>{record.risk}</Badge>
                           </TableCell>
-                          <TableCell className="text-[#3c4a42]">{record.lastEvent}</TableCell>
+                          <TableCell className="text-[#475569]">{record.lastEvent}</TableCell>
                           <TableCell className="text-right">
                             <Button
                               size="sm"
@@ -805,14 +805,14 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {queue.map((item) => (
-                  <div key={item.id} className="grid gap-3 rounded-lg border border-[#bbcabf]/70 bg-white p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
+                  <div key={item.id} className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
                     <div>
-                      <p className="font-semibold text-[#0b1c30]">{item.workflow}</p>
-                      <p className="mt-1 text-sm text-[#3c4a42]">Owner: {item.owner}</p>
-                      <p className="mt-1 text-xs text-[#6c7a71]">{item.lastEvent}</p>
+                      <p className="font-semibold text-[#0f172a]">{item.workflow}</p>
+                      <p className="mt-1 text-sm text-[#475569]">Owner: {item.owner}</p>
+                      <p className="mt-1 text-xs text-[#94a3b8]">{item.lastEvent}</p>
                     </div>
                     <Badge variant="outline" className={cn('w-fit border', statusTone(item.state))}>{item.state}</Badge>
-                    <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#3c4a42]">SLA {item.sla}</span>
+                    <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]">SLA {item.sla}</span>
                     <Button
                       size="sm"
                       variant="outline"
@@ -843,9 +843,9 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {eventTriggers.map((eventName) => (
-                  <div key={eventName} className="flex gap-3 rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-3">
-                    <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-[#006c49]" />
-                    <span className="text-sm font-medium text-[#0b1c30]">{eventName}</span>
+                  <div key={eventName} className="flex gap-3 rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3">
+                    <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-[#4f46e5]" />
+                    <span className="text-sm font-medium text-[#0f172a]">{eventName}</span>
                   </div>
                 ))}
               </CardContent>
@@ -860,10 +860,10 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2">
                 {[...new Set([...module.governance, ...sensitiveControls])].map((control) => (
-                  <div key={control} className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
-                    <LockKeyhole className="mb-3 h-5 w-5 text-[#006c49]" />
-                    <p className="font-semibold text-[#0b1c30]">{control}</p>
-                    <p className="mt-1 text-sm leading-5 text-[#3c4a42]">Linked to access control, allowed actions, and audit evidence for this domain.</p>
+                  <div key={control} className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                    <LockKeyhole className="mb-3 h-5 w-5 text-[#4f46e5]" />
+                    <p className="font-semibold text-[#0f172a]">{control}</p>
+                    <p className="mt-1 text-sm leading-5 text-[#475569]">Linked to access control, allowed actions, and audit evidence for this domain.</p>
                   </div>
                 ))}
               </CardContent>
@@ -876,9 +876,9 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <ChipList items={module.personas} />
-                <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
-                  <Users className="mb-3 h-5 w-5 text-[#006c49]" />
-                  <p className="text-sm leading-6 text-[#3c4a42]">
+                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                  <Users className="mb-3 h-5 w-5 text-[#4f46e5]" />
+                  <p className="text-sm leading-6 text-[#475569]">
                     The page intentionally groups actions by persona so HR admin, manager, employee, legal, finance, and specialist work does not feel like separate systems.
                   </p>
                 </div>
@@ -894,11 +894,11 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {integrationPoints.map((point, index) => (
-                  <div key={point} className="flex items-center gap-3 rounded-lg border border-[#bbcabf]/70 bg-white p-3">
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#10b981]/10 font-mono text-xs font-semibold text-[#006c49]">
+                  <div key={point} className="flex items-center gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-3">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#8b5cf6]/10 font-mono text-xs font-semibold text-[#4f46e5]">
                       {index + 1}
                     </div>
-                    <span className="text-sm font-medium text-[#0b1c30]">{point}</span>
+                    <span className="text-sm font-medium text-[#0f172a]">{point}</span>
                   </div>
                 ))}
               </CardContent>
@@ -910,25 +910,25 @@ export function AdminModuleOperations() {
                 <CardDescription>The page is tied to a known backend root and the shared module registry.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
                   <p className="lumina-label">Backend Root</p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-[#0b1c30]">{module.backendRoot}</p>
+                  <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">{module.backendRoot}</p>
                 </div>
-                <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
                   <p className="lumina-label">Admin Route</p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-[#0b1c30]">/admin/modules/{module.id}/operations</p>
+                  <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">/admin/modules/{module.id}/operations</p>
                 </div>
-                <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
                   <div className="mb-3 flex items-center gap-2">
-                    <Route className="h-4 w-4 text-[#006c49]" />
-                    <p className="font-semibold text-[#0b1c30]">Business objects</p>
+                    <Route className="h-4 w-4 text-[#4f46e5]" />
+                    <p className="font-semibold text-[#0f172a]">Business objects</p>
                   </div>
                   <ChipList items={module.dataObjects} />
                 </div>
-                <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
                   <div className="mb-3 flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-[#006c49]" />
-                    <p className="font-semibold text-[#0b1c30]">Nervous system events</p>
+                    <GitBranch className="h-4 w-4 text-[#4f46e5]" />
+                    <p className="font-semibold text-[#0f172a]">Nervous system events</p>
                   </div>
                   <ChipList items={eventTriggers} />
                 </div>

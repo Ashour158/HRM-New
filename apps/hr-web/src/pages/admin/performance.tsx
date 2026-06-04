@@ -305,7 +305,7 @@ function StatTile({
   return (
     <div className="rounded-md border bg-white p-4 shadow-sm">
       <div className="flex items-center gap-3">
-        <div className="grid h-9 w-9 place-items-center rounded-md bg-[#e6f2ff] text-[#0b76d1]">
+        <div className="grid h-9 w-9 place-items-center rounded-md bg-[#eef2ff] text-[#4f46e5]">
           <Icon className="h-5 w-5" />
         </div>
         <div>
@@ -1348,21 +1348,21 @@ export function AdminPerformance() {
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="rounded-md border bg-white p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <ShieldCheck className="h-4 w-4 text-[#0b76d1]" />
+            <ShieldCheck className="h-4 w-4 text-[#4f46e5]" />
             Governance
           </div>
           <p className="mt-2 text-sm text-slate-600">Tenant, role, and manager scope are enforced by the API before data is returned.</p>
         </div>
         <div className="rounded-md border bg-white p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <Users className="h-4 w-4 text-[#0b76d1]" />
+            <Users className="h-4 w-4 text-[#4f46e5]" />
             Employee Scope
           </div>
           <p className="mt-2 text-sm text-slate-600">Goals and reviews stay tied to employee records and reporting-line access.</p>
         </div>
         <div className="rounded-md border bg-white p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <ClipboardCheck className="h-4 w-4 text-[#0b76d1]" />
+            <ClipboardCheck className="h-4 w-4 text-[#4f46e5]" />
             Workflow Ledger
           </div>
           <p className="mt-2 text-sm text-slate-600">Create and lifecycle actions run through command bus, FSM, audit, and outbox handling.</p>

@@ -248,10 +248,10 @@ function formatDate(value: string | undefined) {
 }
 
 function statusClasses(status: ConsoleStatus) {
-  if (status === 'live') return 'border-[#10b981]/30 bg-[#10b981]/10 text-[#006c49]';
-  if (status === 'partial') return 'border-[#4648d4]/30 bg-[#4648d4]/10 text-[#4648d4]';
-  if (status === 'attention') return 'border-[#e29100]/30 bg-[#ffddb8]/60 text-[#523200]';
-  return 'border-[#ba1a1a]/30 bg-[#ba1a1a]/10 text-[#ba1a1a]';
+  if (status === 'live') return 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]';
+  if (status === 'partial') return 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]';
+  if (status === 'attention') return 'border-[#f59e0b]/30 bg-[#fde68a]/60 text-[#78350f]';
+  return 'border-[#e11d48]/30 bg-[#e11d48]/10 text-[#e11d48]';
 }
 
 function StatusBadge({ status, label }: { status: ConsoleStatus; label: string }) {
@@ -278,10 +278,10 @@ function ControlCard({ control }: { control: ConsoleControl }) {
   const Icon = control.icon;
   return (
     <Card className="relative h-full overflow-hidden">
-      <div className="absolute left-0 top-0 h-1 w-full bg-[#006c49]" />
+      <div className="absolute left-0 top-0 h-1 w-full bg-[#4f46e5]" />
       <CardHeader className="space-y-3 p-5">
         <div className="flex items-start justify-between gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eff4ff] text-[#006c49]">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
             <Icon className="h-5 w-5" />
           </div>
           <StatusBadge status={control.status} label={control.statusLabel} />
@@ -294,11 +294,11 @@ function ControlCard({ control }: { control: ConsoleControl }) {
       <CardContent className="flex h-[calc(100%-9rem)] flex-col gap-4 p-5 pt-0">
         <div className="space-y-2">
           {control.evidence.map((item) => (
-            <div key={item} className="flex items-start gap-2 text-sm leading-6 text-[#3c4a42]">
+            <div key={item} className="flex items-start gap-2 text-sm leading-6 text-[#475569]">
               {control.status === 'backend-required' ? (
-                <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-[#ba1a1a]" />
+                <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-[#e11d48]" />
               ) : (
-                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#006c49]" />
+                <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#4f46e5]" />
               )}
               <span>{item}</span>
             </div>
@@ -312,11 +312,11 @@ function ControlCard({ control }: { control: ConsoleControl }) {
             </Link>
           </Button>
         ) : control.status !== 'backend-required' ? (
-          <div className="mt-auto rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3 text-sm font-semibold text-[#3c4a42]">
+          <div className="mt-auto rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-sm font-semibold text-[#475569]">
             Observed directly in this console.
           </div>
         ) : (
-          <div className="mt-auto rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3 text-sm font-semibold text-[#3c4a42]">
+          <div className="mt-auto rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-sm font-semibold text-[#475569]">
             Backend endpoint required before this can be safely operated.
           </div>
         )}
@@ -328,22 +328,22 @@ function ControlCard({ control }: { control: ConsoleControl }) {
 function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
   const Icon = tool.icon;
   const content = (
-    <div className="group relative flex h-full min-h-[132px] flex-col rounded-lg border border-[#d5dfec] bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-[#10b981]/60 hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+    <div className="group relative flex h-full min-h-[132px] flex-col rounded-lg border border-[#e2e8f0] bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-[#8b5cf6]/60 hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
       <div className="flex items-start gap-3">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eff4ff]">
+        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff]">
           <Icon className={`h-5 w-5 ${tool.tone}`} strokeWidth={1.9} />
         </div>
         <div className="min-w-0">
-          <p className="font-semibold leading-5 text-[#0b1c30]">{tool.label}</p>
-          <p className="mt-1 text-sm leading-5 text-[#3c4a42]">{tool.description}</p>
+          <p className="font-semibold leading-5 text-[#0f172a]">{tool.label}</p>
+          <p className="mt-1 text-sm leading-5 text-[#475569]">{tool.description}</p>
         </div>
         {tool.status === 'backend-required' ? (
-          <span className="absolute right-3 top-3 rounded-full border border-[#e29100]/40 bg-[#ffddb8] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#523200]">
+          <span className="absolute right-3 top-3 rounded-full border border-[#f59e0b]/40 bg-[#fde68a] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#78350f]">
             Backend
           </span>
         ) : null}
       </div>
-      <div className="mt-auto flex items-center justify-between pt-4 text-xs font-semibold uppercase tracking-wide text-[#006c49]">
+      <div className="mt-auto flex items-center justify-between pt-4 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
         <span>{tool.path ? 'Open admin area' : 'Needs admin API'}</span>
         {tool.path ? <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /> : null}
       </div>
@@ -359,7 +359,7 @@ function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
   }
 
   return (
-    <Link to={tool.path} className="focus:outline-none focus:ring-2 focus:ring-[#006c49]/30">
+    <Link to={tool.path} className="focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30">
       {content}
     </Link>
   );
@@ -441,35 +441,35 @@ export function AdminSystemConsole() {
   const adminDisplayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || 'System Administrator';
   const primaryRole = user?.roles?.[0]?.name?.replace(/_/g, ' ') ?? 'Administrator';
   const adminPanelTools: AdminPanelTool[] = [
-    { label: 'Access Governance', description: 'Users, roles, permissions, service accounts, access reviews, ABAC, field-access, and SoD.', group: 'Foundation', path: '/admin/system-console/access-governance', icon: UserCog, tone: 'text-[#ff9800]' },
-    { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#ff9800]' },
-    { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#2aa9de]' },
-    { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#006c49]' },
-    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, protected worker data, and runtime field decisions.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#4648d4]' },
-    { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/system-console/settings', icon: FolderOpen, tone: 'text-[#2aa9de]' },
-    { label: 'Leave Management', description: 'Entitlements, balances, requests, approvals, holidays, and payroll impact.', group: 'Workforce Operations', path: '/admin/leave', icon: Umbrella, tone: 'text-[#2aa9de]' },
-    { label: 'Attendance And Time', description: 'Check-in policies, geolocation evidence, exceptions, ledgers, and exports.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#ff7043]' },
-    { label: 'Shift Scheduling', description: 'Roster planning, coverage gaps, shift bids, swaps, and fatigue controls.', group: 'Workforce Operations', path: '/admin/modules/workforce-management/operations', icon: Timer, tone: 'text-[#ff9800]' },
-    { label: 'HR Service Delivery', description: 'Cases, tasks, service catalog, SLA rules, and employee support queues.', group: 'Workforce Operations', path: '/admin/modules/service-delivery/operations', icon: ClipboardCheck, tone: 'text-[#ff7043]' },
-    { label: 'Travel And Expenses', description: 'Travel requests, expenses, approvals, and reimbursement integrations.', group: 'Workforce Operations', icon: Plane, tone: 'text-[#2aa9de]', status: 'backend-required' },
-    { label: 'Payroll Control', description: 'Cycles, statutory packs, blockers, payroll inputs, payslips, and GL handoff.', group: 'Reward And Talent', path: '/admin/payroll', icon: FileText, tone: 'text-[#ff9800]' },
-    { label: 'Compensation', description: 'Bands, pay changes, bonus cycles, equity, and total reward operations.', group: 'Reward And Talent', path: '/admin/modules/compensation/operations', icon: BadgeDollarSign, tone: 'text-[#dc3f92]' },
-    { label: 'Benefits Administration', description: 'Programs, enrollment, life events, carrier reconciliation, and deductions.', group: 'Reward And Talent', path: '/admin/modules/benefits/operations', icon: Umbrella, tone: 'text-[#2aa9de]' },
-    { label: 'Performance Management', description: 'Review cycles, goals, feedback, calibration, action plans, and KPIs.', group: 'Reward And Talent', path: '/admin/performance', icon: Trophy, tone: 'text-[#8bb42a]' },
-    { label: 'Learning Management', description: 'Courses, assignments, certifications, content packages, and renewals.', group: 'Reward And Talent', path: '/admin/modules/learning/operations', icon: BookOpen, tone: 'text-[#5e84ff]' },
-    { label: 'Onboarding', description: 'Preboarding, joining checklists, provisioning, 30/60/90 plans, and probation.', group: 'Reward And Talent', path: '/admin/onboarding', icon: UserRoundPlus, tone: 'text-[#ff9800]' },
-    { label: 'Employee Engagement', description: 'Surveys, recognition programs, engagement signals, and response controls.', group: 'Reward And Talent', path: '/admin/modules/engagement/operations', icon: Radar, tone: 'text-[#dc3f92]' },
+    { label: 'Access Governance', description: 'Users, roles, permissions, service accounts, access reviews, ABAC, field-access, and SoD.', group: 'Foundation', path: '/admin/system-console/access-governance', icon: UserCog, tone: 'text-[#f59e0b]' },
+    { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#f59e0b]' },
+    { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#818cf8]' },
+    { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#4f46e5]' },
+    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, protected worker data, and runtime field decisions.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#6366f1]' },
+    { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/system-console/settings', icon: FolderOpen, tone: 'text-[#818cf8]' },
+    { label: 'Leave Management', description: 'Entitlements, balances, requests, approvals, holidays, and payroll impact.', group: 'Workforce Operations', path: '/admin/leave', icon: Umbrella, tone: 'text-[#818cf8]' },
+    { label: 'Attendance And Time', description: 'Check-in policies, geolocation evidence, exceptions, ledgers, and exports.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#f59e0b]' },
+    { label: 'Shift Scheduling', description: 'Roster planning, coverage gaps, shift bids, swaps, and fatigue controls.', group: 'Workforce Operations', path: '/admin/modules/workforce-management/operations', icon: Timer, tone: 'text-[#f59e0b]' },
+    { label: 'HR Service Delivery', description: 'Cases, tasks, service catalog, SLA rules, and employee support queues.', group: 'Workforce Operations', path: '/admin/modules/service-delivery/operations', icon: ClipboardCheck, tone: 'text-[#f59e0b]' },
+    { label: 'Travel And Expenses', description: 'Travel requests, expenses, approvals, and reimbursement integrations.', group: 'Workforce Operations', icon: Plane, tone: 'text-[#818cf8]', status: 'backend-required' },
+    { label: 'Payroll Control', description: 'Cycles, statutory packs, blockers, payroll inputs, payslips, and GL handoff.', group: 'Reward And Talent', path: '/admin/payroll', icon: FileText, tone: 'text-[#f59e0b]' },
+    { label: 'Compensation', description: 'Bands, pay changes, bonus cycles, equity, and total reward operations.', group: 'Reward And Talent', path: '/admin/modules/compensation/operations', icon: BadgeDollarSign, tone: 'text-[#8b5cf6]' },
+    { label: 'Benefits Administration', description: 'Programs, enrollment, life events, carrier reconciliation, and deductions.', group: 'Reward And Talent', path: '/admin/modules/benefits/operations', icon: Umbrella, tone: 'text-[#818cf8]' },
+    { label: 'Performance Management', description: 'Review cycles, goals, feedback, calibration, action plans, and KPIs.', group: 'Reward And Talent', path: '/admin/performance', icon: Trophy, tone: 'text-[#f59e0b]' },
+    { label: 'Learning Management', description: 'Courses, assignments, certifications, content packages, and renewals.', group: 'Reward And Talent', path: '/admin/modules/learning/operations', icon: BookOpen, tone: 'text-[#6366f1]' },
+    { label: 'Onboarding', description: 'Preboarding, joining checklists, provisioning, 30/60/90 plans, and probation.', group: 'Reward And Talent', path: '/admin/onboarding', icon: UserRoundPlus, tone: 'text-[#f59e0b]' },
+    { label: 'Employee Engagement', description: 'Surveys, recognition programs, engagement signals, and response controls.', group: 'Reward And Talent', path: '/admin/modules/engagement/operations', icon: Radar, tone: 'text-[#8b5cf6]' },
     { label: 'Policy Center', description: 'Scoped policies, lifecycle approval, simulation, application, and evidence.', group: 'Governance And Insights', path: '/admin/system-console/policies', icon: ShieldCheck, tone: 'text-[#8a4fff]' },
-    { label: 'Compliance Center', description: 'Policies, acknowledgements, legal holds, statutory reporting, and evidence.', group: 'Governance And Insights', path: '/admin/compliance', icon: ShieldCheck, tone: 'text-[#006c49]' },
-    { label: 'Country Policy', description: 'Country packs, validations, simulations, approvals, publish, and rollback.', group: 'Governance And Insights', path: '/admin/country-policy', icon: Landmark, tone: 'text-[#4648d4]' },
-    { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#dc3f92]' },
-    { label: 'Reporting And Analytics', description: 'Report builder operations, scheduled reports, usage, and calculated fields.', group: 'Governance And Insights', path: '/admin/modules/reporting/operations', icon: FileText, tone: 'text-[#2aa9de]' },
-    { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#2f6fc2]' },
-    { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#5e84ff]', status: 'backend-required' },
-    { label: 'Development Controls', description: 'Runtime health, workflow controls, integrations, outbox, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#development-controls', icon: Code2, tone: 'text-[#ff7043]' },
-    { label: 'Dead-Letter Events', description: 'Inspect, retry, skip, and export failed inbox/outbox events with operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#ba1a1a]' },
-    { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#006c49]' },
-    { label: 'Event Contracts', description: 'Topics, aggregate mappings, schema versions, and consumer naming contracts.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#4648d4]' },
+    { label: 'Compliance Center', description: 'Policies, acknowledgements, legal holds, statutory reporting, and evidence.', group: 'Governance And Insights', path: '/admin/compliance', icon: ShieldCheck, tone: 'text-[#4f46e5]' },
+    { label: 'Country Policy', description: 'Country packs, validations, simulations, approvals, publish, and rollback.', group: 'Governance And Insights', path: '/admin/country-policy', icon: Landmark, tone: 'text-[#6366f1]' },
+    { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#8b5cf6]' },
+    { label: 'Reporting And Analytics', description: 'Report builder operations, scheduled reports, usage, and calculated fields.', group: 'Governance And Insights', path: '/admin/modules/reporting/operations', icon: FileText, tone: 'text-[#818cf8]' },
+    { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#4f46e5]' },
+    { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'backend-required' },
+    { label: 'Development Controls', description: 'Runtime health, workflow controls, integrations, outbox, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#development-controls', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'Dead-Letter Events', description: 'Inspect, retry, skip, and export failed inbox/outbox events with operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
+    { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#4f46e5]' },
+    { label: 'Event Contracts', description: 'Topics, aggregate mappings, schema versions, and consumer naming contracts.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
   ];
   const filteredAdminPanelTools = adminPanelTools.filter((tool) => (
     tool.label.toLowerCase().includes(adminToolQuery.trim().toLowerCase())
@@ -745,45 +745,45 @@ export function AdminSystemConsole() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f8f9ff]">
+    <div className="min-h-screen bg-[#f6f7fb]">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#bbcabf] bg-white px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#3c4a42]">
-              <Network className="h-3.5 w-3.5 text-[#006c49]" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#475569]">
+              <Network className="h-3.5 w-3.5 text-[#4f46e5]" />
               Platform Administration
             </div>
-            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0b1c30]">Administrator Settings</h2>
-            <p className="mt-2 max-w-3xl text-lg leading-8 text-[#3c4a42]">
+            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0f172a]">Administrator Settings</h2>
+            <p className="mt-2 max-w-3xl text-lg leading-8 text-[#475569]">
               One administration panel for system management: setup, policies, organization, services, compliance,
               payroll, workforce, reporting, and controlled platform operations.
             </p>
           </div>
-          <div className="rounded-lg border border-[#d5dfec] bg-white px-4 py-3 text-sm leading-6 text-[#3c4a42]">
+          <div className="rounded-lg border border-[#e2e8f0] bg-white px-4 py-3 text-sm leading-6 text-[#475569]">
             Setup and control starts here. Sidebar tabs stay for using the system as an employee, manager, or HR operator.
           </div>
         </header>
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
-          <Card className="overflow-hidden border-[#d5dfec] bg-white">
+          <Card className="overflow-hidden border-[#e2e8f0] bg-white">
             <CardContent className="p-0">
-              <div className="border-b border-[#d5dfec] bg-[#0b1c30] px-5 py-5 text-white">
+              <div className="border-b border-[#e2e8f0] bg-[#0f172a] px-5 py-5 text-white">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="font-mono text-xs uppercase tracking-wider text-[#6ffbbe]">Admin Panel Home</p>
+                    <p className="font-mono text-xs uppercase tracking-wider text-[#a5b4fc]">Admin Panel Home</p>
                     <h3 className="mt-2 font-headline text-2xl font-bold">Enterprise HR Administration Center</h3>
-                    <p className="mt-2 max-w-3xl text-sm leading-6 text-[#eaf1ff]">
+                    <p className="mt-2 max-w-3xl text-sm leading-6 text-[#eef2ff]">
                       Manage business configuration, policies, workforce services, compliance, reporting, and operational
                       modules from one governed control surface.
                     </p>
                   </div>
                   <div className="rounded-lg border border-white/20 bg-white/10 p-3 text-sm">
                     <p className="font-semibold">{adminDisplayName}</p>
-                    <p className="mt-1 text-[#eaf1ff]">{primaryRole}</p>
+                    <p className="mt-1 text-[#eef2ff]">{primaryRole}</p>
                   </div>
                 </div>
               </div>
-              <div className="grid gap-0 divide-y divide-[#d5dfec] md:grid-cols-4 md:divide-x md:divide-y-0">
+              <div className="grid gap-0 divide-y divide-[#e2e8f0] md:grid-cols-4 md:divide-x md:divide-y-0">
                 {[
                   { label: 'Employees', value: formatNumber(dashboardQuery.data?.headcount), helper: 'active workforce signal' },
                   { label: 'Setup Data', value: `${activeSetupCounts.departments}/${activeSetupCounts.locations}`, helper: 'departments / locations' },
@@ -791,34 +791,34 @@ export function AdminSystemConsole() {
                   { label: 'Runtime', value: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch', helper: `${readinessDown} readiness blockers` },
                 ].map((item) => (
                   <div key={item.label} className="p-4">
-                    <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">{item.label}</p>
-                    <p className="mt-2 text-2xl font-bold text-[#0b1c30]">{item.value}</p>
-                    <p className="mt-1 text-sm text-[#3c4a42]">{item.helper}</p>
+                    <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{item.label}</p>
+                    <p className="mt-2 text-2xl font-bold text-[#0f172a]">{item.value}</p>
+                    <p className="mt-1 text-sm text-[#475569]">{item.helper}</p>
                   </div>
                 ))}
               </div>
             </CardContent>
           </Card>
 
-          <Card className="border-[#d5dfec] bg-white">
+          <Card className="border-[#e2e8f0] bg-white">
             <CardHeader>
               <CardTitle className="text-lg">Admin Scope</CardTitle>
               <CardDescription>What this panel controls today.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm leading-6 text-[#3c4a42]">
-              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+            <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                 <span>Business administration</span>
                 <StatusBadge status="live" label="Grouped" />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                 <span>Policies and setup</span>
                 <StatusBadge status={policyQuery.isSuccess && setupQuery.isSuccess ? 'live' : 'attention'} label="Panel only" />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                 <span>Development controls</span>
                 <StatusBadge status="partial" label="Separated" />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-[#d5dfec] bg-[#f8f9ff] p-3">
+              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                 <span>Admin APIs still needed</span>
                 <StatusBadge status="attention" label="Visible" />
               </div>
@@ -828,8 +828,8 @@ export function AdminSystemConsole() {
 
         <section className="space-y-4">
           <div>
-            <h3 className="font-headline text-xl font-bold text-[#0b1c30]">Administrator Journey</h3>
-            <p className="mt-1 text-sm text-[#3c4a42]">
+            <h3 className="font-headline text-xl font-bold text-[#0f172a]">Administrator Journey</h3>
+            <p className="mt-1 text-sm text-[#475569]">
               Follow this path to make changes that affect the whole system: setup first, structure second, people third,
               policies fourth, runtime verification last.
             </p>
@@ -838,18 +838,18 @@ export function AdminSystemConsole() {
             {adminJourneySteps.map((item) => {
               const Icon = item.icon;
               return (
-                <Link key={item.step} to={item.path} className="group focus:outline-none focus:ring-2 focus:ring-[#006c49]/30">
-                  <div className="flex h-full min-h-[190px] flex-col rounded-lg border border-[#d5dfec] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#10b981]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+                <Link key={item.step} to={item.path} className="group focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30">
+                  <div className="flex h-full min-h-[190px] flex-col rounded-lg border border-[#e2e8f0] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
                     <div className="flex items-start justify-between gap-3">
-                      <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6c7a71]">{item.step}</span>
+                      <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">{item.step}</span>
                       <StatusBadge status={item.status} label={item.label} />
                     </div>
-                    <div className="mt-4 grid h-11 w-11 place-items-center rounded-lg bg-[#eff4ff] text-[#006c49]">
+                    <div className="mt-4 grid h-11 w-11 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
                       <Icon className="h-5 w-5" />
                     </div>
-                    <h4 className="mt-4 font-semibold text-[#0b1c30]">{item.title}</h4>
-                    <p className="mt-2 flex-1 text-sm leading-5 text-[#3c4a42]">{item.description}</p>
-                    <div className="mt-4 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[#006c49]">
+                    <h4 className="mt-4 font-semibold text-[#0f172a]">{item.title}</h4>
+                    <p className="mt-2 flex-1 text-sm leading-5 text-[#475569]">{item.description}</p>
+                    <div className="mt-4 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
                       <span>Open step</span>
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </div>
@@ -863,15 +863,15 @@ export function AdminSystemConsole() {
         <section className="space-y-5">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="font-headline text-xl font-bold text-[#0b1c30]">Administration Areas</h3>
-              <p className="mt-1 text-sm text-[#3c4a42]">Grouped by how HR administrators actually manage the platform.</p>
+              <h3 className="font-headline text-xl font-bold text-[#0f172a]">Administration Areas</h3>
+              <p className="mt-1 text-sm text-[#475569]">Grouped by how HR administrators actually manage the platform.</p>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                 <input
                   aria-label="Search admin services"
-                  className="h-9 w-64 rounded-lg border border-[#d5dfec] bg-white pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-[#6c7a71] focus:border-[#006c49] focus:ring-2 focus:ring-[#006c49]/10"
+                  className="h-9 w-64 rounded-lg border border-[#e2e8f0] bg-white pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                   onChange={(event) => setAdminToolQuery(event.target.value)}
                   placeholder="Search services"
                   type="search"
@@ -890,7 +890,7 @@ export function AdminSystemConsole() {
               const groupTools = filteredAdminPanelTools.filter((tool) => tool.group === group);
               if (groupTools.length === 0) return null;
               return (
-                <Card key={group} className="border-[#d5dfec] bg-[#f8fbff]">
+                <Card key={group} className="border-[#e2e8f0] bg-[#f6f7fb]">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg">{group}</CardTitle>
                     <CardDescription>
@@ -910,14 +910,14 @@ export function AdminSystemConsole() {
             })}
           </div>
           {filteredAdminPanelTools.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-5 text-sm text-[#3c4a42]">
+            <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5 text-sm text-[#475569]">
               No services match this search.
             </div>
           ) : null}
         </section>
 
         <section className="space-y-5">
-          <h3 className="font-headline text-xl font-bold text-[#0b1c30]">Custom Services</h3>
+          <h3 className="font-headline text-xl font-bold text-[#0f172a]">Custom Services</h3>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             <AdminPanelTile
               tool={{
@@ -926,7 +926,7 @@ export function AdminSystemConsole() {
                 group: 'Custom Services',
                 path: '/admin/modules/service-delivery/operations',
                 icon: LifeBuoy,
-                tone: 'text-[#0077ff]',
+                tone: 'text-[#4f46e5]',
               }}
             />
           </div>
@@ -937,17 +937,17 @@ export function AdminSystemConsole() {
             const Icon = metric.icon;
             return (
               <Card key={metric.label} className="relative overflow-hidden">
-                <div className="absolute left-0 top-0 h-1 w-full bg-[#10b981]" />
+                <div className="absolute left-0 top-0 h-1 w-full bg-[#8b5cf6]" />
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="font-mono text-xs uppercase tracking-wider text-[#3c4a42]">{metric.label}</p>
-                      <p className="mt-2 font-headline text-4xl font-bold text-[#0b1c30]">
+                      <p className="font-mono text-xs uppercase tracking-wider text-[#475569]">{metric.label}</p>
+                      <p className="mt-2 font-headline text-4xl font-bold text-[#0f172a]">
                         {dashboardQuery.isLoading && metric.label === 'Headcount' ? '-' : metric.value}
                       </p>
-                      <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{metric.helper}</p>
+                      <p className="mt-2 text-sm leading-6 text-[#475569]">{metric.helper}</p>
                     </div>
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eff4ff] text-[#006c49]">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
                       <Icon className="h-5 w-5" />
                     </div>
                   </div>
@@ -962,10 +962,10 @@ export function AdminSystemConsole() {
 
         <section id="development-controls" className="grid gap-4 scroll-mt-28 xl:grid-cols-[1fr_24rem]">
           <Card className="relative overflow-hidden">
-            <div className="absolute left-0 top-0 h-1 w-full bg-[#006c49]" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-[#4f46e5]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <SlidersHorizontal className="h-5 w-5 text-[#006c49]" />
+                <SlidersHorizontal className="h-5 w-5 text-[#4f46e5]" />
                 Development Controls
               </CardTitle>
               <CardDescription>
@@ -983,22 +983,22 @@ export function AdminSystemConsole() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <LockKeyhole className="h-5 w-5 text-[#006c49]" />
+                  <LockKeyhole className="h-5 w-5 text-[#4f46e5]" />
                   Runtime Guardrails
                 </CardTitle>
                 <CardDescription>Controls that affect platform behavior.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-6 text-[#3c4a42]">
-                <div className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3">
-                  <p className="font-semibold text-[#0b1c30]">Auth mode</p>
+              <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+                <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                  <p className="font-semibold text-[#0f172a]">Auth mode</p>
                   <p>{authBypassEnabled ? 'Local auth bypass is enabled for this build.' : 'Token auth is enforced for this build.'}</p>
                 </div>
-                <div className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3">
-                  <p className="font-semibold text-[#0b1c30]">Policy application</p>
+                <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                  <p className="font-semibold text-[#0f172a]">Policy application</p>
                   <p>Only APPLIED policy revisions update live runtime behavior.</p>
                 </div>
-                <div className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3">
-                  <p className="font-semibold text-[#0b1c30]">Historical data</p>
+                <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                  <p className="font-semibold text-[#0f172a]">Historical data</p>
                   <p>Locked historical records are not silently rewritten by policy changes.</p>
                 </div>
               </CardContent>
@@ -1007,12 +1007,12 @@ export function AdminSystemConsole() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <RefreshCcw className="h-5 w-5 text-[#e29100]" />
+                  <RefreshCcw className="h-5 w-5 text-[#f59e0b]" />
                   Data Operations
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-6 text-[#3c4a42]">
-                <p className="rounded-lg border border-[#e29100]/30 bg-[#ffddb8]/40 p-3 text-[#523200]">
+              <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+                <p className="rounded-lg border border-[#f59e0b]/30 bg-[#fde68a]/40 p-3 text-[#78350f]">
                   System reset is intentionally not clickable until a real reset workflow exists with backup, approval,
                   audit evidence, and environment restrictions.
                 </p>
@@ -1026,10 +1026,10 @@ export function AdminSystemConsole() {
 
         <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
           <Card className="relative overflow-hidden">
-            <div className="absolute left-0 top-0 h-1 w-full bg-[#4648d4]" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-[#6366f1]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <BellRing className="h-5 w-5 text-[#4648d4]" />
+                <BellRing className="h-5 w-5 text-[#6366f1]" />
                 Recent Notifications
               </CardTitle>
               <CardDescription>HR operations inbox from the platform notification center.</CardDescription>
@@ -1039,19 +1039,19 @@ export function AdminSystemConsole() {
                 <Skeleton className="h-32 w-full" />
               ) : (notificationsQuery.data ?? []).length > 0 ? (
                 (notificationsQuery.data ?? []).slice(0, 5).map((notification) => (
-                  <div key={notification.id} className="rounded-lg border border-[#bbcabf] bg-white p-3">
+                  <div key={notification.id} className="rounded-lg border border-[#e2e8f0] bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-[#0b1c30]">{notification.title}</p>
-                      {!notification.readAt ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#006c49]" /> : null}
+                      <p className="text-sm font-semibold text-[#0f172a]">{notification.title}</p>
+                      {!notification.readAt ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#4f46e5]" /> : null}
                     </div>
-                    <p className="mt-1 text-sm leading-6 text-[#3c4a42]">{notification.body}</p>
-                    <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-[#6c7a71]">
+                    <p className="mt-1 text-sm leading-6 text-[#475569]">{notification.body}</p>
+                    <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">
                       {notification.category} / {formatDate(notification.createdAt)}
                     </p>
                   </div>
                 ))
               ) : (
-                <p className="rounded-lg border border-[#bbcabf] bg-white p-4 text-sm text-[#3c4a42]">
+                <p className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">
                   No HR operations notifications are available for this actor.
                 </p>
               )}
@@ -1059,10 +1059,10 @@ export function AdminSystemConsole() {
           </Card>
 
           <Card className="relative overflow-hidden">
-            <div className="absolute left-0 top-0 h-1 w-full bg-[#e29100]" />
+            <div className="absolute left-0 top-0 h-1 w-full bg-[#f59e0b]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <GitBranch className="h-5 w-5 text-[#e29100]" />
+                <GitBranch className="h-5 w-5 text-[#f59e0b]" />
                 Recent Audit Evidence
               </CardTitle>
               <CardDescription>Recent tenant audit trail if the current role has audit scope.</CardDescription>
@@ -1072,21 +1072,21 @@ export function AdminSystemConsole() {
                 <Skeleton className="h-32 w-full" />
               ) : (auditQuery.data ?? []).length > 0 ? (
                 (auditQuery.data ?? []).slice(0, 5).map((record) => (
-                  <div key={record.id} className="rounded-lg border border-[#bbcabf] bg-white p-3">
+                  <div key={record.id} className="rounded-lg border border-[#e2e8f0] bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="text-sm font-semibold text-[#0b1c30]">{record.action}</p>
-                      <p className="text-xs text-[#6c7a71]">{formatDate(record.timestamp)}</p>
+                      <p className="text-sm font-semibold text-[#0f172a]">{record.action}</p>
+                      <p className="text-xs text-[#94a3b8]">{formatDate(record.timestamp)}</p>
                     </div>
-                    <p className="mt-1 text-sm leading-6 text-[#3c4a42]">
+                    <p className="mt-1 text-sm leading-6 text-[#475569]">
                       {record.resourceType} {record.resourceId ? `/${record.resourceId}` : ''}
                     </p>
-                    <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-[#6c7a71]">
+                    <p className="mt-2 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">
                       {record.actorName || 'system'}
                     </p>
                   </div>
                 ))
               ) : (
-                <p className="rounded-lg border border-[#bbcabf] bg-white p-4 text-sm text-[#3c4a42]">
+                <p className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">
                   No audit records are available, or this role cannot access audit history.
                 </p>
               )}
@@ -1095,12 +1095,12 @@ export function AdminSystemConsole() {
         </section>
 
         <Card className="relative overflow-hidden">
-          <div className="absolute left-0 top-0 h-1 w-full bg-[#10b981]" />
+          <div className="absolute left-0 top-0 h-1 w-full bg-[#8b5cf6]" />
           <CardHeader className="p-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2 text-xl">
-                  <Layers3 className="h-5 w-5 text-[#006c49]" />
+                  <Layers3 className="h-5 w-5 text-[#4f46e5]" />
                   Module Control Matrix
                 </CardTitle>
                 <CardDescription>
@@ -1118,18 +1118,18 @@ export function AdminSystemConsole() {
               const target = module.nativePath ?? moduleOperationsPath(module.id);
               return (
                 <Link key={module.id} to={target} className="group">
-                  <div className="flex h-full min-h-[150px] flex-col rounded-lg border border-[#bbcabf] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#10b981]/70 group-hover:bg-[#f8fbff]">
+                  <div className="flex h-full min-h-[150px] flex-col rounded-lg border border-[#e2e8f0] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/70 group-hover:bg-[#f6f7fb]">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-[#0b1c30]">{module.label}</p>
-                        <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#6c7a71]">
+                        <p className="font-semibold text-[#0f172a]">{module.label}</p>
+                        <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">
                           {module.category} / {module.backendRoot}
                         </p>
                       </div>
                       <StatusBadge status={status} label={moduleMaturityLabel(module)} />
                     </div>
-                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#3c4a42]">{module.summary}</p>
-                    <div className="mt-auto flex items-center justify-between pt-3 text-sm font-semibold text-[#006c49]">
+                    <p className="mt-3 line-clamp-3 text-sm leading-6 text-[#475569]">{module.summary}</p>
+                    <div className="mt-auto flex items-center justify-between pt-3 text-sm font-semibold text-[#4f46e5]">
                       <span>{module.maturity === 'native-ui' ? 'Open native admin' : 'Open operations workspace'}</span>
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                     </div>

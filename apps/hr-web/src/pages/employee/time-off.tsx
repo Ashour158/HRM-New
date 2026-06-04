@@ -175,11 +175,11 @@ function rangesOverlap(leftStart?: string, leftEnd?: string, rightStart?: string
 
 function RequestCard({ request }: { request: AbsenceRequest }) {
   return (
-    <div className="rounded-lg border border-[#bbcabf] bg-white p-4 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
+    <div className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">{request.type}</p>
-          <p className="mt-1 text-sm font-semibold text-[#0b1c30]">{requestDateLabel(request)}</p>
+          <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{request.type}</p>
+          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{requestDateLabel(request)}</p>
         </div>
         <Badge variant={statusBadgeVariant(request.status)} className="shrink-0">
           {request.status}
@@ -187,16 +187,16 @@ function RequestCard({ request }: { request: AbsenceRequest }) {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-[#6c7a71]">Duration</p>
-          <p className="mt-1 text-[#0b1c30]">{requestDuration(request)}</p>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[#94a3b8]">Duration</p>
+          <p className="mt-1 text-[#0f172a]">{requestDuration(request)}</p>
         </div>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-[#6c7a71]">Payroll</p>
-          <p className="mt-1 text-[#0b1c30]">{formatEnum(request.payrollImpact ?? (request.paid === false ? 'UNPAID_LEAVE' : 'PAID_LEAVE'))}</p>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-[#94a3b8]">Payroll</p>
+          <p className="mt-1 text-[#0f172a]">{formatEnum(request.payrollImpact ?? (request.paid === false ? 'UNPAID_LEAVE' : 'PAID_LEAVE'))}</p>
         </div>
       </div>
-      <p className="mt-3 line-clamp-2 text-sm text-[#3c4a42]">{request.reason || 'No reason provided'}</p>
-      <p className="mt-3 text-xs text-[#6c7a71]">Requested {formatDate(request.requestedAt)}</p>
+      <p className="mt-3 line-clamp-2 text-sm text-[#475569]">{request.reason || 'No reason provided'}</p>
+      <p className="mt-3 text-xs text-[#94a3b8]">Requested {formatDate(request.requestedAt)}</p>
     </div>
   );
 }
@@ -366,7 +366,7 @@ export function EmployeeTimeOff() {
     {
       key: 'reason',
       header: 'Reason',
-      cell: (row: AbsenceRequest) => <span className="line-clamp-2 min-w-48 text-[#3c4a42]">{row.reason || '-'}</span>,
+      cell: (row: AbsenceRequest) => <span className="line-clamp-2 min-w-48 text-[#475569]">{row.reason || '-'}</span>,
     },
     {
       key: 'requested',
@@ -377,18 +377,18 @@ export function EmployeeTimeOff() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-xl border border-[#bbcabf] bg-white shadow-[0_8px_28px_rgba(0,0,0,0.06)]">
-        <div className="grid gap-5 border-b border-[#bbcabf]/70 bg-[#f8f9ff] p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+      <section className="overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-[0_8px_28px_rgba(0,0,0,0.06)]">
+        <div className="grid gap-5 border-b border-[#e2e8f0]/70 bg-[#f6f7fb] p-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-[#006c49]/30 bg-[#10b981]/10 text-[#006c49]">Self-service</Badge>
-              <Badge variant="outline" className="border-[#6063ee]/30 bg-[#6063ee]/10 text-[#4648d4]">Policy-driven</Badge>
+              <Badge variant="outline" className="border-[#4f46e5]/30 bg-[#8b5cf6]/10 text-[#4f46e5]">Self-service</Badge>
+              <Badge variant="outline" className="border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]">Policy-driven</Badge>
             </div>
-            <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-[#0b1c30] sm:text-3xl">
-              <Umbrella className="h-7 w-7 text-[#006c49]" />
+            <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-[#0f172a] sm:text-3xl">
+              <Umbrella className="h-7 w-7 text-[#4f46e5]" />
               Time Off
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#3c4a42]">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#475569]">
               Review balances, plan around public holidays, and submit day-based leave or hourly permission requests with manager approval and payroll impact.
             </p>
           </div>
@@ -409,31 +409,31 @@ export function EmployeeTimeOff() {
         </div>
 
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-[#bbcabf] bg-white p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">Available balance</p>
-            <p className="mt-2 text-2xl font-semibold text-[#0b1c30]">{totalRemaining}</p>
-            <p className="mt-1 text-sm text-[#3c4a42]">Across active balances</p>
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Available balance</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{totalRemaining}</p>
+            <p className="mt-1 text-sm text-[#475569]">Across active balances</p>
           </div>
-          <div className="rounded-lg border border-[#bbcabf] bg-white p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">Pending approval</p>
-            <p className="mt-2 text-2xl font-semibold text-[#0b1c30]">{pendingRequests}</p>
-            <p className="mt-1 text-sm text-[#3c4a42]">Requests waiting for review</p>
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Pending approval</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{pendingRequests}</p>
+            <p className="mt-1 text-sm text-[#475569]">Requests waiting for review</p>
           </div>
-          <div className="rounded-lg border border-[#bbcabf] bg-white p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">Approved</p>
-            <p className="mt-2 text-2xl font-semibold text-[#0b1c30]">{approvedRequests}</p>
-            <p className="mt-1 text-sm text-[#3c4a42]">Confirmed requests in history</p>
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Approved</p>
+            <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{approvedRequests}</p>
+            <p className="mt-1 text-sm text-[#475569]">Confirmed requests in history</p>
           </div>
-          <div className="rounded-lg border border-[#bbcabf] bg-white p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#6c7a71]">Next holiday</p>
-            <p className="mt-2 truncate text-lg font-semibold text-[#0b1c30]">{upcomingHolidays[0]?.name ?? 'None configured'}</p>
-            <p className="mt-1 text-sm text-[#3c4a42]">{upcomingHolidays[0] ? formatDate(upcomingHolidays[0].date) : 'Setup controls holiday calendars'}</p>
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Next holiday</p>
+            <p className="mt-2 truncate text-lg font-semibold text-[#0f172a]">{upcomingHolidays[0]?.name ?? 'None configured'}</p>
+            <p className="mt-1 text-sm text-[#475569]">{upcomingHolidays[0] ? formatDate(upcomingHolidays[0].date) : 'Setup controls holiday calendars'}</p>
           </div>
         </div>
       </section>
 
       {serviceErrors.length > 0 ? (
-        <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/5 p-4 text-sm text-[#93000a]">
+        <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-4 text-sm text-[#9f1239]">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
@@ -443,7 +443,7 @@ export function EmployeeTimeOff() {
           </div>
         </div>
       ) : isReady ? (
-        <div className="rounded-lg border border-[#10b981]/30 bg-[#10b981]/10 p-3 text-sm text-[#006c49]">
+        <div className="rounded-lg border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 p-3 text-sm text-[#4f46e5]">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
             Balances, policy rules, holidays, and request history are connected.
@@ -462,22 +462,22 @@ export function EmployeeTimeOff() {
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[#0b1c30]">{balance.label ?? balance.type}</p>
-                      <p className="mt-1 font-mono text-xs uppercase tracking-wider text-[#6c7a71]">{balance.type}</p>
+                      <p className="truncate text-sm font-semibold text-[#0f172a]">{balance.label ?? balance.type}</p>
+                      <p className="mt-1 font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{balance.type}</p>
                     </div>
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
                       <CalendarDays className="h-5 w-5" />
                     </div>
                   </div>
                   <div className="mt-5 flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-3xl font-semibold text-[#0b1c30]">{balance.remaining}</p>
-                      <p className="text-sm text-[#3c4a42]">{unitLabel(balance.unit, balance.remaining)} available</p>
+                      <p className="text-3xl font-semibold text-[#0f172a]">{balance.remaining}</p>
+                      <p className="text-sm text-[#475569]">{unitLabel(balance.unit, balance.remaining)} available</p>
                     </div>
-                    <p className="text-right text-sm text-[#3c4a42]">{balance.used} used<br />{balance.total} total</p>
+                    <p className="text-right text-sm text-[#475569]">{balance.used} used<br />{balance.total} total</p>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#dce9ff]">
-                    <div className="h-full rounded-full bg-[#006c49]" style={{ width: `${percent}%` }} />
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#e0e7ff]">
+                    <div className="h-full rounded-full bg-[#4f46e5]" style={{ width: `${percent}%` }} />
                   </div>
                 </CardContent>
               </Card>
@@ -486,8 +486,8 @@ export function EmployeeTimeOff() {
         ) : (
           <Card className="sm:col-span-2 xl:col-span-4">
             <CardContent className="p-5">
-              <p className="font-semibold text-[#0b1c30]">No leave balances found</p>
-              <p className="mt-1 text-sm text-[#3c4a42]">Requestable policies can still be submitted. Balance deductions will appear after balances are configured.</p>
+              <p className="font-semibold text-[#0f172a]">No leave balances found</p>
+              <p className="mt-1 text-sm text-[#475569]">Requestable policies can still be submitted. Balance deductions will appear after balances are configured.</p>
             </CardContent>
           </Card>
         )}
@@ -495,20 +495,20 @@ export function EmployeeTimeOff() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Card className="overflow-hidden">
-          <CardHeader className="border-b border-[#bbcabf]/70 bg-white p-5">
+          <CardHeader className="border-b border-[#e2e8f0]/70 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-xl">Request History</CardTitle>
                 <CardDescription>Approved leave feeds attendance ledgers and payroll readiness.</CardDescription>
               </div>
-              <Badge variant="outline" className="w-fit border-[#bbcabf] bg-[#eff4ff] text-[#3c4a42]">
+              <Badge variant="outline" className="w-fit border-[#e2e8f0] bg-[#eef2ff] text-[#475569]">
                 {(requests ?? []).length} records
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-5">
             {requestsError ? (
-              <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/5 p-4 text-sm text-[#93000a]">
+              <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-4 text-sm text-[#9f1239]">
                 Could not load leave requests: {errorMessage(requestsError)}
               </div>
             ) : (
@@ -528,7 +528,7 @@ export function EmployeeTimeOff() {
                   ) : requests && requests.length > 0 ? (
                     requests.map((request) => <RequestCard key={request.id} request={request} />)
                   ) : (
-                    <div className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-4 text-sm text-[#3c4a42]">
+                    <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4 text-sm text-[#475569]">
                       No leave requests yet. Submitted requests will appear here with policy, balance, and payroll impact.
                     </div>
                   )}
@@ -546,12 +546,12 @@ export function EmployeeTimeOff() {
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0">
               {(leavePolicyResponse?.policies ?? []).slice(0, 4).map((policy) => (
-                <div key={policy.code} className="rounded-lg border border-[#bbcabf] p-3 text-sm">
+                <div key={policy.code} className="rounded-lg border border-[#e2e8f0] p-3 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#0b1c30]">{policy.label}</p>
+                    <p className="font-semibold text-[#0f172a]">{policy.label}</p>
                     <Badge variant="outline" className="shrink-0">{policy.unit}</Badge>
                   </div>
-                  <p className="mt-1 text-[#3c4a42]">{formatEnum(policy.approvalWorkflow)} approval</p>
+                  <p className="mt-1 text-[#475569]">{formatEnum(policy.approvalWorkflow)} approval</p>
                 </div>
               ))}
               {policiesLoading ? <Skeleton className="h-20 rounded-lg" /> : null}
@@ -565,15 +565,15 @@ export function EmployeeTimeOff() {
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0">
               {upcomingHolidays.length > 0 ? upcomingHolidays.map((holiday) => (
-                <div key={`${holiday.date}-${holiday.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-[#bbcabf] px-3 py-2 text-sm">
+                <div key={`${holiday.date}-${holiday.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-[#0b1c30]">{holiday.name}</p>
-                    <p className="text-xs text-[#6c7a71]">{formatDate(holiday.date)}</p>
+                    <p className="truncate font-semibold text-[#0f172a]">{holiday.name}</p>
+                    <p className="text-xs text-[#94a3b8]">{formatDate(holiday.date)}</p>
                   </div>
                   <Badge variant="outline" className="shrink-0">{holiday.countryCode ?? 'Global'}</Badge>
                 </div>
               )) : (
-                <p className="text-sm text-[#3c4a42]">No upcoming holidays configured.</p>
+                <p className="text-sm text-[#475569]">No upcoming holidays configured.</p>
               )}
             </CardContent>
           </Card>
@@ -581,10 +581,10 @@ export function EmployeeTimeOff() {
       </section>
 
       <Dialog open={showForm} onOpenChange={handleDialogChange}>
-        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-xl border-[#bbcabf] bg-white p-0">
-          <DialogHeader className="border-b border-[#bbcabf]/70 bg-[#f8f9ff] px-6 py-5 text-left">
-            <DialogTitle className="flex items-center gap-2 text-xl text-[#0b1c30]">
-              <FileText className="h-5 w-5 text-[#006c49]" />
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-xl border-[#e2e8f0] bg-white p-0">
+          <DialogHeader className="border-b border-[#e2e8f0]/70 bg-[#f6f7fb] px-6 py-5 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl text-[#0f172a]">
+              <FileText className="h-5 w-5 text-[#4f46e5]" />
               Submit Leave Request
             </DialogTitle>
             <DialogDescription>
@@ -598,7 +598,7 @@ export function EmployeeTimeOff() {
                 <Label htmlFor="type">Leave Type</Label>
                 <select
                   id="type"
-                  className="flex h-10 w-full rounded-lg border border-transparent bg-[#f1f5f9] px-3 py-2 text-sm text-[#0b1c30] focus:border-[#006c49] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#006c49]/20"
+                  className="flex h-10 w-full rounded-lg border border-transparent bg-[#f1f5f9] px-3 py-2 text-sm text-[#0f172a] focus:border-[#4f46e5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/20"
                   value={formData.type}
                   onChange={(e) => handlePolicyChange(e.target.value)}
                   required
@@ -673,9 +673,9 @@ export function EmployeeTimeOff() {
                   onInput={(e) => updateFormField('reason', e.currentTarget.value)}
                 />
               </div>
-              <div className="rounded-lg border border-[#bbcabf] bg-[#f8f9ff] p-3 text-sm">
-                <p className="font-semibold text-[#0b1c30]">Policy result</p>
-                <p className="mt-1 text-[#3c4a42]">
+              <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-sm">
+                <p className="font-semibold text-[#0f172a]">Policy result</p>
+                <p className="mt-1 text-[#475569]">
                   {selectedPolicy
                     ? `${estimatedDuration ?? '-'} ${unitLabel(selectedPolicy.unit, estimatedDuration)} - ${formatEnum(selectedPolicy.payrollImpact)}`
                     : 'Select a policy'}
@@ -685,44 +685,44 @@ export function EmployeeTimeOff() {
 
             {selectedPolicy ? (
               <div className="grid gap-3 lg:grid-cols-3">
-                <div className="rounded-lg border border-[#bbcabf] p-4 text-sm">
-                  <p className="flex items-center gap-2 font-semibold text-[#0b1c30]">
-                    <ShieldCheck className="h-4 w-4 text-[#006c49]" />
+                <div className="rounded-lg border border-[#e2e8f0] p-4 text-sm">
+                  <p className="flex items-center gap-2 font-semibold text-[#0f172a]">
+                    <ShieldCheck className="h-4 w-4 text-[#4f46e5]" />
                     Validation
                   </p>
-                  <ul className="mt-3 space-y-1 text-[#3c4a42]">
+                  <ul className="mt-3 space-y-1 text-[#475569]">
                     {policyDetails.map((detail) => <li key={detail}>{detail}</li>)}
                   </ul>
                 </div>
-                <div className="rounded-lg border border-[#bbcabf] p-4 text-sm">
-                  <p className="font-semibold text-[#0b1c30]">Balance Impact</p>
+                <div className="rounded-lg border border-[#e2e8f0] p-4 text-sm">
+                  <p className="font-semibold text-[#0f172a]">Balance Impact</p>
                   {selectedPolicy.deductFromBalance ? (
                     balanceImpact ? (
-                      <div className="mt-3 space-y-1 text-[#3c4a42]">
+                      <div className="mt-3 space-y-1 text-[#475569]">
                         <p>Current: {balanceImpact.before} {unitLabel(selectedPolicy.unit, balanceImpact.before)}</p>
                         <p>Requested: {balanceImpact.requested} {unitLabel(selectedPolicy.unit, balanceImpact.requested)}</p>
-                        <p className={cn(balanceImpact.over && 'font-semibold text-[#ba1a1a]')}>
+                        <p className={cn(balanceImpact.over && 'font-semibold text-[#e11d48]')}>
                           After approval: {balanceImpact.after} {unitLabel(selectedPolicy.unit, balanceImpact.after)}
                         </p>
-                        {balanceImpact.over ? <p className="text-[#ba1a1a]">This request exceeds your available balance and cannot be submitted.</p> : null}
+                        {balanceImpact.over ? <p className="text-[#e11d48]">This request exceeds your available balance and cannot be submitted.</p> : null}
                       </div>
                     ) : (
-                      <p className="mt-3 text-[#3c4a42]">Select dates to preview balance deduction.</p>
+                      <p className="mt-3 text-[#475569]">Select dates to preview balance deduction.</p>
                     )
                   ) : (
-                    <p className="mt-3 text-[#3c4a42]">This policy does not deduct from leave balance.</p>
+                    <p className="mt-3 text-[#475569]">This policy does not deduct from leave balance.</p>
                   )}
                 </div>
-                <div className="rounded-lg border border-[#bbcabf] p-4 text-sm">
-                  <p className="font-semibold text-[#0b1c30]">Payroll Impact</p>
-                  <p className="mt-3 text-[#3c4a42]">{formatEnum(selectedPolicy.payrollImpact)}</p>
-                  <p className="text-[#3c4a42]">{selectedPolicy.paid ? 'Paid absence' : 'Unpaid absence'}</p>
+                <div className="rounded-lg border border-[#e2e8f0] p-4 text-sm">
+                  <p className="font-semibold text-[#0f172a]">Payroll Impact</p>
+                  <p className="mt-3 text-[#475569]">{formatEnum(selectedPolicy.payrollImpact)}</p>
+                  <p className="text-[#475569]">{selectedPolicy.paid ? 'Paid absence' : 'Unpaid absence'}</p>
                 </div>
               </div>
             ) : null}
 
                 {formValidationMessages.length > 0 ? (
-                  <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/5 p-3 text-sm text-[#93000a]">
+                  <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#9f1239]">
                     <p className="font-semibold">This request needs adjustment before it can be submitted.</p>
                     <ul className="mt-2 list-disc space-y-1 pl-5">
                       {formValidationMessages.map((message) => <li key={message}>{message}</li>)}
@@ -731,13 +731,13 @@ export function EmployeeTimeOff() {
                 ) : null}
 
                 {createMutation.error ? (
-                  <div className="rounded-lg border border-[#ba1a1a]/30 bg-[#ba1a1a]/5 p-3 text-sm text-[#93000a]">
+                  <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#9f1239]">
                     <p className="font-semibold">Leave request was rejected by policy validation.</p>
                     <p className="mt-1">{errorMessage(createMutation.error)}</p>
                   </div>
                 ) : null}
 
-            <DialogFooter className="gap-2 border-t border-[#bbcabf]/70 pt-4">
+            <DialogFooter className="gap-2 border-t border-[#e2e8f0]/70 pt-4">
               <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
                 Cancel
               </Button>

@@ -315,13 +315,13 @@ export function EmployeePerformance() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-96px)] bg-[#e9eef5]">
+    <div className="min-h-[calc(100vh-96px)] bg-[#eef2ff]">
       <div className="mx-auto max-w-[1500px] space-y-5 px-4 py-5 lg:px-6">
         <section className="overflow-hidden rounded-md border bg-white shadow-sm">
           <div className="flex flex-col gap-4 border-b bg-[#f8fafc] p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14 border">
-                <AvatarFallback className="bg-[#0b76d1] text-white">
+                <AvatarFallback className="bg-[#4f46e5] text-white">
                   {(worker?.firstName?.[0] ?? user?.firstName?.[0] ?? 'E')}{(worker?.lastName?.[0] ?? user?.lastName?.[0] ?? 'P')}
                 </AvatarFallback>
               </Avatar>
@@ -348,19 +348,19 @@ export function EmployeePerformance() {
 
           <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-md border bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><Goal className="h-4 w-4 text-[#0b76d1]" /> Goal Progress</div>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><Goal className="h-4 w-4 text-[#4f46e5]" /> Goal Progress</div>
               <p className="mt-2 text-2xl font-semibold">{Math.round(actionPlan?.goals?.averageProgress ?? 0)}%</p>
             </div>
             <div className="rounded-md border bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><MessageSquare className="h-4 w-4 text-[#0b76d1]" /> Peer Feedback</div>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><MessageSquare className="h-4 w-4 text-[#4f46e5]" /> Peer Feedback</div>
               <p className="mt-2 text-2xl font-semibold">{actionPlan?.feedbackSummary?.responseCount ?? 0}</p>
             </div>
             <div className="rounded-md border bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><Target className="h-4 w-4 text-[#0b76d1]" /> Talent Box</div>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><Target className="h-4 w-4 text-[#4f46e5]" /> Talent Box</div>
               <p className="mt-2 text-lg font-semibold">{actionPlan?.nineBox?.box ?? 'Not scored'}</p>
             </div>
             <div className="rounded-md border bg-slate-50 p-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><ShieldCheck className="h-4 w-4 text-[#0b76d1]" /> Data Rule</div>
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700"><ShieldCheck className="h-4 w-4 text-[#4f46e5]" /> Data Rule</div>
               <p className="mt-2 text-sm text-slate-600">Anonymous reviewers stay masked in employee-facing results.</p>
             </div>
           </div>
@@ -373,7 +373,7 @@ export function EmployeePerformance() {
           <div className="space-y-5">
             <Card className="rounded-md">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-[#0b76d1]" /> Notifications</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-[#4f46e5]" /> Notifications</CardTitle>
                 <CardDescription>Review-cycle setup and peer-review tasks assigned to you.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -384,7 +384,7 @@ export function EmployeePerformance() {
                     onClick={() => markRead(notification)}
                     className={cn(
                       'w-full rounded-md border p-3 text-left text-sm transition-colors',
-                      notification.readAt ? 'bg-white' : 'border-[#0b76d1]/30 bg-blue-50',
+                      notification.readAt ? 'bg-white' : 'border-[#4f46e5]/30 bg-indigo-50',
                     )}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -399,7 +399,7 @@ export function EmployeePerformance() {
 
             <Card className="rounded-md">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Goal className="h-5 w-5 text-[#0b76d1]" /> Goals</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Goal className="h-5 w-5 text-[#4f46e5]" /> Goals</CardTitle>
                 <CardDescription>SMART goals tracked against measurable targets.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -412,7 +412,7 @@ export function EmployeePerformance() {
                         <Badge variant="outline">{goal.status}</Badge>
                       </div>
                       <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                        <div className="h-full rounded-full bg-[#0b76d1]" style={{ width: `${progress}%` }} />
+                        <div className="h-full rounded-full bg-[#4f46e5]" style={{ width: `${progress}%` }} />
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {Math.round(progress)}% complete {goal.metricName ? `- ${goal.metricName}` : ''}
@@ -433,13 +433,13 @@ export function EmployeePerformance() {
 
             <Card className="rounded-md">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-[#0b76d1]" /> Action Plan</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-[#4f46e5]" /> Action Plan</CardTitle>
                 <CardDescription>Generated from reviews, goals, feedback, and development-plan status.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {actionPlan?.actionPlan?.recommendedActions.map((item) => (
                   <div key={item} className="flex gap-2 rounded-md border bg-slate-50 p-3 text-sm">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#0b76d1]" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#4f46e5]" />
                     <span>{item}</span>
                   </div>
                 ))}
@@ -484,7 +484,7 @@ export function EmployeePerformance() {
 
           <Card className="rounded-md">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg"><ClipboardCheck className="h-5 w-5 text-[#0b76d1]" /> Peer Review</CardTitle>
+              <CardTitle className="flex items-center gap-2 text-lg"><ClipboardCheck className="h-5 w-5 text-[#4f46e5]" /> Peer Review</CardTitle>
               <CardDescription>Submit assigned peer feedback. Anonymous assignments remain anonymous to the employee receiving feedback.</CardDescription>
             </CardHeader>
             <CardContent>
@@ -554,7 +554,7 @@ export function EmployeePerformance() {
 
         <Card className="rounded-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="h-5 w-5 text-[#0b76d1]" /> Give 360 Feedback</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="h-5 w-5 text-[#4f46e5]" /> Give 360 Feedback</CardTitle>
             <CardDescription>Submit feedback only for people assigned to you by an active review workflow.</CardDescription>
           </CardHeader>
           <CardContent>

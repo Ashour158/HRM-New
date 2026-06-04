@@ -33,17 +33,17 @@ const categoryIcons: Record<CommercialModule['category'], React.ComponentType<{ 
 const maturityLabels: Record<CommercialModuleMaturity, { label: string; tone: string; description: string }> = {
   'native-ui': {
     label: 'Native UI',
-    tone: 'border-[#10b981]/30 bg-[#10b981]/10 text-[#006c49]',
+    tone: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
     description: 'Has a dedicated product page or employee/admin experience.',
   },
   workbench: {
     label: 'Workspace',
-    tone: 'border-[#4648d4]/30 bg-[#4648d4]/10 text-[#4648d4]',
+    tone: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
     description: 'Has a native operations workspace and shared module workbench.',
   },
   'api-ready': {
     label: 'API Ready',
-    tone: 'border-[#e29100]/30 bg-[#ffddb8]/65 text-[#653e00]',
+    tone: 'border-[#f59e0b]/30 bg-[#fde68a]/65 text-[#92400e]',
     description: 'Backend workflows exist and need a dedicated product UI.',
   },
 };
@@ -65,13 +65,13 @@ function moduleMatches(module: CommercialModule, search: string, category: strin
 
 function StatBlock({ label, value, icon: Icon }: { label: string; value: number | string; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="flex min-h-[88px] items-center gap-3 border-b border-[#bbcabf]/50 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+    <div className="flex min-h-[88px] items-center gap-3 border-b border-[#e2e8f0]/50 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
         <Icon className="h-5 w-5" />
       </div>
       <div>
         <p className="lumina-label">{label}</p>
-        <p className="mt-1 font-headline text-2xl font-bold text-[#0b1c30]">{value}</p>
+        <p className="mt-1 font-headline text-2xl font-bold text-[#0f172a]">{value}</p>
       </div>
     </div>
   );
@@ -82,11 +82,11 @@ function ModuleCard({ module }: { module: CommercialModule }) {
   const maturity = maturityLabels[module.maturity];
 
   return (
-    <Card className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-[#10b981]/60 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
+    <Card className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-[#8b5cf6]/60 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
       <div className="lumina-accent-strip" />
       <CardHeader className="space-y-4 p-5">
         <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#006c49] text-white">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#4f46e5] text-white">
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -96,23 +96,23 @@ function ModuleCard({ module }: { module: CommercialModule }) {
                 {maturity.label}
               </Badge>
             </div>
-            <p className="mt-1 text-xs font-semibold text-[#006c49]">{module.category} / {module.backendRoot}</p>
+            <p className="mt-1 text-xs font-semibold text-[#4f46e5]">{module.category} / {module.backendRoot}</p>
           </div>
         </div>
-        <p className="min-h-[4.5rem] text-sm leading-6 text-[#3c4a42]">{module.summary}</p>
+        <p className="min-h-[4.5rem] text-sm leading-6 text-[#475569]">{module.summary}</p>
       </CardHeader>
       <CardContent className="space-y-4 p-5 pt-0">
         <div className="space-y-2">
           <p className="lumina-label">Built capabilities</p>
           <div className="flex flex-wrap gap-2">
             {module.builtCapabilities.slice(0, 4).map((capability) => (
-              <span key={capability} className="rounded-md border border-[#bbcabf]/70 bg-[#eff4ff] px-2 py-1 text-xs font-medium text-[#3c4a42]">
+              <span key={capability} className="rounded-md border border-[#e2e8f0]/70 bg-[#eef2ff] px-2 py-1 text-xs font-medium text-[#475569]">
                 {capability}
               </span>
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-[#bbcabf]/40 pt-4">
+        <div className="flex flex-wrap items-center gap-2 border-t border-[#e2e8f0]/40 pt-4">
           <Button asChild size="sm">
               <Link to={`/admin/modules/${module.id}`}>Open Workbench</Link>
             </Button>
@@ -141,18 +141,18 @@ export function AdminModuleCatalog() {
   const apiReadyCount = commercialModules.filter((module) => module.maturity === 'api-ready').length;
 
   return (
-    <div className="min-h-full bg-[#f8f9ff]">
+    <div className="min-h-full bg-[#f6f7fb]">
       <div className="lumina-canvas space-y-6">
         <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#bbcabf] bg-[#006c49] p-6 text-white lg:grid-cols-[1fr_auto]">
+          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
-              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6ffbbe]">Commercialization Command Center</p>
+              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">Commercialization Command Center</p>
               <h2 className="mt-2 font-headline text-3xl font-bold">All Built HR Modules</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
                 Every backend HR domain is now exposed in the product UI with clear module status, real data objects, personas, workflows, and a workbench path for API-ready areas.
               </p>
             </div>
-            <Button asChild className="w-fit self-end bg-white text-[#006c49] hover:bg-[#eff4ff]">
+            <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
               <Link to="/admin/system-console/settings">
                 <Gauge className="mr-2 h-4 w-4" />
                 Admin Setup
@@ -160,9 +160,9 @@ export function AdminModuleCatalog() {
             </Button>
           </div>
 
-          <div className="grid gap-4 border-b border-[#bbcabf]/60 bg-white p-4 lg:grid-cols-[1fr_auto]">
+          <div className="grid gap-4 border-b border-[#e2e8f0]/60 bg-white p-4 lg:grid-cols-[1fr_auto]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6c7a71]" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -203,7 +203,7 @@ export function AdminModuleCatalog() {
         </section>
 
         {filteredModules.length === 0 ? (
-          <div className="lumina-panel p-8 text-center text-sm text-[#3c4a42]">
+          <div className="lumina-panel p-8 text-center text-sm text-[#475569]">
             No modules match this search.
           </div>
         ) : null}

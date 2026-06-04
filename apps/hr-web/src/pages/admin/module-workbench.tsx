@@ -19,9 +19,9 @@ import { cn } from '@/lib/utils';
 import { findCommercialModule, type CommercialModuleMaturity } from '@/lib/commercial-modules';
 
 const maturityTone: Record<CommercialModuleMaturity, string> = {
-  'native-ui': 'border-[#10b981]/30 bg-[#10b981]/10 text-[#006c49]',
-  workbench: 'border-[#4648d4]/30 bg-[#4648d4]/10 text-[#4648d4]',
-  'api-ready': 'border-[#e29100]/30 bg-[#ffddb8]/65 text-[#653e00]',
+  'native-ui': 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
+  workbench: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
+  'api-ready': 'border-[#f59e0b]/30 bg-[#fde68a]/65 text-[#92400e]',
 };
 
 const maturityLabel: Record<CommercialModuleMaturity, string> = {
@@ -43,7 +43,7 @@ function InsightCard({
     <Card className="relative overflow-hidden">
       <div className="lumina-accent-strip" />
       <CardHeader className="flex-row items-center gap-3 space-y-0 p-5">
-        <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+        <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
           <Icon className="h-5 w-5" />
         </div>
         <CardTitle className="text-lg">{title}</CardTitle>
@@ -55,10 +55,10 @@ function InsightCard({
 
 function BulletList({ items }: { items: string[] }) {
   return (
-    <ul className="space-y-2 text-sm leading-6 text-[#3c4a42]">
+    <ul className="space-y-2 text-sm leading-6 text-[#475569]">
       {items.map((item) => (
         <li key={item} className="flex gap-2">
-          <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#006c49]" />
+          <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#4f46e5]" />
           <span>{item}</span>
         </li>
       ))}
@@ -75,7 +75,7 @@ export function AdminModuleWorkbench() {
   }
 
   return (
-    <div className="min-h-full bg-[#f8f9ff]">
+    <div className="min-h-full bg-[#f6f7fb]">
       <div className="lumina-canvas space-y-5">
         <Button asChild variant="ghost" size="sm" className="w-fit">
           <Link to="/admin/modules">
@@ -85,20 +85,20 @@ export function AdminModuleWorkbench() {
         </Button>
 
         <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#bbcabf] bg-[#006c49] p-6 text-white lg:grid-cols-[1fr_auto]">
+          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className={cn('rounded-full border bg-white px-2 py-1 font-mono text-xs uppercase tracking-wider', maturityTone[module.maturity])}>
                   {maturityLabel[module.maturity]}
                 </Badge>
-                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6ffbbe]">{module.category}</span>
+                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">{module.category}</span>
               </div>
               <h2 className="mt-3 font-headline text-3xl font-bold">{module.label}</h2>
               <p className="mt-2 max-w-4xl text-sm leading-6 text-white/85">{module.summary}</p>
             </div>
             <div className="flex flex-wrap items-end gap-2 lg:justify-end">
               {module.nativePath ? (
-                <Button asChild className="bg-white text-[#006c49] hover:bg-[#eff4ff]">
+                <Button asChild className="bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
                   <Link to={module.nativePath}>
                     <ExternalLink className="mr-2 h-4 w-4" />
                     Open Operations Workspace
@@ -112,17 +112,17 @@ export function AdminModuleWorkbench() {
           </div>
 
           <div className="grid gap-4 bg-white p-5 md:grid-cols-3">
-            <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+            <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
               <p className="lumina-label">Backend Route</p>
-              <p className="mt-2 font-mono text-sm font-semibold text-[#0b1c30]">{module.backendRoot}</p>
+              <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">{module.backendRoot}</p>
             </div>
-            <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+            <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
               <p className="lumina-label">Personas</p>
-              <p className="mt-2 text-sm font-semibold text-[#0b1c30]">{module.personas.join(', ')}</p>
+              <p className="mt-2 text-sm font-semibold text-[#0f172a]">{module.personas.join(', ')}</p>
             </div>
-            <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-4">
+            <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
               <p className="lumina-label">UI Exposure</p>
-              <p className="mt-2 text-sm font-semibold text-[#0b1c30]">{maturityLabel[module.maturity]}</p>
+              <p className="mt-2 text-sm font-semibold text-[#0f172a]">{maturityLabel[module.maturity]}</p>
             </div>
           </div>
         </section>
@@ -139,7 +139,7 @@ export function AdminModuleWorkbench() {
           <InsightCard title="Data Users Can Trust" icon={Database}>
             <div className="flex flex-wrap gap-2">
               {module.dataObjects.map((item) => (
-                <span key={item} className="rounded-md border border-[#bbcabf]/70 bg-[#eff4ff] px-2 py-1 text-xs font-medium text-[#3c4a42]">
+                <span key={item} className="rounded-md border border-[#e2e8f0]/70 bg-[#eef2ff] px-2 py-1 text-xs font-medium text-[#475569]">
                   {item}
                 </span>
               ))}
@@ -153,10 +153,10 @@ export function AdminModuleWorkbench() {
 
         <section className="grid gap-4 xl:grid-cols-[1fr_24rem]">
           <Card className="relative overflow-hidden">
-            <div className="lumina-accent-strip bg-[#4648d4]" />
+            <div className="lumina-accent-strip bg-[#6366f1]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Sparkles className="h-5 w-5 text-[#4648d4]" />
+                <Sparkles className="h-5 w-5 text-[#6366f1]" />
                 Next Commercial UI Work
               </CardTitle>
             </CardHeader>
@@ -166,14 +166,14 @@ export function AdminModuleWorkbench() {
           </Card>
 
           <Card className="relative overflow-hidden">
-            <div className="lumina-accent-strip bg-[#e29100]" />
+            <div className="lumina-accent-strip bg-[#f59e0b]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <Route className="h-5 w-5 text-[#e29100]" />
+                <Route className="h-5 w-5 text-[#f59e0b]" />
                 Route Contract
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3 p-5 pt-0 text-sm leading-6 text-[#3c4a42]">
+            <CardContent className="space-y-3 p-5 pt-0 text-sm leading-6 text-[#475569]">
               <p>This workbench is the UI landing zone for backend capabilities that do not yet have a full product page.</p>
               <p>Dedicated pages should keep this route visible as the governance, workflow, and data dictionary layer.</p>
               <Button asChild variant="outline" className="w-full">

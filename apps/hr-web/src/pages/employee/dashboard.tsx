@@ -551,18 +551,18 @@ export function EmployeeDashboard() {
   );
 
   return (
-    <div className="min-h-[calc(100vh-96px)] bg-[#e9eef5]">
-      <div className="relative h-[140px] overflow-hidden bg-[#0f2f26]">
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(7,44,35,0.98),rgba(10,83,59,0.76)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
+    <div className="min-h-[calc(100vh-96px)] bg-[#eef2ff]">
+      <div className="relative h-[140px] overflow-hidden bg-[#1e1b4b]">
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,27,75,0.95),rgba(49,46,129,0.7)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
       </div>
 
       <div className="relative mx-auto grid max-w-[1740px] gap-3 px-4 pb-8 md:grid-cols-[280px_minmax(0,1fr)] lg:px-5">
         <aside className="-mt-8 space-y-3">
-          <section className="rounded-md border border-[#ced8e4] bg-white p-5 shadow-sm">
+          <section className="rounded-md border border-[#e2e8f0] bg-white p-5 shadow-sm">
             <div className="flex flex-col items-center text-center">
               <Avatar className="h-[100px] w-[100px] rounded-xl border-2 border-white shadow-md">
                 <AvatarImage src={activeWorker?.photoUrl} alt={activeWorkerName} />
-                <AvatarFallback className="rounded-xl bg-[#d8e7ff] text-2xl font-bold text-[#17346c]">
+                <AvatarFallback className="rounded-xl bg-[#e0e7ff] text-2xl font-bold text-[#1e1b4b]">
                   {activeWorkerName.split(' ').map((part) => part.charAt(0)).slice(0, 2).join('')}
                 </AvatarFallback>
               </Avatar>
@@ -608,7 +608,7 @@ export function EmployeeDashboard() {
             </div>
           </section>
 
-          <section className="rounded-md border border-[#ced8e4] bg-white p-5 shadow-sm">
+          <section className="rounded-md border border-[#e2e8f0] bg-white p-5 shadow-sm">
             <h2 className="text-base font-semibold">My Shortcuts</h2>
             <div className="mt-3 space-y-2">
               {[
@@ -620,7 +620,7 @@ export function EmployeeDashboard() {
                 <Link
                   key={shortcut.path}
                   to={shortcut.path}
-                  className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-[#0b8cff]/50 hover:bg-sky-50 hover:text-slate-950"
+                  className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-[#6366f1]/50 hover:bg-indigo-50 hover:text-slate-950"
                 >
                   {shortcut.label}
                   <ArrowRight className="h-4 w-4 text-slate-400" />
@@ -631,7 +631,7 @@ export function EmployeeDashboard() {
         </aside>
 
         <section className="-mt-8 min-w-0">
-          <div className="rounded-md border border-[#ced8e4] bg-white shadow-sm">
+          <div className="rounded-md border border-[#e2e8f0] bg-white shadow-sm">
             <div className="flex h-[60px] items-center gap-4 overflow-x-auto border-b px-5">
               {activityTabs.map((tab) => {
                 const [path, hash] = tab.path.split('#');
@@ -642,22 +642,22 @@ export function EmployeeDashboard() {
                     to={tab.path}
                     className={cn(
                       'relative flex h-full shrink-0 items-center border-b-2 px-1 text-sm font-medium',
-                      isActive ? 'border-[#0b8cff] text-slate-950' : 'border-transparent text-slate-700 hover:text-slate-950',
+                      isActive ? 'border-[#6366f1] text-slate-950' : 'border-transparent text-slate-700 hover:text-slate-950',
                     )}
                   >
                     {tab.label}
                     {tab.label === 'Leave' && pendingAbsences.length > 0 ? (
-                      <span className="absolute right-[-12px] top-3 rounded-md bg-[#0b8cff] px-1.5 text-[10px] font-bold text-white">{pendingAbsences.length}</span>
+                      <span className="absolute right-[-12px] top-3 rounded-md bg-[#6366f1] px-1.5 text-[10px] font-bold text-white">{pendingAbsences.length}</span>
                     ) : null}
                   </Link>
                 );
               })}
             </div>
 
-            <div className="bg-[#f7f9fc] p-5">
+            <div className="bg-[#f6f7fb] p-5">
               <div className="space-y-3">
-                <div className="flex items-center gap-4 rounded-md border border-[#d5e7f3] bg-[#effaff] p-4">
-                  <div className="grid h-[62px] w-[100px] place-items-center rounded border bg-white text-lg font-bold text-[#0b60c8]">HCM</div>
+                <div className="flex items-center gap-4 rounded-md border border-[#e0e7ff] bg-[#eef2ff] p-4">
+                  <div className="grid h-[62px] w-[100px] place-items-center rounded border bg-white text-lg font-bold text-[#4338ca]">HCM</div>
                   <div>
                     <p className="font-semibold">Good Afternoon&nbsp; {activeWorkerName}</p>
                     <p className="text-sm text-slate-600">Your self-service actions use the same HCM data HR administers.</p>
@@ -665,7 +665,7 @@ export function EmployeeDashboard() {
                   <Sun className="ml-auto h-14 w-14 text-amber-300" />
                 </div>
 
-                <div className="rounded-md border border-[#d7e1ec] bg-white p-5">
+                <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
                   <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                     <div>
                       <Badge variant="secondary" className="mb-2">Employee Self-Service</Badge>
@@ -674,19 +674,19 @@ export function EmployeeDashboard() {
                         The same modules appear here as employee actions: workforce, payroll and reward, people, and talent.
                       </p>
                     </div>
-                    <Link className="text-sm font-medium text-[#0b8cff]" to="/employee/time-off">Start a leave request</Link>
+                    <Link className="text-sm font-medium text-[#6366f1]" to="/employee/time-off">Start a leave request</Link>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                     {selfServiceModules.map((module) => {
                       const Icon = module.icon;
                       return (
                         <Link key={module.path} to={module.path} className="group">
-                          <div className="flex h-full min-h-[136px] flex-col rounded-md border border-slate-200 bg-[#f8fbff] p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#0b8cff]/50 group-hover:bg-white">
+                          <div className="flex h-full min-h-[136px] flex-col rounded-md border border-slate-200 bg-[#f6f7fb] p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#6366f1]/50 group-hover:bg-white">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="grid h-10 w-10 place-items-center rounded-md bg-white text-[#0b60c8] shadow-sm">
+                              <div className="grid h-10 w-10 place-items-center rounded-md bg-white text-[#4338ca] shadow-sm">
                                 <Icon className="h-5 w-5" />
                               </div>
-                              <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#0b60c8]" />
+                              <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#4338ca]" />
                             </div>
                             <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{module.group}</p>
                             <h3 className="mt-1 text-sm font-semibold text-slate-950">{module.label}</h3>
@@ -708,10 +708,10 @@ export function EmployeeDashboard() {
                       rightSubtitle={`${setup.attendancePolicy.standardStartTime ?? setup.attendancePolicy.flexibleWindowStart ?? '09:00'} - ${setup.attendancePolicy.standardEndTime ?? setup.attendancePolicy.coreEndTime ?? '17:00'}`}
                     />
 
-                    <div id="attendance" className="rounded-md border border-[#d7e1ec] bg-white p-5">
+                    <div id="attendance" className="rounded-md border border-[#e2e8f0] bg-white p-5">
                       <div className="flex items-start gap-4">
-                        <div className="grid h-11 w-11 place-items-center rounded-md bg-sky-50">
-                          <CalendarDays className="h-5 w-5 text-sky-500" />
+                        <div className="grid h-11 w-11 place-items-center rounded-md bg-indigo-50">
+                          <CalendarDays className="h-5 w-5 text-indigo-500" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -723,7 +723,7 @@ export function EmployeeDashboard() {
                           </div>
 
                           <div className="mt-5">
-                            <div className="ml-1 h-10 rounded bg-[#fff86b] px-3 py-1 text-xs">
+                            <div className="ml-1 h-10 rounded bg-[#fde68a] px-3 py-1 text-xs">
                               <p className="font-medium">Daily Shift</p>
                               <p>{setup.attendancePolicy.standardDailyMinutes / 60} working hours</p>
                             </div>
@@ -732,9 +732,9 @@ export function EmployeeDashboard() {
                                 const isToday = date.toDateString() === today.toDateString();
                                 return (
                                   <div key={date.toISOString()} className="relative min-w-0 px-1 pt-3 text-xs">
-                                    <span className={cn('absolute -top-1 left-0 h-2 w-2 rounded-full bg-slate-300', isToday && 'bg-[#0b8cff]')} />
+                                    <span className={cn('absolute -top-1 left-0 h-2 w-2 rounded-full bg-slate-300', isToday && 'bg-[#6366f1]')} />
                                     <p className="truncate text-slate-800">{formatDate(date)}</p>
-                                    <p className={cn('mt-2 truncate', isToday ? 'font-semibold text-[#0b8cff]' : 'text-slate-500')}>
+                                    <p className={cn('mt-2 truncate', isToday ? 'font-semibold text-[#6366f1]' : 'text-slate-500')}>
                                       {isToday ? 'Today' : date.getDay() === 5 || date.getDay() === 6 ? 'Weekend' : 'Scheduled'}
                                     </p>
                                   </div>
@@ -746,7 +746,7 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#d7e1ec] bg-white p-5">
+                    <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
                       <div className="flex items-start gap-4">
                         <div className="grid h-11 w-11 place-items-center rounded-md bg-emerald-50">
                           <MapPin className="h-5 w-5 text-emerald-600" />
@@ -805,10 +805,10 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#d7e1ec] bg-white p-5">
+                    <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
                       <div className="flex items-start gap-4">
-                        <div className="grid h-11 w-11 place-items-center rounded-md bg-blue-50">
-                          <Umbrella className="h-5 w-5 text-blue-500" />
+                        <div className="grid h-11 w-11 place-items-center rounded-md bg-indigo-50">
+                          <Umbrella className="h-5 w-5 text-indigo-500" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -816,17 +816,17 @@ export function EmployeeDashboard() {
                               <h3 className="font-semibold">Upcoming Holidays</h3>
                               <p className="text-sm text-slate-600">Calendar items from your employee workspace.</p>
                             </div>
-                            <Link className="text-sm font-medium text-[#0b8cff]" to="/employee/time-off">View all</Link>
+                            <Link className="text-sm font-medium text-[#6366f1]" to="/employee/time-off">View all</Link>
                           </div>
                           <div className="mt-4 grid gap-3 md:grid-cols-3">
                             {(data?.upcomingEvents ?? []).slice(0, 3).map((event) => (
-                              <div key={event.id} className="rounded border border-sky-200 px-3 py-2 text-sm">
+                              <div key={event.id} className="rounded border border-indigo-200 px-3 py-2 text-sm">
                                 <p className="font-medium">{event.title}</p>
                                 <p className="text-xs text-slate-500">{event.date} - {event.type}</p>
                               </div>
                             ))}
                             {!isLoading && (!data?.upcomingEvents || data.upcomingEvents.length === 0) ? (
-                              <div className="rounded border border-sky-200 px-3 py-2 text-sm">No holidays scheduled</div>
+                              <div className="rounded border border-indigo-200 px-3 py-2 text-sm">No holidays scheduled</div>
                             ) : null}
                           </div>
                         </div>
@@ -835,7 +835,7 @@ export function EmployeeDashboard() {
                   </div>
 
                   <aside className="space-y-3">
-                    <div className="rounded-md border border-[#d7e1ec] bg-white p-4">
+                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
                       <h3 className="font-semibold">Attendance Terminal</h3>
                       <p className="mt-1 text-sm text-slate-600">
                         Record your own attendance with workplace and location evidence.
@@ -856,27 +856,27 @@ export function EmployeeDashboard() {
                         <div className="grid grid-cols-2 gap-2">
                           {todayState?.canCheckIn && clockPendingDirection === null && !checkInMutation.isPending ? (
                             <a
-                              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#006c49] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(0,108,73,0.18)] transition-all duration-200 hover:bg-[#005236] active:scale-[0.98]"
+                              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(79,70,229,0.18)] transition-all duration-200 hover:bg-[#312e81] active:scale-[0.98]"
                               data-attendance-clock-action="in"
                               href={buildClockActionPath('in', workplaceCode)}
                             >
                               Check-in
                             </a>
                           ) : (
-                            <span className="inline-flex h-10 items-center justify-center rounded-lg bg-[#006c49] px-4 py-2 text-sm font-semibold text-white opacity-50">
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white opacity-50">
                               {clockPendingDirection === 'in' || checkInMutation.isPending ? 'Recording...' : 'Check-in'}
                             </span>
                           )}
                           {todayState?.canCheckOut && clockPendingDirection === null && !checkOutMutation.isPending ? (
                             <a
-                              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-all duration-200 hover:bg-[#eff4ff] hover:text-[#006c49] active:scale-[0.98]"
+                              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] transition-all duration-200 hover:bg-[#eef2ff] hover:text-[#4f46e5] active:scale-[0.98]"
                               data-attendance-clock-action="out"
                               href={buildClockActionPath('out', workplaceCode)}
                             >
                               Check-out
                             </a>
                           ) : (
-                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] opacity-50">
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] opacity-50">
                               {clockPendingDirection === 'out' || checkOutMutation.isPending ? 'Recording...' : 'Check-out'}
                             </span>
                           )}
@@ -886,7 +886,7 @@ export function EmployeeDashboard() {
                       {clockError ? <p className="mt-3 rounded bg-red-50 px-3 py-2 text-xs text-red-700">{clockError}</p> : null}
                     </div>
 
-                    <div className="rounded-md border border-[#d7e1ec] bg-white p-4">
+                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
                       <h3 className="font-semibold">On-duty Request</h3>
                       <p className="mt-1 text-sm text-slate-600">Route field work or missing workplace attendance to approval.</p>
                       <div className="mt-4 space-y-3">
@@ -897,9 +897,9 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#d7e1ec] bg-white p-4">
+                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
                       <div className="flex items-center gap-2">
-                        <FileClock className="h-4 w-4 text-[#0b8cff]" />
+                        <FileClock className="h-4 w-4 text-[#6366f1]" />
                         <h3 className="font-semibold">Attendance Correction</h3>
                       </div>
                       <p className="mt-1 text-sm text-slate-600">Request a missing or corrected punch with manager approval.</p>
@@ -941,7 +941,7 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#d7e1ec] bg-white p-4">
+                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
                       <h3 className="font-semibold">This Month</h3>
                       <div className="mt-4 grid gap-3 text-sm">
                         <EvidenceMetric label="Payable" value={formatMinutes(attendanceSummary?.summary.payableMinutes)} />
@@ -1058,11 +1058,11 @@ export function EmployeeAttendanceAction() {
   }, [action, actionLabel, activeWorker?.id, attempt, requiresGeolocation, workplaceCode, workerLoading]);
 
   return (
-    <div className="grid min-h-[calc(100vh-96px)] place-items-center bg-[#e9eef5] px-4 py-12">
-      <div className="w-full max-w-2xl rounded-md border border-[#ced8e4] bg-white p-6 shadow-sm">
+    <div className="grid min-h-[calc(100vh-96px)] place-items-center bg-[#eef2ff] px-4 py-12">
+      <div className="w-full max-w-2xl rounded-md border border-[#e2e8f0] bg-white p-6 shadow-sm">
         <div className="flex items-center gap-3">
-          <Clock3 className="h-5 w-5 text-[#006c49]" />
-          <h1 className="text-xl font-semibold text-[#0b1c30]">{actionLabel}</h1>
+          <Clock3 className="h-5 w-5 text-[#4f46e5]" />
+          <h1 className="text-xl font-semibold text-[#0f172a]">{actionLabel}</h1>
         </div>
         <p className="mt-3 text-sm text-slate-600">
           Attendance is recorded through the policy engine with timestamp, workplace, device, and geolocation evidence.
@@ -1118,7 +1118,7 @@ export function EmployeeAttendanceAction() {
             </Button>
           ) : null}
           <Link
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#bbcabf] bg-white px-4 py-2 text-sm font-semibold text-[#0b1c30] transition-colors hover:bg-[#eff4ff]"
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] transition-colors hover:bg-[#eef2ff]"
             to="/employee#attendance"
           >
             Back to attendance
@@ -1143,14 +1143,14 @@ function AttendanceLocationMap({
   if (!hasCoordinateEvidence(point)) return null;
 
   return (
-    <div className="overflow-hidden rounded-md border border-[#d7e1ec] bg-white">
+    <div className="overflow-hidden rounded-md border border-[#e2e8f0] bg-white">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
-          <h4 className="font-semibold text-[#0b1c30]">{title}</h4>
+          <h4 className="font-semibold text-[#0f172a]">{title}</h4>
           {subtitle ? <p className="mt-1 text-xs text-slate-600">{subtitle}</p> : null}
         </div>
         {searchUrl ? (
-          <a className="text-sm font-semibold text-[#006c49] underline" href={searchUrl} rel="noreferrer" target="_blank">
+          <a className="text-sm font-semibold text-[#4f46e5] underline" href={searchUrl} rel="noreferrer" target="_blank">
             Open in Google Maps
           </a>
         ) : null}
@@ -1166,7 +1166,7 @@ function AttendanceLocationMap({
       ) : (
         <div className="grid h-64 place-items-center bg-slate-50 px-5 text-center text-sm text-slate-600">
           <div>
-            <MapPin className="mx-auto mb-3 h-6 w-6 text-[#006c49]" />
+            <MapPin className="mx-auto mb-3 h-6 w-6 text-[#4f46e5]" />
             <p className="font-medium text-slate-800">Google Maps API key is not configured.</p>
             <p className="mt-1">Set VITE_GOOGLE_MAPS_API_KEY to render the embedded map.</p>
           </div>
@@ -1195,7 +1195,7 @@ function FeedRow({
   rightSubtitle?: string;
 }) {
   return (
-    <div className="rounded-md border border-[#d7e1ec] bg-white p-5">
+    <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
       <div className="flex items-center gap-4">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-orange-50">{icon}</div>
         <div className="min-w-0">

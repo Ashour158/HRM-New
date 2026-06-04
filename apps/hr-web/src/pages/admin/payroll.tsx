@@ -649,8 +649,8 @@ export function AdminPayroll() {
   ];
 
   return (
-    <div className="min-h-full bg-[#f8f9ff]">
-      <div className="border-b border-[#bbcabf] bg-[#006c49] px-6 py-5 text-white">
+    <div className="min-h-full bg-[#f6f7fb]">
+      <div className="border-b border-[#e2e8f0] bg-[#4f46e5] px-6 py-5 text-white">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="flex items-center gap-2 font-headline text-3xl font-bold">
@@ -660,7 +660,7 @@ export function AdminPayroll() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">Monthly payroll cycles fed by attendance, compensation, deductions, and tenant policies.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-white text-[#006c49] hover:bg-[#eff4ff]" onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
+          <Button className="bg-white text-[#4f46e5] hover:bg-[#eef2ff]" onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
             <CheckCircle2 className="mr-2 h-4 w-4" />
             {closeToPayMutation.isPending ? 'Closing...' : 'Close to Pay'}
           </Button>
@@ -680,13 +680,13 @@ export function AdminPayroll() {
       </div>
 
       <Tabs value={activePayrollTab} onValueChange={(value) => setActivePayrollTab(value as PayrollTab)}>
-        <div className="sticky top-0 z-10 border-b border-[#bbcabf] bg-white px-6 py-2">
+        <div className="sticky top-0 z-10 border-b border-[#e2e8f0] bg-white px-6 py-2">
           <TabsList className="h-auto flex-wrap justify-start bg-transparent p-0">
             {payrollTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-[#006c49] data-[state=active]:bg-transparent data-[state=active]:text-[#006c49] data-[state=active]:shadow-none"
+                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-[#4f46e5] data-[state=active]:bg-transparent data-[state=active]:text-[#4f46e5] data-[state=active]:shadow-none"
               >
                 {tab.label}
               </TabsTrigger>
@@ -696,7 +696,7 @@ export function AdminPayroll() {
       </Tabs>
 
       <main className="px-6 pb-6">
-      <section id="payroll-cycle" className={tabClass('cycle', 'grid gap-4 border-b border-[#bbcabf]/60 bg-white py-6 md:grid-cols-4')}>
+      <section id="payroll-cycle" className={tabClass('cycle', 'grid gap-4 border-b border-[#e2e8f0]/60 bg-white py-6 md:grid-cols-4')}>
         <div className="grid gap-2">
           <Label>Year</Label>
           <Input value={year} onChange={(event) => setYear(event.target.value)} />
@@ -753,7 +753,7 @@ export function AdminPayroll() {
         </div>
       </section>
 
-      <section className={tabClass('cycle', 'grid gap-4 border-b border-[#bbcabf]/60 bg-white py-6 md:grid-cols-5')}>
+      <section className={tabClass('cycle', 'grid gap-4 border-b border-[#e2e8f0]/60 bg-white py-6 md:grid-cols-5')}>
         <div>
           <p className="text-xs text-muted-foreground">Cycle</p>
           <p className="font-semibold">{preview?.name ?? 'Loading cycle'}</p>
@@ -954,7 +954,7 @@ export function AdminPayroll() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Net</p>
-                      <p className="font-semibold text-[#0b7cff]">{selectedPayrollRow.netSalary === null ? 'Masked' : formatCurrency(selectedPayrollRow.netSalary, selectedPayrollRow.currency)}</p>
+                      <p className="font-semibold text-[#6366f1]">{selectedPayrollRow.netSalary === null ? 'Masked' : formatCurrency(selectedPayrollRow.netSalary, selectedPayrollRow.currency)}</p>
                     </div>
                     <div className="md:col-span-4 xl:col-span-8">
                       {selectedPayrollRow.policyAssignmentWarnings?.length ? (

@@ -8,11 +8,11 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'lumina-gradient text-primary-foreground shadow-[0_4px_14px_rgba(0,108,73,0.18)] hover:shadow-[0_8px_22px_rgba(0,108,73,0.22)]',
+        default: 'lumina-gradient text-primary-foreground shadow-[0_4px_14px_rgba(79,70,229,0.18)] hover:shadow-[0_8px_22px_rgba(79,70,229,0.22)]',
         destructive: 'bg-destructive text-destructive-foreground hover:bg-destructive/90',
-        outline: 'border border-[#bbcabf] bg-white text-[#0b1c30] hover:bg-[#eff4ff] hover:text-[#006c49]',
-        secondary: 'bg-[#4648d4] text-white hover:bg-[#393bb7]',
-        ghost: 'text-[#3c4a42] hover:bg-[#eff4ff] hover:text-[#006c49]',
+        outline: 'border border-[#e2e8f0] bg-white text-[#0f172a] hover:bg-[#eef2ff] hover:text-[#4f46e5]',
+        secondary: 'bg-[#6366f1] text-white hover:bg-[#4338ca]',
+        ghost: 'text-[#475569] hover:bg-[#eef2ff] hover:text-[#4f46e5]',
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {

@@ -151,7 +151,7 @@ function statusTone(status: HrServiceCase['status']) {
   if (status === 'RESOLVED' || status === 'CLOSED') return 'border-emerald-200 bg-emerald-50 text-emerald-700';
   if (status === 'ESCALATED') return 'border-red-200 bg-red-50 text-red-700';
   if (status === 'PENDING_CUSTOMER') return 'border-amber-200 bg-amber-50 text-amber-700';
-  return 'border-sky-200 bg-sky-50 text-sky-700';
+  return 'border-indigo-200 bg-indigo-50 text-indigo-700';
 }
 
 function employeeVisibleModules() {
@@ -236,13 +236,13 @@ export function EmployeeServices() {
   const employeeNativeCount = modules.filter((module) => employeeModuleRoutes[module.id]).length;
 
   return (
-    <div className="min-h-[calc(100vh-96px)] bg-[#eef3f8] px-4 py-6 md:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-96px)] bg-[#eef2ff] px-4 py-6 md:px-6 lg:px-8">
       <div className="mx-auto max-w-[1480px] space-y-5">
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="rounded-lg border border-[#c9d5e3] bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-[#e2e8f0] bg-white p-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <Badge variant="secondary" className="mb-3 bg-[#dff7ed] text-[#006c49]">Employee Services</Badge>
+                <Badge variant="secondary" className="mb-3 bg-[#dff7ed] text-[#4f46e5]">Employee Services</Badge>
                 <h1 className="font-headline text-3xl font-semibold text-slate-950 md:text-4xl">Ask HR, track requests, and get support</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                   Open a service case for documents, payroll, benefits, profile corrections, onboarding access, or any HR support need.
@@ -265,10 +265,10 @@ export function EmployeeServices() {
             </div>
           </div>
 
-          <Card className="rounded-lg border-[#c9d5e3] bg-white shadow-sm">
+          <Card className="rounded-lg border-[#e2e8f0] bg-white shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
-                <LifeBuoy className="h-5 w-5 text-[#006c49]" />
+                <LifeBuoy className="h-5 w-5 text-[#4f46e5]" />
                 Service Health
               </CardTitle>
             </CardHeader>
@@ -286,10 +286,10 @@ export function EmployeeServices() {
           </Card>
         </section>
 
-        <section className="rounded-lg border border-[#c9d5e3] bg-white shadow-sm">
-          <div className="grid gap-4 border-b border-[#d7e1ec] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="grid gap-4 border-b border-[#e2e8f0] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>
-              <Badge variant="secondary" className="mb-3 bg-[#eff4ff] text-[#006c49]">Built Module Coverage</Badge>
+              <Badge variant="secondary" className="mb-3 bg-[#eef2ff] text-[#4f46e5]">Built Module Coverage</Badge>
               <h2 className="font-headline text-2xl font-semibold text-slate-950">Platform coverage visible from the employee side</h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
                 This launcher mirrors the platform module registry so employee self-service does not hide built capabilities behind unknown routes.
@@ -311,21 +311,21 @@ export function EmployeeServices() {
             </div>
           </div>
 
-          <div className="border-b border-[#d7e1ec] px-4 pt-4">
+          <div className="border-b border-[#e2e8f0] px-4 pt-4">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Employee self-service launchers</h3>
           </div>
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-4">
             {modules.map((module) => {
               const employeePath = employeeModuleRoutes[module.id];
               return (
-                <div key={module.id} className="flex min-h-[210px] flex-col rounded-lg border border-[#d7e1ec] bg-[#fbfdff] p-4">
+                <div key={module.id} className="flex min-h-[210px] flex-col rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4">
                   <div className="flex items-start justify-between gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-md bg-[#e7f8ef] text-[#006c49]">
+                    <span className="grid h-10 w-10 place-items-center rounded-md bg-[#e7f8ef] text-[#4f46e5]">
                       <Layers3 className="h-5 w-5" />
                     </span>
                     <Badge variant="outline" className="capitalize">{module.maturity.replace('-', ' ')}</Badge>
                   </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#006c49]">{module.category}</p>
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">{module.category}</p>
                   <h3 className="mt-1 text-base font-semibold text-slate-950">{module.label}</h3>
                   <p className="mt-2 flex-1 text-sm leading-5 text-slate-600">{module.summary}</p>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -346,7 +346,7 @@ export function EmployeeServices() {
               );
             })}
           </div>
-          <div className="border-t border-[#d7e1ec] bg-slate-50 px-4 py-4">
+          <div className="border-t border-[#e2e8f0] bg-slate-50 px-4 py-4">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Admin-governed platform domains</h3>
@@ -379,16 +379,16 @@ export function EmployeeServices() {
             </div>
           </div>
           {canOpenAdminWorkspaces ? (
-            <div className="border-t border-[#d7e1ec] bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <div className="border-t border-[#e2e8f0] bg-slate-50 px-4 py-3 text-sm text-slate-600">
               HR admin preview is enabled. The full admin catalog is available at{' '}
-              <Link to="/admin/system-console" className="font-semibold text-[#006c49] underline">Admin Panel</Link>.
+              <Link to="/admin/system-console" className="font-semibold text-[#4f46e5] underline">Admin Panel</Link>.
             </div>
           ) : null}
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 rounded-lg border border-[#c9d5e3] bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="font-headline text-2xl font-semibold text-slate-950">Service Catalog</h2>
                 <p className="text-sm text-slate-600">Pick a service to prefill routing and SLA expectations.</p>
@@ -408,16 +408,16 @@ export function EmployeeServices() {
                     key={item.id}
                     type="button"
                     className={cn(
-                      'group flex min-h-[190px] flex-col rounded-lg border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#006c49]/50',
-                      selected ? 'border-[#006c49] ring-2 ring-[#006c49]/15' : 'border-[#c9d5e3]',
+                      'group flex min-h-[190px] flex-col rounded-lg border bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#4f46e5]/50',
+                      selected ? 'border-[#4f46e5] ring-2 ring-[#4f46e5]/15' : 'border-[#e2e8f0]',
                     )}
                     onClick={() => setSelectedCode(item.serviceCode)}
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <span className="grid h-11 w-11 place-items-center rounded-md bg-[#e7f8ef] text-[#006c49]">
+                      <span className="grid h-11 w-11 place-items-center rounded-md bg-[#e7f8ef] text-[#4f46e5]">
                         <Icon className="h-5 w-5" />
                       </span>
-                      <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#006c49]" />
+                      <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#4f46e5]" />
                     </div>
                     <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-slate-500">{item.category}</p>
                     <h3 className="mt-1 text-base font-semibold text-slate-950">{item.serviceName}</h3>
@@ -433,7 +433,7 @@ export function EmployeeServices() {
           </div>
 
           <aside className="space-y-4">
-            <Card className="rounded-lg border-[#c9d5e3] bg-white shadow-sm">
+            <Card className="rounded-lg border-[#e2e8f0] bg-white shadow-sm">
               <CardHeader className="pb-3">
                 <CardTitle className="text-xl">Open New Request</CardTitle>
               </CardHeader>
@@ -466,7 +466,7 @@ export function EmployeeServices() {
                     value={description}
                     onChange={(event) => setDescription(event.target.value)}
                     placeholder="Describe what you need, deadlines, documents, or evidence..."
-                    className="min-h-[132px] w-full resize-y rounded-lg border border-transparent bg-[#f1f5f9] px-3 py-2 text-sm text-[#0b1c30] outline-none placeholder:text-[#6c7a71] focus:border-[#006c49] focus:bg-white focus:ring-2 focus:ring-[#006c49]/20"
+                    className="min-h-[132px] w-full resize-y rounded-lg border border-transparent bg-[#f1f5f9] px-3 py-2 text-sm text-[#0f172a] outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:bg-white focus:ring-2 focus:ring-[#4f46e5]/20"
                   />
                 </div>
                 {selectedService ? (
@@ -492,8 +492,8 @@ export function EmployeeServices() {
           </aside>
         </section>
 
-        <section className="rounded-lg border border-[#c9d5e3] bg-white shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-[#d7e1ec] p-4 md:flex-row md:items-center md:justify-between">
+        <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-[#e2e8f0] p-4 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="font-headline text-2xl font-semibold text-slate-950">My Service Cases</h2>
               <p className="text-sm text-slate-600">Track requests opened from Employee Self-Service.</p>
@@ -527,7 +527,7 @@ export function EmployeeServices() {
                   ) : serviceCase.status === 'ESCALATED' ? (
                     <AlertTriangle className="h-4 w-4 text-red-600" />
                   ) : (
-                    <Clock3 className="h-4 w-4 text-sky-600" />
+                    <Clock3 className="h-4 w-4 text-indigo-600" />
                   )}
                   <Badge variant="outline" className={statusTone(serviceCase.status)}>{serviceCase.status.replace(/_/g, ' ')}</Badge>
                 </div>

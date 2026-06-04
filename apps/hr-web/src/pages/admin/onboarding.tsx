@@ -90,12 +90,12 @@ interface TaskForm {
 const ownerGroups: OwnerGroup[] = ['HR', 'IT', 'Finance', 'Admin', 'Manager', 'Security', 'Facilities'];
 
 const ownerStyles: Record<OwnerGroup, string> = {
-  HR: 'border-[#10b981]/30 bg-[#10b981]/10 text-[#006c49]',
-  IT: 'border-[#0b8cff]/30 bg-[#d8e7ff] text-[#17346c]',
-  Finance: 'border-[#e29100]/30 bg-[#ffddb8]/70 text-[#653e00]',
-  Admin: 'border-[#4648d4]/30 bg-[#4648d4]/10 text-[#4648d4]',
+  HR: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
+  IT: 'border-[#6366f1]/30 bg-[#e0e7ff] text-[#1e1b4b]',
+  Finance: 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]',
+  Admin: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
   Manager: 'border-[#7c3aed]/30 bg-[#ede9fe] text-[#5b21b6]',
-  Security: 'border-[#ba1a1a]/30 bg-[#ffdad6] text-[#93000a]',
+  Security: 'border-[#e11d48]/30 bg-[#ffe4e6] text-[#9f1239]',
   Facilities: 'border-[#64748b]/30 bg-[#f1f5f9] text-[#334155]',
 };
 
@@ -368,18 +368,18 @@ export function AdminOnboarding() {
   };
 
   return (
-    <div className="min-h-full bg-[#f8f9ff]">
+    <div className="min-h-full bg-[#f6f7fb]">
       <div className="lumina-canvas space-y-6">
         <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#bbcabf] bg-[#006c49] p-6 text-white lg:grid-cols-[1fr_auto]">
+          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
-              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6ffbbe]">Native onboarding command center</p>
+              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">Native onboarding command center</p>
               <h2 className="mt-2 font-headline text-3xl font-bold">Onboarding Operations</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
                 Launch preboarding, coordinate HR, IT, Finance, Admin, Manager, Security, and Facilities work, and keep new hires moving from offer acceptance to probation confirmation.
               </p>
             </div>
-            <Button asChild className="w-fit self-end bg-white text-[#006c49] hover:bg-[#eff4ff]">
+            <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
               <Link to="/employee/onboarding">
                 Employee Preboarding
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -400,7 +400,7 @@ export function AdminOnboarding() {
             <Card>
               <CardHeader className="p-5">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Briefcase className="h-5 w-5 text-[#006c49]" />
+                  <Briefcase className="h-5 w-5 text-[#4f46e5]" />
                   Launch Plan
                 </CardTitle>
               </CardHeader>
@@ -451,15 +451,15 @@ export function AdminOnboarding() {
                       key={plan.id}
                       type="button"
                       className={cn(
-                        'w-full rounded-lg border p-3 text-left transition-colors hover:border-[#10b981]/60 hover:bg-[#eff4ff]',
-                        selectedPlan?.id === plan.id ? 'border-[#006c49] bg-[#10b981]/10' : 'border-[#bbcabf]/70 bg-white',
+                        'w-full rounded-lg border p-3 text-left transition-colors hover:border-[#8b5cf6]/60 hover:bg-[#eef2ff]',
+                        selectedPlan?.id === plan.id ? 'border-[#4f46e5] bg-[#8b5cf6]/10' : 'border-[#e2e8f0]/70 bg-white',
                       )}
                       onClick={() => setSelectedPlanId(plan.id)}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-[#0b1c30]">{workerName(worker)}</p>
-                          <p className="mt-1 text-xs text-[#3c4a42]">Starts {formatDate(plan.startDate)}</p>
+                          <p className="font-semibold text-[#0f172a]">{workerName(worker)}</p>
+                          <p className="mt-1 text-xs text-[#475569]">Starts {formatDate(plan.startDate)}</p>
                         </div>
                         <StatusBadge status={plan.status} />
                       </div>
@@ -467,7 +467,7 @@ export function AdminOnboarding() {
                   );
                 })}
                 {!plansLoading && plans.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-4 text-sm text-[#3c4a42]">No onboarding plans yet.</p>
+                  <p className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">No onboarding plans yet.</p>
                 ) : null}
               </CardContent>
             </Card>
@@ -479,7 +479,7 @@ export function AdminOnboarding() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <CardTitle className="text-xl">{workerName(selectedWorker)}</CardTitle>
-                    <p className="mt-1 text-sm text-[#3c4a42]">
+                    <p className="mt-1 text-sm text-[#475569]">
                       {selectedWorker?.jobTitle ?? 'Role track pending'} / {selectedWorker?.departmentName ?? 'Department pending'} / starts {formatDate(selectedPlan?.startDate)}
                     </p>
                   </div>
@@ -495,8 +495,8 @@ export function AdminOnboarding() {
                 </div>
               </CardHeader>
               <CardContent className="p-5 pt-0">
-                <div className="h-2 overflow-hidden rounded-full bg-[#dce9ff]">
-                  <div className="h-full rounded-full bg-[#10b981]" style={{ width: `${completed}%` }} />
+                <div className="h-2 overflow-hidden rounded-full bg-[#e0e7ff]">
+                  <div className="h-full rounded-full bg-[#8b5cf6]" style={{ width: `${completed}%` }} />
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <Metric label="Checklist" value={`${selectedTasks.length} tasks`} />
@@ -524,17 +524,17 @@ export function AdminOnboarding() {
                       {taskTemplates.map((template, index) => {
                         const Icon = template.icon;
                         return (
-                          <div key={template.title} className="rounded-lg border border-[#bbcabf]/70 bg-[#f8fbff] p-4">
+                          <div key={template.title} className="rounded-lg border border-[#e2e8f0]/70 bg-[#f6f7fb] p-4">
                             <div className="flex items-start gap-3">
-                              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#006c49]">
+                              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#4f46e5]">
                                 <Icon className="h-5 w-5" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="text-sm font-semibold text-[#0b1c30]">{template.title}</h3>
+                                  <h3 className="text-sm font-semibold text-[#0f172a]">{template.title}</h3>
                                   <OwnerBadge ownerGroup={template.ownerGroup} />
                                 </div>
-                                <p className="mt-1 text-xs leading-5 text-[#3c4a42]">{template.description}</p>
+                                <p className="mt-1 text-xs leading-5 text-[#475569]">{template.description}</p>
                               </div>
                               <Button size="sm" variant="outline" onClick={() => addTemplate(template, index)} disabled={!selectedPlan || createTaskMutation.isPending}>Add</Button>
                             </div>
@@ -543,7 +543,7 @@ export function AdminOnboarding() {
                       })}
                     </div>
 
-                    <form className="grid gap-3 rounded-lg border border-[#bbcabf]/70 bg-white p-4 lg:grid-cols-[1fr_12rem_10rem_auto]" onSubmit={submitTask}>
+                    <form className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 lg:grid-cols-[1fr_12rem_10rem_auto]" onSubmit={submitTask}>
                       <div className="space-y-2">
                         <Label htmlFor="task-title">Task</Label>
                         <Input id="task-title" value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} />
@@ -574,15 +574,15 @@ export function AdminOnboarding() {
                       {selectedTasks.map((task) => {
                         const ownerGroup = inferOwnerGroup(task);
                         return (
-                          <div key={task.id} className="grid gap-3 rounded-lg border border-[#bbcabf]/70 bg-white p-4 lg:grid-cols-[1fr_auto]">
+                          <div key={task.id} className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 lg:grid-cols-[1fr_auto]">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="font-semibold text-[#0b1c30]">{task.title}</h3>
+                                <h3 className="font-semibold text-[#0f172a]">{task.title}</h3>
                                 <OwnerBadge ownerGroup={ownerGroup} />
                                 <TaskStatusBadge status={task.status} />
                               </div>
-                              <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{task.description ?? 'No description provided.'}</p>
-                              <p className="mt-2 text-xs text-[#6c7a71]">Due {formatDate(task.dueDate)} / plan {taskPlanId(task).slice(0, 8)}</p>
+                              <p className="mt-2 text-sm leading-6 text-[#475569]">{task.description ?? 'No description provided.'}</p>
+                              <p className="mt-2 text-xs text-[#94a3b8]">Due {formatDate(task.dueDate)} / plan {taskPlanId(task).slice(0, 8)}</p>
                             </div>
                             <Button
                               size="sm"
@@ -596,7 +596,7 @@ export function AdminOnboarding() {
                         );
                       })}
                       {!tasksLoading && selectedTasks.length === 0 ? (
-                        <p className="rounded-lg border border-dashed border-[#bbcabf] bg-white p-5 text-sm text-[#3c4a42]">Select a plan and add checklist templates for this hire.</p>
+                        <p className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5 text-sm text-[#475569]">Select a plan and add checklist templates for this hire.</p>
                       ) : null}
                     </div>
                   </CardContent>
@@ -610,9 +610,9 @@ export function AdminOnboarding() {
                       <CardContent className="p-5">
                         <div className="flex items-center justify-between gap-3">
                           <OwnerBadge ownerGroup={owner.ownerGroup} />
-                          <span className="font-headline text-3xl font-bold text-[#0b1c30]">{owner.total}</span>
+                          <span className="font-headline text-3xl font-bold text-[#0f172a]">{owner.total}</span>
                         </div>
-                        <p className="mt-3 text-sm text-[#3c4a42]">{owner.ownerGroup} tasks owned for the selected onboarding plan.</p>
+                        <p className="mt-3 text-sm text-[#475569]">{owner.ownerGroup} tasks owned for the selected onboarding plan.</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -636,13 +636,13 @@ export function AdminOnboarding() {
 
 function Kpi({ label, value, icon: Icon }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="flex min-h-[88px] items-center gap-3 border-b border-[#bbcabf]/50 px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+    <div className="flex min-h-[88px] items-center gap-3 border-b border-[#e2e8f0]/50 px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
         <Icon className="h-5 w-5" />
       </div>
       <div>
         <p className="lumina-label">{label}</p>
-        <p className="mt-1 font-headline text-2xl font-bold text-[#0b1c30]">{value}</p>
+        <p className="mt-1 font-headline text-2xl font-bold text-[#0f172a]">{value}</p>
       </div>
     </div>
   );
@@ -650,9 +650,9 @@ function Kpi({ label, value, icon: Icon }: { label: string; value: string | numb
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[#bbcabf]/70 bg-[#eff4ff] p-3">
+    <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3">
       <p className="lumina-label">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-[#0b1c30]">{value}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-[#0f172a]">{value}</p>
     </div>
   );
 }
@@ -683,11 +683,11 @@ function JourneyCard({
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#10b981]/10 text-[#006c49]">
+        <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
           <Icon className="h-5 w-5" />
         </div>
-        <h3 className="mt-4 font-semibold text-[#0b1c30]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#3c4a42]">{body}</p>
+        <h3 className="mt-4 font-semibold text-[#0f172a]">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>
       </CardContent>
     </Card>
   );
