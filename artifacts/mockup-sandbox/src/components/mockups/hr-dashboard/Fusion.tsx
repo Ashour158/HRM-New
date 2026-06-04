@@ -27,12 +27,12 @@ import {
 import "./fusion/_group.css";
 
 const moduleIcon: Record<string, string> = {
+  blue: "bg-blue-100 text-blue-600",
   indigo: "bg-indigo-100 text-indigo-600",
-  amber: "bg-amber-100 text-amber-600",
-  emerald: "bg-emerald-100 text-emerald-600",
-  sky: "bg-sky-100 text-sky-600",
-  rose: "bg-rose-100 text-rose-600",
   violet: "bg-violet-100 text-violet-600",
+  purple: "bg-purple-100 text-purple-600",
+  fuchsia: "bg-fuchsia-100 text-fuchsia-600",
+  rose: "bg-rose-100 text-rose-600",
 };
 
 const alertDot: Record<string, string> = {
@@ -47,18 +47,18 @@ const alertBg: Record<string, string> = {
 };
 
 const activityTag: Record<string, string> = {
-  emerald: "bg-emerald-400/20 text-emerald-300",
-  pink: "bg-pink-400/20 text-pink-300",
-  sky: "bg-sky-400/20 text-sky-300",
+  blue: "bg-blue-400/20 text-blue-300",
   indigo: "bg-indigo-400/20 text-indigo-300",
-  amber: "bg-amber-400/20 text-amber-300",
+  violet: "bg-violet-400/20 text-violet-300",
+  fuchsia: "bg-fuchsia-400/20 text-fuchsia-300",
+  rose: "bg-rose-400/20 text-rose-300",
 };
 const activityIcon: Record<string, string> = {
-  emerald: "text-emerald-400",
-  pink: "text-pink-400",
-  sky: "text-sky-400",
+  blue: "text-blue-400",
   indigo: "text-indigo-400",
-  amber: "text-amber-400",
+  violet: "text-violet-400",
+  fuchsia: "text-fuchsia-400",
+  rose: "text-rose-400",
 };
 
 export function Fusion() {
@@ -213,67 +213,67 @@ export function Fusion() {
             {/* Vivid bento KPI tiles (Bento) */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               {/* KPI 1 */}
-              <div className="bg-gradient-to-br from-sky-400 to-blue-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-blue-500/15 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-indigo-500/20 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <Users size={24} />
                   </div>
-                  <ArrowRight size={20} className="text-sky-100/80" />
+                  <ArrowRight size={20} className="text-blue-100/80" />
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">4,820</div>
-                  <div className="text-sky-50/90 text-sm font-medium">
+                  <div className="text-blue-50/90 text-sm font-medium">
                     Total Headcount · Current active
                   </div>
                 </div>
               </div>
               {/* KPI 2 */}
-              <div className="bg-gradient-to-br from-blue-400 to-indigo-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-indigo-500/15 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-violet-500/20 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <TrendingDown size={24} />
                   </div>
-                  <div className="px-2.5 py-1 bg-indigo-900/25 rounded-full text-xs font-bold backdrop-blur-sm">
+                  <div className="px-2.5 py-1 bg-violet-900/25 rounded-full text-xs font-bold backdrop-blur-sm">
                     -1.2%
                   </div>
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">8.4%</div>
-                  <div className="text-blue-50/90 text-sm font-medium">
+                  <div className="text-indigo-50/90 text-sm font-medium">
                     Turnover Rate · Annualized
                   </div>
                 </div>
               </div>
               {/* KPI 3 */}
-              <div className="bg-gradient-to-br from-indigo-400 to-violet-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-violet-500/15 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-fuchsia-500/20 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <Briefcase size={24} />
                   </div>
-                  <ArrowRight size={20} className="text-indigo-100/80" />
+                  <ArrowRight size={20} className="text-violet-100/80" />
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">137</div>
-                  <div className="text-indigo-50/90 text-sm font-medium">
+                  <div className="text-violet-50/90 text-sm font-medium">
                     Open Positions · Demand
                   </div>
                 </div>
               </div>
               {/* KPI 4 */}
-              <div className="bg-gradient-to-br from-violet-400 to-purple-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-purple-500/15 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-fuchsia-500 to-rose-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-rose-500/20 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <UserPlus size={24} />
                   </div>
-                  <ArrowRight size={20} className="text-violet-100/80" />
+                  <ArrowRight size={20} className="text-fuchsia-100/80" />
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">92</div>
-                  <div className="text-violet-50/90 text-sm font-medium">
+                  <div className="text-fuchsia-50/90 text-sm font-medium">
                     New Hires MTD · Volume
                   </div>
                 </div>
@@ -292,12 +292,12 @@ export function Fusion() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
-                    { title: "People & Organization", desc: "Legal entities, departments, org units, positions, and manager lines.", icon: Network, color: "indigo" },
-                    { title: "Employee Records", desc: "Worker profiles power self-service, payroll, and approvals.", icon: FolderOpen, color: "amber" },
-                    { title: "Leave & Attendance", desc: "Policy-driven leave balances, approval queues, shifts, and attendance.", icon: Calendar, color: "emerald" },
-                    { title: "Payroll & Reward", desc: "Payroll operations consume attendance, leave, worker, and benefits data.", icon: Wallet, color: "sky" },
-                    { title: "Governance", desc: "Country policy, compliance controls, allowed actions, and audit readiness.", icon: ShieldCheck, color: "rose" },
-                    { title: "Employee Mode Preview", desc: "Switch personas to verify the self-service experience.", icon: Eye, color: "violet" },
+                    { title: "People & Organization", desc: "Legal entities, departments, org units, positions, and manager lines.", icon: Network, color: "blue" },
+                    { title: "Employee Records", desc: "Worker profiles power self-service, payroll, and approvals.", icon: FolderOpen, color: "indigo" },
+                    { title: "Leave & Attendance", desc: "Policy-driven leave balances, approval queues, shifts, and attendance.", icon: Calendar, color: "violet" },
+                    { title: "Payroll & Reward", desc: "Payroll operations consume attendance, leave, worker, and benefits data.", icon: Wallet, color: "purple" },
+                    { title: "Governance", desc: "Country policy, compliance controls, allowed actions, and audit readiness.", icon: ShieldCheck, color: "fuchsia" },
+                    { title: "Employee Mode Preview", desc: "Switch personas to verify the self-service experience.", icon: Eye, color: "rose" },
                   ].map((mod, i) => (
                     <div
                       key={i}
@@ -367,11 +367,11 @@ export function Fusion() {
                   </div>
                   <div className="space-y-5 relative z-10">
                     {[
-                      { icon: CheckCircle2, title: "Maria Santos approved 4 leave requests", time: "12m ago", tag: "Leave", color: "emerald" },
-                      { icon: UserPlus, title: "New hire onboarding completed for D. Okafor", time: "1h ago", tag: "Onboarding", color: "pink" },
-                      { icon: Wallet, title: "Payroll run PR-2026-06 locked for EMEA", time: "3h ago", tag: "Payroll", color: "sky" },
-                      { icon: Network, title: "Org unit 'Growth Marketing' created", time: "5h ago", tag: "Org", color: "indigo" },
-                      { icon: FileText, title: "Compliance policy updated: Germany", time: "Yesterday", tag: "Governance", color: "amber" },
+                      { icon: CheckCircle2, title: "Maria Santos approved 4 leave requests", time: "12m ago", tag: "Leave", color: "blue" },
+                      { icon: UserPlus, title: "New hire onboarding completed for D. Okafor", time: "1h ago", tag: "Onboarding", color: "fuchsia" },
+                      { icon: Wallet, title: "Payroll run PR-2026-06 locked for EMEA", time: "3h ago", tag: "Payroll", color: "indigo" },
+                      { icon: Network, title: "Org unit 'Growth Marketing' created", time: "5h ago", tag: "Org", color: "violet" },
+                      { icon: FileText, title: "Compliance policy updated: Germany", time: "Yesterday", tag: "Governance", color: "rose" },
                     ].map((act, i) => (
                       <div key={i} className="flex gap-3">
                         <div className="w-[26px] h-[26px] rounded-full bg-slate-800 flex items-center justify-center shrink-0 ring-4 ring-[#1e293b]">
