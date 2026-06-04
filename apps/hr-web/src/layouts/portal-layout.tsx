@@ -104,7 +104,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
     theme: 'admin',
     navItems: [
       { label: 'Admin Panel', path: '/admin/system-console', systemOnly: true },
-      { label: 'Home', path: '/employee' },
+      { label: 'Dashboard', path: '/employee' },
       { label: 'Profile', path: '/employee/profile' },
       { label: 'Payroll', path: '/employee/payslip' },
       { label: 'Benefits', path: '/employee/benefits' },
@@ -117,7 +117,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
 };
 
 const employeeRailItems: PortalRailItem[] = [
-  { label: 'Home', path: '/employee', icon: Home },
+  { label: 'Dashboard', path: '/employee', icon: Home },
   { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
   { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
   { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
@@ -129,14 +129,14 @@ const employeeRailItems: PortalRailItem[] = [
 ];
 
 const managerRailItems: PortalRailItem[] = [
-  { label: 'Home', path: '/manager', icon: Home },
+  { label: 'Dashboard', path: '/manager', icon: Home },
   { label: 'Team', path: '/manager/team', icon: Users },
   { label: 'Approvals', path: '/manager/approvals', icon: BarChart3 },
 ];
 
 const adminRailItems: PortalRailItem[] = [
   { label: 'Admin Panel', path: '/admin/system-console', icon: Network, systemOnly: true },
-  { label: 'Home', path: '/employee', icon: Home },
+  { label: 'Dashboard', path: '/employee', icon: Home },
   { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
   { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
   { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
@@ -174,7 +174,7 @@ function portalNavGroups(portalType: PortalType): PortalNavGroup[] {
       {
         label: 'Self Service',
         items: [
-          { label: 'Home', path: '/employee' },
+          { label: 'Dashboard', path: '/employee' },
           { label: 'My Profile', path: '/employee/profile' },
           { label: 'HR Service Requests', path: '/employee/services' },
         ],
@@ -205,7 +205,7 @@ function portalNavGroups(portalType: PortalType): PortalNavGroup[] {
 
   if (portalType === 'manager') {
     return [
-      { label: 'HCM Home', path: '/manager' },
+      { label: 'Dashboard', path: '/manager' },
       {
         label: 'People & Organization',
         items: [
@@ -218,7 +218,7 @@ function portalNavGroups(portalType: PortalType): PortalNavGroup[] {
   }
 
   return [
-    { label: 'HCM Home', path: '/employee' },
+    { label: 'Dashboard', path: '/employee' },
     { label: 'People & Organization', items: [{ label: 'My Profile', path: '/employee/profile' }] },
     {
       label: 'Workforce',
