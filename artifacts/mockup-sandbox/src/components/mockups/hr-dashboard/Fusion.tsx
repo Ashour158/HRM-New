@@ -213,67 +213,67 @@ export function Fusion() {
             {/* Vivid bento KPI tiles (Bento) */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               {/* KPI 1 */}
-              <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-indigo-500/25 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-sky-400 to-blue-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-blue-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <Users size={24} />
                   </div>
-                  <ArrowRight size={20} className="text-indigo-200" />
+                  <ArrowRight size={20} className="text-sky-100/80" />
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">4,820</div>
-                  <div className="text-indigo-100 text-sm font-medium">
+                  <div className="text-sky-50/90 text-sm font-medium">
                     Total Headcount · Current active
                   </div>
                 </div>
               </div>
               {/* KPI 2 */}
-              <div className="bg-gradient-to-br from-teal-500 to-emerald-700 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-teal-500/25 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-blue-400 to-indigo-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-indigo-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <TrendingDown size={24} />
                   </div>
-                  <div className="px-2.5 py-1 bg-teal-900/30 rounded-full text-xs font-bold backdrop-blur-sm">
+                  <div className="px-2.5 py-1 bg-indigo-900/25 rounded-full text-xs font-bold backdrop-blur-sm">
                     -1.2%
                   </div>
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">8.4%</div>
-                  <div className="text-teal-100 text-sm font-medium">
+                  <div className="text-blue-50/90 text-sm font-medium">
                     Turnover Rate · Annualized
                   </div>
                 </div>
               </div>
               {/* KPI 3 */}
-              <div className="bg-gradient-to-br from-orange-500 to-amber-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-orange-500/25 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-indigo-400 to-violet-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-violet-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <Briefcase size={24} />
                   </div>
-                  <ArrowRight size={20} className="text-orange-200" />
+                  <ArrowRight size={20} className="text-indigo-100/80" />
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">137</div>
-                  <div className="text-orange-100 text-sm font-medium">
+                  <div className="text-indigo-50/90 text-sm font-medium">
                     Open Positions · Demand
                   </div>
                 </div>
               </div>
               {/* KPI 4 */}
-              <div className="bg-gradient-to-br from-pink-500 to-fuchsia-700 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-pink-500/25 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-violet-400 to-purple-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-purple-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
                     <UserPlus size={24} />
                   </div>
-                  <ArrowRight size={20} className="text-pink-200" />
+                  <ArrowRight size={20} className="text-violet-100/80" />
                 </div>
                 <div className="relative z-10">
                   <div className="text-4xl font-extrabold mb-1">92</div>
-                  <div className="text-pink-100 text-sm font-medium">
+                  <div className="text-violet-50/90 text-sm font-medium">
                     New Hires MTD · Volume
                   </div>
                 </div>
