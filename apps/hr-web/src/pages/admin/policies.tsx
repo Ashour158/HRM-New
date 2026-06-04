@@ -571,7 +571,7 @@ export function AdminPolicies() {
   }, [revisions]);
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] p-4 md:p-6 lg:p-8">
+    <div className="min-h-screen fusion-bg p-4 md:p-6 lg:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -606,7 +606,7 @@ export function AdminPolicies() {
             ['In Review', summary?.byStatus?.IN_REVIEW ?? 0],
             ['Open Runs', summary?.recentRuns?.length ?? 0],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+            <div key={label} className="fusion-glass rounded-2xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
               <p className="font-mono text-xs uppercase tracking-wider text-[#475569]">{label}</p>
               <p className="mt-2 text-3xl font-bold text-[#0f172a]">{value}</p>
             </div>
@@ -725,7 +725,7 @@ export function AdminPolicies() {
               </CardHeader>
               <CardContent className="grid gap-3 lg:grid-cols-2">
                 {(summary?.recentRuns ?? []).map((run) => (
-                  <div key={run.id} className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm">
+                  <div key={run.id} className="fusion-glass rounded-2xl p-4 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <p className="font-semibold text-[#0f172a]">{run.status}</p>
                       <span className="text-[#475569]">{displayDate(run.appliedAt)}</span>
@@ -754,7 +754,7 @@ export function AdminPolicies() {
                     const key = `${status.toLowerCase().replace(/_/g, '')}At` as keyof PolicyRevision;
                     const value = selectedRevision?.[key];
                     return (
-                      <div key={status} className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                      <div key={status} className="flex items-center justify-between fusion-glass rounded-2xl p-3 text-sm">
                         <span className="font-semibold text-[#0f172a]">{formatEnum(status)}</span>
                         <span className="text-[#475569]">{typeof value === 'string' ? displayDate(value) : '-'}</span>
                       </div>
@@ -803,7 +803,7 @@ export function AdminPolicies() {
                 <Label htmlFor="revision-json">Policy Payload</Label>
                 <textarea
                   id="revision-json"
-                  className="min-h-[22rem] w-full rounded-lg border border-[#e2e8f0] bg-white p-3 font-mono text-xs leading-5 text-[#0f172a] outline-none focus:ring-2 focus:ring-[#4f46e5]/20"
+                  className="min-h-[22rem] w-full fusion-glass rounded-2xl p-3 font-mono text-xs leading-5 text-[#0f172a] outline-none focus:ring-2 focus:ring-[#4f46e5]/20"
                   value={editorJson}
                   onChange={(event) => setEditorJson(event.target.value)}
                   spellCheck={false}

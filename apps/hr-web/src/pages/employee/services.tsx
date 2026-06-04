@@ -239,7 +239,7 @@ export function EmployeeServices() {
     <div className="min-h-[calc(100vh-96px)] bg-[#eef2ff] px-4 py-6 md:px-6 lg:px-8">
       <div className="mx-auto max-w-[1480px] space-y-5">
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-          <div className="rounded-lg border border-[#e2e8f0] bg-white p-5 shadow-sm">
+          <div className="fusion-glass rounded-2xl p-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <Badge variant="secondary" className="mb-3 bg-[#dff7ed] text-[#4f46e5]">Employee Services</Badge>
@@ -388,7 +388,7 @@ export function EmployeeServices() {
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-4">
-            <div className="flex flex-col gap-3 rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-sm md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 fusion-glass rounded-2xl p-4 shadow-sm md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="font-headline text-2xl font-semibold text-slate-950">Service Catalog</h2>
                 <p className="text-sm text-slate-600">Pick a service to prefill routing and SLA expectations.</p>

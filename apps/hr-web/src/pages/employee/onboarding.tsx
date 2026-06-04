@@ -189,7 +189,7 @@ export function EmployeeOnboarding() {
   };
 
   return (
-    <div className="min-h-full bg-[#eef2ff]">
+    <div className="min-h-full fusion-bg">
       <div className="relative overflow-hidden bg-[#1e1b4b]">
         <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,27,75,0.95),rgba(49,46,129,0.7)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
         <div className="relative mx-auto grid max-w-[1740px] gap-6 px-4 py-8 text-white lg:grid-cols-[1fr_auto] lg:px-5">

@@ -280,7 +280,7 @@ export function AdminDeadLetterEvents() {
   const selectedIdList = React.useCallback(() => Array.from(selectedIds), [selectedIds]);
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb]">
+    <div className="min-h-screen fusion-bg">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -439,7 +439,7 @@ export function AdminDeadLetterEvents() {
               </div>
 
               {selectedIds.size > 0 ? (
-                <div className="flex flex-col gap-3 rounded-lg border border-[#e2e8f0] bg-white p-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex flex-col gap-3 fusion-glass rounded-2xl p-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-[#0f172a]">
                       {selectedIds.size} {queue} event{selectedIds.size === 1 ? '' : 's'} selected
@@ -584,7 +584,7 @@ export function AdminDeadLetterEvents() {
             <CardContent className="space-y-4 p-5 pt-0">
               {selected ? (
                 <>
-                  <div className="space-y-3 rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm leading-6">
+                  <div className="space-y-3 fusion-glass rounded-2xl p-4 text-sm leading-6">
                     <div className="flex items-center justify-between gap-3">
                       <span className="font-semibold text-[#0f172a]">{selected.eventName}</span>
                       <StatusBadge status={selected.status} />
@@ -614,7 +614,7 @@ export function AdminDeadLetterEvents() {
                   <label className="block text-sm font-semibold text-[#0f172a]">
                     Operator reason
                     <textarea
-                      className="mt-2 min-h-[96px] w-full rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm font-normal outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
+                      className="mt-2 min-h-[96px] w-full fusion-glass rounded-2xl p-3 text-sm font-normal outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                       onChange={(event) => setOperatorReason(event.target.value)}
                       placeholder="Explain the fix, reason for retry, or why this event is safe to skip."
                       value={operatorReason}
@@ -654,7 +654,7 @@ export function AdminDeadLetterEvents() {
                       Operator action failed. Check role, MFA, row status, and API logs.
                     </div>
                   ) : null}
-                  <details className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                  <details className="fusion-glass rounded-2xl p-3 text-sm">
                     <summary className="cursor-pointer font-semibold text-[#0f172a]">Raw evidence summary</summary>
                     <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap text-xs leading-5 text-[#475569]">
                       {JSON.stringify(redactedEvidence, null, 2)}

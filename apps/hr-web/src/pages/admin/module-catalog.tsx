@@ -141,7 +141,7 @@ export function AdminModuleCatalog() {
   const apiReadyCount = commercialModules.filter((module) => module.maturity === 'api-ready').length;
 
   return (
-    <div className="min-h-full bg-[#f6f7fb]">
+    <div className="min-h-full fusion-bg">
       <div className="lumina-canvas space-y-6">
         <section className="lumina-panel overflow-hidden">
           <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">

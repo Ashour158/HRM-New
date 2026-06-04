@@ -649,7 +649,7 @@ export function AdminPayroll() {
   ];
 
   return (
-    <div className="min-h-full bg-[#f6f7fb]">
+    <div className="min-h-full fusion-bg">
       <div className="border-b border-[#e2e8f0] bg-[#4f46e5] px-6 py-5 text-white">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>

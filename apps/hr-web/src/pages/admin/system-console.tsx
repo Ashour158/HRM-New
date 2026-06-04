@@ -328,7 +328,7 @@ function ControlCard({ control }: { control: ConsoleControl }) {
 function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
   const Icon = tool.icon;
   const content = (
-    <div className="group relative flex h-full min-h-[132px] flex-col rounded-lg border border-[#e2e8f0] bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-[#8b5cf6]/60 hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+    <div className="group relative flex h-full min-h-[132px] flex-col fusion-glass rounded-2xl p-4 transition-all hover:-translate-y-0.5 hover:border-[#8b5cf6]/60 hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
       <div className="flex items-start gap-3">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff]">
           <Icon className={`h-5 w-5 ${tool.tone}`} strokeWidth={1.9} />
@@ -745,7 +745,7 @@ export function AdminSystemConsole() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb]">
+    <div className="min-h-screen fusion-bg">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -839,7 +839,7 @@ export function AdminSystemConsole() {
               const Icon = item.icon;
               return (
                 <Link key={item.step} to={item.path} className="group focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30">
-                  <div className="flex h-full min-h-[190px] flex-col rounded-lg border border-[#e2e8f0] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+                  <div className="flex h-full min-h-[190px] flex-col fusion-glass rounded-2xl p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
                     <div className="flex items-start justify-between gap-3">
                       <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">{item.step}</span>
                       <StatusBadge status={item.status} label={item.label} />
@@ -1039,7 +1039,7 @@ export function AdminSystemConsole() {
                 <Skeleton className="h-32 w-full" />
               ) : (notificationsQuery.data ?? []).length > 0 ? (
                 (notificationsQuery.data ?? []).slice(0, 5).map((notification) => (
-                  <div key={notification.id} className="rounded-lg border border-[#e2e8f0] bg-white p-3">
+                  <div key={notification.id} className="fusion-glass rounded-2xl p-3">
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm font-semibold text-[#0f172a]">{notification.title}</p>
                       {!notification.readAt ? <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#4f46e5]" /> : null}
@@ -1051,7 +1051,7 @@ export function AdminSystemConsole() {
                   </div>
                 ))
               ) : (
-                <p className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">
+                <p className="fusion-glass rounded-2xl p-4 text-sm text-[#475569]">
                   No HR operations notifications are available for this actor.
                 </p>
               )}
@@ -1072,7 +1072,7 @@ export function AdminSystemConsole() {
                 <Skeleton className="h-32 w-full" />
               ) : (auditQuery.data ?? []).length > 0 ? (
                 (auditQuery.data ?? []).slice(0, 5).map((record) => (
-                  <div key={record.id} className="rounded-lg border border-[#e2e8f0] bg-white p-3">
+                  <div key={record.id} className="fusion-glass rounded-2xl p-3">
                     <div className="flex items-start justify-between gap-3">
                       <p className="text-sm font-semibold text-[#0f172a]">{record.action}</p>
                       <p className="text-xs text-[#94a3b8]">{formatDate(record.timestamp)}</p>
@@ -1086,7 +1086,7 @@ export function AdminSystemConsole() {
                   </div>
                 ))
               ) : (
-                <p className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">
+                <p className="fusion-glass rounded-2xl p-4 text-sm text-[#475569]">
                   No audit records are available, or this role cannot access audit history.
                 </p>
               )}
@@ -1118,7 +1118,7 @@ export function AdminSystemConsole() {
               const target = module.nativePath ?? moduleOperationsPath(module.id);
               return (
                 <Link key={module.id} to={target} className="group">
-                  <div className="flex h-full min-h-[150px] flex-col rounded-lg border border-[#e2e8f0] bg-white p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/70 group-hover:bg-[#f6f7fb]">
+                  <div className="flex h-full min-h-[150px] flex-col fusion-glass rounded-2xl p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/70 group-hover:bg-[#f6f7fb]">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-[#0f172a]">{module.label}</p>

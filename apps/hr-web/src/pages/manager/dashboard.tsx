@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/common/data-table';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import { Users, CheckCircle2, Eye, TrendingUp, AlertCircle } from 'lucide-react';
 import type { AbsenceRequest, Worker } from '@/types';
 
@@ -57,68 +57,81 @@ export function ManagerDashboard() {
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <Users className="h-6 w-6" />
-          Manager Dashboard
-        </h2>
-        <p className="text-muted-foreground">Overview of your team and pending actions</p>
-      </div>
+  const pendingTotal =
+    (data?.pendingApprovals.absences.length ?? 0) +
+    (data?.pendingApprovals.timesheets ?? 0) +
+    (data?.pendingApprovals.expenses ?? 0);
 
-      {/* Team Metrics */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Direct Reports</p>
-                <p className="text-2xl font-bold">{data?.teamMetrics.headcount ?? 0}</p>
+  const kpiTiles = [
+    {
+      label: 'Direct Reports',
+      value: data?.teamMetrics.headcount ?? 0,
+      helper: 'People reporting to you',
+      icon: Users,
+      gradient: 'from-indigo-500 to-indigo-600',
+      shadow: 'shadow-indigo-500/25',
+    },
+    {
+      label: 'Pending Approvals',
+      value: pendingTotal,
+      helper: 'Awaiting your decision',
+      icon: AlertCircle,
+      gradient: 'from-violet-500 to-purple-600',
+      shadow: 'shadow-violet-500/25',
+    },
+    {
+      label: 'Avg Performance',
+      value: `${data?.teamMetrics.averagePerformance ?? 0}%`,
+      helper: 'Team scorecard average',
+      icon: TrendingUp,
+      gradient: 'from-teal-500 to-emerald-600',
+      shadow: 'shadow-teal-500/25',
+    },
+    {
+      label: 'Open Goals',
+      value: data?.teamMetrics.openGoals ?? 0,
+      helper: 'Active objectives in flight',
+      icon: TrendingUp,
+      gradient: 'from-amber-400 to-orange-500',
+      shadow: 'shadow-amber-500/25',
+    },
+  ];
+
+  return (
+    <div className="min-h-[calc(100vh-96px)] fusion-bg">
+      <div className="relative z-10 mx-auto max-w-[1740px] space-y-6 px-4 py-7 lg:px-6">
+        {/* Header */}
+        <div>
+          <h2 className="font-headline text-3xl font-extrabold tracking-tight text-slate-900">
+            Manager <span className="fusion-gradient-text">Dashboard</span>
+          </h2>
+          <p className="mt-1 text-sm font-medium text-slate-500">Overview of your team and pending actions</p>
+        </div>
+
+        {/* Team Metrics — bento tiles */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {kpiTiles.map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <div
+                key={tile.label}
+                className={cn(
+                  'relative overflow-hidden rounded-[2rem] bg-gradient-to-br p-6 text-white shadow-lg',
+                  tile.gradient,
+                  tile.shadow,
+                )}
+              >
+                <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+                <div className="relative flex items-center justify-between">
+                  <span className="text-sm font-semibold text-white/80">{tile.label}</span>
+                  <Icon className="h-5 w-5 text-white/70" />
+                </div>
+                <p className="relative mt-5 font-headline text-4xl font-extrabold leading-none">{tile.value}</p>
+                <p className="relative mt-2 text-xs font-medium text-white/70">{tile.helper}</p>
               </div>
-              <Users className="h-8 w-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Approvals</p>
-                <p className="text-2xl font-bold">
-                  {(data?.pendingApprovals.absences.length ?? 0) +
-                    (data?.pendingApprovals.timesheets ?? 0) +
-                    (data?.pendingApprovals.expenses ?? 0)}
-                </p>
-              </div>
-              <AlertCircle className="h-8 w-8 text-amber-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Performance</p>
-                <p className="text-2xl font-bold">{data?.teamMetrics.averagePerformance ?? 0}%</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-muted-foreground">Open Goals</p>
-                <p className="text-2xl font-bold">{data?.teamMetrics.openGoals ?? 0}</p>
-              </div>
-              <TrendingUp className="h-8 w-8 text-indigo-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            );
+          })}
+        </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Pending Leave */}
@@ -214,6 +227,7 @@ export function ManagerDashboard() {
           )}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

@@ -75,7 +75,7 @@ export function AdminModuleWorkbench() {
   }
 
   return (
-    <div className="min-h-full bg-[#f6f7fb]">
+    <div className="min-h-full fusion-bg">
       <div className="lumina-canvas space-y-5">
         <Button asChild variant="ghost" size="sm" className="w-fit">
           <Link to="/admin/modules">

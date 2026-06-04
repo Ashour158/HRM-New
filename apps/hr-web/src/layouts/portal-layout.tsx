@@ -25,8 +25,10 @@ import {
   Home,
   LifeBuoy,
   LogOut,
+  Menu,
   Search,
   Settings,
+  X,
   Heart,
   Umbrella,
   UserCircle,
@@ -54,13 +56,6 @@ interface PortalConfig {
   description: string;
   navItems: PortalNavItem[];
   theme: PortalType;
-}
-
-interface PortalNavGroup {
-  label: string;
-  path?: string;
-  items?: PortalNavItem[];
-  systemOnly?: boolean;
 }
 
 interface PlatformNotification {
@@ -153,111 +148,6 @@ function portalRailItems(portalType: PortalType) {
   return employeeRailItems;
 }
 
-function portalNavGroups(portalType: PortalType): PortalNavGroup[] {
-  if (portalType === 'admin') {
-    return [
-      {
-        label: 'Admin Panel',
-        systemOnly: true,
-        items: [
-          { label: 'Administrator Settings', path: '/admin/system-console' },
-          { label: 'Policy Center', path: '/admin/system-console/policies' },
-          { label: 'Access Governance', path: '/admin/system-console/access-governance' },
-          { label: 'Tenant And Data Setup', path: '/admin/system-console/settings' },
-          { label: 'Development Controls', path: '/admin/system-console#development-controls' },
-          { label: 'Integration Controls', path: '/admin/system-console/integrations' },
-          { label: 'Dead-Letter Events', path: '/admin/system-console/dead-letter-events' },
-          { label: 'Audit Trail', path: '/admin/system-console/audit' },
-          { label: 'Event Contracts', path: '/admin/system-console/event-contracts' },
-        ],
-      },
-      {
-        label: 'Self Service',
-        items: [
-          { label: 'Dashboard', path: '/employee' },
-          { label: 'My Profile', path: '/employee/profile' },
-          { label: 'HR Service Requests', path: '/employee/services' },
-        ],
-      },
-      {
-        label: 'Workforce',
-        items: [
-          { label: 'Check-in / Check-out', path: '/employee#attendance' },
-          { label: 'Apply for Leave', path: '/employee/time-off' },
-        ],
-      },
-      {
-        label: 'Payroll & Reward',
-        items: [
-          { label: 'Payslips', path: '/employee/payslip' },
-          { label: 'Benefits', path: '/employee/benefits' },
-        ],
-      },
-      {
-        label: 'Talent',
-        items: [
-          { label: 'Preboarding', path: '/employee/onboarding' },
-          { label: 'Performance', path: '/employee/performance' },
-        ],
-      },
-    ];
-  }
-
-  if (portalType === 'manager') {
-    return [
-      { label: 'Dashboard', path: '/manager' },
-      {
-        label: 'People & Organization',
-        items: [
-          { label: 'Team Directory', path: '/manager/team' },
-          { label: 'Approvals', path: '/manager/approvals' },
-        ],
-      },
-      { label: 'Talent', items: [{ label: 'Team Reviews', path: '/manager/approvals' }] },
-    ];
-  }
-
-  return [
-    { label: 'Dashboard', path: '/employee' },
-    { label: 'People & Organization', items: [{ label: 'My Profile', path: '/employee/profile' }] },
-    {
-      label: 'Workforce',
-      items: [
-        { label: 'Check-in / Check-out', path: '/employee#attendance' },
-        { label: 'Apply for Leave', path: '/employee/time-off' },
-      ],
-    },
-    {
-      label: 'Payroll & Reward',
-      items: [
-        { label: 'Payslips', path: '/employee/payslip' },
-        { label: 'Benefits', path: '/employee/benefits' },
-      ],
-    },
-    {
-      label: 'Talent',
-      items: [
-        { label: 'Preboarding', path: '/employee/onboarding' },
-        { label: 'Performance', path: '/employee/performance' },
-      ],
-    },
-    {
-      label: 'Services & Support',
-      items: [
-        { label: 'HR Service Requests', path: '/employee/services' },
-        { label: 'Ask HR Support', path: '/employee/services' },
-      ],
-    },
-  ];
-}
-
-function isPathActive(currentPath: string, currentHash: string, portalType: PortalType, path: string) {
-  const [targetPath, targetHash] = path.split('#');
-  const isRoot = targetPath === `/${portalType}`;
-  const pathMatches = currentPath === targetPath || (!isRoot && currentPath.startsWith(`${targetPath}/`));
-  return pathMatches && (!targetHash || currentHash === `#${targetHash}`);
-}
-
 function hasSystemAdminRole(roleNames: Set<string>) {
   return ['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN'].some((roleName) => roleNames.has(roleName));
 }
@@ -275,17 +165,14 @@ function WorkspaceShell({
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
+  React.useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname, location.hash]);
   const roleNames = React.useMemo(() => new Set((user?.roles ?? []).map((role) => role.name)), [user?.roles]);
   const canSeeAdminSettings = roleNames.has('HR_ADMIN') || roleNames.has('SUPER_ADMIN');
   const canSeeSystemConsole = hasSystemAdminRole(roleNames);
   const railItems = portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole);
-  const navGroups = portalNavGroups(portalType)
-    .filter((group) => !group.systemOnly || canSeeSystemConsole)
-    .map((group) => ({
-      ...group,
-      items: group.items?.filter((item) => !item.systemOnly || canSeeSystemConsole),
-    }))
-    .filter((group) => group.path || (group.items?.length ?? 0) > 0);
   const notificationPath = portalType === 'admin' ? '/notifications/hr-operations' : '/notifications/me';
   const { data: notificationsRaw } = useApiQuery<PlatformNotification[]>(
     ['platform-notifications', portalType],
@@ -318,80 +205,234 @@ function WorkspaceShell({
         <div className="fusion-blob fusion-blob-2" style={{ width: 360, height: 360, top: '22%', right: -70, background: 'radial-gradient(circle, #c4b5fd, #a78bfa)' }} />
         <div className="fusion-blob fusion-blob-3" style={{ width: 380, height: 380, bottom: -110, left: '18%', background: 'radial-gradient(circle, #99f6e4, #2dd4bf)' }} />
       </div>
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[260px] flex-col border-r border-white/40 fusion-glass py-6 md:flex" onWheel={forwardSidebarWheel}>
-        <div className="px-6">
-          <div className="flex items-center gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 font-headline text-sm font-bold text-white shadow-lg shadow-indigo-500/25">
-              EH
-            </div>
-            <div className="min-w-0">
-              <h1 className="fusion-gradient-text font-headline text-2xl font-extrabold leading-none">Enterprise HR</h1>
-              <p className="mt-1 text-sm text-slate-500">{config.title}</p>
-            </div>
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-[260px] flex-col border-r border-white/40 fusion-glass md:flex" onWheel={forwardSidebarWheel}>
+        <div className="flex h-16 shrink-0 items-center gap-3 border-b border-white/30 px-5">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 font-headline text-sm font-bold text-white shadow-lg shadow-indigo-500/25">
+            EH
           </div>
-          <Button asChild className="mt-6 w-full">
+          <div className="min-w-0">
+            <p className="fusion-gradient-text font-headline text-lg font-extrabold leading-tight">Enterprise HR</p>
+            <p className="truncate text-xs font-medium text-slate-500">{config.title}</p>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
+          <Button asChild className="w-full rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 font-bold text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30">
             <Link to="/employee/services">
               <span className="mr-2 text-lg leading-none">+</span>
               New Request
             </Link>
           </Button>
+
+          <div>
+            <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">Core HCM</p>
+            <nav className="space-y-1">
+              {railItems.map((item) => {
+                const Icon = item.icon;
+                const [path, hash] = item.path.split('#');
+                const isRoot = path === `/${portalType}`;
+                const isActive = (isRoot ? location.pathname === path : location.pathname.startsWith(path))
+                  && (!hash || location.hash === `#${hash}`);
+                return (
+                  <Link
+                    key={item.label}
+                    to={item.path}
+                    className={cn(
+                      'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
+                      isActive
+                        ? 'bg-white/80 text-indigo-700 shadow-sm'
+                        : 'text-slate-600 hover:bg-white/50 hover:text-slate-900',
+                    )}
+                  >
+                    <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          <div>
+            <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">System</p>
+            <nav className="space-y-1">
+              {canSeeAdminSettings && portalType !== 'admin' ? (
+                <Link className="flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900" to="/admin/system-console">
+                  <Settings className="mr-3 h-[18px] w-[18px] text-slate-400" />
+                  Admin Panel
+                </Link>
+              ) : null}
+              {portalType === 'admin' ? (
+                <Link className="flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900" to="/employee">
+                  <UserCircle className="mr-3 h-[18px] w-[18px] text-slate-400" />
+                  Employee Mode
+                </Link>
+              ) : null}
+              <Link className="flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900" to="/employee/services">
+                <HelpCircle className="mr-3 h-[18px] w-[18px] text-slate-400" />
+                Support
+              </Link>
+            </nav>
+          </div>
         </div>
 
-        <nav className="mt-6 flex-1 space-y-1 overflow-y-auto px-2">
-          {railItems.map((item) => {
-            const Icon = item.icon;
-            const [path, hash] = item.path.split('#');
-            const isRoot = path === `/${portalType}`;
-            const isActive = (isRoot ? location.pathname === path : location.pathname.startsWith(path))
-              && (!hash || location.hash === `#${hash}`);
-            return (
-              <Link
-                key={item.label}
-                to={item.path}
-                className={cn(
-                  'flex items-center gap-3 rounded-r-lg border-l-4 px-4 py-2.5 font-sans text-sm font-semibold transition-all duration-200 hover:translate-x-1 hover:bg-[#e0e7ff]',
-                  isActive
-                    ? 'border-[#4f46e5] bg-[#8b5cf6]/10 text-[#4f46e5]'
-                    : 'border-transparent text-[#475569]',
-                )}
-              >
-                <Icon className="h-5 w-5" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto space-y-1 border-t border-[#e2e8f0]/60 px-2 pt-4">
-          {canSeeAdminSettings && portalType !== 'admin' ? (
-            <Link className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#475569] transition-all hover:translate-x-1 hover:bg-[#e0e7ff]" to="/admin/system-console">
-              <Settings className="h-5 w-5" />
-              Admin Panel
-            </Link>
-          ) : null}
-          {portalType === 'admin' ? (
-            <Link className="flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#475569] transition-all hover:translate-x-1 hover:bg-[#e0e7ff]" to="/employee">
-              <UserCircle className="h-5 w-5" />
-              Employee Mode
-            </Link>
-          ) : null}
-          <Link className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#475569] transition-all hover:translate-x-1 hover:bg-[#e0e7ff]" to="/employee/services">
-            <HelpCircle className="h-5 w-5" />
-            Support
-          </Link>
-          <button className="flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-semibold text-[#475569] transition-all hover:translate-x-1 hover:bg-[#e0e7ff]" type="button" onClick={logout}>
-            <LogOut className="h-5 w-5" />
-            Sign Out
-          </button>
+        <div className="shrink-0 border-t border-white/30 p-4">
+          <div className="flex items-center gap-3 px-1">
+            <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+              <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
+              <AvatarFallback className="bg-gradient-to-tr from-indigo-400 to-violet-400 text-xs font-bold text-white">
+                {user?.firstName?.charAt(0) ?? 'E'}{user?.lastName?.charAt(0) ?? 'H'}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-slate-800">
+                {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Team Member'}
+              </p>
+              <p className="truncate text-xs font-medium text-slate-500">{config.title}</p>
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              aria-label="Sign out"
+              title="Sign out"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/50 bg-white/40 text-slate-500 transition-colors hover:bg-white/70 hover:text-rose-600"
+            >
+              <LogOut className="h-[18px] w-[18px]" />
+            </button>
+          </div>
         </div>
       </aside>
+
+      {mobileNavOpen ? (
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation menu">
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <aside className="absolute left-0 top-0 flex h-full w-[280px] max-w-[85%] flex-col border-r border-white/40 fusion-glass">
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/30 px-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 font-headline text-sm font-bold text-white shadow-lg shadow-indigo-500/25">
+                  EH
+                </div>
+                <div className="min-w-0">
+                  <p className="fusion-gradient-text font-headline text-lg font-extrabold leading-tight">Enterprise HR</p>
+                  <p className="truncate text-xs font-medium text-slate-500">{config.title}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(false)}
+                aria-label="Close navigation menu"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/50 bg-white/40 text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-900"
+              >
+                <X className="h-[18px] w-[18px]" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
+              <Button asChild className="w-full rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 font-bold text-white shadow-lg shadow-indigo-500/25">
+                <Link to="/employee/services">
+                  <span className="mr-2 text-lg leading-none">+</span>
+                  New Request
+                </Link>
+              </Button>
+
+              <div>
+                <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">Core HCM</p>
+                <nav className="space-y-1">
+                  {railItems.map((item) => {
+                    const Icon = item.icon;
+                    const [path, hash] = item.path.split('#');
+                    const isRoot = path === `/${portalType}`;
+                    const isActive = (isRoot ? location.pathname === path : location.pathname.startsWith(path))
+                      && (!hash || location.hash === `#${hash}`);
+                    return (
+                      <Link
+                        key={item.label}
+                        to={item.path}
+                        className={cn(
+                          'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
+                          isActive
+                            ? 'bg-white/80 text-indigo-700 shadow-sm'
+                            : 'text-slate-600 hover:bg-white/50 hover:text-slate-900',
+                        )}
+                      >
+                        <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+                        <span>{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              <div>
+                <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">System</p>
+                <nav className="space-y-1">
+                  {canSeeAdminSettings && portalType !== 'admin' ? (
+                    <Link className="flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900" to="/admin/system-console">
+                      <Settings className="mr-3 h-[18px] w-[18px] text-slate-400" />
+                      Admin Panel
+                    </Link>
+                  ) : null}
+                  {portalType === 'admin' ? (
+                    <Link className="flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900" to="/employee">
+                      <UserCircle className="mr-3 h-[18px] w-[18px] text-slate-400" />
+                      Employee Mode
+                    </Link>
+                  ) : null}
+                  <Link className="flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition-colors hover:bg-white/50 hover:text-slate-900" to="/employee/services">
+                    <HelpCircle className="mr-3 h-[18px] w-[18px] text-slate-400" />
+                    Support
+                  </Link>
+                </nav>
+              </div>
+            </div>
+
+            <div className="shrink-0 border-t border-white/30 p-4">
+              <div className="flex items-center gap-3 px-1">
+                <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                  <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
+                  <AvatarFallback className="bg-gradient-to-tr from-indigo-400 to-violet-400 text-xs font-bold text-white">
+                    {user?.firstName?.charAt(0) ?? 'E'}{user?.lastName?.charAt(0) ?? 'H'}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-800">
+                    {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Team Member'}
+                  </p>
+                  <p className="truncate text-xs font-medium text-slate-500">{config.title}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={logout}
+                  aria-label="Sign out"
+                  title="Sign out"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/50 bg-white/40 text-slate-500 transition-colors hover:bg-white/70 hover:text-rose-600"
+                >
+                  <LogOut className="h-[18px] w-[18px]" />
+                </button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
       <div className="relative z-10 flex min-h-screen min-w-0 max-w-full flex-col md:ml-[260px]">
         <header className="sticky top-0 z-30 shrink-0 border-b border-white/30 fusion-glass">
           <div className="flex h-14 items-center gap-3 px-4 md:px-6 lg:px-8">
-            <div className="flex items-center gap-3 md:hidden">
+            <div className="flex items-center gap-2.5 md:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                aria-label="Open navigation menu"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/50 bg-white/40 text-slate-600 transition-colors hover:bg-white/70 hover:text-indigo-600"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
               <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 font-headline text-xs font-bold text-white shadow-md shadow-indigo-500/25">EH</div>
-              <span className="fusion-gradient-text font-headline text-2xl font-extrabold">HRM Nexus</span>
+              <span className="fusion-gradient-text font-headline text-xl font-extrabold">Enterprise HR</span>
             </div>
 
             <form className="relative hidden min-w-0 flex-1 lg:block xl:max-w-md" onSubmit={submitSearch}>
@@ -448,77 +489,21 @@ function WorkspaceShell({
                   <HelpCircle className="h-5 w-5" />
                 </Link>
               </Button>
-              <Avatar className="h-9 w-9 border border-[#e2e8f0]">
-                <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
-                <AvatarFallback className="bg-[#8b5cf6] text-xs font-semibold text-white">
-                  {user?.firstName?.charAt(0) ?? 'E'}{user?.lastName?.charAt(0) ?? 'H'}
-                </AvatarFallback>
-              </Avatar>
+              <Link to="/employee/profile" aria-label="View your profile" title="View your profile" className="group ml-1 flex items-center gap-2.5">
+                <Avatar className="h-9 w-9 border-2 border-white shadow-sm transition-transform group-hover:scale-105">
+                  <AvatarImage src={user?.avatarUrl} alt={user?.firstName} />
+                  <AvatarFallback className="bg-gradient-to-tr from-indigo-400 to-violet-400 text-xs font-bold text-white">
+                    {user?.firstName?.charAt(0) ?? 'E'}{user?.lastName?.charAt(0) ?? 'H'}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="hidden flex-col leading-tight xl:flex">
+                  <span className="text-sm font-bold text-slate-700 transition-colors group-hover:text-indigo-600">
+                    {[user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.email || 'Team Member'}
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-400">{config.title}</span>
+                </span>
+              </Link>
             </div>
-          </div>
-          <div className="flex h-11 max-w-full flex-nowrap items-center gap-2 overflow-x-auto border-t border-white/30 bg-white/40 px-4 text-sm md:px-6 lg:px-8">
-            {navGroups.map((group) => {
-              const groupItems = group.items ?? [];
-              const isActive = group.path
-                ? isPathActive(location.pathname, location.hash, portalType, group.path)
-                : groupItems.some((item) => isPathActive(location.pathname, location.hash, portalType, item.path));
-
-              if (group.path) {
-                return (
-                  <Link
-                    key={group.label}
-                    to={group.path}
-                    className={cn(
-                      'inline-flex h-9 shrink-0 items-center rounded-lg border px-3 text-sm font-semibold transition-colors',
-                      isActive
-                        ? 'border-[#4f46e5] bg-[#8b5cf6]/10 text-[#4f46e5]'
-                        : 'border-transparent text-[#475569] hover:border-[#e2e8f0] hover:bg-[#eef2ff] hover:text-[#4f46e5]',
-                    )}
-                  >
-                    {group.label}
-                  </Link>
-                );
-              }
-
-              return (
-                <DropdownMenu key={group.label}>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        'inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors',
-                        isActive
-                          ? 'border-[#4f46e5] bg-[#8b5cf6]/10 text-[#4f46e5]'
-                          : 'border-transparent text-[#475569] hover:border-[#e2e8f0] hover:bg-[#eef2ff] hover:text-[#4f46e5]',
-                      )}
-                    >
-                      {group.label}
-                      <ChevronDown className="h-4 w-4" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-60 rounded-lg border-[#e2e8f0] bg-white p-2 shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
-                    <DropdownMenuLabel className="font-mono text-xs uppercase tracking-wider text-[#475569]">
-                      {group.label}
-                    </DropdownMenuLabel>
-                    {groupItems.map((item) => (
-                      <DropdownMenuItem key={item.path} asChild className="rounded-md p-0">
-                        <Link
-                          to={item.path}
-                          className={cn(
-                            'flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold',
-                            isPathActive(location.pathname, location.hash, portalType, item.path)
-                              ? 'bg-[#8b5cf6]/10 text-[#4f46e5]'
-                              : 'text-[#0f172a] hover:bg-[#eef2ff]',
-                          )}
-                        >
-                          {item.label}
-                        </Link>
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              );
-            })}
           </div>
         </header>
 
@@ -594,7 +579,7 @@ function WorkspaceShell({
             </div>
 
             <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-white/40 pt-6 text-xs text-slate-500 md:flex-row">
-              <span className="font-mono font-semibold">&copy; {new Date().getFullYear()} HRM Nexus Enterprise. All rights reserved.</span>
+              <span className="font-mono font-semibold">&copy; {new Date().getFullYear()} Enterprise HR. All rights reserved.</span>
               <div className="flex flex-wrap items-center justify-center gap-4">
                 <a className="underline-offset-4 hover:text-indigo-600 hover:underline" href="#">Privacy</a>
                 <a className="underline-offset-4 hover:text-indigo-600 hover:underline" href="#">Terms</a>

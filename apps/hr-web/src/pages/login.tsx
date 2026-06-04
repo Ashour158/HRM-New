@@ -86,7 +86,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-[#0f172a]">
+    <div className="min-h-screen fusion-bg text-[#0f172a]">
       <div className="mx-auto flex min-h-screen w-full max-w-[1440px]">
         <section className="relative hidden flex-1 overflow-hidden bg-[#1e1b4b] lg:flex">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(165,180,252,0.38),transparent_30%),radial-gradient(circle_at_80%_70%,rgba(45,212,191,0.20),transparent_32%),linear-gradient(135deg,#0f172a_0%,#4f46e5_52%,#7c3aed_100%)]" />

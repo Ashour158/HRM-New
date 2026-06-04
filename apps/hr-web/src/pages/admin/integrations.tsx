@@ -144,7 +144,7 @@ export function AdminIntegrations() {
   const selectedHealth = selected ? lastHealth.find((item) => item.adapterName === selected.adapterName) : undefined;
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb]">
+    <div className="min-h-screen fusion-bg">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -259,7 +259,7 @@ export function AdminIntegrations() {
                   </div>
                 </div>
               ) : (
-                <p className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">
+                <p className="fusion-glass rounded-2xl p-4 text-sm text-[#475569]">
                   No adapters are registered by the backend orchestrator.
                 </p>
               )}
@@ -376,7 +376,7 @@ export function AdminIntegrations() {
               ['Persisted logs', 'The backend logs endpoint is currently a stub returning an empty list.'],
               ['Retry policy', 'Adapter retry/dead-letter controls need a governed backend workflow before UI actions are exposed.'],
             ].map(([title, body]) => (
-              <div key={title} className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+              <div key={title} className="fusion-glass rounded-2xl p-4">
                 <FileText className="h-5 w-5 text-[#4f46e5]" />
                 <p className="mt-3 font-semibold text-[#0f172a]">{title}</p>
                 <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>

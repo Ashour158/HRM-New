@@ -175,7 +175,7 @@ function rangesOverlap(leftStart?: string, leftEnd?: string, rightStart?: string
 
 function RequestCard({ request }: { request: AbsenceRequest }) {
   return (
-    <div className="rounded-lg border border-[#e2e8f0] bg-white p-4 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
+    <div className="fusion-glass rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{request.type}</p>
@@ -409,22 +409,22 @@ export function EmployeeTimeOff() {
         </div>
 
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+          <div className="fusion-glass rounded-2xl p-4">
             <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Available balance</p>
             <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{totalRemaining}</p>
             <p className="mt-1 text-sm text-[#475569]">Across active balances</p>
           </div>
-          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+          <div className="fusion-glass rounded-2xl p-4">
             <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Pending approval</p>
             <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{pendingRequests}</p>
             <p className="mt-1 text-sm text-[#475569]">Requests waiting for review</p>
           </div>
-          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+          <div className="fusion-glass rounded-2xl p-4">
             <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Approved</p>
             <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{approvedRequests}</p>
             <p className="mt-1 text-sm text-[#475569]">Confirmed requests in history</p>
           </div>
-          <div className="rounded-lg border border-[#e2e8f0] bg-white p-4">
+          <div className="fusion-glass rounded-2xl p-4">
             <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Next holiday</p>
             <p className="mt-2 truncate text-lg font-semibold text-[#0f172a]">{upcomingHolidays[0]?.name ?? 'None configured'}</p>
             <p className="mt-1 text-sm text-[#475569]">{upcomingHolidays[0] ? formatDate(upcomingHolidays[0].date) : 'Setup controls holiday calendars'}</p>

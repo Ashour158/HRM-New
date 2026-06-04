@@ -48,7 +48,7 @@ export function AdminEventContracts() {
   }, [registryQuery.data?.topicMappings, search]);
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-6 text-[#0f172a] md:p-8">
+    <main className="min-h-screen fusion-bg p-6 text-[#0f172a] md:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div>
           <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#4f46e5] hover:underline" to="/admin/system-console">
@@ -167,7 +167,7 @@ export function AdminEventContracts() {
               </CardHeader>
               <CardContent className="grid gap-2 md:grid-cols-2">
                 {(registryQuery.data?.eventPrefixMappings ?? []).map(([prefix, topic]) => (
-                  <div key={`${prefix}-${topic}`} className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                  <div key={`${prefix}-${topic}`} className="fusion-glass rounded-2xl p-3 text-sm">
                     <span className="font-mono font-semibold">{prefix}</span>
                     <span className="mx-2 text-[#94a3b8]">{'->'}</span>
                     <span className="font-mono text-[#475569]">{topic}</span>

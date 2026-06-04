@@ -556,7 +556,7 @@ export function AdminModuleOperations() {
   };
 
   return (
-    <div className="min-h-full bg-[#f6f7fb]">
+    <div className="min-h-full fusion-bg">
       <div className="lumina-canvas space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button asChild variant="ghost" size="sm">
@@ -641,7 +641,7 @@ export function AdminModuleOperations() {
                     <button
                       key={action}
                       type="button"
-                      className="rounded-lg border border-[#e2e8f0] bg-white p-4 text-left transition-colors hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]"
+                      className="fusion-glass rounded-2xl p-4 text-left transition-colors hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]"
                       disabled={createRecord.isPending}
                       onClick={() => createRecord.mutate({
                         action,

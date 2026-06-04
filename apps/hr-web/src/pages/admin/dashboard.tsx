@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { formatNumber } from '@/lib/utils';
+import { cn, formatNumber } from '@/lib/utils';
 import {
   Activity,
   AlertTriangle,
@@ -48,34 +48,28 @@ function KpiCard({
   value,
   helper,
   icon: Icon,
-  accent = '#8b5cf6',
+  gradient = 'from-violet-500 to-purple-600',
+  shadow = 'shadow-violet-500/25',
   isLoading,
 }: {
   label: string;
   value: string | number;
   helper: string;
   icon: ComponentType<{ className?: string }>;
-  accent?: string;
+  gradient?: string;
+  shadow?: string;
   isLoading: boolean;
 }) {
   return (
-    <Card className="relative overflow-hidden">
-      <div className="absolute left-0 top-0 h-1 w-full" style={{ backgroundColor: accent }} />
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="lumina-label">{label}</p>
-            <p className="mt-2 font-headline text-4xl font-bold text-[#0f172a]">
-              {isLoading ? '-' : value}
-            </p>
-            <p className="mt-2 text-sm text-[#475569]">{helper}</p>
-          </div>
-          <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#eef2ff]" style={{ color: accent }}>
-            <Icon className="h-5 w-5" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className={cn('relative overflow-hidden rounded-[2rem] bg-gradient-to-br p-6 text-white shadow-lg', gradient, shadow)}>
+      <div className="absolute -right-6 -top-6 h-24 w-24 rounded-full bg-white/10" />
+      <div className="relative flex items-center justify-between">
+        <span className="text-sm font-semibold text-white/80">{label}</span>
+        <Icon className="h-5 w-5 text-white/70" />
+      </div>
+      <p className="relative mt-5 font-headline text-4xl font-extrabold leading-none">{isLoading ? '-' : value}</p>
+      <p className="relative mt-2 text-xs font-medium text-white/70">{helper}</p>
+    </div>
   );
 }
 
@@ -145,11 +139,13 @@ export function AdminDashboard() {
   ];
 
   return (
-    <div className="min-h-full bg-[#f6f7fb]">
-      <div className="lumina-canvas space-y-6">
+    <div className="min-h-full fusion-bg">
+      <div className="lumina-canvas relative z-10 space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <h2 className="font-headline text-4xl font-bold text-[#0f172a]">Overview</h2>
+            <h2 className="font-headline text-4xl font-extrabold tracking-tight text-slate-900">
+              Admin <span className="fusion-gradient-text">Overview</span>
+            </h2>
             <p className="mt-2 text-lg text-[#475569]">One HCM workspace for organization setup, employee self-service, workforce policy, payroll, and governance.</p>
           </div>
           <Button asChild variant="outline">
@@ -166,6 +162,8 @@ export function AdminDashboard() {
             value={formatNumber(data?.headcount)}
             helper="Current active workforce"
             icon={Users}
+            gradient="from-indigo-500 to-indigo-600"
+            shadow="shadow-indigo-500/25"
             isLoading={isLoading}
           />
           <KpiCard
@@ -173,7 +171,8 @@ export function AdminDashboard() {
             value={`${data?.turnover ?? 0}%`}
             helper="Annualized movement"
             icon={TrendingDown}
-            accent="#e11d48"
+            gradient="from-rose-500 to-pink-600"
+            shadow="shadow-rose-500/25"
             isLoading={isLoading}
           />
           <KpiCard
@@ -181,7 +180,8 @@ export function AdminDashboard() {
             value={formatNumber(data?.openPositions)}
             helper="Recruiting and workforce demand"
             icon={Briefcase}
-            accent="#f59e0b"
+            gradient="from-amber-400 to-orange-500"
+            shadow="shadow-amber-500/25"
             isLoading={isLoading}
           />
           <KpiCard
@@ -189,7 +189,8 @@ export function AdminDashboard() {
             value={formatNumber(data?.newHiresThisMonth)}
             helper="Month-to-date onboarding volume"
             icon={UserPlus}
-            accent="#6366f1"
+            gradient="from-teal-500 to-emerald-600"
+            shadow="shadow-teal-500/25"
             isLoading={isLoading}
           />
         </div>

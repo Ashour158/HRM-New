@@ -31,13 +31,12 @@ import {
   LifeBuoy,
   MapPin,
   Send,
-  Sun,
   TrendingUp,
   Umbrella,
   UserCircle,
   UserRoundCheck,
 } from 'lucide-react';
-import type { AbsenceRequest, HcmSetupConfig, Worker } from '@/types';
+import type { HcmSetupConfig, Worker } from '@/types';
 
 interface DashboardData {
   upcomingEvents: Array<{ id: string; title: string; date: string; type: string }>;
@@ -126,17 +125,6 @@ interface AttendanceCorrectionPayload {
   requestedTimestamp: string;
   reason: string;
 }
-
-const activityTabs = [
-  { label: 'Self-Service', path: '/employee' },
-  { label: 'Attendance', path: '/employee#attendance' },
-  { label: 'Leave', path: '/employee/time-off' },
-  { label: 'Profile', path: '/employee/profile' },
-  { label: 'Payslips', path: '/employee/payslip' },
-  { label: 'Benefits', path: '/employee/benefits' },
-  { label: 'Performance', path: '/employee/performance' },
-  { label: 'Services', path: '/employee/services' },
-];
 
 const selfServiceModules = [
   {
@@ -428,7 +416,6 @@ export function EmployeeDashboard() {
     ? Math.max(Math.floor((Date.now() - new Date(todayState.activeCheckInAt).getTime()) / 1000), 0)
     : Math.max((todayState?.elapsedMinutes ?? 0) * 60, 0);
   const [hours, minutes, seconds] = formatDuration(activeSeconds + tick * 0);
-  const pendingAbsences = React.useMemo<AbsenceRequest[]>(() => [], []);
 
   const weekDays = React.useMemo(() => currentWeekDays(today), [today]);
 
@@ -550,15 +537,27 @@ export function EmployeeDashboard() {
     [timeline],
   );
 
+  const greeting = (() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  })();
+
   return (
-    <div className="min-h-[calc(100vh-96px)] bg-[#eef2ff]">
-      <div className="relative h-[140px] overflow-hidden bg-[#1e1b4b]">
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,27,75,0.95),rgba(49,46,129,0.7)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
+    <div className="min-h-[calc(100vh-96px)] fusion-bg">
+      <div className="relative z-10 mx-auto max-w-[1740px] px-4 pt-7 lg:px-5">
+        <h1 className="font-headline text-3xl font-extrabold tracking-tight text-slate-900">
+          {greeting}, <span className="fusion-gradient-text">{activeWorkerName}</span>
+        </h1>
+        <p className="mt-1 text-sm font-medium text-slate-500">
+          Your self-service actions use the same HCM data HR administers.
+        </p>
       </div>
 
-      <div className="relative mx-auto grid max-w-[1740px] gap-3 px-4 pb-8 md:grid-cols-[280px_minmax(0,1fr)] lg:px-5">
-        <aside className="-mt-8 space-y-3">
-          <section className="rounded-md border border-[#e2e8f0] bg-white p-5 shadow-sm">
+      <div className="relative z-10 mx-auto grid max-w-[1740px] gap-3 px-4 pb-8 pt-5 md:grid-cols-[280px_minmax(0,1fr)] lg:px-5">
+        <aside className="space-y-3">
+          <section className="fusion-glass fusion-hover rounded-[1.75rem] p-5">
             <div className="flex flex-col items-center text-center">
               <Avatar className="h-[100px] w-[100px] rounded-xl border-2 border-white shadow-md">
                 <AvatarImage src={activeWorker?.photoUrl} alt={activeWorkerName} />
@@ -608,8 +607,8 @@ export function EmployeeDashboard() {
             </div>
           </section>
 
-          <section className="rounded-md border border-[#e2e8f0] bg-white p-5 shadow-sm">
-            <h2 className="text-base font-semibold">My Shortcuts</h2>
+          <section className="fusion-glass fusion-hover rounded-[1.75rem] p-5">
+            <h2 className="font-headline text-base font-bold text-slate-900">My Shortcuts</h2>
             <div className="mt-3 space-y-2">
               {[
                 { label: 'My Profile', path: '/employee/profile' },
@@ -630,42 +629,12 @@ export function EmployeeDashboard() {
           </section>
         </aside>
 
-        <section className="-mt-8 min-w-0">
-          <div className="rounded-md border border-[#e2e8f0] bg-white shadow-sm">
-            <div className="flex h-[60px] items-center gap-4 overflow-x-auto border-b px-5">
-              {activityTabs.map((tab) => {
-                const [path, hash] = tab.path.split('#');
-                const isActive = location.pathname === path && (!hash || location.hash === `#${hash}`);
-                return (
-                  <Link
-                    key={tab.label}
-                    to={tab.path}
-                    className={cn(
-                      'relative flex h-full shrink-0 items-center border-b-2 px-1 text-sm font-medium',
-                      isActive ? 'border-[#6366f1] text-slate-950' : 'border-transparent text-slate-700 hover:text-slate-950',
-                    )}
-                  >
-                    {tab.label}
-                    {tab.label === 'Leave' && pendingAbsences.length > 0 ? (
-                      <span className="absolute right-[-12px] top-3 rounded-md bg-[#6366f1] px-1.5 text-[10px] font-bold text-white">{pendingAbsences.length}</span>
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </div>
-
-            <div className="bg-[#f6f7fb] p-5">
+        <section className="min-w-0">
+          <div>
+            <div>
               <div className="space-y-3">
-                <div className="flex items-center gap-4 rounded-md border border-[#e0e7ff] bg-[#eef2ff] p-4">
-                  <div className="grid h-[62px] w-[100px] place-items-center rounded border bg-white text-lg font-bold text-[#4338ca]">HCM</div>
-                  <div>
-                    <p className="font-semibold">Good Afternoon&nbsp; {activeWorkerName}</p>
-                    <p className="text-sm text-slate-600">Your self-service actions use the same HCM data HR administers.</p>
-                  </div>
-                  <Sun className="ml-auto h-14 w-14 text-amber-300" />
-                </div>
 
-                <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
+                <div className="fusion-glass rounded-2xl p-5">
                   <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                     <div>
                       <Badge variant="secondary" className="mb-2">Employee Self-Service</Badge>
@@ -708,7 +677,7 @@ export function EmployeeDashboard() {
                       rightSubtitle={`${setup.attendancePolicy.standardStartTime ?? setup.attendancePolicy.flexibleWindowStart ?? '09:00'} - ${setup.attendancePolicy.standardEndTime ?? setup.attendancePolicy.coreEndTime ?? '17:00'}`}
                     />
 
-                    <div id="attendance" className="rounded-md border border-[#e2e8f0] bg-white p-5">
+                    <div id="attendance" className="fusion-glass rounded-2xl p-5">
                       <div className="flex items-start gap-4">
                         <div className="grid h-11 w-11 place-items-center rounded-md bg-indigo-50">
                           <CalendarDays className="h-5 w-5 text-indigo-500" />
@@ -746,7 +715,7 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
+                    <div className="fusion-glass rounded-2xl p-5">
                       <div className="flex items-start gap-4">
                         <div className="grid h-11 w-11 place-items-center rounded-md bg-emerald-50">
                           <MapPin className="h-5 w-5 text-emerald-600" />
@@ -805,7 +774,7 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
+                    <div className="fusion-glass rounded-2xl p-5">
                       <div className="flex items-start gap-4">
                         <div className="grid h-11 w-11 place-items-center rounded-md bg-indigo-50">
                           <Umbrella className="h-5 w-5 text-indigo-500" />
@@ -835,7 +804,7 @@ export function EmployeeDashboard() {
                   </div>
 
                   <aside className="space-y-3">
-                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
+                    <div className="fusion-glass rounded-2xl p-4">
                       <h3 className="font-semibold">Attendance Terminal</h3>
                       <p className="mt-1 text-sm text-slate-600">
                         Record your own attendance with workplace and location evidence.
@@ -886,7 +855,7 @@ export function EmployeeDashboard() {
                       {clockError ? <p className="mt-3 rounded bg-red-50 px-3 py-2 text-xs text-red-700">{clockError}</p> : null}
                     </div>
 
-                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
+                    <div className="fusion-glass rounded-2xl p-4">
                       <h3 className="font-semibold">On-duty Request</h3>
                       <p className="mt-1 text-sm text-slate-600">Route field work or missing workplace attendance to approval.</p>
                       <div className="mt-4 space-y-3">
@@ -897,7 +866,7 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
+                    <div className="fusion-glass rounded-2xl p-4">
                       <div className="flex items-center gap-2">
                         <FileClock className="h-4 w-4 text-[#6366f1]" />
                         <h3 className="font-semibold">Attendance Correction</h3>
@@ -941,7 +910,7 @@ export function EmployeeDashboard() {
                       </div>
                     </div>
 
-                    <div className="rounded-md border border-[#e2e8f0] bg-white p-4">
+                    <div className="fusion-glass rounded-2xl p-4">
                       <h3 className="font-semibold">This Month</h3>
                       <div className="mt-4 grid gap-3 text-sm">
                         <EvidenceMetric label="Payable" value={formatMinutes(attendanceSummary?.summary.payableMinutes)} />
@@ -1059,7 +1028,7 @@ export function EmployeeAttendanceAction() {
 
   return (
     <div className="grid min-h-[calc(100vh-96px)] place-items-center bg-[#eef2ff] px-4 py-12">
-      <div className="w-full max-w-2xl rounded-md border border-[#e2e8f0] bg-white p-6 shadow-sm">
+      <div className="w-full max-w-2xl fusion-glass rounded-2xl p-6">
         <div className="flex items-center gap-3">
           <Clock3 className="h-5 w-5 text-[#4f46e5]" />
           <h1 className="text-xl font-semibold text-[#0f172a]">{actionLabel}</h1>
@@ -1143,7 +1112,7 @@ function AttendanceLocationMap({
   if (!hasCoordinateEvidence(point)) return null;
 
   return (
-    <div className="overflow-hidden rounded-md border border-[#e2e8f0] bg-white">
+    <div className="overflow-hidden fusion-glass rounded-2xl">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
           <h4 className="font-semibold text-[#0f172a]">{title}</h4>
@@ -1195,7 +1164,7 @@ function FeedRow({
   rightSubtitle?: string;
 }) {
   return (
-    <div className="rounded-md border border-[#e2e8f0] bg-white p-5">
+    <div className="fusion-glass rounded-2xl p-5">
       <div className="flex items-center gap-4">
         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-orange-50">{icon}</div>
         <div className="min-w-0">

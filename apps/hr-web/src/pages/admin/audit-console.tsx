@@ -96,7 +96,7 @@ export function AdminAuditConsole() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f6f7fb] p-6 text-[#0f172a] md:p-8">
+    <main className="min-h-screen fusion-bg p-6 text-[#0f172a] md:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
