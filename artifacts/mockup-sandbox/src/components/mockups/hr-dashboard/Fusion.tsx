@@ -27,6 +27,7 @@ import {
   TrendingUp,
   BarChart3,
   PieChart,
+  CloudSun,
 } from "lucide-react";
 import {
   AreaChart as ReAreaChart,
@@ -51,6 +52,12 @@ const currentUser = "Jane";
 const companyBranding = {
   name: "Northwind Group",
   logo: companyLogo,
+};
+
+const dailyWeather = {
+  city: "London",
+  tempC: 18,
+  condition: "Partly cloudy",
 };
 
 const dailyQuotes = [
@@ -284,6 +291,21 @@ export function Fusion() {
             <button aria-label="Help" className="p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
               <HelpCircle size={20} />
             </button>
+            <div
+              aria-label={`Today's weather in ${dailyWeather.city}: ${dailyWeather.tempC} degrees, ${dailyWeather.condition}`}
+              title={`${dailyWeather.city} · ${dailyWeather.condition}`}
+              className="hidden sm:flex items-center gap-2.5 h-11 px-3 rounded-2xl bg-gradient-to-br from-sky-400/90 to-indigo-500/90 text-white shadow-md shadow-indigo-500/20 border border-white/30"
+            >
+              <CloudSun size={22} className="shrink-0" />
+              <div className="flex flex-col leading-none">
+                <span className="text-base font-extrabold">
+                  {dailyWeather.tempC}°
+                </span>
+                <span className="text-[10px] font-semibold text-white/80 mt-0.5">
+                  {dailyWeather.city}
+                </span>
+              </div>
+            </div>
             <a
               href="#"
               aria-label="View your profile"
