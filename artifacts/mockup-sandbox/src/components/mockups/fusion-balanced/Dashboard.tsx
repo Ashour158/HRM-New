@@ -67,14 +67,14 @@ const weatherThemes = {
   sunny: {
     label: "Sunny",
     Icon: Sun,
-    gradient: "from-fuchsia-400 via-purple-500 to-violet-600",
-    glow: "bg-fuchsia-300/50",
+    gradient: "from-amber-300 via-orange-400 to-orange-500",
+    glow: "bg-amber-300/50",
   },
   "partly-cloudy": {
     label: "Partly cloudy",
     Icon: CloudSun,
-    gradient: "from-violet-400 via-purple-500 to-slate-500",
-    glow: "bg-violet-300/50",
+    gradient: "from-violet-300 via-purple-400 to-slate-400",
+    glow: "bg-violet-200/50",
   },
   cloudy: {
     label: "Cloudy",
@@ -199,12 +199,12 @@ const activityIcon: Record<string, string> = {
 };
 
 const CHART_COLORS = [
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#14b8a6",
-  "#f59e0b",
   "#818cf8",
+  "#a78bfa",
+  "#c084fc",
+  "#2dd4bf",
+  "#fbbf24",
+  "#a5b4fc",
 ];
 
 const headcountTrend = [
@@ -332,15 +332,15 @@ export function Dashboard() {
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden="true">
         <div
           className="fusion-blob"
-          style={{ width: 420, height: 420, top: -80, left: "30%", background: "radial-gradient(circle, #818cf8, #6366f1)" }}
+          style={{ width: 420, height: 420, top: -80, left: "30%", background: "radial-gradient(circle, #a5b4fc, #818cf8)" }}
         />
         <div
           className="fusion-blob fusion-blob-2"
-          style={{ width: 360, height: 360, top: "20%", right: "-60px", background: "radial-gradient(circle, #a78bfa, #8b5cf6)" }}
+          style={{ width: 360, height: 360, top: "20%", right: "-60px", background: "radial-gradient(circle, #c4b5fd, #a78bfa)" }}
         />
         <div
           className="fusion-blob fusion-blob-3"
-          style={{ width: 380, height: 380, bottom: "-100px", left: "20%", background: "radial-gradient(circle, #5eead4, #14b8a6)" }}
+          style={{ width: 380, height: 380, bottom: "-100px", left: "20%", background: "radial-gradient(circle, #99f6e4, #2dd4bf)" }}
         />
       </div>
 
@@ -586,7 +586,7 @@ export function Dashboard() {
             {/* Vivid bento KPI tiles (Bento) */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
               {/* KPI 1 */}
-              <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-indigo-500/20 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-indigo-400 to-violet-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-indigo-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
@@ -602,7 +602,7 @@ export function Dashboard() {
                 </div>
               </div>
               {/* KPI 2 */}
-              <div className="bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-violet-500/20 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-violet-400 to-purple-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-violet-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
@@ -620,7 +620,7 @@ export function Dashboard() {
                 </div>
               </div>
               {/* KPI 3 */}
-              <div className="bg-gradient-to-br from-teal-500 to-emerald-600 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-emerald-500/20 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-teal-400 to-emerald-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-emerald-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
@@ -636,7 +636,7 @@ export function Dashboard() {
                 </div>
               </div>
               {/* KPI 4 */}
-              <div className="bg-gradient-to-br from-amber-500 to-orange-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-orange-500/20 relative overflow-hidden group">
+              <div className="bg-gradient-to-br from-amber-400 to-orange-500 text-white rounded-[2rem] p-6 fusion-hover flex flex-col justify-between h-[180px] shadow-lg shadow-orange-500/15 relative overflow-hidden group">
                 <div className="absolute -right-6 -top-6 w-32 h-32 bg-white/15 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-500" />
                 <div className="flex justify-between items-start relative z-10">
                   <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-sm">
@@ -680,8 +680,8 @@ export function Dashboard() {
                           x2="0"
                           y2="1"
                         >
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                          <stop offset="95%" stopColor="#d946ef" stopOpacity={0.02} />
+                          <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.02} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid
@@ -713,7 +713,7 @@ export function Dashboard() {
                       <Area
                         type="monotone"
                         dataKey="headcount"
-                        stroke="#6366f1"
+                        stroke="#818cf8"
                         strokeWidth={3}
                         fill="url(#fusionHeadcount)"
                       />
@@ -775,10 +775,10 @@ export function Dashboard() {
                   </h2>
                   <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
                     <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-indigo-500" /> Hires
+                      <span className="w-3 h-3 rounded-full bg-indigo-400" /> Hires
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full bg-amber-400" /> Exits
+                      <span className="w-3 h-3 rounded-full bg-amber-300" /> Exits
                     </span>
                   </div>
                 </div>
@@ -817,13 +817,13 @@ export function Dashboard() {
                       />
                       <Bar
                         dataKey="hires"
-                        fill="#6366f1"
+                        fill="#818cf8"
                         radius={[8, 8, 0, 0]}
                         maxBarSize={34}
                       />
                       <Bar
                         dataKey="exits"
-                        fill="#f59e0b"
+                        fill="#fbbf24"
                         radius={[8, 8, 0, 0]}
                         maxBarSize={34}
                       />
