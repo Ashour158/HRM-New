@@ -23,6 +23,7 @@ import {
   Settings,
   Zap,
   HelpCircle,
+  Sparkles,
 } from "lucide-react";
 import "./fusion/_group.css";
 
@@ -63,7 +64,23 @@ const activityIcon: Record<string, string> = {
 
 export function Fusion() {
   return (
-    <div className="min-h-screen fusion-bg text-slate-900 font-['Plus_Jakarta_Sans',sans-serif] flex">
+    <div className="min-h-screen fusion-bg text-slate-900 font-['Plus_Jakarta_Sans',sans-serif] flex relative">
+      {/* Floating mesh blobs — artistic depth (clipping scoped to this decorative layer only) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden="true">
+        <div
+          className="fusion-blob"
+          style={{ width: 420, height: 420, top: -80, left: "30%", background: "radial-gradient(circle, #818cf8, #6366f1)" }}
+        />
+        <div
+          className="fusion-blob fusion-blob-2"
+          style={{ width: 360, height: 360, top: "20%", right: "-60px", background: "radial-gradient(circle, #e879f9, #d946ef)" }}
+        />
+        <div
+          className="fusion-blob fusion-blob-3"
+          style={{ width: 380, height: 380, bottom: "-100px", left: "20%", background: "radial-gradient(circle, #f472b6, #22d3ee)" }}
+        />
+      </div>
+
       {/* Sidebar — glassmorphic (Aurora) */}
       <aside className="w-64 fusion-glass border-r border-white/40 flex-col z-10 hidden lg:flex relative">
         <div className="h-16 flex items-center px-6 border-b border-white/30">
@@ -153,16 +170,17 @@ export function Fusion() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input
               type="text"
+              aria-label="Search employees, policies, reports"
               placeholder="Search employees, policies, reports..."
               className="w-full bg-white/55 border border-white/60 focus:bg-white/80 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none rounded-full pl-10 pr-4 py-2 text-sm placeholder:text-slate-400 transition-all shadow-inner"
             />
           </div>
           <div className="flex items-center space-x-3">
-            <button className="relative p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
+            <button aria-label="Notifications" className="relative p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
               <BellRing size={20} />
               <span className="absolute top-1 right-1 w-2 h-2 bg-rose-500 rounded-full border border-white" />
             </button>
-            <button className="p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
+            <button aria-label="Help" className="p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
               <HelpCircle size={20} />
             </button>
           </div>
@@ -174,12 +192,20 @@ export function Fusion() {
             {/* Page header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
               <div>
-                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-2">
-                  Overview
+                <div className="inline-flex items-center gap-2 mb-3 pl-2 pr-3 py-1 rounded-full bg-white/60 border border-white/60 backdrop-blur-md text-xs font-bold text-slate-600">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+                  </span>
+                  All systems operational · June 2026
+                </div>
+                <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2 flex items-center gap-3">
+                  <span className="fusion-gradient-text">Good morning, Jane</span>
+                  <Sparkles className="text-fuchsia-500 shrink-0" size={30} fill="currentColor" />
                 </h1>
                 <p className="text-slate-500 max-w-2xl text-sm md:text-base leading-relaxed">
-                  One HCM workspace for organization setup, employee self-service,
-                  workforce policy, payroll, and governance.
+                  Your One HCM workspace for organization setup, employee
+                  self-service, workforce policy, payroll, and governance.
                 </p>
               </div>
               <button className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-indigo-500/25 flex items-center transition-all hover:scale-105 active:scale-95 shrink-0">
