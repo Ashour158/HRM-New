@@ -24,7 +24,25 @@ import {
   Zap,
   HelpCircle,
   Quote,
+  TrendingUp,
+  BarChart3,
+  PieChart,
 } from "lucide-react";
+import {
+  AreaChart as ReAreaChart,
+  Area,
+  BarChart as ReBarChart,
+  Bar,
+  PieChart as RePieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as ReTooltip,
+  ResponsiveContainer,
+  Legend,
+} from "recharts";
 import "./fusion/_group.css";
 
 const currentUser = "Jane";
@@ -79,19 +97,55 @@ const alertBg: Record<string, string> = {
 };
 
 const activityTag: Record<string, string> = {
-  blue: "bg-blue-400/20 text-blue-300",
-  indigo: "bg-indigo-400/20 text-indigo-300",
-  violet: "bg-violet-400/20 text-violet-300",
-  fuchsia: "bg-fuchsia-400/20 text-fuchsia-300",
-  rose: "bg-rose-400/20 text-rose-300",
+  blue: "bg-blue-100 text-blue-700",
+  indigo: "bg-indigo-100 text-indigo-700",
+  violet: "bg-violet-100 text-violet-700",
+  fuchsia: "bg-fuchsia-100 text-fuchsia-700",
+  rose: "bg-rose-100 text-rose-700",
 };
 const activityIcon: Record<string, string> = {
-  blue: "text-blue-400",
-  indigo: "text-indigo-400",
-  violet: "text-violet-400",
-  fuchsia: "text-fuchsia-400",
-  rose: "text-rose-400",
+  blue: "text-blue-500",
+  indigo: "text-indigo-500",
+  violet: "text-violet-500",
+  fuchsia: "text-fuchsia-500",
+  rose: "text-rose-500",
 };
+
+const CHART_COLORS = [
+  "#6366f1",
+  "#8b5cf6",
+  "#d946ef",
+  "#3b82f6",
+  "#a855f7",
+  "#f43f5e",
+];
+
+const headcountTrend = [
+  { month: "Jan", headcount: 4480 },
+  { month: "Feb", headcount: 4525 },
+  { month: "Mar", headcount: 4598 },
+  { month: "Apr", headcount: 4662 },
+  { month: "May", headcount: 4744 },
+  { month: "Jun", headcount: 4820 },
+];
+
+const deptDistribution = [
+  { name: "Engineering", value: 1280 },
+  { name: "Sales", value: 920 },
+  { name: "Operations", value: 760 },
+  { name: "Marketing", value: 540 },
+  { name: "Finance", value: 480 },
+  { name: "People & Admin", value: 840 },
+];
+
+const hiresAttrition = [
+  { month: "Jan", hires: 64, exits: 38 },
+  { month: "Feb", hires: 71, exits: 42 },
+  { month: "Mar", hires: 83, exits: 35 },
+  { month: "Apr", hires: 77, exits: 51 },
+  { month: "May", hires: 88, exits: 44 },
+  { month: "Jun", hires: 92, exits: 39 },
+];
 
 export function Fusion() {
   const dailyQuote = getDailyQuote(currentUser);
@@ -129,7 +183,7 @@ export function Fusion() {
             </div>
             <nav className="space-y-1">
               {[
-                { icon: LayoutGrid, label: "Overview", active: true },
+                { icon: LayoutGrid, label: "Dashboard", active: true },
                 { icon: Network, label: "Organization" },
                 { icon: Users, label: "Employees" },
                 { icon: Calendar, label: "Time & Leave" },
@@ -280,9 +334,9 @@ export function Fusion() {
                 <a
                   key={i}
                   href="#"
-                  className="text-xs font-semibold px-4 py-2 bg-white/60 hover:bg-white border border-white/60 rounded-full text-slate-600 hover:text-indigo-600 hover:shadow-sm transition-all backdrop-blur-md whitespace-nowrap flex items-center"
+                  className="text-sm font-bold px-4 py-2.5 bg-white border border-slate-200/80 rounded-xl text-slate-700 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50/50 shadow-sm hover:shadow-md transition-all whitespace-nowrap flex items-center active:scale-95"
                 >
-                  {link} <ChevronRight size={14} className="ml-1 opacity-50" />
+                  {link} <ChevronRight size={14} className="ml-1.5 opacity-50" />
                 </a>
               ))}
             </div>
@@ -357,7 +411,187 @@ export function Fusion() {
               </div>
             </div>
 
-            {/* Bento body: flow (glass) + alerts (glass) + activity (dark) */}
+            {/* Analytics — graphs */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Headcount growth — area, spans 2 */}
+              <div className="lg:col-span-2 fusion-glass rounded-[2rem] p-6 lg:p-8 flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <TrendingUp size={20} className="text-indigo-500" />
+                    Headcount Growth
+                  </h2>
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                    Last 6 months
+                  </span>
+                </div>
+                <div className="h-72 -ml-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ReAreaChart
+                      data={headcountTrend}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient
+                          id="fusionHeadcount"
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#d946ef" stopOpacity={0.02} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#e2e8f0"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fill: "#64748b", fontSize: 12, fontWeight: 600 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#94a3b8", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                        domain={["dataMin - 100", "dataMax + 80"]}
+                        width={48}
+                      />
+                      <ReTooltip
+                        contentStyle={{
+                          borderRadius: 16,
+                          border: "1px solid #e2e8f0",
+                          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+                          fontSize: 13,
+                        }}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="headcount"
+                        stroke="#6366f1"
+                        strokeWidth={3}
+                        fill="url(#fusionHeadcount)"
+                      />
+                    </ReAreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Workforce by department — donut */}
+              <div className="fusion-glass rounded-[2rem] p-6 lg:p-8 flex flex-col">
+                <h2 className="text-xl font-bold flex items-center gap-2 mb-2">
+                  <PieChart size={20} className="text-fuchsia-500" />
+                  By Department
+                </h2>
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RePieChart>
+                      <Pie
+                        data={deptDistribution}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        stroke="none"
+                      >
+                        {deptDistribution.map((entry, i) => (
+                          <Cell
+                            key={i}
+                            fill={CHART_COLORS[i % CHART_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <ReTooltip
+                        contentStyle={{
+                          borderRadius: 16,
+                          border: "1px solid #e2e8f0",
+                          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+                          fontSize: 13,
+                        }}
+                      />
+                      <Legend
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: 12, fontWeight: 600 }}
+                      />
+                    </RePieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Hires vs attrition — bar, full width */}
+              <div className="lg:col-span-3 fusion-glass rounded-[2rem] p-6 lg:p-8 flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <BarChart3 size={20} className="text-violet-500" />
+                    Hires vs Attrition
+                  </h2>
+                  <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-indigo-500" /> Hires
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3 h-3 rounded-full bg-rose-400" /> Exits
+                    </span>
+                  </div>
+                </div>
+                <div className="h-72 -ml-2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ReBarChart
+                      data={hiresAttrition}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                      barGap={6}
+                    >
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#e2e8f0"
+                        vertical={false}
+                      />
+                      <XAxis
+                        dataKey="month"
+                        tick={{ fill: "#64748b", fontSize: 12, fontWeight: 600 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fill: "#94a3b8", fontSize: 12 }}
+                        axisLine={false}
+                        tickLine={false}
+                        width={36}
+                      />
+                      <ReTooltip
+                        cursor={{ fill: "rgba(99,102,241,0.06)" }}
+                        contentStyle={{
+                          borderRadius: 16,
+                          border: "1px solid #e2e8f0",
+                          boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+                          fontSize: 13,
+                        }}
+                      />
+                      <Bar
+                        dataKey="hires"
+                        fill="#6366f1"
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={34}
+                      />
+                      <Bar
+                        dataKey="exits"
+                        fill="#fb7185"
+                        radius={[8, 8, 0, 0]}
+                        maxBarSize={34}
+                      />
+                    </ReBarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Bento body: flow (glass) + alerts (glass) + activity (glass) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Operating flow — glass, spans 2 */}
               <div className="lg:col-span-2 fusion-glass rounded-[2rem] p-8 flex flex-col">
@@ -433,12 +667,12 @@ export function Fusion() {
                   </div>
                 </div>
 
-                {/* Recent activity — dark panel (Bento contrast pop) */}
-                <div className="bg-[#1e293b] text-white rounded-[2rem] p-6 flex flex-col relative overflow-hidden flex-1">
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+                {/* Recent activity — glass panel */}
+                <div className="fusion-glass rounded-[2rem] p-6 flex flex-col relative overflow-hidden flex-1">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-400/15 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
                   <div className="flex items-center justify-between mb-5 relative z-10">
                     <h2 className="text-lg font-bold flex items-center gap-2">
-                      <Clock className="text-slate-400" size={20} />
+                      <Clock className="text-indigo-500" size={20} />
                       Recent Activity
                     </h2>
                   </div>
@@ -451,11 +685,11 @@ export function Fusion() {
                       { icon: FileText, title: "Compliance policy updated: Germany", time: "Yesterday", tag: "Governance", color: "rose" },
                     ].map((act, i) => (
                       <div key={i} className="flex gap-3">
-                        <div className="w-[26px] h-[26px] rounded-full bg-slate-800 flex items-center justify-center shrink-0 ring-4 ring-[#1e293b]">
+                        <div className="w-[26px] h-[26px] rounded-full bg-white flex items-center justify-center shrink-0 ring-4 ring-white/60 shadow-sm">
                           <act.icon size={15} className={activityIcon[act.color]} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-slate-200 mb-1.5 leading-snug">
+                          <p className="text-sm font-semibold text-slate-700 mb-1.5 leading-snug">
                             {act.title}
                           </p>
                           <div className="flex items-center gap-2">
