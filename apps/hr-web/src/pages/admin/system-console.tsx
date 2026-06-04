@@ -430,7 +430,7 @@ export function AdminSystemConsole() {
     departments: setupQuery.data?.departments?.filter((item) => item.active).length ?? 0,
     locations: setupQuery.data?.locations?.filter((item) => item.active).length ?? 0,
   };
-  const readinessDown = readinessQuery.data?.checks.filter((check) => check.status === 'down').length ?? 0;
+  const readinessDown = readinessQuery.data?.checks?.filter((check) => check.status === 'down').length ?? 0;
   const integrationAdapterCount = Array.isArray(integrationQuery.data?.adapters)
     ? integrationQuery.data.adapters.length
     : integrationQuery.data?.adapters && typeof integrationQuery.data.adapters === 'object'
@@ -546,7 +546,7 @@ export function AdminSystemConsole() {
       evidence: [
         `API health: ${healthQuery.data?.status ?? 'not loaded'}${healthQuery.data?.version ? ` / v${healthQuery.data.version}` : ''}`,
         `Liveness: ${livenessQuery.data?.status ?? 'not loaded'}`,
-        `${readinessQuery.data?.checks.length ?? 0} readiness checks, ${readinessDown} down`,
+        `${readinessQuery.data?.checks?.length ?? 0} readiness checks, ${readinessDown} down`,
         'Uses /health, /health/ready, and /health/live backend endpoints',
       ],
     },
@@ -592,7 +592,7 @@ export function AdminSystemConsole() {
         `${unreadNotifications} unread HR operations notifications in the current inbox`,
         `${usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0} retryable pending outbox events and ${usageQueueHealth?.outbox.exhaustedEvents ?? usageTotals?.exhaustedOutboxEvents ?? 0} exhausted events in service usage`,
         `${usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0} retryable inbox failures and ${usageQueueHealth?.inbox.failedNonRetryableEvents ?? usageTotals?.inboxFailedNonRetryableEvents ?? 0} non-retryable inbox failures`,
-        `${deadLetterQuery.data?.inbox.failedNonRetryable ?? 0} non-retryable inbox rows and ${deadLetterQuery.data?.outbox.exhausted ?? 0} exhausted outbox rows`,
+        `${deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0} non-retryable inbox rows and ${deadLetterQuery.data?.outbox?.exhausted ?? 0} exhausted outbox rows`,
       ],
     },
     {
@@ -676,12 +676,12 @@ export function AdminSystemConsole() {
     mapsConfigured,
     notificationsQuery.isSuccess,
     readinessDown,
-    readinessQuery.data?.checks.length,
+    readinessQuery.data?.checks?.length,
     readinessQuery.data?.status,
     readinessQuery.isSuccess,
     serviceUsageQuery.isSuccess,
-    deadLetterQuery.data?.inbox.failedNonRetryable,
-    deadLetterQuery.data?.outbox.exhausted,
+    deadLetterQuery.data?.inbox?.failedNonRetryable,
+    deadLetterQuery.data?.outbox?.exhausted,
     deadLetterQuery.isSuccess,
     unreadNotifications,
     usageTotals?.commands,
