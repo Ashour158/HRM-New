@@ -23,9 +23,40 @@ import {
   Settings,
   Zap,
   HelpCircle,
-  Sparkles,
+  Quote,
 } from "lucide-react";
 import "./fusion/_group.css";
+
+const currentUser = "Jane";
+
+const dailyQuotes = [
+  "Great teams aren't built in a day — they're built every day.",
+  "Small steps, taken daily, move mountains.",
+  "People don't work for companies, they work for people. Lead well.",
+  "Progress beats perfection. Ship the next good thing.",
+  "Culture is what you do when no one is watching.",
+  "Empower one person today and the ripple never stops.",
+  "The best time to support your team was yesterday. The second best is now.",
+  "Clarity is kindness — say the helpful thing.",
+  "Every record is a person. Every policy is a promise.",
+  "Momentum loves consistency. Keep showing up.",
+  "Hire for heart, train for skill, lead with trust.",
+  "A calm leader builds a confident team.",
+  "Make today 1% better than yesterday.",
+  "Recognition costs nothing and changes everything.",
+  "Build the workplace you wish you had.",
+];
+
+function getDailyQuote(user: string): string {
+  const now = new Date();
+  const dayOfYear = Math.floor(
+    (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000,
+  );
+  let userSeed = 0;
+  for (let i = 0; i < user.length; i++) userSeed += user.charCodeAt(i);
+  const index = (dayOfYear + userSeed) % dailyQuotes.length;
+  return dailyQuotes[index];
+}
 
 const moduleIcon: Record<string, string> = {
   blue: "bg-blue-100 text-blue-600",
@@ -63,6 +94,7 @@ const activityIcon: Record<string, string> = {
 };
 
 export function Fusion() {
+  const dailyQuote = getDailyQuote(currentUser);
   return (
     <div className="min-h-screen fusion-bg text-slate-900 font-['Plus_Jakarta_Sans',sans-serif] flex relative">
       {/* Floating mesh blobs — artistic depth (clipping scoped to this decorative layer only) */}
@@ -183,6 +215,26 @@ export function Fusion() {
             <button aria-label="Help" className="p-2 text-slate-500 hover:text-slate-800 transition-colors bg-white/40 hover:bg-white/70 rounded-full border border-white/50">
               <HelpCircle size={20} />
             </button>
+            <a
+              href="#"
+              aria-label="View your profile"
+              title="View your profile"
+              className="ml-1 flex items-center gap-2.5 group"
+            >
+              <img
+                src="https://randomuser.me/api/portraits/women/44.jpg"
+                alt="Jane Doe profile"
+                className="w-10 h-10 rounded-full object-cover ring-2 ring-white/70 shadow-md group-hover:ring-indigo-400 group-hover:scale-105 transition-all"
+              />
+              <span className="hidden xl:flex flex-col leading-tight">
+                <span className="text-sm font-bold text-slate-700 group-hover:text-indigo-600 transition-colors">
+                  Jane Doe
+                </span>
+                <span className="text-[11px] font-medium text-slate-400">
+                  Global HR Admin
+                </span>
+              </span>
+            </a>
           </div>
         </header>
 
@@ -199,19 +251,18 @@ export function Fusion() {
                   </span>
                   All systems operational · June 2026
                 </div>
-                <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2 flex items-center gap-3">
+                <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-3">
                   <span className="fusion-gradient-text">Good morning, Jane</span>
-                  <Sparkles className="text-fuchsia-500 shrink-0" size={30} fill="currentColor" />
                 </h1>
-                <p className="text-slate-500 max-w-2xl text-sm md:text-base leading-relaxed">
-                  Your One HCM workspace for organization setup, employee
-                  self-service, workforce policy, payroll, and governance.
+                <p className="text-slate-600 max-w-2xl text-base md:text-lg font-medium leading-relaxed flex items-start gap-2.5">
+                  <Quote
+                    size={20}
+                    className="text-fuchsia-400 shrink-0 mt-1 -scale-x-100"
+                    fill="currentColor"
+                  />
+                  <span className="italic">{dailyQuote}</span>
                 </p>
               </div>
-              <button className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-5 py-2.5 rounded-xl font-semibold shadow-lg shadow-indigo-500/25 flex items-center transition-all hover:scale-105 active:scale-95 shrink-0">
-                <LayoutGrid size={18} className="mr-2" />
-                Module Catalog
-              </button>
             </div>
 
             {/* Quick links */}
