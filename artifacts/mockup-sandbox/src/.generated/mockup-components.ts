@@ -5,5 +5,6 @@ export const modules: ModuleMap = {
   "./components/mockups/hr-dashboard/Bento.tsx": () => import("../components/mockups/hr-dashboard/Bento.tsx"),
   "./components/mockups/hr-dashboard/BrutPop.tsx": () => import("../components/mockups/hr-dashboard/BrutPop.tsx"),
   "./components/mockups/hr-dashboard/Command.tsx": () => import("../components/mockups/hr-dashboard/Command.tsx"),
+  "./components/mockups/hr-dashboard/Fusion.tsx": () => import("../components/mockups/hr-dashboard/Fusion.tsx"),
   "./components/mockups/hr-dashboard/Pastel.tsx": () => import("../components/mockups/hr-dashboard/Pastel.tsx")
 };
