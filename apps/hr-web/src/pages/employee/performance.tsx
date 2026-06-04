@@ -188,30 +188,34 @@ export function EmployeePerformance() {
   const { data: worker } = useApiQuery<Worker>(['employee-performance-worker'], '/employee/profile');
   const workerId = worker?.id ?? '';
 
-  const { data: notifications = [], refetch: refetchNotifications } = useApiQuery<PerformanceNotification[]>(
+  const { data: notificationsData, refetch: refetchNotifications } = useApiQuery<PerformanceNotification[]>(
     ['employee-performance-notifications', workerId],
     `/performance/notifications/worker/${workerId}`,
     { enabled: Boolean(workerId) },
   );
-  const { data: goals = [], refetch: refetchGoals } = useApiQuery<PerformanceGoal[]>(
+  const notifications = notificationsData ?? [];
+  const { data: goalsData, refetch: refetchGoals } = useApiQuery<PerformanceGoal[]>(
     ['employee-performance-goals', workerId],
     `/performance/goals/worker/${workerId}`,
     { enabled: Boolean(workerId) },
   );
-  const { data: feedbackRequests = [], refetch: refetchFeedbackRequests } = useApiQuery<FeedbackRequest[]>(
+  const goals = goalsData ?? [];
+  const { data: feedbackRequestsData, refetch: refetchFeedbackRequests } = useApiQuery<FeedbackRequest[]>(
     ['employee-performance-feedback-requests', workerId],
     `/performance/feedback-360-responses/reviewer/${workerId}`,
     { enabled: Boolean(workerId) },
   );
+  const feedbackRequests = React.useMemo(() => feedbackRequestsData ?? [], [feedbackRequestsData]);
   const { data: actionPlan, refetch: refetchActionPlan } = useApiQuery<EmployeeActionPlan>(
     ['employee-performance-action-plan', workerId],
     `/performance/action-plans/worker/${workerId}`,
     { enabled: Boolean(workerId) },
   );
-  const { data: availableFeedbackCycles = [] } = useApiQuery<Feedback360Cycle[]>(
+  const { data: availableFeedbackCyclesData } = useApiQuery<Feedback360Cycle[]>(
     ['employee-performance-feedback-cycles'],
     '/performance/feedback-360-cycles/available',
   );
+  const availableFeedbackCycles = React.useMemo(() => availableFeedbackCyclesData ?? [], [availableFeedbackCyclesData]);
   const eligibleReviewees = React.useMemo(() => {
     const unique = new Map<string, FeedbackRequest>();
     for (const request of feedbackRequests) {
@@ -437,7 +441,7 @@ export function EmployeePerformance() {
                 <CardDescription>Generated from reviews, goals, feedback, and development-plan status.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                {actionPlan?.actionPlan?.recommendedActions.map((item) => (
+                {actionPlan?.actionPlan?.recommendedActions?.map((item) => (
                   <div key={item} className="flex gap-2 rounded-md border bg-slate-50 p-3 text-sm">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#4f46e5]" />
                     <span>{item}</span>
