@@ -17,6 +17,8 @@ import {
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
+import { ErrorState } from '@/components/common/error-state';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -430,7 +432,8 @@ function JsonTextarea({
 
 export function AdminAccessGovernance() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, refetch } = useApiQuery<AccessGovernanceSummary>(ACCESS_QUERY_KEY, '/admin/access-governance', {
+  const addNotification = useUIStore((s) => s.addNotification);
+  const { data, isLoading, isError, error, refetch } = useApiQuery<AccessGovernanceSummary>(ACCESS_QUERY_KEY, '/admin/access-governance', {
     retry: false,
   });
   const [roleForm, setRoleForm] = React.useState<RoleForm>(initialRoleForm);
@@ -453,6 +456,13 @@ export function AdminAccessGovernance() {
     queryClient.invalidateQueries({ queryKey: ACCESS_QUERY_KEY });
     setFormError(null);
     setSavedAt(new Date().toLocaleTimeString());
+    addNotification({ title: 'Saved', message: 'Your access governance change was saved.', type: 'success', read: false });
+  };
+
+  const notifyError = (mutationError: unknown) => {
+    const message = mutationError instanceof Error ? mutationError.message : 'The action could not be completed.';
+    setFormError(message);
+    addNotification({ title: 'Something went wrong', message, type: 'error', read: false });
   };
 
   const roleMutation = useApiMutation<RoleView, RoleForm>('/admin/access-governance/roles', 'post', [ACCESS_QUERY_KEY], {
@@ -460,6 +470,7 @@ export function AdminAccessGovernance() {
       setRoleForm(initialRoleForm);
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const permissionMutation = useApiMutation<PermissionView, {
@@ -477,6 +488,7 @@ export function AdminAccessGovernance() {
         setPermissionForm(initialPermissionForm);
         onSuccess();
       },
+      onError: notifyError,
     },
   );
 
@@ -490,6 +502,7 @@ export function AdminAccessGovernance() {
       setSelectedPermissionId('');
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const removeAssignmentMutation = useMutation({
@@ -501,6 +514,7 @@ export function AdminAccessGovernance() {
       queryClient.invalidateQueries({ queryKey: ACCESS_QUERY_KEY });
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const userRoleMutation = useApiMutation<UserRoleView[], { userId: string; roleId: string; expiresAt: string | null }>(
@@ -512,6 +526,7 @@ export function AdminAccessGovernance() {
         setUserRoleForm(initialUserRoleForm);
         onSuccess();
       },
+      onError: notifyError,
     },
   );
 
@@ -521,6 +536,7 @@ export function AdminAccessGovernance() {
       return response.data;
     },
     onSuccess,
+    onError: notifyError,
   });
 
   const serviceAccountMutation = useApiMutation<ServiceAccountView, {
@@ -536,6 +552,7 @@ export function AdminAccessGovernance() {
       setServiceAccountForm(initialServiceAccountForm);
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const issueCredentialMutation = useMutation({
@@ -564,7 +581,9 @@ export function AdminAccessGovernance() {
       queryClient.invalidateQueries({ queryKey: ACCESS_QUERY_KEY });
       setFormError(null);
       setSavedAt(new Date().toLocaleTimeString());
+      addNotification({ title: 'Credential issued', message: 'A new service credential was issued.', type: 'success', read: false });
     },
+    onError: notifyError,
   });
 
   const rotateCredentialMutation = useMutation({
@@ -580,7 +599,9 @@ export function AdminAccessGovernance() {
       queryClient.invalidateQueries({ queryKey: ACCESS_QUERY_KEY });
       setFormError(null);
       setSavedAt(new Date().toLocaleTimeString());
+      addNotification({ title: 'Credential rotated', message: 'The service credential was rotated.', type: 'success', read: false });
     },
+    onError: notifyError,
   });
 
   const revokeCredentialMutation = useMutation({
@@ -592,6 +613,7 @@ export function AdminAccessGovernance() {
       return response.data.data;
     },
     onSuccess,
+    onError: notifyError,
   });
 
   const accessReviewCampaignMutation = useApiMutation<AccessReviewCampaignView, {
@@ -606,6 +628,7 @@ export function AdminAccessGovernance() {
       setAccessReviewCampaignForm(initialAccessReviewCampaignForm);
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const accessReviewItemMutation = useApiMutation<AccessReviewItemView[], {
@@ -621,6 +644,7 @@ export function AdminAccessGovernance() {
       setAccessReviewItemForm(initialAccessReviewItemForm);
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const accessReviewDecisionMutation = useMutation({
@@ -632,6 +656,7 @@ export function AdminAccessGovernance() {
       return response.data;
     },
     onSuccess,
+    onError: notifyError,
   });
 
   const accessReviewCommandMutation = useMutation({
@@ -643,6 +668,7 @@ export function AdminAccessGovernance() {
       return response.data.data;
     },
     onSuccess,
+    onError: notifyError,
   });
 
   const abacMutation = useApiMutation<AbacPolicyView, { dimension: string; effect: 'ALLOW' | 'DENY'; priority: number; conditions: unknown }>(
@@ -654,6 +680,7 @@ export function AdminAccessGovernance() {
         setAbacForm(initialAbacForm);
         onSuccess();
       },
+      onError: notifyError,
     },
   );
 
@@ -669,6 +696,7 @@ export function AdminAccessGovernance() {
       setFieldPolicyForm(initialFieldPolicyForm);
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const sodMutation = useApiMutation<SodRuleView, {
@@ -683,6 +711,7 @@ export function AdminAccessGovernance() {
       setSodForm(initialSodForm);
       onSuccess();
     },
+    onError: notifyError,
   });
 
   const roles = data?.roles ?? [];
@@ -897,15 +926,13 @@ export function AdminAccessGovernance() {
       ) : null}
 
       {isError ? (
-        <Card className="fusion-glass rounded-2xl border-transparent mt-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <ShieldAlert className="size-5 text-destructive" />
-              Access Governance API Unavailable
-            </CardTitle>
-            <CardDescription>The admin page is wired to the backend, but the current API call did not complete.</CardDescription>
-          </CardHeader>
-        </Card>
+        <ErrorState
+          className="mt-6"
+          title="Access Governance API Unavailable"
+          description="The admin page is wired to the backend, but the current API call did not complete."
+          error={error}
+          onRetry={() => refetch()}
+        />
       ) : null}
 
       <section className="grid gap-4 py-6 md:grid-cols-2 xl:grid-cols-7">

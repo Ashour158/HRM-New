@@ -2,3 +2,5 @@
 - [Mockup screenshot HMR blanks](mockup-screenshot-hmr.md) — Firecrawl external_url screenshots of the mockup-sandbox preview can capture mid-HMR-reload as fully blank/white; re-capture after the reload settles.
 - [hr-web mock shape crashes](hr-web-mock-shape-crashes.md) — hr-web demo mocks don't match page types (paginated list `{items}`, scalar-vs-array fields, omitted nested objects); normalize lists to arrays + full optional chaining.
 - [hr-web dashboards](hr-web-dashboards.md) — employee dashboard `DashboardData` is intentionally hardcoded empty (no backend endpoint); recharts width(-1) warning is benign.
+- [useApiMutation onSuccess override](use-api-mutation-onsuccess.md) — caller `onSuccess` silently overrides the hook's default cache invalidation; hook now composes both, so always invalidate via `invalidateKeys`.
+- [Design color remap audit](design-color-remap-audit.md) — record of the Fusion palette remap pass across hr-web pages.

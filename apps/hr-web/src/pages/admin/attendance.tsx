@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { AlertTriangle, BellRing, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, LockKeyhole, MapPin, PlayCircle, Plus, RefreshCw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
+
+function mutationError(error: unknown): string {
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  const message = response?.data?.message ?? (error as { message?: unknown }).message;
+  return typeof message === 'string' ? message : 'Please try again.';
+}
 
 type AttendanceStatus =
   | 'ABSENT'
@@ -473,7 +483,9 @@ export function AdminAttendance() {
   });
   const ledgerUrl = `/time/attendance/daily-ledger?date=${encodeURIComponent(date)}`;
   const periodQuery = `year=${periodYear}&month=${periodMonth}${workplaceCode !== 'ALL' ? `&workplaceCode=${encodeURIComponent(workplaceCode)}` : ''}`;
-  const { data: ledger, isLoading, refetch } = useApiQuery<AttendanceLedger>(['attendance-ledger', date], ledgerUrl);
+  const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
+  const { data: ledger, isLoading, isError: ledgerError, error: ledgerErrorObj, refetch } = useApiQuery<AttendanceLedger>(['attendance-ledger', date], ledgerUrl);
   const { data: setup = { locations: [] } } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const { data: reminders } = useApiQuery<AttendanceReminderResponse>(
     ['attendance-reminders', date, workplaceCode],
@@ -500,6 +512,13 @@ export function AdminAttendance() {
     (variables) => `/time/attendance/attendance-exceptions/${variables.id}/commands/${variables.action}`,
     'post',
     [['attendance-ledger', date]],
+    {
+      onSuccess: (_data, variables) => {
+        queryClient.invalidateQueries({ queryKey: ['attendance-ledger', date] });
+        addNotification({ title: 'Exception updated', message: `The exception was moved to ${variables.action}.`, type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
   const finalizeMutation = useApiMutation<FinalizeDailyLedgerResponse, { date: string; payrollCycleId?: string }>(
     '/time/attendance/daily-ledger/finalize',
@@ -507,16 +526,19 @@ export function AdminAttendance() {
     [['attendance-ledger', date]],
     {
       onSuccess: (result) => {
+        queryClient.invalidateQueries({ queryKey: ['attendance-ledger', date] });
         if (result.alreadyLocked) {
           setFinalizeMessage(`Ledger already locked for ${result.workDate}.`);
         } else if (result.finalized) {
           setFinalizeMessage(`Ledger locked for ${result.workDate}: ${result.lockedRows ?? 0} rows ready for payroll handoff.`);
+          addNotification({ title: 'Ledger finalized', message: `Ledger locked for ${result.workDate}.`, type: 'success', read: false });
         } else if (result.blockedCorrections && result.blockedCorrections.length > 0) {
           setFinalizeMessage(`Cannot lock yet: ${result.blockedCorrections.length} correction request(s) still need approval or application.`);
         } else {
           setFinalizeMessage(`Cannot lock yet: ${result.blockedRows?.length ?? 0} employee rows still need correction.`);
         }
       },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
     },
   );
   const periodCloseMutation = useApiMutation<AttendancePeriodCloseResult, {
@@ -532,19 +554,37 @@ export function AdminAttendance() {
       onSuccess: (result) => {
         setPeriodCloseResult(result);
         void refetchPeriodReadiness();
+        addNotification({ title: 'Period close updated', message: 'The period close readiness was refreshed.', type: 'success', read: false });
       },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
     },
   );
   const applyCorrectionMutation = useApiMutation<AttendanceCorrectionRequest, { id: string }>(
     (variables) => `/time/attendance/correction-requests/${variables.id}/commands/apply`,
     'post',
     [['attendance-ledger', date], ['attendance-corrections', date]],
-    { onSuccess: () => refetchCorrections() },
+    {
+      onSuccess: () => {
+        refetchCorrections();
+        queryClient.invalidateQueries({ queryKey: ['attendance-ledger', date] });
+        addNotification({ title: 'Correction applied', message: 'The correction request was applied.', type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
   const setupMutation = useApiMutation<HcmSetupConfig, Partial<HcmSetupConfig>>(
     '/admin/hcm-setup',
     'patch',
     [['hcm-setup'], ['attendance-ledger', date], ['attendance-period-close-readiness', periodYear, periodMonth, workplaceCode]],
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['hcm-setup'] });
+        queryClient.invalidateQueries({ queryKey: ['attendance-ledger', date] });
+        queryClient.invalidateQueries({ queryKey: ['attendance-period-close-readiness', periodYear, periodMonth, workplaceCode] });
+        addNotification({ title: 'Settings saved', message: 'Attendance setup was updated.', type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
 
   const rows = ledger?.rows ?? [];
@@ -798,13 +838,17 @@ export function AdminAttendance() {
             <CardDescription>Rows must be ready before they can become locked payroll inputs.</CardDescription>
           </CardHeader>
           <CardContent>
-            <DataTable
-              columns={columns}
-              data={rows}
-              keyExtractor={(row) => `${row.workDate}-${row.worker.workerId}`}
-              isLoading={isLoading}
-              emptyMessage="No attendance ledger rows found"
-            />
+            {ledgerError ? (
+              <ErrorState error={ledgerErrorObj} onRetry={() => refetch()} />
+            ) : (
+              <DataTable
+                columns={columns}
+                data={rows}
+                keyExtractor={(row) => `${row.workDate}-${row.worker.workerId}`}
+                isLoading={isLoading}
+                emptyMessage="No attendance ledger rows found"
+              />
+            )}
           </CardContent>
         </Card>
       </section>
@@ -1095,7 +1139,12 @@ export function AdminAttendance() {
             </CardHeader>
             <CardContent className="space-y-3">
               {exceptionQueue.length === 0 ? (
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No open attendance exceptions for this date.</div>
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="No open exceptions"
+                  description="No open attendance exceptions for this date."
+                  className="py-8"
+                />
               ) : exceptionQueue.map((item) => (
                 <div key={`${item.workerId}-${item.code}-${item.exceptionId ?? item.source}`} className="space-y-3 rounded-md border p-3">
                   <div className="flex items-start justify-between gap-3">
@@ -1134,7 +1183,12 @@ export function AdminAttendance() {
             </CardHeader>
             <CardContent className="space-y-3">
               {correctionRequests.length === 0 ? (
-                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">No correction requests for this work date.</div>
+                <EmptyState
+                  icon={CheckCircle2}
+                  title="No correction requests"
+                  description="No correction requests for this work date."
+                  className="py-8"
+                />
               ) : correctionRequests.map((request) => (
                 <div key={request.id} className="space-y-3 rounded-md border p-3">
                   <div className="flex items-start justify-between gap-3">

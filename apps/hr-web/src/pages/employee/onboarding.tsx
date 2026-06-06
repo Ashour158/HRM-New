@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -124,6 +125,7 @@ function completionPercent(tasks: OnboardingTask[]) {
 export function EmployeeOnboarding() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [evidenceNote, setEvidenceNote] = React.useState('');
   const [uploadMessage, setUploadMessage] = React.useState('');
 
@@ -149,6 +151,20 @@ export function EmployeeOnboarding() {
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ['employee-onboarding-tasks', plan?.id] });
+        addNotification({
+          title: 'Task completed',
+          message: 'Your onboarding task was marked complete.',
+          type: 'success',
+          read: false,
+        });
+      },
+      onError: () => {
+        addNotification({
+          title: 'Could not complete task',
+          message: 'Please try again.',
+          type: 'error',
+          read: false,
+        });
       },
     },
   );
@@ -159,6 +175,20 @@ export function EmployeeOnboarding() {
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ['employee-onboarding-tasks', plan?.id] });
+        addNotification({
+          title: 'Evidence submitted',
+          message: 'Your evidence was sent to the onboarding checklist for HR review.',
+          type: 'success',
+          read: false,
+        });
+      },
+      onError: () => {
+        addNotification({
+          title: 'Could not submit evidence',
+          message: 'Please try again.',
+          type: 'error',
+          read: false,
+        });
       },
     },
   );

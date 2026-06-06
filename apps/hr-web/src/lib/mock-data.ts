@@ -217,6 +217,40 @@ const WORKERS = makeWorkers();
 
 const ok = <T>(data: T) => ({ success: true, correlationId: 'demo', data });
 
+const PLANNING_GROUPS_BY_DEPT = [
+  { id: 'dept-eng', name: 'Engineering', headcount: 65, positionCount: 72, vacancies: 7, annualCost: 11200000, employees: [
+    { id: 'wkr-mgr-001', name: 'James Harrington', jobTitle: 'Engineering Manager', status: 'ACTIVE' },
+    { id: 'wkr-004', name: 'Marcus Johnson', jobTitle: 'Software Engineer', status: 'ACTIVE' },
+    { id: 'wkr-001', name: 'Emily Chen', jobTitle: 'Senior Software Engineer', status: 'ACTIVE' },
+  ] },
+  { id: 'dept-sales', name: 'Sales', headcount: 43, positionCount: 50, vacancies: 7, annualCost: 5160000, employees: [
+    { id: 'wkr-008', name: 'David Park', jobTitle: 'Account Executive', status: 'INACTIVE' },
+  ] },
+  { id: 'dept-finance', name: 'Finance', headcount: 25, positionCount: 25, vacancies: 0, annualCost: 3000000, employees: [
+    { id: 'wkr-007', name: 'Olivia Thompson', jobTitle: 'Financial Analyst', status: 'ACTIVE' },
+  ] },
+  { id: 'dept-product', name: 'Product', headcount: 20, positionCount: 22, vacancies: 2, annualCost: 2800000, employees: [
+    { id: 'wkr-005', name: 'Priya Sharma', jobTitle: 'Product Manager', status: 'ACTIVE' },
+  ] },
+  { id: 'dept-design', name: 'Design', headcount: 15, positionCount: 16, vacancies: 1, annualCost: 1800000, employees: [
+    { id: 'wkr-006', name: 'Alex Rivera', jobTitle: 'UX Designer', status: 'ACTIVE' },
+  ] },
+  { id: 'dept-hr', name: 'Human Resources', headcount: 12, positionCount: 12, vacancies: 0, annualCost: 1200000, employees: [
+    { id: 'wkr-admin-001', name: 'Sarah Mitchell', jobTitle: 'HR Director', status: 'ACTIVE' },
+  ] },
+];
+const PLANNING_GROUPS_BY_ENTITY = [
+  { id: 'le-001', name: 'Acme Corp USA', headcount: 180, positionCount: 196, vacancies: 16, annualCost: 27000000, employees: [] },
+  { id: 'le-002', name: 'Acme Corp UK', headcount: 42, positionCount: 45, vacancies: 3, annualCost: 6300000, employees: [] },
+  { id: 'le-003', name: 'Acme Corp Canada', headcount: 26, positionCount: 27, vacancies: 1, annualCost: 3420000, employees: [] },
+];
+const PLANNING_GROUPS_BY_MANAGER = [
+  { id: 'wkr-mgr-001', name: 'James Harrington', headcount: 3, positionCount: 4, vacancies: 1, annualCost: 720000, employees: [
+    { id: 'wkr-004', name: 'Marcus Johnson', jobTitle: 'Software Engineer', status: 'ACTIVE' },
+    { id: 'wkr-001', name: 'Emily Chen', jobTitle: 'Senior Software Engineer', status: 'ACTIVE' },
+  ] },
+];
+
 export const MOCK_RESPONSES: Record<string, () => unknown> = {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -388,7 +422,37 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   'GET /hr/core/workers': () => ok({ items: WORKERS, total: WORKERS.length, page: 1, pageSize: 250, totalPages: 1 }),
 
   // ── Organization ──────────────────────────────────────────────────────────
-  'GET /hr/organization/summary': () => ok({ totalHeadcount: 248, legalEntities: 3, departments: 12, openPositions: 14, averageTenureMonths: 28 }),
+  'GET /hr/organization/summary': () => ok({
+    legalEntities: [
+      { id: 'le-001', name: 'Acme Corp USA', type: 'LEGAL_ENTITY', countryCode: 'US', registrationNumber: 'US-3392011', status: 'ACTIVE', headcount: 180 },
+      { id: 'le-002', name: 'Acme Corp UK', type: 'LEGAL_ENTITY', countryCode: 'GB', registrationNumber: 'UK-7741920', status: 'ACTIVE', headcount: 42 },
+      { id: 'le-003', name: 'Acme Corp Canada', type: 'LEGAL_ENTITY', countryCode: 'CA', registrationNumber: 'CA-5582013', status: 'ACTIVE', headcount: 26 },
+    ],
+    orgUnits: [
+      { id: 'dept-eng', name: 'Engineering', type: 'DEPARTMENT', legalEntityId: 'le-001', parentOrgUnitId: null, status: 'ACTIVE', headcount: 65 },
+      { id: 'dept-product', name: 'Product', type: 'DEPARTMENT', legalEntityId: 'le-001', parentOrgUnitId: null, status: 'ACTIVE', headcount: 20 },
+      { id: 'dept-design', name: 'Design', type: 'DEPARTMENT', legalEntityId: 'le-001', parentOrgUnitId: null, status: 'ACTIVE', headcount: 15 },
+      { id: 'dept-finance', name: 'Finance', type: 'DEPARTMENT', legalEntityId: 'le-001', parentOrgUnitId: null, status: 'ACTIVE', headcount: 25 },
+      { id: 'dept-hr', name: 'Human Resources', type: 'DEPARTMENT', legalEntityId: 'le-001', parentOrgUnitId: null, status: 'ACTIVE', headcount: 12 },
+      { id: 'dept-sales', name: 'Sales', type: 'DEPARTMENT', legalEntityId: 'le-001', parentOrgUnitId: null, status: 'ACTIVE', headcount: 43 },
+    ],
+    orgChart: [
+      { id: 'le-001', name: 'Acme Corp USA', type: 'LEGAL_ENTITY', headcount: 180, children: [
+        { id: 'dept-eng', name: 'Engineering', type: 'DEPARTMENT', headcount: 65, managerId: 'wkr-mgr-001', managerName: 'James Harrington', children: [] },
+        { id: 'dept-product', name: 'Product', type: 'DEPARTMENT', headcount: 20, children: [] },
+        { id: 'dept-design', name: 'Design', type: 'DEPARTMENT', headcount: 15, children: [] },
+        { id: 'dept-finance', name: 'Finance', type: 'DEPARTMENT', headcount: 25, children: [] },
+        { id: 'dept-hr', name: 'Human Resources', type: 'DEPARTMENT', headcount: 12, children: [] },
+        { id: 'dept-sales', name: 'Sales', type: 'DEPARTMENT', headcount: 43, children: [] },
+      ] },
+      { id: 'le-002', name: 'Acme Corp UK', type: 'LEGAL_ENTITY', headcount: 42, children: [] },
+      { id: 'le-003', name: 'Acme Corp Canada', type: 'LEGAL_ENTITY', headcount: 26, children: [] },
+    ],
+    managerRelationships: [
+      { id: 'mr-001', workerId: 'wkr-004', workerName: 'Marcus Johnson', managerId: 'wkr-mgr-001', managerName: 'James Harrington', departmentId: 'dept-eng', isPrimary: true, startDate: '2022-07-11' },
+      { id: 'mr-002', workerId: 'wkr-001', workerName: 'Emily Chen', managerId: 'wkr-mgr-001', managerName: 'James Harrington', departmentId: 'dept-eng', isPrimary: true, startDate: '2021-03-15' },
+    ],
+  }),
   'GET /hr/organization/org-units/tree': () => ok([
     {
       id: 'le-001', name: 'Acme Corp USA', type: 'LEGAL_ENTITY', headcount: 180,
@@ -418,17 +482,59 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     { id: 'le-003', name: 'Acme Corp Canada', type: 'LEGAL_ENTITY', headcount: 26 },
   ]),
   'GET /hr/organization/workforce-planning': () => ok({
-    openPositions: 14, budgetedPositions: 20, scenarios: [],
-    headcountByDept: [
-      { department: 'Engineering', current: 65, budgeted: 72 },
-      { department: 'Sales', current: 43, budgeted: 50 },
-      { department: 'Product', current: 20, budgeted: 22 },
-      { department: 'Design', current: 15, budgeted: 16 },
-      { department: 'Finance', current: 25, budgeted: 25 },
-      { department: 'HR', current: 12, budgeted: 12 },
+    summary: {
+      currentHeadcount: 248, activeHeadcount: 240, legalEntities: 3, departments: 6,
+      totalPositions: 268, filledPositions: 248, vacancies: 20, pendingHeadcount: 6, approvedHeadcount: 14,
+    },
+    orgChart: {
+      byDepartment: PLANNING_GROUPS_BY_DEPT,
+      byLegalEntity: PLANNING_GROUPS_BY_ENTITY,
+      byManager: PLANNING_GROUPS_BY_MANAGER,
+    },
+    headcountPlan: [
+      { departmentId: 'dept-eng', departmentName: 'Engineering', currentHeadcount: 65, approvedPositions: 72, vacancies: 7, pendingRequests: 3, approvedRequests: 4, forecastDemand: 78 },
+      { departmentId: 'dept-sales', departmentName: 'Sales', currentHeadcount: 43, approvedPositions: 50, vacancies: 7, pendingRequests: 2, approvedRequests: 3, forecastDemand: 54 },
+      { departmentId: 'dept-product', departmentName: 'Product', currentHeadcount: 20, approvedPositions: 22, vacancies: 2, pendingRequests: 1, approvedRequests: 1, forecastDemand: 24 },
+      { departmentId: 'dept-design', departmentName: 'Design', currentHeadcount: 15, approvedPositions: 16, vacancies: 1, pendingRequests: 0, approvedRequests: 1, forecastDemand: 17 },
+      { departmentId: 'dept-finance', departmentName: 'Finance', currentHeadcount: 25, approvedPositions: 25, vacancies: 0, pendingRequests: 0, approvedRequests: 0, forecastDemand: 26 },
+      { departmentId: 'dept-hr', departmentName: 'Human Resources', currentHeadcount: 12, approvedPositions: 12, vacancies: 0, pendingRequests: 0, approvedRequests: 0, forecastDemand: 13 },
+    ],
+    workforceCostPlan: {
+      salary: 24800000, benefits: 4960000, socialInsuranceAndTax: 3720000, overtime: 620000,
+      allowancesTravelRelocation: 880000, training: 540000, contractorCost: 1200000, totalAnnualCost: 36720000,
+    },
+    skillsGap: [
+      { skill: 'Cloud / DevOps', required: 18, available: 12, gap: 6, severity: 'HIGH' },
+      { skill: 'Data Engineering', required: 10, available: 7, gap: 3, severity: 'MEDIUM' },
+      { skill: 'Product Design', required: 8, available: 7, gap: 1, severity: 'LOW' },
+    ],
+    strategicDashboard: {
+      vacancyRiskPercent: 7.5, retirementRisk: 4, successionGaps: 3, criticalRolesWithoutBackup: 2,
+      attritionHotspots: [
+        { departmentId: 'dept-sales', departmentName: 'Sales', terminations: 4 },
+        { departmentId: 'dept-eng', departmentName: 'Engineering', terminations: 2 },
+      ],
+      genderBalance: [
+        { gender: 'FEMALE', count: 112 },
+        { gender: 'MALE', count: 128 },
+        { gender: 'UNDISCLOSED', count: 8 },
+      ],
+      productivityPerEmployee: 142000,
+    },
+    aiForecast: [
+      { horizonMonths: 3, forecastHeadcountDemand: 256, deltaFromToday: 8, confidence: 'HIGH', drivers: ['Q3 sales expansion', 'Engineering backfill'] },
+      { horizonMonths: 6, forecastHeadcountDemand: 268, deltaFromToday: 20, confidence: 'MEDIUM', drivers: ['New product line', 'Attrition replacement'] },
+      { horizonMonths: 12, forecastHeadcountDemand: 284, deltaFromToday: 36, confidence: 'LOW', drivers: ['Market growth', 'UK office scale-up'] },
     ],
   }),
-  'POST /hr/organization/workforce-scenarios/simulate': () => ok({ scenarioId: 'scen-new', result: {} }),
+  'GET /hr/organization/org-chart': () => ok({ groupBy: 'department', filters: [], nodes: PLANNING_GROUPS_BY_DEPT }),
+  'POST /hr/organization/workforce-scenarios/simulate': () => ok({
+    name: 'Simulated scenario',
+    baseline: { headcount: 248, annualCost: 36720000, averageCostPerFte: 148065 },
+    drivers: { branchExpansion: 12, automationOffset: -6, demandGrowth: 18, outsourcing: -4 },
+    projected: { headcount: 272, annualCost: 39860000, headcountDelta: 24, costDelta: 3140000 },
+    recommendation: 'Phase hiring across two quarters to absorb a 9.7% headcount increase while automation offsets six roles, keeping cost-per-FTE within target.',
+  }),
 
   // ── Payroll ───────────────────────────────────────────────────────────────
   'GET /payroll/cycles': () => ok({

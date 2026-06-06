@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
+import { useUIStore } from '@/stores/ui-store';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 import type {
   EmployeeDuplicateCheckResult,
@@ -460,6 +461,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
 export function AdminEmployeeCreate() {
   const navigate = useNavigate();
   const { roles } = useAuth();
+  const addNotification = useUIStore((state) => state.addNotification);
   const [activeStep, setActiveStep] = React.useState(0);
   const [form, setForm] = React.useState<EmployeeCreateForm>(initialForm);
   const [duplicateResult, setDuplicateResult] = React.useState<EmployeeDuplicateCheckResult | null>(null);
@@ -656,18 +658,36 @@ export function AdminEmployeeCreate() {
   };
 
   const runDuplicateCheck = async () => {
-    const result = await duplicateMutation.mutateAsync({
-      employeeNumber: form.employeeIdMode === 'MANUAL' ? form.employeeNumber || undefined : undefined,
-      firstName: form.firstName || undefined,
-      lastName: form.lastName || undefined,
-      email: form.workEmail || form.personalEmail || form.email || undefined,
-      personalEmail: form.personalEmail || undefined,
-      workEmail: form.workEmail || undefined,
-      phoneNumber: form.phoneNumber || undefined,
-      workPhoneNumber: form.workPhoneNumber || undefined,
-    });
-    setDuplicateResult(result);
-    return result;
+    try {
+      const result = await duplicateMutation.mutateAsync({
+        employeeNumber: form.employeeIdMode === 'MANUAL' ? form.employeeNumber || undefined : undefined,
+        firstName: form.firstName || undefined,
+        lastName: form.lastName || undefined,
+        email: form.workEmail || form.personalEmail || form.email || undefined,
+        personalEmail: form.personalEmail || undefined,
+        workEmail: form.workEmail || undefined,
+        phoneNumber: form.phoneNumber || undefined,
+        workPhoneNumber: form.workPhoneNumber || undefined,
+      });
+      setDuplicateResult(result);
+      addNotification({
+        title: result.exactMatches.length ? 'Duplicates found' : 'No duplicates found',
+        message: result.exactMatches.length
+          ? `${result.exactMatches.length} exact match(es) must be resolved before creating.`
+          : 'No exact duplicate identity data was detected.',
+        type: result.exactMatches.length ? 'warning' : 'success',
+        read: false,
+      });
+      return result;
+    } catch (err) {
+      addNotification({
+        title: 'Duplicate check failed',
+        message: err instanceof Error ? err.message : 'Could not run the duplicate check.',
+        type: 'error',
+        read: false,
+      });
+      return undefined;
+    }
   };
 
   const needsDepartment = form.departmentId === 'none';
@@ -724,6 +744,11 @@ export function AdminEmployeeCreate() {
       return;
     }
     const duplicates = duplicateResult ?? await runDuplicateCheck();
+    if (!duplicates) {
+      setError('Could not verify duplicate identity data. Please run the duplicate check and try again.');
+      setActiveStep(steps.length - 1);
+      return;
+    }
     if (!duplicates.canCreate) {
       setError('Exact duplicate data must be resolved before this employee can be created.');
       setActiveStep(steps.length - 1);
@@ -790,6 +815,7 @@ export function AdminEmployeeCreate() {
       documentRequirementCode: 'EMPLOYMENT_CONTRACT',
     });
 
+    try {
     const result = await createMutation.mutateAsync({
       employeeNumber: form.employeeIdMode === 'MANUAL' && canManuallySetEmployeeId ? form.employeeNumber || undefined : undefined,
       firstName: form.firstName,
@@ -851,7 +877,18 @@ export function AdminEmployeeCreate() {
       employmentContract,
       documents: form.documents,
     });
+    addNotification({
+      title: 'Employee created',
+      message: `${form.firstName} ${form.lastName}`.trim() + ' has been added successfully.',
+      type: 'success',
+      read: false,
+    });
     navigate(`/admin/employees/${result.workerId}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not create the employee record.';
+      setError(message);
+      addNotification({ title: 'Employee creation failed', message, type: 'error', read: false });
+    }
   };
 
   const current = steps[activeStep];

@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
 import { apiClient } from '@/lib/api-client';
 import {
   buildClockActionPath,
@@ -351,6 +352,7 @@ function currentWeekDays(today: Date) {
 export function EmployeeDashboard() {
   const location = useLocation();
   const { user } = useAuth();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [tick, setTick] = React.useState(0);
   const [selectedWorkerId, setSelectedWorkerId] = React.useState('');
   const [workplaceCode, setWorkplaceCode] = React.useState(DEFAULT_HCM_SETUP.locations[0]?.code ?? '');
@@ -493,13 +495,31 @@ export function EmployeeDashboard() {
       if (direction === 'in') {
         await checkInMutation.mutateAsync(payload);
         setClockMessage('Check-in recorded with timestamp and location evidence.');
+        addNotification({
+          title: 'Check-in recorded',
+          message: 'Your check-in was captured with timestamp and location evidence.',
+          type: 'success',
+          read: false,
+        });
       } else {
         await checkOutMutation.mutateAsync(payload);
         setClockMessage('Check-out recorded with timestamp and location evidence.');
+        addNotification({
+          title: 'Check-out recorded',
+          message: 'Your check-out was captured with timestamp and location evidence.',
+          type: 'success',
+          read: false,
+        });
       }
     } catch (error) {
       setClockMessage('');
       setClockError(apiErrorMessage(error, 'Attendance action failed.'));
+      addNotification({
+        title: 'Attendance action failed',
+        message: apiErrorMessage(error, 'Attendance action failed.'),
+        type: 'error',
+        read: false,
+      });
     } finally {
       setClockPendingDirection(null);
     }
@@ -556,8 +576,20 @@ export function EmployeeDashboard() {
       });
       setOnDutyReason('');
       setClockMessage('On-duty request submitted for approval.');
+      addNotification({
+        title: 'On-duty request submitted',
+        message: 'Your on-duty request was sent for approval.',
+        type: 'success',
+        read: false,
+      });
     } catch (error) {
       setClockError(apiErrorMessage(error, 'On-duty request failed.'));
+      addNotification({
+        title: 'On-duty request failed',
+        message: apiErrorMessage(error, 'On-duty request failed.'),
+        type: 'error',
+        read: false,
+      });
     }
   };
 
@@ -575,8 +607,20 @@ export function EmployeeDashboard() {
       });
       setCorrectionReason('');
       setClockMessage('Attendance correction request sent to your manager.');
+      addNotification({
+        title: 'Correction request sent',
+        message: 'Your attendance correction request was sent to your manager.',
+        type: 'success',
+        read: false,
+      });
     } catch (error) {
       setClockError(apiErrorMessage(error, 'Correction request failed.'));
+      addNotification({
+        title: 'Correction request failed',
+        message: apiErrorMessage(error, 'Correction request failed.'),
+        type: 'error',
+        read: false,
+      });
     }
   };
 

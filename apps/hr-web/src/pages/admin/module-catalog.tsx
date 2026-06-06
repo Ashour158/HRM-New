@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { EmptyState } from '@/components/common/empty-state';
 import { cn } from '@/lib/utils';
 import { commercialModules, moduleCategories, type CommercialModule, type CommercialModuleMaturity } from '@/lib/commercial-modules';
 
@@ -173,6 +174,7 @@ export function AdminModuleCatalog() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search modules, workflows, objects, or backend routes"
+                aria-label="Search modules, workflows, objects, or backend routes"
                 className="h-11 pl-9"
               />
             </div>
@@ -209,9 +211,12 @@ export function AdminModuleCatalog() {
         </section>
 
         {filteredModules.length === 0 ? (
-          <div className="fusion-glass rounded-2xl p-8 text-center text-sm text-[#475569]">
-            No modules match this search.
-          </div>
+          <EmptyState
+            icon={Search}
+            title="No modules match this search"
+            description="Try a different keyword or clear the filters to see every built HR module."
+            action={{ label: 'Clear filters', onClick: () => { setSearch(''); setCategory(''); } }}
+          />
         ) : null}
       </div>
     </div>

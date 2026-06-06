@@ -26,7 +26,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { FieldMask } from '@/components/common/field-mask';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { AuditTrail } from '@/components/common/audit-trail';
+import { ErrorState } from '@/components/common/error-state';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
 import type { EmployeeProfileData } from '@/types';
 
@@ -147,7 +149,8 @@ interface MasterProfileData extends EmployeeProfileData {
 export function AdminEmployeeProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: profile, isLoading, refetch } = useApiQuery<EmployeeProfileData>(
+  const addNotification = useUIStore((state) => state.addNotification);
+  const { data: profile, isLoading, isError, error, refetch } = useApiQuery<EmployeeProfileData>(
     ['admin-employee-profile', id],
     `/hr/core/workers/${id}/profile`,
     { enabled: Boolean(id) },
@@ -202,9 +205,16 @@ export function AdminEmployeeProfile() {
   if (!currentProfile) {
     return (
       <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-          Employee profile could not be loaded.
-        </div>
+        <Button variant="ghost" size="sm" className="mb-4" onClick={() => navigate('/admin/employees')}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Employees
+        </Button>
+        <ErrorState
+          title="Employee profile could not be loaded"
+          description={isError ? undefined : 'We could not find this employee record.'}
+          error={isError ? error : undefined}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
@@ -258,49 +268,83 @@ export function AdminEmployeeProfile() {
   const canReinstate = worker.status === 'SUSPENDED';
   const canRehire = worker.status === 'TERMINATED';
 
+  const notifyError = (title: string, err: unknown) => {
+    addNotification({
+      title,
+      message: err instanceof Error ? err.message : 'The request could not be completed.',
+      type: 'error',
+      read: false,
+    });
+  };
+
   const activate = async () => {
-    await activateMutation.mutateAsync({ employeeId: worker.id });
-    refetch();
-    refetchMaster();
+    try {
+      await activateMutation.mutateAsync({ employeeId: worker.id });
+      refetch();
+      refetchMaster();
+      addNotification({ title: 'Employee activated', message: 'The employee record is now active.', type: 'success', read: false });
+    } catch (err) {
+      notifyError('Activation failed', err);
+    }
   };
 
   const terminate = async () => {
     const reason = window.prompt('Enter termination reason:');
     if (!reason) return;
-    await terminateMutation.mutateAsync({
-      employeeId: worker.id,
-      reason,
-      terminationDate: new Date().toISOString(),
-    });
-    refetch();
-    refetchMaster();
+    try {
+      await terminateMutation.mutateAsync({
+        employeeId: worker.id,
+        reason,
+        terminationDate: new Date().toISOString(),
+      });
+      refetch();
+      refetchMaster();
+      addNotification({ title: 'Employee terminated', message: 'The employee record has been terminated.', type: 'success', read: false });
+    } catch (err) {
+      notifyError('Termination failed', err);
+    }
   };
 
   const suspend = async () => {
     const reason = window.prompt('Enter suspension reason:');
     if (!reason) return;
-    await suspendMutation.mutateAsync({
-      employeeId: worker.id,
-      reason,
-      effectiveDate: new Date().toISOString(),
-    });
-    refetch();
-    refetchMaster();
+    try {
+      await suspendMutation.mutateAsync({
+        employeeId: worker.id,
+        reason,
+        effectiveDate: new Date().toISOString(),
+      });
+      refetch();
+      refetchMaster();
+      addNotification({ title: 'Employee suspended', message: 'The employee record has been suspended.', type: 'success', read: false });
+    } catch (err) {
+      notifyError('Suspension failed', err);
+    }
   };
 
   const reinstate = async () => {
-    await reinstateMutation.mutateAsync({
-      employeeId: worker.id,
-      effectiveDate: new Date().toISOString(),
-    });
-    refetch();
-    refetchMaster();
+    try {
+      await reinstateMutation.mutateAsync({
+        employeeId: worker.id,
+        effectiveDate: new Date().toISOString(),
+      });
+      refetch();
+      refetchMaster();
+      addNotification({ title: 'Employee reinstated', message: 'The employee record has been reinstated.', type: 'success', read: false });
+    } catch (err) {
+      notifyError('Reinstatement failed', err);
+    }
   };
 
   const rehire = async () => {
-    await rehireMutation.mutateAsync({ employeeId: worker.id });
-    refetch();
-    refetchMaster();
+    try {
+      await rehireMutation.mutateAsync({ employeeId: worker.id });
+      refetch();
+      refetchMaster();
+      addNotification({ title: 'Employee rehired', message: 'The employee record has been rehired.', type: 'success', read: false });
+    } catch (err) {
+      notifyError('Rehire failed', err);
+    }
   };
 
   return (

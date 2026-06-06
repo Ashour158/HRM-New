@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { useUIStore } from '@/stores/ui-store';
 import { cn, formatDate } from '@/lib/utils';
 import {
   AlertCircle,
@@ -204,6 +205,7 @@ function RequestCard({ request }: { request: AbsenceRequest }) {
 export function EmployeeTimeOff() {
   const [showForm, setShowForm] = React.useState(false);
   const [formData, setFormData] = React.useState<LeaveRequestForm>(EMPTY_FORM);
+  const addNotification = useUIStore((s) => s.addNotification);
 
   const { data: requests, isLoading: requestsLoading, error: requestsError } = useApiQuery<AbsenceRequest[]>(
     ['employee-absences'],
@@ -331,9 +333,24 @@ export function EmployeeTimeOff() {
       ...(isHourly ? { startTime: formData.startTime, endTime: formData.endTime } : {}),
       ...(formData.reason.trim() ? { reason: formData.reason.trim() } : {}),
     };
-    await createMutation.mutateAsync(payload);
-    setShowForm(false);
-    resetForm();
+    try {
+      await createMutation.mutateAsync(payload);
+      addNotification({
+        title: 'Leave request submitted',
+        message: 'Your request was sent for approval.',
+        type: 'success',
+        read: false,
+      });
+      setShowForm(false);
+      resetForm();
+    } catch (err) {
+      addNotification({
+        title: 'Could not submit leave request',
+        message: errorMessage(err),
+        type: 'error',
+        read: false,
+      });
+    }
   };
 
   const columns = [

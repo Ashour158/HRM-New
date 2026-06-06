@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
+import { ErrorState } from '@/components/common/error-state';
 
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
@@ -31,7 +32,7 @@ export function ManagerTeam() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedWorkerId = searchParams.get('worker');
 
-  const { data, isLoading } = useApiQuery<ManagerTeamData>(
+  const { data, isLoading, isError, error, refetch } = useApiQuery<ManagerTeamData>(
     ['manager-team', selectedWorkerId],
     `/manager/team${selectedWorkerId ? `?workerId=${selectedWorkerId}` : ''}`
   );
@@ -70,6 +71,14 @@ export function ManagerTeam() {
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-60 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <ErrorState error={error} onRetry={() => refetch()} />
       </div>
     );
   }

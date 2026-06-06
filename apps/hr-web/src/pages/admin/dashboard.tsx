@@ -18,6 +18,8 @@ import {
 import { useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
 import { cn, formatNumber } from '@/lib/utils';
 import {
   Activity,
@@ -207,7 +209,7 @@ function KpiTile({
  */
 export function AdminDashboard() {
   const { user } = useAuth();
-  const { data, isLoading } = useApiQuery<AdminDashboardData>(['admin-dashboard'], '/admin/dashboard');
+  const { data, isLoading, isError, error, refetch } = useApiQuery<AdminDashboardData>(['admin-dashboard'], '/admin/dashboard');
 
   const firstName = user?.firstName?.trim() || 'there';
   const greeting = getGreeting();
@@ -501,7 +503,13 @@ export function AdminDashboard() {
               <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-bold text-orange-700">{alerts.length}</span>
             </div>
             {isLoading ? (
-              <Skeleton className="h-40 w-full" />
+              <div className="space-y-3">
+                <Skeleton className="h-14 w-full rounded-xl" />
+                <Skeleton className="h-14 w-full rounded-xl" />
+                <Skeleton className="h-14 w-full rounded-xl" />
+              </div>
+            ) : isError ? (
+              <ErrorState error={error} onRetry={() => refetch()} />
             ) : alerts.length > 0 ? (
               <div className="space-y-3">
                 {alerts.map((alert) => (
@@ -521,7 +529,12 @@ export function AdminDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="rounded-xl border border-white/40 bg-white/55 p-4 text-sm font-medium text-slate-500">No active alerts</p>
+              <EmptyState
+                icon={ShieldCheck}
+                title="No active alerts"
+                description="Everything looks good right now. New items needing attention will appear here."
+                className="py-8"
+              />
             )}
           </div>
 
@@ -535,7 +548,16 @@ export function AdminDashboard() {
               </h2>
             </div>
             {isLoading ? (
-              <Skeleton className="h-40 w-full" />
+              <div className="relative z-10 space-y-5">
+                <Skeleton className="h-10 w-full rounded-xl" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+                <Skeleton className="h-10 w-full rounded-xl" />
+              </div>
+            ) : isError ? (
+              <div className="relative z-10">
+                <ErrorState error={error} onRetry={() => refetch()} />
+              </div>
             ) : recentActivity.length > 0 ? (
               <div className="relative z-10 space-y-5">
                 {recentActivity.map((item) => (
@@ -556,7 +578,12 @@ export function AdminDashboard() {
                 ))}
               </div>
             ) : (
-              <p className="relative z-10 rounded-xl border border-white/40 bg-white/55 p-4 text-sm font-medium text-slate-500">No recent activity</p>
+              <EmptyState
+                icon={Clock}
+                title="No recent activity"
+                description="Recent changes across HR will show up here as your team gets to work."
+                className="relative z-10 py-8"
+              />
             )}
           </div>
         </div>

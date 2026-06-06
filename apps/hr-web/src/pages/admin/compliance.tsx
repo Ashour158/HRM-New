@@ -13,6 +13,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
 import { FileText, CheckCircle2, AlertTriangle, Scale, Gavel } from 'lucide-react';
 
@@ -71,9 +74,10 @@ function unwrap<T>(response: { data: unknown }) {
  */
 export function AdminCompliance() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [policyForm, setPolicyForm] = React.useState<PolicyForm>(emptyPolicyForm);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-compliance'],
     queryFn: async () => unwrap<ComplianceData>(await apiClient.get('/compliance/summary')),
   });
@@ -93,6 +97,11 @@ export function AdminCompliance() {
     onSuccess: () => {
       setPolicyForm(emptyPolicyForm);
       queryClient.invalidateQueries({ queryKey: ['admin-compliance'] });
+      addNotification({ title: 'Policy created', message: 'The policy document was created.', type: 'success', read: false });
+    },
+    onError: (mutationError: unknown) => {
+      const message = mutationError instanceof Error ? mutationError.message : 'Unable to create the policy document.';
+      addNotification({ title: 'Something went wrong', message, type: 'error', read: false });
     },
   });
 
@@ -166,6 +175,10 @@ export function AdminCompliance() {
           />
         </div>
       </div>
+
+      {isError ? (
+        <ErrorState error={error} onRetry={() => refetch()} />
+      ) : null}
 
       <Card className="fusion-glass rounded-[2rem] border-transparent">
         <CardHeader>
@@ -280,7 +293,7 @@ export function AdminCompliance() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No active legal holds</p>
+                <EmptyState icon={Gavel} title="No active legal holds" description="Legal hold notices will appear here once issued." />
               )}
             </CardContent>
           </Card>
@@ -308,7 +321,7 @@ export function AdminCompliance() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No statutory reports due</p>
+                <EmptyState icon={FileText} title="No statutory reports due" description="Required compliance reports will appear here when scheduled." />
               )}
             </CardContent>
           </Card>

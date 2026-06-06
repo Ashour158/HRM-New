@@ -50,6 +50,7 @@ import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/common/error-state';
 import type { HcmSetupConfig } from '@/types';
 
 type ConsoleStatus = 'live' | 'partial' | 'backend-required' | 'attention';
@@ -1037,6 +1038,8 @@ export function AdminSystemConsole() {
             <CardContent className="space-y-3 p-5 pt-0">
               {notificationsQuery.isLoading ? (
                 <Skeleton className="h-32 w-full" />
+              ) : notificationsQuery.isError ? (
+                <ErrorState error={notificationsQuery.error} onRetry={() => notificationsQuery.refetch()} />
               ) : (notificationsQuery.data ?? []).length > 0 ? (
                 (notificationsQuery.data ?? []).slice(0, 5).map((notification) => (
                   <div key={notification.id} className="fusion-glass rounded-2xl p-3">
@@ -1070,6 +1073,8 @@ export function AdminSystemConsole() {
             <CardContent className="space-y-3 p-5 pt-0">
               {auditQuery.isLoading ? (
                 <Skeleton className="h-32 w-full" />
+              ) : auditQuery.isError ? (
+                <ErrorState error={auditQuery.error} onRetry={() => auditQuery.refetch()} />
               ) : (auditQuery.data ?? []).length > 0 ? (
                 (auditQuery.data ?? []).slice(0, 5).map((record) => (
                   <div key={record.id} className="fusion-glass rounded-2xl p-3">

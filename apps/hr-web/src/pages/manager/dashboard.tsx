@@ -17,6 +17,8 @@ import { useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
 import { DataTable } from '@/components/common/data-table';
 import { cn, formatDate } from '@/lib/utils';
 import {
@@ -104,7 +106,7 @@ const alertBg: Record<string, string> = {
  */
 export function ManagerDashboard() {
   const { user } = useAuth();
-  const { data, isLoading } = useApiQuery<ManagerDashboardData>(
+  const { data, isLoading, isError, error, refetch } = useApiQuery<ManagerDashboardData>(
     ['manager-dashboard'],
     '/manager/dashboard'
   );
@@ -224,6 +226,16 @@ export function ManagerDashboard() {
       to: '/manager/approvals',
     },
   ];
+
+  if (isError) {
+    return (
+      <div className="p-6 lg:p-8">
+        <div className="mx-auto max-w-[1740px]">
+          <ErrorState error={error} onRetry={() => refetch()} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 lg:p-8">
@@ -507,7 +519,11 @@ export function ManagerDashboard() {
               ))}
             </div>
           ) : (
-            <p className="text-sm font-medium text-slate-500">No direct reports found</p>
+            <EmptyState
+              icon={Users}
+              title="No direct reports yet"
+              description="When team members are assigned to you, they'll appear here."
+            />
           )}
         </div>
       </div>

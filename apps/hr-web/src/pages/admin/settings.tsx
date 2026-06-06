@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 import type {
   CityOption,
@@ -84,7 +86,7 @@ function OptionRows({
                 <SelectItem value="INACTIVE">Inactive</SelectItem>
               </SelectContent>
             </Select>
-            <Button type="button" variant="ghost" size="icon" onClick={() => onChange(items.filter((_, rowIndex) => rowIndex !== index))}>
+            <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => onChange(items.filter((_, rowIndex) => rowIndex !== index))}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -95,7 +97,8 @@ function OptionRows({
 }
 
 export function AdminSettings() {
-  const { data, isLoading } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
+  const addNotification = useUIStore((s) => s.addNotification);
+  const { data, isLoading, isError, error, refetch } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const [setup, setSetup] = React.useState<HcmSetupConfig>(() => cloneSetup(DEFAULT_HCM_SETUP));
   const [savedAt, setSavedAt] = React.useState<string | null>(null);
 
@@ -111,6 +114,11 @@ export function AdminSettings() {
       onSuccess: (result) => {
         setSetup(cloneSetup(result));
         setSavedAt(new Date().toLocaleTimeString());
+        addNotification({ title: 'Settings saved', message: 'The HCM setup configuration was saved.', type: 'success', read: false });
+      },
+      onError: (mutationError) => {
+        const message = mutationError instanceof Error ? mutationError.message : 'Unable to save the setup configuration.';
+        addNotification({ title: 'Something went wrong', message, type: 'error', read: false });
       },
     },
   );
@@ -161,12 +169,16 @@ export function AdminSettings() {
           <Button asChild type="button" variant="outline">
             <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>
-          <Button type="button" onClick={save} disabled={isLoading || mutation.isPending}>
+          <Button type="button" onClick={save} disabled={isLoading || mutation.isPending} aria-label="Save setup">
             <Save className="mr-2 h-4 w-4" />
             {mutation.isPending ? 'Saving...' : 'Save Setup'}
           </Button>
         </div>
       </div>
+
+      {isError ? (
+        <ErrorState error={error} onRetry={() => refetch()} />
+      ) : null}
 
       <section className="fusion-glass grid gap-6 rounded-[2rem] p-6 lg:grid-cols-[20rem_1fr]">
         <div>
@@ -308,7 +320,7 @@ export function AdminSettings() {
                   <SelectItem value="INACTIVE">Inactive</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('fieldRules', setup.fieldRules.filter((_, rowIndex) => rowIndex !== index))}>
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('fieldRules', setup.fieldRules.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -398,7 +410,7 @@ export function AdminSettings() {
                   <SelectItem value="INACTIVE">Inactive</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('leavePolicies', setup.leavePolicies.filter((_, rowIndex) => rowIndex !== index))}>
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('leavePolicies', setup.leavePolicies.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -446,7 +458,7 @@ export function AdminSettings() {
                   <SelectItem value="UNPAID">Unpaid</SelectItem>
                 </SelectContent>
               </Select>
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('attendancePolicy', {
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('attendancePolicy', {
                 ...setup.attendancePolicy,
                 holidayCalendars: (setup.attendancePolicy.holidayCalendars ?? []).filter((_, rowIndex) => rowIndex !== index),
               })}>
@@ -523,7 +535,7 @@ export function AdminSettings() {
               <Input value={location.currency} maxLength={3} onChange={(event) => updateLocation(index, { currency: event.target.value.toUpperCase().slice(0, 3) })} />
               <Input type="number" value={location.latitude ?? ''} placeholder="Lat" onChange={(event) => updateLocation(index, { latitude: event.target.value ? Number(event.target.value) : undefined })} />
               <Input type="number" value={location.longitude ?? ''} placeholder="Lng" onChange={(event) => updateLocation(index, { longitude: event.target.value ? Number(event.target.value) : undefined })} />
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('locations', setup.locations.filter((_, rowIndex) => rowIndex !== index))}>
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('locations', setup.locations.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -558,7 +570,7 @@ export function AdminSettings() {
               }} />
               <div className="flex items-center justify-center text-lg">{flagEmoji(city.flag)}</div>
               <Input value={city.currency} maxLength={3} onChange={(event) => updateCity(index, { currency: event.target.value.toUpperCase().slice(0, 3) })} />
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('cities', setup.cities.filter((_, rowIndex) => rowIndex !== index))}>
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('cities', setup.cities.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>
@@ -616,7 +628,7 @@ export function AdminSettings() {
                 value={document.acceptedMimeTypes.join(', ')}
                 onChange={(event) => updateDocument(index, { acceptedMimeTypes: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
               />
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateSetup('documentRequirements', setup.documentRequirements.filter((_, rowIndex) => rowIndex !== index))}>
+              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('documentRequirements', setup.documentRequirements.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>

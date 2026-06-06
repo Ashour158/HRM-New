@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { ErrorState } from '@/components/common/error-state';
 import { formatDate, formatCurrency } from '@/lib/utils';
 import { Download, FileText, Eye, AlertTriangle } from 'lucide-react';
 import type { Payslip } from '@/types';
@@ -17,7 +18,7 @@ import type { Payslip } from '@/types';
 export function EmployeePayslip() {
   const [selectedPayslip, setSelectedPayslip] = React.useState<Payslip | null>(null);
 
-  const { data: payslips, isLoading } = useApiQuery<Payslip[]>(
+  const { data: payslips, isLoading, isError, error, refetch } = useApiQuery<Payslip[]>(
     ['employee-payslips'],
     '/employee/payslips'
   );
@@ -74,6 +75,18 @@ export function EmployeePayslip() {
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-60 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <ErrorState
+          title="Could not load payslips"
+          error={error}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }

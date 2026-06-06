@@ -6,6 +6,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
 import { formatDate } from '@/lib/utils';
 import { Heart, Users, Calendar } from 'lucide-react';
 import type { BenefitEnrollment } from '@/types';
@@ -22,7 +24,7 @@ interface BenefitsData {
  * Benefits enrollment page with current enrollments, open enrollment, life events, and dependents.
  */
 export function EmployeeBenefits() {
-  const { data, isLoading } = useApiQuery<BenefitsData>(
+  const { data, isLoading, isError, error, refetch } = useApiQuery<BenefitsData>(
     ['employee-benefits'],
     '/employee/benefits'
   );
@@ -50,6 +52,18 @@ export function EmployeeBenefits() {
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-60 w-full" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <ErrorState
+          title="Could not load benefits"
+          error={error}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
@@ -136,7 +150,11 @@ export function EmployeeBenefits() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No life events recorded</p>
+                <EmptyState
+                  icon={Calendar}
+                  title="No life events recorded"
+                  description="Qualifying life events and status changes will appear here."
+                />
               )}
             </CardContent>
           </Card>
@@ -166,7 +184,11 @@ export function EmployeeBenefits() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No dependents on file</p>
+                <EmptyState
+                  icon={Users}
+                  title="No dependents on file"
+                  description="Dependents covered under your benefits will appear here."
+                />
               )}
             </CardContent>
           </Card>

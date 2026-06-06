@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, RefreshCw, Users, XCircle } from 'lucide-react';
 import type { AbsenceRequest } from '@/types';
 
@@ -82,17 +86,38 @@ function severityVariant(severity: AttendanceExceptionQueueItem['severity']) {
   return 'outline' as const;
 }
 
+function errMessage(err: unknown, fallback: string): string {
+  const maybe = err as { response?: { data?: { message?: unknown } }; message?: unknown };
+  const apiMsg = maybe?.response?.data?.message;
+  if (typeof apiMsg === 'string') return apiMsg;
+  if (typeof maybe?.message === 'string') return maybe.message;
+  return fallback;
+}
+
 export function ManagerApprovals() {
   const [date, setDate] = React.useState(todayKey);
-  const { data: queue, isLoading, refetch } = useApiQuery<AttendanceExceptionQueue>(
+  const addNotification = useUIStore((s) => s.addNotification);
+  const { data: queue, isLoading, isError, error, refetch } = useApiQuery<AttendanceExceptionQueue>(
     ['manager-attendance-exceptions', date],
     `/time/attendance/exception-queue?date=${encodeURIComponent(date)}`,
   );
-  const { data: corrections = [], isLoading: correctionsLoading } = useApiQuery<AttendanceCorrectionRequest[]>(
+  const {
+    data: corrections = [],
+    isLoading: correctionsLoading,
+    isError: correctionsError,
+    error: correctionsErr,
+    refetch: refetchCorrections,
+  } = useApiQuery<AttendanceCorrectionRequest[]>(
     ['manager-attendance-corrections', date],
     `/time/attendance/correction-requests?status=PENDING_MANAGER_REVIEW&date=${encodeURIComponent(date)}`,
   );
-  const { data: leaveRequests = [], isLoading: leaveLoading } = useApiQuery<AbsenceRequest[]>(
+  const {
+    data: leaveRequests = [],
+    isLoading: leaveLoading,
+    isError: leaveIsError,
+    error: leaveErr,
+    refetch: refetchLeave,
+  } = useApiQuery<AbsenceRequest[]>(
     ['manager-leave-requests'],
     '/manager/leave/requests?status=PENDING_APPROVAL',
   );
@@ -118,6 +143,63 @@ export function ManagerApprovals() {
   );
 
   const items = queue?.items ?? [];
+
+  const notifyError = (err: unknown, fallback: string) =>
+    addNotification({ title: 'Something went wrong', message: errMessage(err, fallback), type: 'error', read: false });
+
+  const handleException = (id: string, action: 'review' | 'resolve' | 'escalate') => {
+    exceptionMutation.mutate(
+      { id, action },
+      {
+        onSuccess: () =>
+          addNotification({
+            title: 'Exception updated',
+            message: `The attendance exception was sent to ${action}.`,
+            type: 'success',
+            read: false,
+          }),
+        onError: (err) => notifyError(err, 'Unable to update the attendance exception.'),
+      },
+    );
+  };
+
+  const handleCorrection = (id: string, decision: 'APPROVE' | 'REJECT', note: string) => {
+    reviewCorrectionMutation.mutate(
+      { id, decision, note },
+      {
+        onSuccess: () =>
+          addNotification({
+            title: decision === 'APPROVE' ? 'Correction approved' : 'Correction rejected',
+            message: 'The attendance correction request was reviewed.',
+            type: 'success',
+            read: false,
+          }),
+        onError: (err) => notifyError(err, 'Unable to review the correction request.'),
+      },
+    );
+  };
+
+  const handleApproveLeave = (id: string) => {
+    approveLeaveMutation.mutate(
+      { id },
+      {
+        onSuccess: () =>
+          addNotification({ title: 'Leave approved', message: 'The leave request was approved.', type: 'success', read: false }),
+        onError: (err) => notifyError(err, 'Unable to approve the leave request.'),
+      },
+    );
+  };
+
+  const handleRejectLeave = (id: string) => {
+    rejectLeaveMutation.mutate(
+      { id },
+      {
+        onSuccess: () =>
+          addNotification({ title: 'Leave rejected', message: 'The leave request was rejected.', type: 'success', read: false }),
+        onError: (err) => notifyError(err, 'Unable to reject the leave request.'),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -199,12 +281,18 @@ export function ManagerApprovals() {
         <p className="text-sm text-slate-500">Approved leave is fed into attendance ledgers, timesheets, and payroll readiness.</p>
         <div className="mt-4 space-y-3">
           {leaveLoading ? (
-            <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-500">Loading leave requests...</div>
-          ) : leaveRequests.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-dashed border-white/60 bg-white/40 p-4 text-sm text-slate-500">
-              <CheckCircle2 className="h-4 w-4" />
-              No leave requests waiting for approval.
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-24 w-full rounded-2xl" />
             </div>
+          ) : leaveIsError ? (
+            <ErrorState error={leaveErr} onRetry={() => refetchLeave()} />
+          ) : leaveRequests.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="No leave requests pending"
+              description="Leave requests awaiting your approval will appear here."
+            />
           ) : leaveRequests.map((request) => (
             <div key={request.id} className="grid gap-4 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
               <div className="space-y-2">
@@ -221,7 +309,7 @@ export function ManagerApprovals() {
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  onClick={() => approveLeaveMutation.mutate({ id: request.id })}
+                  onClick={() => handleApproveLeave(request.id)}
                   disabled={approveLeaveMutation.isPending || rejectLeaveMutation.isPending}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -230,7 +318,7 @@ export function ManagerApprovals() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => rejectLeaveMutation.mutate({ id: request.id })}
+                  onClick={() => handleRejectLeave(request.id)}
                   disabled={approveLeaveMutation.isPending || rejectLeaveMutation.isPending}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
@@ -247,12 +335,18 @@ export function ManagerApprovals() {
         <p className="text-sm text-slate-500">Manager approval controls whether missing or corrected punches can reach the official ledger.</p>
         <div className="mt-4 space-y-3">
           {correctionsLoading ? (
-            <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-500">Loading correction requests...</div>
-          ) : corrections.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-dashed border-white/60 bg-white/40 p-4 text-sm text-slate-500">
-              <CheckCircle2 className="h-4 w-4" />
-              No correction requests waiting for this date.
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-24 w-full rounded-2xl" />
             </div>
+          ) : correctionsError ? (
+            <ErrorState error={correctionsErr} onRetry={() => refetchCorrections()} />
+          ) : corrections.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="No correction requests"
+              description="There are no attendance correction requests waiting for this date."
+            />
           ) : corrections.map((request) => (
             <div key={request.id} className="grid gap-4 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
               <div className="space-y-2">
@@ -268,7 +362,7 @@ export function ManagerApprovals() {
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
-                  onClick={() => reviewCorrectionMutation.mutate({ id: request.id, decision: 'APPROVE', note: 'Approved by manager' })}
+                  onClick={() => handleCorrection(request.id, 'APPROVE', 'Approved by manager')}
                   disabled={reviewCorrectionMutation.isPending}
                 >
                   <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -277,7 +371,7 @@ export function ManagerApprovals() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => reviewCorrectionMutation.mutate({ id: request.id, decision: 'REJECT', note: 'Rejected by manager' })}
+                  onClick={() => handleCorrection(request.id, 'REJECT', 'Rejected by manager')}
                   disabled={reviewCorrectionMutation.isPending}
                 >
                   <XCircle className="mr-2 h-4 w-4" />
@@ -294,12 +388,18 @@ export function ManagerApprovals() {
         <p className="text-sm text-slate-500">Calculated exceptions are informational; request-backed items can be reviewed, resolved, or escalated.</p>
         <div className="mt-4 space-y-3">
           {isLoading ? (
-            <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-500">Loading attendance approvals...</div>
-          ) : items.length === 0 ? (
-            <div className="flex items-center gap-2 rounded-2xl border border-dashed border-white/60 bg-white/40 p-4 text-sm text-slate-500">
-              <CheckCircle2 className="h-4 w-4" />
-              No attendance approvals waiting for this date.
+            <div className="space-y-3">
+              <Skeleton className="h-28 w-full rounded-2xl" />
+              <Skeleton className="h-28 w-full rounded-2xl" />
             </div>
+          ) : isError ? (
+            <ErrorState error={error} onRetry={() => refetch()} />
+          ) : items.length === 0 ? (
+            <EmptyState
+              icon={CheckCircle2}
+              title="No attendance approvals"
+              description="There are no attendance approvals waiting for this date."
+            />
           ) : items.map((item) => (
             <div key={`${item.workerId}-${item.code}-${item.exceptionId ?? item.status}`} className="grid gap-4 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
               <div className="space-y-2">
@@ -324,13 +424,13 @@ export function ManagerApprovals() {
               </div>
               {item.exceptionId ? (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => exceptionMutation.mutate({ id: item.exceptionId as string, action: 'review' })}>
+                  <Button variant="outline" size="sm" onClick={() => handleException(item.exceptionId as string, 'review')}>
                     Review
                   </Button>
-                  <Button size="sm" onClick={() => exceptionMutation.mutate({ id: item.exceptionId as string, action: 'resolve' })}>
+                  <Button size="sm" onClick={() => handleException(item.exceptionId as string, 'resolve')}>
                     Resolve
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => exceptionMutation.mutate({ id: item.exceptionId as string, action: 'escalate' })}>
+                  <Button variant="ghost" size="sm" onClick={() => handleException(item.exceptionId as string, 'escalate')}>
                     Escalate
                   </Button>
                 </div>

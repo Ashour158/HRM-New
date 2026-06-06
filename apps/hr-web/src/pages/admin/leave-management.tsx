@@ -9,7 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
-import { AlertCircle, CalendarCheck, CheckCircle2, ClipboardList, History, Scale, Umbrella, XCircle } from 'lucide-react';
+import { EmptyState } from '@/components/common/empty-state';
+import { useUIStore } from '@/stores/ui-store';
+import { AlertCircle, CalendarCheck, CalendarDays, CheckCircle2, ClipboardList, History, Scale, Umbrella, XCircle } from 'lucide-react';
 import type { AbsenceRequest, AttendanceHolidayRule, LeavePolicy } from '@/types';
 
 type Worker = {
@@ -117,6 +119,7 @@ function errorMessage(error: unknown) {
 
 export function AdminLeaveManagement() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [requestForm, setRequestForm] = React.useState<LeaveRequestForm>(emptyRequest);
   const [balanceForm, setBalanceForm] = React.useState<BalanceForm>(emptyBalance);
   const [rejectReasons, setRejectReasons] = React.useState<Record<string, string>>({});
@@ -188,6 +191,10 @@ export function AdminLeaveManagement() {
     onSuccess: () => {
       setRequestForm(emptyRequest);
       invalidateLeave();
+      addNotification({ title: 'Leave request submitted', message: 'The request was created and sent for approval.', type: 'success', read: false });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Something went wrong', message: errorMessage(error), type: 'error', read: false });
     },
   });
 
@@ -196,6 +203,10 @@ export function AdminLeaveManagement() {
     onSuccess: (_data, requestId) => {
       invalidateLeave();
       queryClient.invalidateQueries({ queryKey: ['admin-leave-audit', requestId] });
+      addNotification({ title: 'Request approved', message: 'The leave request has been approved.', type: 'success', read: false });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Something went wrong', message: errorMessage(error), type: 'error', read: false });
     },
   });
 
@@ -211,6 +222,10 @@ export function AdminLeaveManagement() {
       });
       invalidateLeave();
       queryClient.invalidateQueries({ queryKey: ['admin-leave-audit', variables.requestId] });
+      addNotification({ title: 'Request rejected', message: 'The leave request has been rejected.', type: 'success', read: false });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Something went wrong', message: errorMessage(error), type: 'error', read: false });
     },
   });
 
@@ -224,7 +239,13 @@ export function AdminLeaveManagement() {
       balanceHours: Number(form.balanceHours || form.accruedHours),
       effectiveDate: new Date().toISOString(),
     }),
-    onSuccess: () => setBalanceForm(emptyBalance),
+    onSuccess: () => {
+      setBalanceForm(emptyBalance);
+      addNotification({ title: 'Balance saved', message: 'The accrual balance was saved.', type: 'success', read: false });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Something went wrong', message: errorMessage(error), type: 'error', read: false });
+    },
   });
 
   const requestColumns = [
@@ -480,7 +501,12 @@ export function AdminLeaveManagement() {
                     <Badge variant="secondary">{formatEnum(request.payrollImpact)}</Badge>
                   </button>
                 )) : (
-                  <p className="text-sm text-muted-foreground">No pending leave requests.</p>
+                  <EmptyState
+                    icon={ClipboardList}
+                    title="No pending requests"
+                    description="Leave requests awaiting review will appear here."
+                    className="py-8"
+                  />
                 )}
               </CardContent>
             </Card>
@@ -616,15 +642,24 @@ export function AdminLeaveManagement() {
               <CardTitle className="text-lg">Holiday Calendar</CardTitle>
               <CardDescription>Public holidays are excluded from day-based leave calculations.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {holidays.map((holiday) => (
-                <div key={`${holiday.date}-${holiday.name}`} className="fusion-glass rounded-2xl p-3">
-                  <p className="font-medium">{holiday.name}</p>
-                  <p className="text-sm text-muted-foreground">{displayDate(holiday.date)}</p>
-                  <Badge variant="outline" className="mt-2">{holiday.countryCode ?? 'Global'}</Badge>
+            <CardContent>
+              {holidays.length === 0 ? (
+                <EmptyState
+                  icon={CalendarDays}
+                  title="No holidays configured"
+                  description="Public holidays from HCM setup will appear here once configured."
+                />
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {holidays.map((holiday) => (
+                    <div key={`${holiday.date}-${holiday.name}`} className="fusion-glass rounded-2xl p-3">
+                      <p className="font-medium">{holiday.name}</p>
+                      <p className="text-sm text-muted-foreground">{displayDate(holiday.date)}</p>
+                      <Badge variant="outline" className="mt-2">{holiday.countryCode ?? 'Global'}</Badge>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {holidays.length === 0 ? <p className="text-sm text-muted-foreground">No holidays configured.</p> : null}
+              )}
             </CardContent>
           </Card>
         </TabsContent>

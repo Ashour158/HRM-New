@@ -5,6 +5,7 @@ import { ArrowLeft, GitBranch, Network, Search, ShieldCheck } from 'lucide-react
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/common/error-state';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface EventContractRegistry {
@@ -67,6 +68,8 @@ export function AdminEventContracts() {
             <Skeleton className="h-32 rounded-lg" />
             <Skeleton className="h-32 rounded-lg" />
           </div>
+        ) : registryQuery.isError ? (
+          <ErrorState error={registryQuery.error} onRetry={() => registryQuery.refetch()} />
         ) : (
           <>
             <section className="grid gap-4 md:grid-cols-3">
@@ -130,7 +133,7 @@ export function AdminEventContracts() {
                 </div>
                 <div className="relative w-full md:w-80">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                  <input className="w-full rounded-lg border border-[#e2e8f0] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search aggregate or topic" value={search} onChange={(event) => setSearch(event.target.value)} />
+                  <input className="w-full rounded-lg border border-[#e2e8f0] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search aggregate or topic" aria-label="Search aggregate or topic" value={search} onChange={(event) => setSearch(event.target.value)} />
                 </div>
               </CardHeader>
               <CardContent className="p-0">

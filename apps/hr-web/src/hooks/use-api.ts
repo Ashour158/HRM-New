@@ -47,6 +47,7 @@ export function useApiMutation<TData, TVariables = unknown>(
   options?: Omit<UseMutationOptions<TData, AxiosError, TVariables>, 'mutationFn'>
 ) {
   const queryClient = useQueryClient();
+  const { onSuccess: callerOnSuccess, ...restOptions } = options ?? {};
 
   return useMutation<TData, AxiosError, TVariables>({
     mutationFn: async (variables: TVariables) => {
@@ -54,12 +55,13 @@ export function useApiMutation<TData, TVariables = unknown>(
       const response = await apiClient[method]<ApiResponse<TData>>(resolvedUrl, variables);
       return response.data.data;
     },
-    onSuccess: () => {
+    onSuccess: (...args: Parameters<NonNullable<typeof callerOnSuccess>>) => {
       if (invalidateKeys) {
         invalidateKeys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
       }
+      callerOnSuccess?.(...args);
     },
-    ...options,
+    ...restOptions,
   });
 }
 

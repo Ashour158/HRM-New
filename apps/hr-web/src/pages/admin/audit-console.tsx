@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ErrorState } from '@/components/common/error-state';
 
 interface AuditRecord {
   id: string;
@@ -151,13 +152,13 @@ export function AdminAuditConsole() {
             <CardDescription>Use these controls for operator investigations, compliance evidence, and export packages.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-5">
-            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Resource type" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
-            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} />
-            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-            <input className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            <input aria-label="Filter by resource type" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Resource type" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
+            <input aria-label="Filter by action" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} />
+            <input aria-label="Filter from date" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            <input aria-label="Filter to date" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-              <input className="w-full rounded-lg border border-[#e2e8f0] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search details" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <input aria-label="Search audit details" className="w-full rounded-lg border border-[#e2e8f0] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search details" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
           </CardContent>
         </Card>
@@ -173,6 +174,10 @@ export function AdminAuditConsole() {
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-8 w-full" />
                 <Skeleton className="h-8 w-full" />
+              </div>
+            ) : auditQuery.isError ? (
+              <div className="p-6">
+                <ErrorState error={auditQuery.error} onRetry={() => auditQuery.refetch()} />
               </div>
             ) : (
               <div className="overflow-x-auto">

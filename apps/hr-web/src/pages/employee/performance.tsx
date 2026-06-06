@@ -2,6 +2,7 @@ import * as React from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -160,6 +161,7 @@ function employeeName(worker?: Worker, fallback = 'Employee') {
 
 export function EmployeePerformance() {
   const { user } = useAuth();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [message, setMessage] = React.useState('');
   const [error, setError] = React.useState('');
   const [selectedFeedbackId, setSelectedFeedbackId] = React.useState('');
@@ -262,6 +264,12 @@ export function EmployeePerformance() {
         isAnonymous: feedbackForm.isAnonymous,
       });
       setMessage('Peer feedback submitted');
+      addNotification({
+        title: 'Peer feedback submitted',
+        message: 'Your feedback was recorded.',
+        type: 'success',
+        read: false,
+      });
       setFeedbackForm({
         overallRating: '4',
         strengths: '',
@@ -274,6 +282,12 @@ export function EmployeePerformance() {
       await Promise.all([refetchFeedbackRequests(), refetchActionPlan()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit feedback');
+      addNotification({
+        title: 'Could not submit feedback',
+        message: err instanceof Error ? err.message : 'Please try again.',
+        type: 'error',
+        read: false,
+      });
     }
   };
 
@@ -296,6 +310,12 @@ export function EmployeePerformance() {
         comments: directFeedbackForm.comments,
       });
       setMessage('360 feedback submitted');
+      addNotification({
+        title: '360 feedback submitted',
+        message: 'Your feedback was recorded.',
+        type: 'success',
+        read: false,
+      });
       setDirectFeedbackForm((current) => ({
         ...current,
         overallRating: '4',
@@ -309,6 +329,12 @@ export function EmployeePerformance() {
       await Promise.all([refetchFeedbackRequests(), refetchActionPlan()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit 360 feedback');
+      addNotification({
+        title: 'Could not submit 360 feedback',
+        message: err instanceof Error ? err.message : 'Please try again.',
+        type: 'error',
+        read: false,
+      });
     }
   };
 

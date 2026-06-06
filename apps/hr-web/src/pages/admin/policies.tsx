@@ -25,6 +25,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
 
 type PolicyArea =
@@ -465,6 +467,7 @@ function AreaWorkspace({
 
 export function AdminPolicies() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [selectedId, setSelectedId] = React.useState<string>('');
   const [newArea, setNewArea] = React.useState<PolicyArea>('LEAVE');
   const [newTitle, setNewTitle] = React.useState('Leave policy revision');
@@ -509,6 +512,11 @@ export function AdminPolicies() {
     queryClient.invalidateQueries({ queryKey: ['admin-policy-hcm-setup'] });
   };
 
+  const notifyError = (mutationError: unknown, fallback: string) => {
+    const message = mutationError instanceof Error ? mutationError.message : fallback;
+    addNotification({ title: 'Something went wrong', message, type: 'error', read: false });
+  };
+
   const createRevision = useMutation({
     mutationFn: async (payload: { area: PolicyArea; title: string; scope: PolicyScope; draftConfig?: Record<string, unknown> }) => (
       unwrap<PolicyRevision>(await apiClient.post('/admin/policies/revisions', payload))
@@ -516,14 +524,20 @@ export function AdminPolicies() {
     onSuccess: (revision) => {
       setSelectedId(revision.id);
       invalidatePolicies();
+      addNotification({ title: 'Draft created', message: 'A new policy revision draft was created.', type: 'success', read: false });
     },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to create the policy revision.'),
   });
 
   const updateRevision = useMutation({
     mutationFn: async (payload: { id: string; title: string; scope: PolicyScope; draftConfig: Record<string, unknown> }) => (
       unwrap<PolicyRevision>(await apiClient.patch(`/admin/policies/revisions/${payload.id}`, payload))
     ),
-    onSuccess: () => invalidatePolicies(),
+    onSuccess: () => {
+      invalidatePolicies();
+      addNotification({ title: 'Revision saved', message: 'The policy revision was saved.', type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to save the policy revision.'),
   });
 
   const commandRevision = useMutation({
@@ -533,7 +547,11 @@ export function AdminPolicies() {
         : `/admin/policies/revisions/${id}/commands/${command}`;
       return unwrap<PolicyRevision | PolicyValidationResult | PolicySimulationResult>(await apiClient.post(path));
     },
-    onSuccess: () => invalidatePolicies(),
+    onSuccess: (_result, variables) => {
+      invalidatePolicies();
+      addNotification({ title: 'Command executed', message: `The "${variables.command.replace(/-/g, ' ')}" command completed.`, type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to run the policy command.'),
   });
 
   const createDraftForArea = (area: PolicyArea) => {
@@ -597,6 +615,16 @@ export function AdminPolicies() {
             </Button>
           </div>
         </div>
+
+        {revisionsQuery.isError || summaryQuery.isError ? (
+          <ErrorState
+            error={revisionsQuery.error ?? summaryQuery.error}
+            onRetry={() => {
+              revisionsQuery.refetch();
+              summaryQuery.refetch();
+            }}
+          />
+        ) : null}
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           {[

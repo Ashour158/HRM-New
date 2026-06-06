@@ -24,8 +24,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/common/error-state';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/ui-store';
 import { findCommercialModule, type CommercialModule } from '@/lib/commercial-modules';
 
 type OperationalRecord = {
@@ -393,6 +396,7 @@ export function AdminModuleOperations() {
   const { moduleId } = useParams();
   const module = findCommercialModule(moduleId);
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [recordStatus, setRecordStatus] = React.useState('all');
   const [search, setSearch] = React.useState('');
   const [activityLog, setActivityLog] = React.useState<string[]>([]);
@@ -453,9 +457,11 @@ export function AdminModuleOperations() {
         queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
       }
       pushActivity(`${variables.action} persisted`);
+      addNotification({ title: 'Operation created', message: `${variables.action} persisted to the workspace.`, type: 'success', read: false });
     },
     onError: (error, variables) => {
       pushActivity(`${variables.action} failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `${variables.action} failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
     },
   });
 
@@ -472,9 +478,11 @@ export function AdminModuleOperations() {
         queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
       }
       pushActivity(`${variables.record.object} updated`);
+      addNotification({ title: 'Record advanced', message: `${variables.record.object} status updated.`, type: 'success', read: false });
     },
     onError: (error, variables) => {
       pushActivity(`${variables.record.object} update failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `${variables.record.object} update failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
     },
   });
 
@@ -502,9 +510,11 @@ export function AdminModuleOperations() {
         queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
       }
       pushActivity('Workflow blueprint synced');
+      addNotification({ title: 'Workflows synced', message: 'Workflow blueprint synced to the workspace.', type: 'success', read: false });
     },
     onError: (error) => {
       pushActivity(`Workflow sync failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `Workflow sync failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
     },
   });
 
@@ -522,9 +532,11 @@ export function AdminModuleOperations() {
         queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
       }
       pushActivity(`${variables.workflow.workflow} updated`);
+      addNotification({ title: 'Workflow advanced', message: `${variables.workflow.workflow} state updated.`, type: 'success', read: false });
     },
     onError: (error, variables) => {
       pushActivity(`${variables.workflow.workflow} update failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `${variables.workflow.workflow} update failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
     },
   });
 
@@ -692,7 +704,7 @@ export function AdminModuleOperations() {
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <div className="relative min-w-[240px]">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-                    <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records" />
+                    <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records" aria-label="Search operational records" />
                   </div>
                   <Select value={recordStatus} onValueChange={setRecordStatus}>
                     <SelectTrigger className="w-full sm:w-[180px]">
@@ -710,6 +722,18 @@ export function AdminModuleOperations() {
                 </div>
               </CardHeader>
               <CardContent>
+                {workspaceQuery.isLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                ) : workspaceQuery.isError ? (
+                  <ErrorState error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />
+                ) : (
+                <>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -779,8 +803,8 @@ export function AdminModuleOperations() {
                     })}
                   </TableBody>
                 </Table>
-                {workspaceQuery.isLoading ? <EmptyState label="Loading persisted operation records..." /> : null}
-                {!workspaceQuery.isLoading && filteredRecords.length === 0 ? (
+                </div>
+                {filteredRecords.length === 0 ? (
                   <div className="space-y-3">
                     <EmptyState label="No persisted operation records yet. Create an operation from the command center to store the first live record." />
                     <Button
@@ -793,6 +817,8 @@ export function AdminModuleOperations() {
                     </Button>
                   </div>
                 ) : null}
+                </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -804,6 +830,16 @@ export function AdminModuleOperations() {
                 <CardDescription>Every commercial workflow has an owner, state, SLA marker, and visible next action.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {workspaceQuery.isLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-20 w-full" />
+                  </div>
+                ) : workspaceQuery.isError ? (
+                  <ErrorState error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />
+                ) : (
+                <>
                 {queue.map((item) => (
                   <div key={item.id} className="grid gap-3 fusion-glass rounded-2xl p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
                     <div>
@@ -823,8 +859,7 @@ export function AdminModuleOperations() {
                     </Button>
                   </div>
                 ))}
-                {workspaceQuery.isLoading ? <EmptyState label="Loading persisted workflow queue..." /> : null}
-                {!workspaceQuery.isLoading && queue.length === 0 ? (
+                {queue.length === 0 ? (
                   <div className="space-y-3">
                     <EmptyState label="No persisted workflows yet. Sync this module blueprint to create live workflow rows." />
                     <Button type="button" disabled={syncWorkflows.isPending} onClick={() => syncWorkflows.mutate()}>
@@ -833,6 +868,8 @@ export function AdminModuleOperations() {
                     </Button>
                   </div>
                 ) : null}
+                </>
+                )}
               </CardContent>
             </Card>
 

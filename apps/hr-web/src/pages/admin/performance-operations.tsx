@@ -2,6 +2,7 @@ import * as React from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -461,6 +462,7 @@ function EmptyNote({ text }: { text: string }) {
 
 export function AdminPerformanceOperations() {
   const { user } = useAuth();
+  const addNotification = useUIStore((state) => state.addNotification);
   const tenantId = user?.tenantId ?? '00000000-0000-0000-0000-000000000001';
   const [section, setSection] = React.useState<'analytics' | 'reviews' | 'feedback' | 'calibration' | 'growth' | 'okr'>('analytics');
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
@@ -648,14 +650,17 @@ export function AdminPerformanceOperations() {
     try {
       await apiClient.post(`/performance/${path}`, body ?? {});
       setMessage('Workflow command completed');
+      addNotification({ title: 'Workflow command completed', message: 'The workflow command ran successfully.', type: 'success', read: false });
       const callbacks = Array.isArray(after) ? after : after ? [after] : [];
       callbacks.forEach((callback) => callback());
     } catch (err) {
-      setError(readApiError(err));
+      const detail = readApiError(err);
+      setError(detail);
+      addNotification({ title: 'Workflow command failed', message: detail, type: 'error', read: false });
     } finally {
       setBusyKey(null);
     }
-  }, []);
+  }, [addNotification]);
 
   const createEntity = React.useCallback(async (path: string, body: unknown, after?: Refetch | Refetch[]) => {
     setBusyKey(path);
@@ -663,14 +668,17 @@ export function AdminPerformanceOperations() {
     try {
       await apiClient.post(`/performance/${path}`, body);
       setMessage('Record created');
+      addNotification({ title: 'Record created', message: 'The record was created successfully.', type: 'success', read: false });
       const callbacks = Array.isArray(after) ? after : after ? [after] : [];
       callbacks.forEach((callback) => callback());
     } catch (err) {
-      setError(readApiError(err));
+      const detail = readApiError(err);
+      setError(detail);
+      addNotification({ title: 'Could not create record', message: detail, type: 'error', read: false });
     } finally {
       setBusyKey(null);
     }
-  }, []);
+  }, [addNotification]);
 
   const runReviewAction = React.useCallback(async (review: PerformanceReview) => {
     if (review.status === 'DRAFT') {
@@ -1512,12 +1520,12 @@ export function AdminPerformanceOperations() {
                   <div className="space-y-2"><Label>Manager</Label><EmployeeSelect value={pipForm.managerId} workers={workers} onChange={(value) => setPipForm({ ...pipForm, managerId: value })} /></div>
                   <FieldTextarea id="pip-current-summary" label="Current Performance Details" value={pipForm.currentPerformanceSummary} onChange={(value) => setPipForm({ ...pipForm, currentPerformanceSummary: value })} rows={3} />
                   <FieldTextarea id="pip-objectives" label="Improvement Objectives" value={pipForm.objectives} onChange={(value) => setPipForm({ ...pipForm, objectives: value })} rows={3} />
-                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:col-span-2">
                     <div className="space-y-2"><Label htmlFor="pip-rating">Latest Rating</Label><Input id="pip-rating" type="number" min="1" max="5" step="0.1" value={pipForm.latestRating} onChange={(event) => setPipForm({ ...pipForm, latestRating: event.target.value })} /></div>
                     <div className="space-y-2"><Label htmlFor="pip-goal-progress">Goal Progress %</Label><Input id="pip-goal-progress" type="number" min="0" max="100" value={pipForm.goalProgress} onChange={(event) => setPipForm({ ...pipForm, goalProgress: event.target.value })} /></div>
                     <div className="space-y-2"><Label htmlFor="pip-peer-rating">Peer Rating</Label><Input id="pip-peer-rating" type="number" min="1" max="5" step="0.1" value={pipForm.peerFeedbackRating} onChange={(event) => setPipForm({ ...pipForm, peerFeedbackRating: event.target.value })} /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 md:col-span-2">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 md:col-span-2">
                     <div className="space-y-2"><Label htmlFor="pip-duration">Duration Days</Label><Input id="pip-duration" type="number" min="7" value={pipForm.planDurationDays} onChange={(event) => setPipForm({ ...pipForm, planDurationDays: event.target.value })} /></div>
                     <div className="space-y-2">
                       <Label>Check-in Cadence</Label>

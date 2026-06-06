@@ -17,6 +17,9 @@ import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 
 type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL';
 type IntegrationState = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'UNKNOWN';
@@ -103,6 +106,7 @@ function metricValue(value: number | undefined, suffix = '') {
  */
 export function AdminIntegrations() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [selectedAdapter, setSelectedAdapter] = React.useState('');
 
   const statusQuery = useQuery({
@@ -132,9 +136,23 @@ export function AdminIntegrations() {
     mutationFn: async (adapterName: string) => (
       unwrapApiData<{ adapterName: string; result: IntegrationResult }>(await apiClient.post(`/hr/integrations/${adapterName}/trigger`))
     ),
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['integration-status'] });
       queryClient.invalidateQueries({ queryKey: ['integration-metrics'] });
+      addNotification({
+        title: result.result.success ? 'Adapter triggered' : 'Adapter trigger reported failure',
+        message: `Manual trigger for ${result.adapterName} returned ${result.result.success ? 'success' : 'failure'}.`,
+        type: result.result.success ? 'success' : 'warning',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        title: 'Something went wrong',
+        message: error instanceof Error ? error.message : 'Manual adapter trigger failed.',
+        type: 'error',
+        read: false,
+      });
     },
   });
 
@@ -229,8 +247,10 @@ export function AdminIntegrations() {
             <CardContent className="p-5 pt-0">
               {statusQuery.isLoading ? (
                 <Skeleton className="h-64 w-full" />
+              ) : statusQuery.isError ? (
+                <ErrorState error={statusQuery.error} onRetry={() => statusQuery.refetch()} />
               ) : adapters.length > 0 ? (
-                <div className="overflow-hidden rounded-2xl border border-white/50 fusion-glass">
+                <div className="overflow-x-auto overflow-hidden rounded-2xl border border-white/50 fusion-glass">
                   <div className="grid min-w-[760px] grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] border-b border-[#e2e8f0] bg-[#eef2ff]/70 px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#475569]">
                     <span>Adapter</span>
                     <span>Direction</span>
@@ -263,9 +283,11 @@ export function AdminIntegrations() {
                   </div>
                 </div>
               ) : (
-                <p className="fusion-glass rounded-2xl p-4 text-sm text-[#475569]">
-                  No adapters are registered by the backend orchestrator.
-                </p>
+                <EmptyState
+                  icon={Router}
+                  title="No adapters registered"
+                  description="The backend orchestrator has not registered any integration adapters yet."
+                />
               )}
             </CardContent>
           </Card>
@@ -318,6 +340,8 @@ export function AdminIntegrations() {
               <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
                 {metricsQuery.isLoading ? (
                   <Skeleton className="h-24 w-full" />
+                ) : metricsQuery.isError ? (
+                  <ErrorState error={metricsQuery.error} onRetry={() => metricsQuery.refetch()} />
                 ) : metricsQuery.data ? (
                   <>
                     <div className="grid grid-cols-3 gap-2">

@@ -9,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/common/data-table';
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
 import { CheckCircle2, Globe, AlertCircle, Upload } from 'lucide-react';
 import type { CountryPolicyPack, ValidationResult } from '@/types';
@@ -39,6 +41,7 @@ function unwrap<T>(response: { data: unknown }) {
  */
 export function AdminCountryPolicy() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [simulationResult, setSimulationResult] = React.useState<ValidationResult | null>(null);
   const [packForm, setPackForm] = React.useState<PackForm>({
     countryCode: 'EG',
@@ -46,12 +49,17 @@ export function AdminCountryPolicy() {
     effectiveFrom: new Date().toISOString().slice(0, 10),
   });
 
-  const { data: policyPacks, isLoading } = useQuery({
+  const { data: policyPacks, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-country-policies'],
     queryFn: async () => unwrap<CountryPolicyPackApi[]>(await apiClient.get('/country-policy/policy-packs')),
   });
 
   const refreshPacks = () => queryClient.invalidateQueries({ queryKey: ['admin-country-policies'] });
+
+  const notifyError = (mutationError: unknown, fallback: string) => {
+    const message = mutationError instanceof Error ? mutationError.message : fallback;
+    addNotification({ title: 'Something went wrong', message, type: 'error', read: false });
+  };
 
   const uploadMutation = useMutation({
     mutationFn: async (form: PackForm) => apiClient.post('/country-policy/policy-packs', {
@@ -65,7 +73,11 @@ export function AdminCountryPolicy() {
         payroll: { source: 'admin-ui' },
       },
     }),
-    onSuccess: refreshPacks,
+    onSuccess: () => {
+      refreshPacks();
+      addNotification({ title: 'Pack uploaded', message: 'The country policy pack was uploaded.', type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to upload the policy pack.'),
   });
 
   const validateMutation = useMutation({
@@ -74,6 +86,7 @@ export function AdminCountryPolicy() {
       validationRunId: crypto.randomUUID(),
       validationType: 'FULL_POLICY_PACK',
     })),
+    onError: (mutationError) => notifyError(mutationError, 'Unable to validate the policy pack.'),
   });
 
   const simulateMutation = useMutation({
@@ -82,6 +95,7 @@ export function AdminCountryPolicy() {
       simulationRunId: crypto.randomUUID(),
       simulationScope: 'TENANT_ACTIVE_WORKFORCE',
     })),
+    onError: (mutationError) => notifyError(mutationError, 'Unable to simulate the policy pack.'),
   });
 
   const approveMutation = useMutation({
@@ -89,7 +103,11 @@ export function AdminCountryPolicy() {
       packId,
       approvedBy: crypto.randomUUID(),
     }),
-    onSuccess: refreshPacks,
+    onSuccess: () => {
+      refreshPacks();
+      addNotification({ title: 'Pack approved', message: 'The country policy pack was approved.', type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to approve the policy pack.'),
   });
 
   const publishMutation = useMutation({
@@ -97,7 +115,11 @@ export function AdminCountryPolicy() {
       packId,
       publishedBy: crypto.randomUUID(),
     }),
-    onSuccess: refreshPacks,
+    onSuccess: () => {
+      refreshPacks();
+      addNotification({ title: 'Pack published', message: 'The country policy pack was published.', type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to publish the policy pack.'),
   });
 
   const handleValidate = async (packId: string) => {
@@ -263,13 +285,17 @@ export function AdminCountryPolicy() {
           <CardDescription>All country policy packs and their status</CardDescription>
         </CardHeader>
         <CardContent>
-          <DataTable
-            columns={columns}
-            data={policyPacks ?? []}
-            keyExtractor={(row) => row.id}
-            isLoading={isLoading}
-            emptyMessage="No policy packs found"
-          />
+          {isError ? (
+            <ErrorState error={error} onRetry={() => refetch()} />
+          ) : (
+            <DataTable
+              columns={columns}
+              data={policyPacks ?? []}
+              keyExtractor={(row) => row.id}
+              isLoading={isLoading}
+              emptyMessage="No policy packs found"
+            />
+          )}
         </CardContent>
       </Card>
 

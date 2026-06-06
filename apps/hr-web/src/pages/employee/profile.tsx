@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FieldMask } from '@/components/common/field-mask';
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
 import { useFieldAccess } from '@/hooks/use-field-access';
 import { formatDate } from '@/lib/utils';
 import { User, MapPin, Building, FileText } from 'lucide-react';
@@ -65,7 +67,7 @@ function ProfileField({
 }
 
 export function EmployeeProfile() {
-  const { data: profile, isLoading, error } = useApiQuery<EmployeeProfileData>(
+  const { data: profile, isLoading, error, refetch } = useApiQuery<EmployeeProfileData>(
     ['employee-profile'],
     '/employee/profile'
   );
@@ -83,8 +85,13 @@ export function EmployeeProfile() {
 
   if (error || !displayProfile) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
-        Employee profile could not be loaded. Make sure the authenticated user is linked to a worker record.
+      <div className="space-y-6">
+        <ErrorState
+          title="Profile could not be loaded"
+          description="Make sure the authenticated user is linked to a worker record."
+          error={error}
+          onRetry={() => refetch()}
+        />
       </div>
     );
   }
@@ -249,7 +256,11 @@ export function EmployeeProfile() {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No documents uploaded</p>
+                <EmptyState
+                  icon={FileText}
+                  title="No documents uploaded"
+                  description="Documents and files shared with you will appear here."
+                />
               )}
             </CardContent>
           </Card>

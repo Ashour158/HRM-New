@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/common/data-table';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
 import { Download, FileSpreadsheet, Search, Plus, Upload, UserMinus, UserCheck, Eye } from 'lucide-react';
 import type { Worker } from '@/types';
@@ -74,11 +76,12 @@ function parseSimpleCsv(text: string): EmployeeMassUpdateRow[] {
  */
 export function AdminWorkers() {
   const navigate = useNavigate();
+  const addNotification = useUIStore((state) => state.addNotification);
   const [search, setSearch] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [uploadPreview, setUploadPreview] = React.useState<EmployeeMassUpdatePreview | null>(null);
 
-  const { data: workersData, isLoading, refetch } = useApiQuery<Worker[]>(
+  const { data: workersData, isLoading, isError, error, refetch } = useApiQuery<Worker[]>(
     ['admin-workers', search, page],
     `/hr/core/workers?search=${encodeURIComponent(search)}&page=${page}&pageSize=10`
   );
@@ -116,27 +119,51 @@ export function AdminWorkers() {
   };
 
   const handleActivate = async (workerId: string) => {
-    await activateMutation.mutateAsync({ workerId });
-    refetch();
+    try {
+      await activateMutation.mutateAsync({ workerId });
+      refetch();
+      addNotification({ title: 'Employee activated', message: 'The employee record is now active.', type: 'success', read: false });
+    } catch (err) {
+      addNotification({ title: 'Activation failed', message: err instanceof Error ? err.message : 'Could not activate employee.', type: 'error', read: false });
+    }
   };
 
   const handleTerminate = async (workerId: string) => {
     const reason = window.prompt('Enter termination reason:');
     if (reason) {
-      await terminateMutation.mutateAsync({ workerId, reason, terminationDate: new Date().toISOString() });
-      refetch();
+      try {
+        await terminateMutation.mutateAsync({ workerId, reason, terminationDate: new Date().toISOString() });
+        refetch();
+        addNotification({ title: 'Employee terminated', message: 'The employee record has been terminated.', type: 'success', read: false });
+      } catch (err) {
+        addNotification({ title: 'Termination failed', message: err instanceof Error ? err.message : 'Could not terminate employee.', type: 'error', read: false });
+      }
     }
   };
 
   const downloadCsv = async (url: string, filename: string) => {
-    const response = await apiClient.get(url, { responseType: 'blob' });
-    downloadBlob(response.data as Blob, filename);
+    try {
+      const response = await apiClient.get(url, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, filename);
+    } catch (err) {
+      addNotification({ title: 'Download failed', message: err instanceof Error ? err.message : 'Could not download file.', type: 'error', read: false });
+    }
   };
 
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
-    const result = await massPreviewMutation.mutateAsync({ rows: parseSimpleCsv(await file.text()) });
-    setUploadPreview(result);
+    try {
+      const result = await massPreviewMutation.mutateAsync({ rows: parseSimpleCsv(await file.text()) });
+      setUploadPreview(result);
+      addNotification({
+        title: result.accepted ? 'Upload validated' : 'Validation issues found',
+        message: result.accepted ? `${result.rowCount} rows ready to import.` : `${result.errors.length} validation error(s) detected.`,
+        type: result.accepted ? 'success' : 'warning',
+        read: false,
+      });
+    } catch (err) {
+      addNotification({ title: 'Upload failed', message: err instanceof Error ? err.message : 'Could not process the file.', type: 'error', read: false });
+    }
   };
 
   const columns = [
@@ -226,7 +253,7 @@ export function AdminWorkers() {
           <label className="inline-flex cursor-pointer items-center rounded-md border px-4 py-2 text-sm font-medium">
             <Upload className="mr-2 h-4 w-4" />
             Upload
-            <Input className="hidden" type="file" accept=".csv,text/csv" onChange={(event) => handleUpload(event.target.files?.[0])} />
+            <Input className="hidden" type="file" accept=".csv,text/csv" aria-label="Upload employee CSV file" onChange={(event) => handleUpload(event.target.files?.[0])} />
           </label>
           <Button onClick={() => navigate('/admin/employees/new')}>
             <Plus className="mr-2 h-4 w-4" />
@@ -240,6 +267,7 @@ export function AdminWorkers() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search employees..."
+            aria-label="Search employees"
             value={search}
             onChange={handleSearch}
             className="pl-9"
@@ -262,17 +290,25 @@ export function AdminWorkers() {
             ) : null}
           </div>
         ) : null}
-        <DataTable
-          columns={columns}
-          data={data?.items ?? []}
-          keyExtractor={(row) => row.id}
-          isLoading={isLoading}
-          emptyMessage="No employees found"
-          page={page}
-          pageSize={10}
-          total={data?.total ?? 0}
-          onPageChange={setPage}
-        />
+        {isError ? (
+          <ErrorState
+            title="Unable to load employees"
+            error={error}
+            onRetry={() => refetch()}
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            data={data?.items ?? []}
+            keyExtractor={(row) => row.id}
+            isLoading={isLoading}
+            emptyMessage="No employees found"
+            page={page}
+            pageSize={10}
+            total={data?.total ?? 0}
+            onPageChange={setPage}
+          />
+        )}
       </section>
     </div>
   );

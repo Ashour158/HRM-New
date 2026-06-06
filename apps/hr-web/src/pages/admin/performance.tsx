@@ -2,6 +2,7 @@ import * as React from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { useUIStore } from '@/stores/ui-store';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -355,6 +356,17 @@ export function AdminPerformance() {
   const [selectedManagerId, setSelectedManagerId] = React.useState('');
   const [busyCommand, setBusyCommand] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
+  const addNotification = useUIStore((state) => state.addNotification);
+
+  const notifySuccess = (title: string, msg: string) =>
+    addNotification({ title, message: msg, type: 'success', read: false });
+  const notifyFailure = (title: string, err: unknown) =>
+    addNotification({
+      title,
+      message: err instanceof Error ? err.message : 'The request could not be completed.',
+      type: 'error',
+      read: false,
+    });
 
   const {
     data: cycles = [],
@@ -517,103 +529,123 @@ export function AdminPerformance() {
     event.preventDefault();
     const selfEnd = cycleForm.selfReviewEnd || cycleForm.endDate;
     const managerEnd = cycleForm.managerReviewEnd || cycleForm.endDate;
-    await createCycleMutation.mutateAsync({
-      name: cycleForm.name,
-      cycleYear: Number(cycleForm.cycleYear),
-      startDate: cycleForm.startDate,
-      endDate: cycleForm.endDate,
-      reviewType: cycleForm.reviewType,
-      templateId: cycleForm.templateId || undefined,
-      weightings: {
-        self: Number(cycleForm.selfWeight || 0),
-        manager: Number(cycleForm.managerWeight || 0),
-        peer: Number(cycleForm.peerWeight || 0),
-      },
-      periods: [
-        { name: 'Self review', startDate: cycleForm.startDate, endDate: selfEnd },
-        { name: 'Manager review', startDate: selfEnd, endDate: managerEnd },
-        { name: 'Calibration and final review', startDate: managerEnd, endDate: cycleForm.endDate },
-      ],
-    });
-    setCycleForm(EMPTY_CYCLE);
-    setMessage('Review cycle created');
-    refetchCycles();
+    try {
+      await createCycleMutation.mutateAsync({
+        name: cycleForm.name,
+        cycleYear: Number(cycleForm.cycleYear),
+        startDate: cycleForm.startDate,
+        endDate: cycleForm.endDate,
+        reviewType: cycleForm.reviewType,
+        templateId: cycleForm.templateId || undefined,
+        weightings: {
+          self: Number(cycleForm.selfWeight || 0),
+          manager: Number(cycleForm.managerWeight || 0),
+          peer: Number(cycleForm.peerWeight || 0),
+        },
+        periods: [
+          { name: 'Self review', startDate: cycleForm.startDate, endDate: selfEnd },
+          { name: 'Manager review', startDate: selfEnd, endDate: managerEnd },
+          { name: 'Calibration and final review', startDate: managerEnd, endDate: cycleForm.endDate },
+        ],
+      });
+      setCycleForm(EMPTY_CYCLE);
+      setMessage('Review cycle created');
+      notifySuccess('Review cycle created', 'The review cycle was created successfully.');
+      refetchCycles();
+    } catch (err) {
+      notifyFailure('Could not create review cycle', err);
+    }
   };
 
   const submitTemplate = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await createTemplateMutation.mutateAsync({
-      name: templateForm.name,
-      description: templateForm.description || undefined,
-      sections: [{
-        title: templateForm.sectionTitle,
-        questions: splitLines(templateForm.questions),
-        competencyIds: [],
-        weight: 100,
-      }],
-      ratingScale: {
-        min: 1,
-        max: 5,
-        labels: {
-          '1': 'Needs improvement',
-          '2': 'Partially meets',
-          '3': 'Meets expectations',
-          '4': 'Exceeds expectations',
-          '5': 'Exceptional',
+    try {
+      await createTemplateMutation.mutateAsync({
+        name: templateForm.name,
+        description: templateForm.description || undefined,
+        sections: [{
+          title: templateForm.sectionTitle,
+          questions: splitLines(templateForm.questions),
+          competencyIds: [],
+          weight: 100,
+        }],
+        ratingScale: {
+          min: 1,
+          max: 5,
+          labels: {
+            '1': 'Needs improvement',
+            '2': 'Partially meets',
+            '3': 'Meets expectations',
+            '4': 'Exceeds expectations',
+            '5': 'Exceptional',
+          },
         },
-      },
-      applicableRoles: splitLines(templateForm.applicableRoles),
-    });
-    setTemplateForm(EMPTY_TEMPLATE);
-    setMessage('Review template created');
-    refetchTemplates();
+        applicableRoles: splitLines(templateForm.applicableRoles),
+      });
+      setTemplateForm(EMPTY_TEMPLATE);
+      setMessage('Review template created');
+      notifySuccess('Review template created', 'The review template was created successfully.');
+      refetchTemplates();
+    } catch (err) {
+      notifyFailure('Could not create review template', err);
+    }
   };
 
   const submitCompetency = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const indicators = splitLines(competencyForm.behavioralIndicators);
-    await createCompetencyMutation.mutateAsync({
-      name: competencyForm.name,
-      category: competencyForm.category,
-      description: competencyForm.description || undefined,
-      behavioralIndicators: indicators,
-      proficiencyLevels: [1, 2, 3, 4, 5].map((level) => ({
-        level,
-        description: `Level ${level}`,
-        expectedBehaviors: indicators,
-      })),
-    });
-    setCompetencyForm(EMPTY_COMPETENCY);
-    setMessage('Competency created');
-    refetchCompetencies();
+    try {
+      await createCompetencyMutation.mutateAsync({
+        name: competencyForm.name,
+        category: competencyForm.category,
+        description: competencyForm.description || undefined,
+        behavioralIndicators: indicators,
+        proficiencyLevels: [1, 2, 3, 4, 5].map((level) => ({
+          level,
+          description: `Level ${level}`,
+          expectedBehaviors: indicators,
+        })),
+      });
+      setCompetencyForm(EMPTY_COMPETENCY);
+      setMessage('Competency created');
+      notifySuccess('Competency created', 'The competency was created successfully.');
+      refetchCompetencies();
+    } catch (err) {
+      notifyFailure('Could not create competency', err);
+    }
   };
 
   const submitGoal = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await createGoalMutation.mutateAsync({
-      workerId: goalForm.workerId,
-      title: goalForm.title,
-      description: goalForm.description || undefined,
-      metricName: goalForm.metricName,
-      smartCriteria: {
-        specific: goalForm.smartSpecific,
-        measurable: goalForm.smartMeasurable,
-        achievable: goalForm.smartAchievable,
-        relevant: goalForm.smartRelevant,
-        timeBound: goalForm.smartTimeBound,
-      },
-      baselineValue: goalForm.baselineValue ? Number(goalForm.baselineValue) : undefined,
-      targetValue: Number(goalForm.targetValue),
-      unit: goalForm.unit || undefined,
-      startDate: goalForm.startDate,
-      dueDate: goalForm.dueDate,
-      weight: goalForm.weight ? Number(goalForm.weight) : undefined,
-      reviewCadence: goalForm.reviewCadence || undefined,
-      evidenceRequired: splitLines(goalForm.evidenceRequired).length > 0,
-    });
-    setGoalForm((current) => ({ ...EMPTY_GOAL, workerId: current.workerId }));
-    setMessage('Employee goal created');
-    refetchGoals();
+    try {
+      await createGoalMutation.mutateAsync({
+        workerId: goalForm.workerId,
+        title: goalForm.title,
+        description: goalForm.description || undefined,
+        metricName: goalForm.metricName,
+        smartCriteria: {
+          specific: goalForm.smartSpecific,
+          measurable: goalForm.smartMeasurable,
+          achievable: goalForm.smartAchievable,
+          relevant: goalForm.smartRelevant,
+          timeBound: goalForm.smartTimeBound,
+        },
+        baselineValue: goalForm.baselineValue ? Number(goalForm.baselineValue) : undefined,
+        targetValue: Number(goalForm.targetValue),
+        unit: goalForm.unit || undefined,
+        startDate: goalForm.startDate,
+        dueDate: goalForm.dueDate,
+        weight: goalForm.weight ? Number(goalForm.weight) : undefined,
+        reviewCadence: goalForm.reviewCadence || undefined,
+        evidenceRequired: splitLines(goalForm.evidenceRequired).length > 0,
+      });
+      setGoalForm((current) => ({ ...EMPTY_GOAL, workerId: current.workerId }));
+      setMessage('Employee goal created');
+      notifySuccess('Employee goal created', 'The employee goal was created successfully.');
+      refetchGoals();
+    } catch (err) {
+      notifyFailure('Could not create employee goal', err);
+    }
   };
 
   const runWorkflowCommand = async (id: string, path: string, refetch: () => void) => {
@@ -622,8 +654,12 @@ export function AdminPerformance() {
     try {
       const response = await apiClient.post(`/performance/${path}`);
       const notificationsCreated = (response.data?.data as { notificationsCreated?: number } | undefined)?.notificationsCreated;
-      setMessage(notificationsCreated ? `Workflow command completed. ${notificationsCreated} employee notifications sent.` : 'Workflow command completed');
+      const successMessage = notificationsCreated ? `Workflow command completed. ${notificationsCreated} employee notifications sent.` : 'Workflow command completed';
+      setMessage(successMessage);
+      notifySuccess('Workflow command completed', successMessage);
       refetch();
+    } catch (err) {
+      notifyFailure('Workflow command failed', err);
     } finally {
       setBusyCommand(null);
     }

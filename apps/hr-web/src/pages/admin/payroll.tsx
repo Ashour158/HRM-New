@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,10 +11,18 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { formatCurrency } from '@/lib/utils';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 import { CalendarDays, CheckCircle2, Download, FileSpreadsheet, FileText, Landmark, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
 import type { AttendancePolicy, DeductionPolicy, EarningPolicy, HcmSetupConfig, PayrollBlockingRule, WorkLocationOption } from '@/types';
+
+function mutationError(error: unknown): string {
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  const message = response?.data?.message ?? (error as { message?: unknown }).message;
+  return typeof message === 'string' ? message : 'Please try again.';
+}
 
 interface AttendanceSummary {
   workedMinutes: number;
@@ -307,10 +316,12 @@ export function AdminPayroll() {
   const [offCyclePreview, setOffCyclePreview] = React.useState<PayrollCyclePreview | null>(null);
   const [workflowMessage, setWorkflowMessage] = React.useState('');
 
+  const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const { data: setupConfig = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const previewUrl = `/payroll/monthly-cycle-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
   const paymentBatchUrl = `/payroll/payment-batch-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
-  const { data: preview, isLoading: previewLoading, refetch } = useApiQuery<PayrollCyclePreview>(
+  const { data: preview, isLoading: previewLoading, isError: previewError, error: previewErrorObj, refetch } = useApiQuery<PayrollCyclePreview>(
     ['payroll-monthly-preview', year, month, workLocationCode],
     previewUrl,
   );
@@ -367,11 +378,23 @@ export function AdminPayroll() {
     '/admin/hcm-setup',
     'patch',
     [['hcm-setup'], ['payroll-monthly-preview', year, month, workLocationCode]],
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['hcm-setup'] });
+        queryClient.invalidateQueries({ queryKey: ['payroll-monthly-preview', year, month, workLocationCode] });
+        addNotification({ title: 'Policies saved', message: 'Payroll policies were updated.', type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
 
   const massPreviewMutation = useApiMutation<PayrollMassUpdatePreview, { rows: PayrollMassUpdateRow[] }>(
     '/payroll/mass-update-preview',
     'post',
+    undefined,
+    {
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
 
   const closeToPayMutation = useApiMutation<CloseToPayResult, {
@@ -385,6 +408,9 @@ export function AdminPayroll() {
     '/payroll/monthly-cycle/close-to-pay',
     'post',
     [['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode], ['employee-payslips']],
+    {
+      onError: (error) => addNotification({ title: 'Close to pay failed', message: mutationError(error), type: 'error', read: false }),
+    },
   );
 
   const updateAttendancePolicy = (patch: Partial<AttendancePolicy>) => {
@@ -602,6 +628,7 @@ export function AdminPayroll() {
       setCloseResult(result);
       setReadiness(result.readiness ?? null);
       setWorkflowMessage('Payroll closed to pay and artifacts generated.');
+      addNotification({ title: 'Payroll closed to pay', message: 'Payroll closed and artifacts generated.', type: 'success', read: false });
       await hydratePayrollArtifacts(result.payrollCycleId);
     } catch (error) {
       const response = (error as { response?: { data?: { message?: { readiness?: PayrollReadiness } } } }).response;
@@ -894,13 +921,17 @@ export function AdminPayroll() {
               <CardDescription>All active employees are pulled into the cycle and calculated from compensation plus attendance.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <DataTable
-                columns={columns}
-                data={rows}
-                keyExtractor={(row) => row.workerId}
-                isLoading={previewLoading}
-                emptyMessage="No employees found for this payroll cycle"
-              />
+              {previewError ? (
+                <ErrorState error={previewErrorObj} onRetry={() => refetch()} />
+              ) : (
+                <DataTable
+                  columns={columns}
+                  data={rows}
+                  keyExtractor={(row) => row.workerId}
+                  isLoading={previewLoading}
+                  emptyMessage="No employees found for this payroll cycle"
+                />
+              )}
               <div className="grid gap-4 rounded-md border bg-slate-50 p-4 lg:grid-cols-[18rem_1fr]">
                 <div className="space-y-2">
                   <Label>Net Salary Calculator</Label>

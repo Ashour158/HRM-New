@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { commercialModules, type CommercialModule } from '@/lib/commercial-modules';
+import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
@@ -173,6 +174,7 @@ export function EmployeeServices() {
   const [priority, setPriority] = React.useState('MEDIUM');
   const [description, setDescription] = React.useState('');
   const [message, setMessage] = React.useState('');
+  const addNotification = useUIStore((s) => s.addNotification);
   const canOpenAdminWorkspaces = React.useMemo(
     () => roles.some((role) => ['HR_ADMIN', 'SUPER_ADMIN'].includes(role.name)),
     [roles],
@@ -224,8 +226,20 @@ export function EmployeeServices() {
       setDescription('');
       setPriority('MEDIUM');
       setMessage(`Service case ${result.caseNumber} opened and routed to HR.`);
+      addNotification({
+        title: 'Service request submitted',
+        message: `Case ${result.caseNumber} opened and routed to HR.`,
+        type: 'success',
+        read: false,
+      });
     } catch {
       // The mutation state renders the actionable error message below the form.
+      addNotification({
+        title: 'Could not submit service request',
+        message: 'Please review the details and try again.',
+        type: 'error',
+        read: false,
+      });
     }
   };
 
@@ -395,7 +409,7 @@ export function EmployeeServices() {
               </div>
               <div className="relative w-full md:w-80">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search services..." className="pl-9" />
+                <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search services..." aria-label="Search services" className="pl-9" />
               </div>
             </div>
 

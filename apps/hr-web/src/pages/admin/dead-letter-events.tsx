@@ -17,6 +17,9 @@ import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 type InboxStatus = 'IN_PROGRESS' | 'FAILED_RETRYABLE' | 'FAILED_NON_RETRYABLE' | 'SKIPPED' | 'SUCCESS';
@@ -151,6 +154,7 @@ function shortId(value: string) {
 
 export function AdminDeadLetterEvents() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [queue, setQueue] = React.useState<Queue>('inbox');
   const [inboxStatus, setInboxStatus] = React.useState<InboxStatus | 'ALL'>('FAILED_NON_RETRYABLE');
   const [outboxStatus, setOutboxStatus] = React.useState<OutboxStatus | 'ALL'>('EXHAUSTED');
@@ -197,9 +201,23 @@ export function AdminDeadLetterEvents() {
       const response = await apiClient.post(`/admin/dead-letter/${targetQueue}/${id}/commands/${command}`, { reason });
       return unwrapApiData<CommandResult>(response);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       refreshAll();
       setOperatorReason('');
+      addNotification({
+        title: 'Operator action complete',
+        message: `${result.action.replace(/_/g, ' ')} completed. Status: ${result.status}.`,
+        type: 'success',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        title: 'Something went wrong',
+        message: error instanceof Error ? error.message : 'Operator action failed. Check role, MFA, and row status.',
+        type: 'error',
+        read: false,
+      });
     },
   });
 
@@ -208,15 +226,32 @@ export function AdminDeadLetterEvents() {
       const response = await apiClient.post(`/admin/dead-letter/${targetQueue}/commands/bulk`, { ids, command, reason });
       return unwrapApiData<BulkCommandResult>(response);
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       refreshAll();
       setSelectedIds(new Set());
       setOperatorReason('');
+      addNotification({
+        title: result.failed.length > 0 ? 'Bulk action partially complete' : 'Bulk action complete',
+        message: `${result.action.replace(/_/g, ' ')}: ${result.succeeded}/${result.requested} succeeded${result.failed.length > 0 ? `, ${result.failed.length} failed.` : '.'}`,
+        type: result.failed.length > 0 ? 'warning' : 'success',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({
+        title: 'Something went wrong',
+        message: error instanceof Error ? error.message : 'Bulk operator action failed. Check MFA, row state, and API logs.',
+        type: 'error',
+        read: false,
+      });
     },
   });
 
   const activeRows = queue === 'inbox' ? inboxQuery.data ?? [] : outboxQuery.data ?? [];
   const activeLoading = queue === 'inbox' ? inboxQuery.isLoading : outboxQuery.isLoading;
+  const activeError = queue === 'inbox' ? inboxQuery.isError : outboxQuery.isError;
+  const activeErrorValue = queue === 'inbox' ? inboxQuery.error : outboxQuery.error;
+  const refetchActive = () => (queue === 'inbox' ? inboxQuery.refetch() : outboxQuery.refetch());
   const activeStatus = queue === 'inbox' ? inboxStatus : outboxStatus;
   const selectedQueue = selected?.queue ?? queue;
   const reasonRequired = selectedQueue === 'outbox' || selected?.status === 'FAILED_NON_RETRYABLE' || selected?.status === 'EXHAUSTED';
@@ -393,6 +428,7 @@ export function AdminDeadLetterEvents() {
             <CardContent className="space-y-4 p-5 pt-0">
               <div className="grid gap-3 lg:grid-cols-[12rem_14rem_1fr]">
                 <select
+                  aria-label="Filter by status"
                   className="h-10 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm outline-none focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                   value={activeStatus}
                   onChange={(event) => {
@@ -419,6 +455,7 @@ export function AdminDeadLetterEvents() {
                 </select>
                 {queue === 'inbox' ? (
                   <input
+                    aria-label="Filter by consumer name"
                     className="h-10 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                     onChange={(event) => setConsumerName(event.target.value)}
                     placeholder="Consumer name"
@@ -430,6 +467,7 @@ export function AdminDeadLetterEvents() {
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
                   <input
+                    aria-label="Search id, event, aggregate, error"
                     className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white pl-9 pr-3 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Search id, event, aggregate, error"
@@ -450,6 +488,7 @@ export function AdminDeadLetterEvents() {
                   </div>
                   <div className="flex flex-1 flex-col gap-2 lg:max-w-xl lg:flex-row lg:items-center">
                     <input
+                      aria-label="Operator reason for bulk action"
                       className="h-10 min-w-0 flex-1 rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm outline-none placeholder:text-[#94a3b8] focus:border-[#4f46e5] focus:ring-2 focus:ring-[#4f46e5]/10"
                       onChange={(event) => setOperatorReason(event.target.value)}
                       placeholder="Operator reason for bulk action"
@@ -508,7 +547,10 @@ export function AdminDeadLetterEvents() {
 
               {activeLoading ? (
                 <Skeleton className="h-80 w-full" />
+              ) : activeError ? (
+                <ErrorState error={activeErrorValue} onRetry={() => refetchActive()} />
               ) : activeRows.length > 0 ? (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -564,10 +606,13 @@ export function AdminDeadLetterEvents() {
                     ))}
                   </TableBody>
                 </Table>
-              ) : (
-                <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-8 text-center text-sm text-[#475569]">
-                  No rows match the selected queue filters.
                 </div>
+              ) : (
+                <EmptyState
+                  icon={Inbox}
+                  title="No events in this queue"
+                  description="No rows match the selected queue filters. Adjust the status, consumer, or search filters."
+                />
               )}
             </CardContent>
           </Card>

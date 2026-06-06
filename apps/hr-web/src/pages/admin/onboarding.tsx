@@ -11,6 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EmptyState } from '@/components/common/empty-state';
+import { ErrorState } from '@/components/common/error-state';
+import { useUIStore } from '@/stores/ui-store';
 import { cn, generateUUID } from '@/lib/utils';
 import {
   ArrowRight,
@@ -173,6 +176,12 @@ function unwrap<T>(payload: unknown): T {
   return payload as T;
 }
 
+function mutationError(error: unknown): string {
+  const response = (error as { response?: { data?: { message?: unknown } } }).response;
+  const message = response?.data?.message ?? (error as { message?: unknown }).message;
+  return typeof message === 'string' ? message : 'Please try again.';
+}
+
 function workerName(worker?: Worker) {
   if (!worker) return 'Unassigned worker';
   return `${worker.firstName} ${worker.lastName}`.trim();
@@ -224,6 +233,7 @@ function defaultDueDate(daysFromNow: number) {
 
 export function AdminOnboarding() {
   const queryClient = useQueryClient();
+  const addNotification = useUIStore((s) => s.addNotification);
   const [selectedPlanId, setSelectedPlanId] = React.useState('');
   const [form, setForm] = React.useState<PlanForm>({
     workerId: '',
@@ -239,7 +249,7 @@ export function AdminOnboarding() {
 
   const { data: workers = [] } = useApiQuery<Worker[]>(['admin-onboarding-workers'], '/hr/core/workers?status=ACTIVE&pageSize=100');
 
-  const { data: plans = [], isLoading: plansLoading } = useQuery({
+  const { data: plans = [], isLoading: plansLoading, isError: plansError, error: plansErrorObj, refetch: refetchPlans } = useQuery({
     queryKey: ['admin-onboarding-plans'],
     queryFn: async () => toPlanList(unwrap<unknown>((await apiClient.get('/hr/onboarding/plans')).data)),
   });
@@ -252,7 +262,7 @@ export function AdminOnboarding() {
 
   const selectedPlan = plans.find((plan) => plan.id === selectedPlanId) ?? plans[0];
 
-  const { data: selectedTasks = [], isLoading: tasksLoading } = useQuery({
+  const { data: selectedTasks = [], isLoading: tasksLoading, isError: tasksError, error: tasksErrorObj, refetch: refetchTasks } = useQuery({
     queryKey: ['admin-onboarding-tasks', selectedPlan?.id],
     enabled: Boolean(selectedPlan?.id),
     queryFn: async () => toTaskList(unwrap<unknown>((await apiClient.get(`/hr/onboarding/tasks/plan/${selectedPlan?.id}`)).data)),
@@ -269,16 +279,37 @@ export function AdminOnboarding() {
     '/hr/onboarding/plans',
     'post',
     [['admin-onboarding-plans']],
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['admin-onboarding-plans'] });
+        addNotification({ title: 'Plan created', message: 'The onboarding plan was created.', type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
   const startPlanMutation = useApiMutation<unknown, { id: string }>(
     ({ id }) => `/hr/onboarding/plans/${id}/commands/start`,
     'post',
     [['admin-onboarding-plans']],
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['admin-onboarding-plans'] });
+        addNotification({ title: 'Plan started', message: 'The onboarding plan is now in progress.', type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
   const completePlanMutation = useApiMutation<unknown, { id: string }>(
     ({ id }) => `/hr/onboarding/plans/${id}/commands/complete`,
     'post',
     [['admin-onboarding-plans']],
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['admin-onboarding-plans'] });
+        addNotification({ title: 'Plan completed', message: 'The onboarding plan has been completed.', type: 'success', read: false });
+      },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
+    },
   );
   const createTaskMutation = useApiMutation<unknown, {
     taskId: string;
@@ -297,7 +328,9 @@ export function AdminOnboarding() {
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ['admin-onboarding-tasks', selectedPlan?.id] });
+        addNotification({ title: 'Task added', message: 'The onboarding task was added.', type: 'success', read: false });
       },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
     },
   );
   const completeTaskMutation = useApiMutation<unknown, { id: string }>(
@@ -307,7 +340,9 @@ export function AdminOnboarding() {
     {
       onSuccess: async () => {
         await queryClient.invalidateQueries({ queryKey: ['admin-onboarding-tasks', selectedPlan?.id] });
+        addNotification({ title: 'Task completed', message: 'The task has been marked complete.', type: 'success', read: false });
       },
+      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
     },
   );
 
@@ -444,7 +479,10 @@ export function AdminOnboarding() {
               </CardHeader>
               <CardContent className="space-y-3 p-5 pt-0">
                 {plansLoading ? <Skeleton className="h-32 w-full" /> : null}
-                {plans.map((plan) => {
+                {!plansLoading && plansError ? (
+                  <ErrorState error={plansErrorObj} onRetry={() => refetchPlans()} />
+                ) : null}
+                {!plansLoading && !plansError && plans.map((plan) => {
                   const worker = workerById.get(plan.workerId);
                   return (
                     <button
@@ -466,8 +504,13 @@ export function AdminOnboarding() {
                     </button>
                   );
                 })}
-                {!plansLoading && plans.length === 0 ? (
-                  <p className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4 text-sm text-[#475569]">No onboarding plans yet.</p>
+                {!plansLoading && !plansError && plans.length === 0 ? (
+                  <EmptyState
+                    icon={ClipboardCheck}
+                    title="No onboarding plans yet"
+                    description="Create an onboarding plan to start tracking new hires."
+                    className="py-8"
+                  />
                 ) : null}
               </CardContent>
             </Card>
@@ -570,8 +613,11 @@ export function AdminOnboarding() {
                     </form>
 
                     {tasksLoading ? <Skeleton className="h-32 w-full" /> : null}
+                    {!tasksLoading && tasksError ? (
+                      <ErrorState error={tasksErrorObj} onRetry={() => refetchTasks()} />
+                    ) : null}
                     <div className="space-y-3">
-                      {selectedTasks.map((task) => {
+                      {!tasksLoading && !tasksError && selectedTasks.map((task) => {
                         const ownerGroup = inferOwnerGroup(task);
                         return (
                           <div key={task.id} className="grid gap-3 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
@@ -595,8 +641,13 @@ export function AdminOnboarding() {
                           </div>
                         );
                       })}
-                      {!tasksLoading && selectedTasks.length === 0 ? (
-                        <p className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-5 text-sm text-[#475569]">Select a plan and add checklist templates for this hire.</p>
+                      {!tasksLoading && !tasksError && selectedTasks.length === 0 ? (
+                        <EmptyState
+                          icon={ClipboardCheck}
+                          title="No checklist tasks yet"
+                          description="Select a plan and add checklist templates for this hire."
+                          className="py-8"
+                        />
                       ) : null}
                     </div>
                   </CardContent>
