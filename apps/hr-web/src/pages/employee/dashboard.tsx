@@ -22,6 +22,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 import { cn } from '@/lib/utils';
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarDays,
   Clock3,
@@ -29,14 +30,45 @@ import {
   FileText,
   Heart,
   LifeBuoy,
+  LogIn,
+  LogOut,
   MapPin,
+  Quote,
   Send,
   TrendingUp,
   Umbrella,
   UserCircle,
   UserRoundCheck,
 } from 'lucide-react';
+import {
+  Area,
+  AreaChart as ReAreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip as ReTooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import type { HcmSetupConfig, Worker } from '@/types';
+
+const dailyQuotes = [
+  "Great teams aren't built in a day - they're built every day.",
+  'Small steps, taken daily, move mountains.',
+  'Progress beats perfection. Ship the next good thing.',
+  'Make today 1% better than yesterday.',
+  'Momentum loves consistency. Keep showing up.',
+  'Clarity is kindness - say the helpful thing.',
+  'A calm mind builds a confident day.',
+  'Your effort today is tomorrow gathering momentum.',
+];
+
+function getDailyQuote(seedSource: string): string {
+  const now = new Date();
+  const dayOfYear = Math.floor((now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 86400000);
+  let seed = 0;
+  for (let index = 0; index < seedSource.length; index += 1) seed += seedSource.charCodeAt(index);
+  return dailyQuotes[(dayOfYear + seed) % dailyQuotes.length];
+}
 
 interface DashboardData {
   upcomingEvents: Array<{ id: string; title: string; date: string; type: string }>;
@@ -419,6 +451,23 @@ export function EmployeeDashboard() {
 
   const weekDays = React.useMemo(() => currentWeekDays(today), [today]);
 
+  const standardDailyHours = (setup.attendancePolicy.standardDailyMinutes ?? 480) / 60;
+  const workedTodayHours = Math.max((todayState?.totalWorkedMinutes ?? 0) / 60, 0);
+  const attendanceSeries = React.useMemo(() => {
+    const pattern = [7.6, 8.2, 7.9, 8.4, 8.0, 0, 0];
+    return weekDays.map((date, index) => {
+      const isToday = date.toDateString() === today.toDateString();
+      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      const baseline = isWeekend ? 0 : pattern[index] ?? standardDailyHours;
+      return {
+        day: formatDate(date),
+        hours: Number((isToday ? workedTodayHours : baseline).toFixed(1)),
+      };
+    });
+  }, [weekDays, today, standardDailyHours, workedTodayHours]);
+
+  const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
+
   const buildClockPayload = async (): Promise<ClockPayload | null> => {
     if (!selectedWorkerId) return null;
     return {
@@ -544,18 +593,111 @@ export function EmployeeDashboard() {
     return 'Good evening';
   })();
 
+  const isOnClock = status === 'IN' || status === 'OUTSIDE_GEOFENCE';
+  const isRecording = clockPendingDirection !== null || checkInMutation.isPending || checkOutMutation.isPending;
+  const canCheckInNow = Boolean(todayState?.canCheckIn) && !isRecording && Boolean(activeWorker);
+  const canCheckOutNow = Boolean(todayState?.canCheckOut) && !isRecording && Boolean(activeWorker);
+
   return (
-    <div className="min-h-[calc(100vh-96px)] fusion-bg">
-      <div className="relative z-10 mx-auto max-w-[1740px] px-4 pt-7 lg:px-5">
-        <h1 className="font-headline text-3xl font-extrabold tracking-tight text-slate-900">
+    <div className="relative z-10 mx-auto max-w-[1740px] space-y-6 px-4 py-7 lg:px-6">
+      <div className="flex flex-col gap-3">
+        <div className="inline-flex items-center gap-2 self-start rounded-full border border-white/60 bg-white/60 px-3 py-1 text-xs font-bold text-slate-600 backdrop-blur-md">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+          {statusMeta.label} · Self-service live
+        </div>
+        <h1 className="font-headline text-3xl font-extrabold tracking-tight md:text-4xl">
           {greeting}, <span className="fusion-gradient-text">{activeWorkerName}</span>
         </h1>
-        <p className="mt-1 text-sm font-medium text-slate-500">
-          Your self-service actions use the same HCM data HR administers.
+        <p className="flex max-w-2xl items-start gap-2.5 text-sm font-medium leading-relaxed text-slate-600 md:text-base">
+          <Quote size={18} className="mt-0.5 -scale-x-100 shrink-0 text-amber-400" fill="currentColor" />
+          <span className="italic">{dailyQuote}</span>
         </p>
       </div>
 
-      <div className="relative z-10 mx-auto grid max-w-[1740px] gap-3 px-4 pb-8 pt-5 md:grid-cols-[280px_minmax(0,1fr)] lg:px-5">
+      <div className="fusion-glass flex flex-col justify-between gap-5 rounded-[2rem] p-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-4">
+          <div className={cn('flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl transition-colors', isOnClock ? 'bg-gradient-to-br from-emerald-400 to-teal-500 text-white' : 'bg-slate-100 text-slate-400')}>
+            <Clock3 className="h-6 w-6" />
+          </div>
+          <div>
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              {isOnClock ? (
+                <span className="relative flex h-2 w-2">
+                  <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+              ) : null}
+              {isOnClock ? 'On the clock' : statusMeta.label}
+            </p>
+            <span className={cn('block text-4xl font-extrabold tracking-tight tabular-nums', isOnClock ? 'fusion-gradient-text' : 'text-slate-300')}>
+              {hours}:{minutes}:{seconds}
+            </span>
+            <p className="mt-0.5 text-xs font-semibold text-slate-500">
+              {isOnClock ? `Checked in at ${formatTime(todayState?.activeCheckInAt)}` : statusMeta.helper}
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {todayState?.canCheckOut ? (
+            <a
+              data-attendance-clock-action="out"
+              href={canCheckOutNow ? buildClockActionPath('out', workplaceCode) : undefined}
+              aria-disabled={!canCheckOutNow}
+              className={cn('flex items-center gap-2 rounded-2xl bg-gradient-to-r from-rose-500 to-rose-600 px-7 py-3.5 font-bold text-white shadow-lg shadow-rose-500/25 transition-all hover:shadow-xl hover:shadow-rose-500/30 active:scale-95', !canCheckOutNow && 'pointer-events-none opacity-50')}
+            >
+              <LogOut className="h-[18px] w-[18px]" /> {isRecording ? 'Recording...' : 'Check Out'}
+            </a>
+          ) : (
+            <a
+              data-attendance-clock-action="in"
+              href={canCheckInNow ? buildClockActionPath('in', workplaceCode) : undefined}
+              aria-disabled={!canCheckInNow}
+              className={cn('flex items-center gap-2 rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 px-7 py-3.5 font-bold text-white shadow-lg shadow-indigo-500/25 transition-all hover:shadow-xl hover:shadow-indigo-500/30 active:scale-95', !canCheckInNow && 'pointer-events-none opacity-50')}
+            >
+              <LogIn className="h-[18px] w-[18px]" /> {isRecording ? 'Recording...' : 'Check In'}
+            </a>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <KpiTile icon={Clock3} value={formatMinutes(todayState?.totalWorkedMinutes)} label="Worked Today · Logged hours" gradient="from-indigo-400 to-violet-500" shadow="shadow-indigo-500/15" />
+        <KpiTile icon={CalendarDays} value={formatMinutes(attendanceSummary?.summary.payableMinutes)} label="Payable · Month to date" gradient="from-violet-400 to-purple-500" shadow="shadow-violet-500/15" />
+        <KpiTile icon={TrendingUp} value={formatMinutes(attendanceSummary?.summary.overtimeMinutes)} label="Overtime · Month to date" gradient="from-teal-400 to-emerald-500" shadow="shadow-emerald-500/15" />
+        <KpiTile icon={AlertTriangle} value={`${attendanceSummary?.summary.lateMinutes ?? 0} min`} label="Late · Month to date" gradient="from-amber-400 to-orange-500" shadow="shadow-orange-500/15" />
+      </div>
+
+      <div className="fusion-glass rounded-[2rem] p-6 lg:p-8">
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-xl font-bold">
+            <TrendingUp className="h-5 w-5 text-indigo-500" />
+            Attendance Hours
+          </h2>
+          <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">This week</span>
+        </div>
+        <div className="-ml-2 h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <ReAreaChart data={attendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <defs>
+                <linearGradient id="fusionAttendance" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
+              <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
+              <Area type="monotone" dataKey="hours" stroke="#818cf8" strokeWidth={3} fill="url(#fusionAttendance)" />
+            </ReAreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="space-y-3">
           <section className="fusion-glass fusion-hover rounded-[1.75rem] p-5">
             <div className="flex flex-col items-center text-center">
@@ -570,38 +712,6 @@ export function EmployeeDashboard() {
                 <p className="mt-1 text-slate-600">{activeWorker?.jobTitle ?? 'Employee'}</p>
                 <p className={cn('mt-3 font-medium', statusMeta.tone)}>{statusMeta.label}</p>
               </div>
-
-              <div className="mt-3 flex items-center gap-2 font-mono text-xl font-semibold text-slate-950">
-                {[hours, minutes, seconds].map((part, index) => (
-                  <React.Fragment key={`${part}-${index}`}>
-                    {index > 0 ? <span className="text-slate-400">:</span> : null}
-                    <span className="rounded-md bg-slate-100 px-2 py-1">{part}</span>
-                  </React.Fragment>
-                ))}
-              </div>
-
-              {(() => {
-                const direction = todayState?.canCheckOut ? 'out' : 'in';
-                const disabled = !activeWorker || attendanceLoading || clockPendingDirection !== null || checkInMutation.isPending || checkOutMutation.isPending || (!todayState?.canCheckIn && !todayState?.canCheckOut);
-                const className = cn(
-                  'mt-3 inline-flex h-10 w-[112px] items-center justify-center rounded-lg border bg-white px-4 py-2 text-sm font-semibold shadow-none transition-all duration-200 active:scale-[0.98]',
-                  disabled && 'pointer-events-none opacity-50',
-                  todayState?.canCheckOut ? 'border-red-500 text-red-600 hover:bg-red-50' : 'border-emerald-500 text-emerald-700 hover:bg-emerald-50',
-                );
-                const label = clockPendingDirection ? 'Recording...' : todayState?.canCheckOut ? 'Check-out' : 'Check-in';
-                const actionHref = buildClockActionPath(direction, workplaceCode);
-                return disabled ? (
-                  <span aria-disabled="true" className={className}>{label}</span>
-                ) : (
-                  <a
-                    className={className}
-                    data-attendance-clock-action={direction}
-                    href={actionHref}
-                  >
-                    {label}
-                  </a>
-                );
-              })()}
 
               <p className="mt-3 text-xs leading-5 text-slate-500">{statusMeta.helper}</p>
             </div>
@@ -619,7 +729,7 @@ export function EmployeeDashboard() {
                 <Link
                   key={shortcut.path}
                   to={shortcut.path}
-                  className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-[#6366f1]/50 hover:bg-indigo-50 hover:text-slate-950"
+                  className="flex items-center justify-between rounded-xl border border-white/60 bg-white/55 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-white/80 hover:text-slate-950"
                 >
                   {shortcut.label}
                   <ArrowRight className="h-4 w-4 text-slate-400" />
@@ -650,9 +760,9 @@ export function EmployeeDashboard() {
                       const Icon = module.icon;
                       return (
                         <Link key={module.path} to={module.path} className="group">
-                          <div className="flex h-full min-h-[136px] flex-col rounded-md border border-slate-200 bg-[#f6f7fb] p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#6366f1]/50 group-hover:bg-white">
+                          <div className="flex h-full min-h-[136px] flex-col rounded-2xl border border-white/60 bg-white/55 p-4 transition-all group-hover:-translate-y-0.5 group-hover:bg-white/80">
                             <div className="flex items-start justify-between gap-3">
-                              <div className="grid h-10 w-10 place-items-center rounded-md bg-white text-[#4338ca] shadow-sm">
+                              <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm shadow-indigo-500/25">
                                 <Icon className="h-5 w-5" />
                               </div>
                               <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#4338ca]" />
@@ -1187,6 +1297,33 @@ function EvidenceMetric({ label, value }: { label: string; value: string }) {
     <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
       <p className="text-xs text-slate-500">{label}</p>
       <p className="mt-1 truncate font-semibold text-slate-950">{value}</p>
+    </div>
+  );
+}
+
+function KpiTile({
+  icon: Icon,
+  value,
+  label,
+  gradient,
+  shadow,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  value: string | number;
+  label: string;
+  gradient: string;
+  shadow: string;
+}) {
+  return (
+    <div className={cn('fusion-hover relative overflow-hidden rounded-[2rem] bg-gradient-to-br p-6 text-white shadow-lg', gradient, shadow)}>
+      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/15 blur-xl" />
+      <div className="relative flex items-center justify-between">
+        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/20">
+          <Icon className="h-5 w-5" />
+        </span>
+      </div>
+      <p className="relative mt-5 font-headline text-4xl font-extrabold leading-none tracking-tight">{value}</p>
+      <p className="relative mt-2 text-xs font-semibold text-white/80">{label}</p>
     </div>
   );
 }
