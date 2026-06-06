@@ -649,30 +649,37 @@ export function AdminPayroll() {
   ];
 
   return (
-    <div className="min-h-full fusion-bg">
-      <div className="border-b border-[#e2e8f0] bg-[#4f46e5] px-6 py-5 text-white">
+    <div className="min-h-full">
+      <div className="px-6 py-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 font-headline text-3xl font-bold">
-            <CalendarDays className="h-6 w-6" />
-            Payroll & Attendance
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Payroll engine live
+          </div>
+          <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
+            <CalendarDays className="h-7 w-7 text-[#6366f1]" />
+            <span className="fusion-gradient-text">Payroll & Attendance</span>
           </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">Monthly payroll cycles fed by attendance, compensation, deductions, and tenant policies.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Monthly payroll cycles fed by attendance, compensation, deductions, and tenant policies.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button className="bg-white text-[#4f46e5] hover:bg-[#eef2ff]" onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
+          <Button onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
             <CheckCircle2 className="mr-2 h-4 w-4" />
             {closeToPayMutation.isPending ? 'Closing...' : 'Close to Pay'}
           </Button>
-          <Button variant="secondary" onClick={() => refetch()}>
+          <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Refresh
           </Button>
-          <Button variant="secondary" onClick={savePolicies} disabled={policyMutation.isPending}>
+          <Button variant="outline" onClick={savePolicies} disabled={policyMutation.isPending}>
             <Save className="mr-2 h-4 w-4" />
             {policyMutation.isPending ? 'Saving...' : 'Save Policies'}
           </Button>
-          <Button asChild variant="secondary">
+          <Button asChild variant="outline">
             <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>
         </div>
@@ -680,13 +687,13 @@ export function AdminPayroll() {
       </div>
 
       <Tabs value={activePayrollTab} onValueChange={(value) => setActivePayrollTab(value as PayrollTab)}>
-        <div className="sticky top-0 z-10 border-b border-[#e2e8f0] bg-white px-6 py-2">
+        <div className="fusion-glass sticky top-0 z-10 mx-6 rounded-2xl px-4 py-2">
           <TabsList className="h-auto flex-wrap justify-start bg-transparent p-0">
             {payrollTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-[#4f46e5] data-[state=active]:bg-transparent data-[state=active]:text-[#4f46e5] data-[state=active]:shadow-none"
+                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-[#6366f1] data-[state=active]:bg-transparent data-[state=active]:text-[#6366f1] data-[state=active]:shadow-none"
               >
                 {tab.label}
               </TabsTrigger>
@@ -696,7 +703,7 @@ export function AdminPayroll() {
       </Tabs>
 
       <main className="px-6 pb-6">
-      <section id="payroll-cycle" className={tabClass('cycle', 'grid gap-4 border-b border-[#e2e8f0]/60 bg-white py-6 md:grid-cols-4')}>
+      <section id="payroll-cycle" className={tabClass('cycle', 'fusion-glass mt-6 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4')}>
         <div className="grid gap-2">
           <Label>Year</Label>
           <Input value={year} onChange={(event) => setYear(event.target.value)} />
@@ -753,7 +760,7 @@ export function AdminPayroll() {
         </div>
       </section>
 
-      <section className={tabClass('cycle', 'grid gap-4 border-b border-[#e2e8f0]/60 bg-white py-6 md:grid-cols-5')}>
+      <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-5')}>
         <div>
           <p className="text-xs text-muted-foreground">Cycle</p>
           <p className="font-semibold">{preview?.name ?? 'Loading cycle'}</p>
@@ -778,7 +785,7 @@ export function AdminPayroll() {
       </section>
 
       {paymentBatch ? (
-        <section className={tabClass('cycle', 'grid gap-4 border-b bg-white py-4 md:grid-cols-4')}>
+        <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4')}>
           <div>
             <p className="text-xs text-muted-foreground">Payment Batch</p>
             <p className="font-semibold">{paymentBatch.batchId}</p>
@@ -802,7 +809,7 @@ export function AdminPayroll() {
       ) : null}
 
       {closeResult ? (
-        <section className={tabClass('cycle', 'grid gap-4 border-b py-4 md:grid-cols-4 xl:grid-cols-7')}>
+        <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4 xl:grid-cols-7')}>
           <div>
             <p className="text-xs text-muted-foreground">Closed Cycle</p>
             <p className="font-semibold">{closeResult.status}</p>
@@ -841,7 +848,7 @@ export function AdminPayroll() {
       ) : null}
 
       {readiness && !readiness.canClose ? (
-        <section className={tabClass('cycle', 'space-y-3 border-b py-4')}>
+        <section className={tabClass('cycle', 'fusion-glass mt-4 space-y-3 rounded-[2rem] p-6')}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="font-semibold text-destructive">Payroll readiness blockers</p>
@@ -964,7 +971,7 @@ export function AdminPayroll() {
                       ) : null}
                       <div className="grid gap-2 md:grid-cols-2">
                         {selectedPayrollRow.explainability.map((line) => (
-                          <div key={`${line.code}-${line.formula}`} className="rounded border bg-white p-2 text-xs">
+                          <div key={`${line.code}-${line.formula}`} className="fusion-glass rounded-xl p-2 text-xs">
                             <div className="flex items-center justify-between gap-2">
                               <strong>{line.label}</strong>
                               <span>{formatCurrency(line.amount, selectedPayrollRow.currency)}</span>
@@ -1022,7 +1029,7 @@ export function AdminPayroll() {
                 </div>
               ) : null}
               {closeResult?.paymentBatchId ? (
-                <div className="space-y-3 rounded-md border bg-white p-3">
+                <div className="fusion-glass space-y-3 rounded-2xl p-3">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                       <p className="font-semibold">Enterprise payment workflow</p>

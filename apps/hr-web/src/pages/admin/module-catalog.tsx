@@ -82,8 +82,8 @@ function ModuleCard({ module }: { module: CommercialModule }) {
   const maturity = maturityLabels[module.maturity];
 
   return (
-    <Card className="group relative overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:border-[#8b5cf6]/60 hover:shadow-[0_8px_30px_rgba(0,0,0,0.08)]">
-      <div className="lumina-accent-strip" />
+    <Card className="group relative overflow-hidden border-transparent fusion-glass rounded-2xl fusion-hover">
+      <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-400" />
       <CardHeader className="space-y-4 p-5">
         <div className="flex items-start gap-3">
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#4f46e5] text-white">
@@ -141,12 +141,18 @@ export function AdminModuleCatalog() {
   const apiReadyCount = commercialModules.filter((module) => module.maturity === 'api-ready').length;
 
   return (
-    <div className="min-h-full fusion-bg">
+    <div className="min-h-full">
       <div className="lumina-canvas space-y-6">
-        <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
+        <section className="fusion-glass rounded-[2rem] overflow-hidden">
+          <div className="grid gap-5 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
-              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">Commercialization Command Center</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#c7d2fe]">Commercialization Command Center</p>
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+                  <span className="h-2 w-2 rounded-full bg-emerald-300 fusion-pulse" />
+                  Live
+                </span>
+              </div>
               <h2 className="mt-2 font-headline text-3xl font-bold">All Built HR Modules</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
                 Every backend HR domain is now exposed in the product UI with clear module status, real data objects, personas, workflows, and a workbench path for API-ready areas.
@@ -160,7 +166,7 @@ export function AdminModuleCatalog() {
             </Button>
           </div>
 
-          <div className="grid gap-4 border-b border-[#e2e8f0]/60 bg-white p-4 lg:grid-cols-[1fr_auto]">
+          <div className="grid gap-4 border-b border-white/40 p-4 lg:grid-cols-[1fr_auto]">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
               <Input
@@ -188,7 +194,7 @@ export function AdminModuleCatalog() {
             </div>
           </div>
 
-          <div className="grid bg-white sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4">
             <StatBlock label="Total Modules" value={commercialModules.length} icon={Layers3} />
             <StatBlock label="Native UI" value={nativeCount} icon={CheckCircle2} />
             <StatBlock label="Workbench" value={workbenchCount} icon={Activity} />
@@ -203,7 +209,7 @@ export function AdminModuleCatalog() {
         </section>
 
         {filteredModules.length === 0 ? (
-          <div className="lumina-panel p-8 text-center text-sm text-[#475569]">
+          <div className="fusion-glass rounded-2xl p-8 text-center text-sm text-[#475569]">
             No modules match this search.
           </div>
         ) : null}

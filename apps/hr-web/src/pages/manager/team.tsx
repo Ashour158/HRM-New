@@ -1,7 +1,6 @@
 
 import { useSearchParams } from 'react-router-dom';
 import { useApiQuery } from '@/hooks/use-api';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -86,8 +85,10 @@ export function ManagerTeam() {
               ← Back to Team
             </Button>
             <div>
-              <h2 className="text-2xl font-bold">{member.firstName} {member.lastName}</h2>
-              <p className="text-muted-foreground">{member.jobTitle} • {member.departmentName}</p>
+              <h1 className="font-headline text-2xl font-extrabold tracking-tight md:text-3xl">
+                <span className="fusion-gradient-text">{member.firstName} {member.lastName}</span>
+              </h1>
+              <p className="text-slate-500">{member.jobTitle} • {member.departmentName}</p>
             </div>
           </div>
           <AllowedActions
@@ -105,62 +106,58 @@ export function ManagerTeam() {
           </TabsList>
 
           <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Employment Details</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="fusion-glass rounded-[2rem] p-6">
+              <div className="mb-4 text-lg font-bold">Employment Details</div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Employee ID</p>
+                  <p className="text-xs text-slate-500">Employee ID</p>
                   <p className="text-sm font-medium">{member.employeeId}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Hire Date</p>
+                  <p className="text-xs text-slate-500">Hire Date</p>
                   <p className="text-sm font-medium">{formatDate(member.hireDate)}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Status</p>
+                  <p className="text-xs text-slate-500">Status</p>
                   <Badge variant={member.status === 'ACTIVE' ? 'default' : 'secondary'}>{member.status}</Badge>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Department</p>
+                  <p className="text-xs text-slate-500">Department</p>
                   <p className="text-sm font-medium">{member.departmentName}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Manager</p>
+                  <p className="text-xs text-slate-500">Manager</p>
                   <p className="text-sm font-medium">{member.managerName}</p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Legal Entity</p>
+                  <p className="text-xs text-slate-500">Legal Entity</p>
                   <p className="text-sm font-medium">{member.legalEntityName}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="performance">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Star className="h-5 w-5" />
-                  Performance
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
+            <div className="fusion-glass rounded-[2rem] p-6">
+              <div className="mb-4 flex items-center gap-2 text-lg font-bold">
+                <Star className="h-5 w-5 text-amber-500" />
+                Performance
+              </div>
+              <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-lg bg-muted p-4">
-                    <p className="text-xs text-muted-foreground">Latest Rating</p>
+                  <div className="fusion-glass rounded-2xl p-4">
+                    <p className="text-xs text-slate-500">Latest Rating</p>
                     <div className="mt-1 flex items-center gap-2">
                       <span className="text-2xl font-bold">{member.performanceRating ?? 'N/A'}</span>
                       {member.lastReviewDate && (
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-xs text-slate-500">
                           ({formatDate(member.lastReviewDate)})
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="rounded-lg bg-muted p-4">
-                    <p className="text-xs text-muted-foreground">Open Goals</p>
+                  <div className="fusion-glass rounded-2xl p-4">
+                    <p className="text-xs text-slate-500">Open Goals</p>
                     <p className="text-2xl font-bold">{member.goals.filter((g) => g.status === 'OPEN').length}</p>
                   </div>
                 </div>
@@ -169,18 +166,18 @@ export function ManagerTeam() {
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium">Goals</h4>
                     {member.goals.map((goal) => (
-                      <div key={goal.id} className="rounded-lg border p-3">
+                      <div key={goal.id} className="fusion-glass rounded-2xl p-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium">{goal.title}</span>
                           <Badge variant="outline">{goal.status}</Badge>
                         </div>
-                        <div className="mt-2 h-2 rounded-full bg-muted">
+                        <div className="mt-2 h-2 rounded-full bg-[#e0e7ff]">
                           <div
                             className="h-2 rounded-full bg-primary"
                             style={{ width: `${goal.progress}%` }}
                           />
                         </div>
-                        <p className="mt-1 text-xs text-muted-foreground">{goal.progress}% complete</p>
+                        <p className="mt-1 text-xs text-slate-500">{goal.progress}% complete</p>
                       </div>
                     ))}
                   </div>
@@ -190,30 +187,28 @@ export function ManagerTeam() {
                   aggregateType="PERFORMANCE"
                   aggregateId={member.id}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="compensation">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <DollarSign className="h-5 w-5" />
-                  Compensation
-                </CardTitle>
-                <CardDescription>Compensation band and recommendations</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="rounded-lg bg-muted p-4">
-                  <p className="text-xs text-muted-foreground">Compensation Band</p>
+            <div className="fusion-glass rounded-[2rem] p-6">
+              <div className="flex items-center gap-2 text-lg font-bold">
+                <DollarSign className="h-5 w-5 text-emerald-500" />
+                Compensation
+              </div>
+              <p className="text-sm text-slate-500">Compensation band and recommendations</p>
+              <div className="mt-4 space-y-4">
+                <div className="fusion-glass rounded-2xl p-4">
+                  <p className="text-xs text-slate-500">Compensation Band</p>
                   <p className="text-lg font-medium">{member.compensationBand || 'Not set'}</p>
                 </div>
                 <AllowedActions
                   aggregateType="COMPENSATION"
                   aggregateId={member.id}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
@@ -225,31 +220,34 @@ export function ManagerTeam() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Users className="h-6 w-6" />
-            Team
-          </h2>
-          <p className="text-muted-foreground">Manage your direct reports</p>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Team workspace · live
+          </div>
+          <h1 className="flex items-center gap-3 font-headline text-3xl font-extrabold tracking-tight md:text-4xl">
+            <Users className="h-7 w-7 text-indigo-500" />
+            <span className="fusion-gradient-text">Team</span>
+          </h1>
+          <p className="mt-1 text-slate-500">Manage your direct reports</p>
         </div>
         <AllowedActions
           aggregateType="TEAM"
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Direct Reports</CardTitle>
-          <CardDescription>Click on a team member to view details</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={reportColumns}
-            data={data?.directReports ?? []}
-            keyExtractor={(row) => row.id}
-            emptyMessage="No direct reports found"
-          />
-        </CardContent>
-      </Card>
+      <div className="fusion-glass rounded-[2rem] p-6">
+        <div className="mb-1 text-lg font-bold">Direct Reports</div>
+        <p className="mb-4 text-sm text-slate-500">Click on a team member to view details</p>
+        <DataTable
+          columns={reportColumns}
+          data={data?.directReports ?? []}
+          keyExtractor={(row) => row.id}
+          emptyMessage="No direct reports found"
+        />
+      </div>
     </div>
   );
 }

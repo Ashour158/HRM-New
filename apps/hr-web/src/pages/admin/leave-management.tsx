@@ -321,11 +321,18 @@ export function AdminLeaveManagement() {
     <div className="space-y-6 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
-            <Umbrella className="h-6 w-6 text-primary" />
-            Leave Management
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Leave service connected
+          </div>
+          <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
+            <Umbrella className="h-7 w-7 text-[#6366f1]" />
+            <span className="fusion-gradient-text">Leave Management</span>
           </h2>
-          <p className="text-sm text-muted-foreground">Admin leave requests, approvals, balances, policies, holidays, and payroll impact.</p>
+          <p className="mt-2 text-sm text-slate-500">Admin leave requests, approvals, balances, policies, holidays, and payroll impact.</p>
         </div>
         <Button asChild variant="outline">
           <Link to="/admin/system-console/policies">Policy Center</Link>
@@ -333,30 +340,22 @@ export function AdminLeaveManagement() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Open Requests</p>
-            <p className="mt-1 text-3xl font-bold">{requests.filter((request) => request.status === 'PENDING').length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Approved</p>
-            <p className="mt-1 text-3xl font-bold">{requests.filter((request) => request.status === 'APPROVED').length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Leave Policies</p>
-            <p className="mt-1 text-3xl font-bold">{policies.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Upcoming Holidays</p>
-            <p className="mt-1 text-3xl font-bold">{holidays.filter((holiday) => holiday.date >= new Date().toISOString().slice(0, 10)).length}</p>
-          </CardContent>
-        </Card>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-indigo-500 to-violet-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Open Requests</p>
+          <p className="mt-2 text-4xl font-extrabold">{requests.filter((request) => request.status === 'PENDING').length}</p>
+        </div>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-violet-500 to-purple-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Approved</p>
+          <p className="mt-2 text-4xl font-extrabold">{requests.filter((request) => request.status === 'APPROVED').length}</p>
+        </div>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-teal-500 to-emerald-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Leave Policies</p>
+          <p className="mt-2 text-4xl font-extrabold">{policies.length}</p>
+        </div>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-amber-500 to-orange-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Upcoming Holidays</p>
+          <p className="mt-2 text-4xl font-extrabold">{holidays.filter((holiday) => holiday.date >= new Date().toISOString().slice(0, 10)).length}</p>
+        </div>
       </div>
 
       <Tabs defaultValue="requests" className="space-y-4">
@@ -619,7 +618,7 @@ export function AdminLeaveManagement() {
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {holidays.map((holiday) => (
-                <div key={`${holiday.date}-${holiday.name}`} className="rounded-lg border p-3">
+                <div key={`${holiday.date}-${holiday.name}`} className="fusion-glass rounded-2xl p-3">
                   <p className="font-medium">{holiday.name}</p>
                   <p className="text-sm text-muted-foreground">{displayDate(holiday.date)}</p>
                   <Badge variant="outline" className="mt-2">{holiday.countryCode ?? 'Global'}</Badge>

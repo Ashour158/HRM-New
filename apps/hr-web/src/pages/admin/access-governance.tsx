@@ -389,14 +389,14 @@ function EmptyRows({ colSpan, label }: { colSpan: number; label: string }) {
 
 function StatusStrip({ label, value, helper, icon: Icon }: { label: string; value: string | number; helper: string; icon: React.ElementType }) {
   return (
-    <Card>
+    <Card className="fusion-glass fusion-hover rounded-[2rem] border-transparent">
       <CardContent className="flex items-start justify-between gap-4 p-4">
         <div>
           <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
           <p className="mt-2 text-2xl font-bold">{value}</p>
           <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
         </div>
-        <div className="grid size-10 shrink-0 place-items-center rounded-md bg-secondary text-primary">
+        <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
           <Icon className="size-5" />
         </div>
       </CardContent>
@@ -860,12 +860,19 @@ export function AdminAccessGovernance() {
   };
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-7rem)] bg-background px-6 py-6">
+    <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
       <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Access controls live
+          </div>
           <div className="flex items-center gap-2">
             <UserCog className="size-6 text-primary" />
-            <h2 className="text-2xl font-bold">Access Governance</h2>
+            <h1 className="fusion-gradient-text font-headline text-3xl font-extrabold tracking-tight">Access Governance</h1>
           </div>
           <p className="mt-2 text-muted-foreground">
             Operate role catalog, permissions, assignments, ABAC, field access, and segregation-of-duties controls.
@@ -890,7 +897,7 @@ export function AdminAccessGovernance() {
       ) : null}
 
       {isError ? (
-        <Card className="mt-6">
+        <Card className="fusion-glass rounded-2xl border-transparent mt-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldAlert className="size-5 text-destructive" />
@@ -939,7 +946,7 @@ export function AdminAccessGovernance() {
         </TabsList>
 
         <TabsContent value="roles" className="grid gap-4 xl:grid-cols-[22rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Plus className="size-5" />
@@ -980,7 +987,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Role Catalog</CardTitle>
               <CardDescription>{roles.length} roles available to this tenant.</CardDescription>
@@ -1016,7 +1023,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="permissions" className="grid gap-4 xl:grid-cols-[22rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileKey2 className="size-5" />
@@ -1064,7 +1071,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Permission Catalog</CardTitle>
               <CardDescription>{permissions.length} permission records backed by the database.</CardDescription>
@@ -1097,7 +1104,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="assignments" className="grid gap-4 xl:grid-cols-[22rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <GitCompareArrows className="size-5" />
@@ -1135,7 +1142,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Role-Permission Assignments</CardTitle>
               <CardDescription>{assignments.length} persisted assignments.</CardDescription>
@@ -1174,7 +1181,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="users" className="grid gap-4 xl:grid-cols-[24rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <UserCog className="size-5" />
@@ -1209,7 +1216,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>User Role Grants</CardTitle>
               <CardDescription>{userRoles.length} active or expiring user-role assignments.</CardDescription>
@@ -1252,7 +1259,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="services" className="grid gap-4 xl:grid-cols-[25rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileKey2 className="size-5" />
@@ -1305,7 +1312,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Service Accounts</CardTitle>
               <CardDescription>{serviceAccounts.length} registered service identities.</CardDescription>
@@ -1339,7 +1346,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card className="xl:col-span-2">
+          <Card className="fusion-glass rounded-2xl border-transparent xl:col-span-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <KeyRound className="size-5" />
@@ -1442,7 +1449,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="reviews" className="grid gap-4 2xl:grid-cols-[25rem_25rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Access Review Campaign</CardTitle>
               <CardDescription>Create certification campaigns for users, roles, permissions, and service accounts.</CardDescription>
@@ -1487,7 +1494,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Review Item</CardTitle>
               <CardDescription>Add an entitlement, user, worker, or service identity to a campaign.</CardDescription>
@@ -1534,7 +1541,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Access Reviews</CardTitle>
               <CardDescription>{accessReviewCampaigns.length} campaigns and {accessReviewItems.length} review items.</CardDescription>
@@ -1726,7 +1733,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="abac" className="grid gap-4 xl:grid-cols-[25rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>ABAC Policy</CardTitle>
               <CardDescription>Create attribute policies with explicit ALLOW or DENY effects.</CardDescription>
@@ -1762,7 +1769,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>ABAC Policies</CardTitle>
               <CardDescription>{data?.abacPolicies.length ?? 0} policies ordered by priority.</CardDescription>
@@ -1793,7 +1800,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="fields" className="grid gap-4 xl:grid-cols-[25rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Field Access Policy</CardTitle>
               <CardDescription>Control masking and visibility for sensitive HR fields.</CardDescription>
@@ -1820,7 +1827,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Field Access Policies</CardTitle>
               <CardDescription>{data?.fieldAccessPolicies.length ?? 0} field-level controls.</CardDescription>
@@ -1853,7 +1860,7 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="sod" className="grid gap-4 xl:grid-cols-[25rem_1fr]">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>SoD Rule</CardTitle>
               <CardDescription>Create segregation-of-duties rules for incompatible roles or permissions.</CardDescription>
@@ -1894,7 +1901,7 @@ export function AdminAccessGovernance() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>SoD Rules</CardTitle>
               <CardDescription>{data?.sodRules.length ?? 0} segregation rules.</CardDescription>

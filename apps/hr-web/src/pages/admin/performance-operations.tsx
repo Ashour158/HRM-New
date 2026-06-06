@@ -967,18 +967,18 @@ export function AdminPerformanceOperations() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-md border bg-white p-4 shadow-sm">
+      <div className="fusion-glass rounded-[2rem] p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-slate-950">Performance Operations</h3>
-            <p className="mt-1 text-sm text-slate-600">Complete performance workflows wired to command handlers, FSMs, scoped reads, and audit/outbox pipeline.</p>
+            <h3 className="fusion-gradient-text text-lg font-semibold">Performance Operations</h3>
+            <p className="mt-1 text-sm text-slate-500">Complete performance workflows wired to command handlers, FSMs, scoped reads, and audit/outbox pipeline.</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-3">
-            <div className="rounded-md border bg-slate-50 px-3 py-2">
+            <div className="fusion-glass rounded-2xl px-3 py-2">
               <p className="text-xs text-muted-foreground">Selected employee</p>
               <p className="text-sm font-medium">{workerName(workers.find((worker) => worker.id === effectiveWorkerId))}</p>
             </div>
-            <div className="rounded-md border bg-slate-50 px-3 py-2">
+            <div className="fusion-glass rounded-2xl px-3 py-2">
               <p className="text-xs text-muted-foreground">Review cycle</p>
               <p className="text-sm font-medium">{cycles.find((cycle) => cycle.id === effectiveCycleId)?.name ?? 'None'}</p>
             </div>
@@ -1006,7 +1006,7 @@ export function AdminPerformanceOperations() {
       {message ? <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</div> : null}
       {error ? <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{error}</div> : null}
 
-      <div className="flex flex-wrap gap-2 rounded-md border bg-white p-2">
+      <div className="flex flex-wrap gap-2 fusion-glass rounded-2xl p-2">
         {sectionButtons.map((item) => {
           const Icon = item.icon;
           return (
@@ -1026,7 +1026,7 @@ export function AdminPerformanceOperations() {
 
       {section === 'analytics' ? (
         <div className="space-y-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border bg-white p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 fusion-glass rounded-2xl p-3">
             <div>
               <p className="text-sm font-semibold text-slate-950">Analytics Governance</p>
               <p className="text-xs text-slate-600">
@@ -1058,7 +1058,7 @@ export function AdminPerformanceOperations() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm"><UserCheck className="h-4 w-4 text-[#4f46e5]" /> Reviews</CardTitle>
               </CardHeader>
@@ -1067,7 +1067,7 @@ export function AdminPerformanceOperations() {
                 <p className="text-xs text-muted-foreground">records in selected cycle</p>
               </CardContent>
             </Card>
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm"><Target className="h-4 w-4 text-[#4f46e5]" /> Goals</CardTitle>
               </CardHeader>
@@ -1076,7 +1076,7 @@ export function AdminPerformanceOperations() {
                 <p className="text-xs text-muted-foreground">{analytics?.goalMetrics.atRisk ?? 0} at risk</p>
               </CardContent>
             </Card>
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm"><MessageSquare className="h-4 w-4 text-[#4f46e5]" /> Peer Feedback</CardTitle>
               </CardHeader>
@@ -1085,7 +1085,7 @@ export function AdminPerformanceOperations() {
                 <p className="text-xs text-muted-foreground">{analytics?.peerFeedback.anonymousSubmitted ?? 0} anonymous</p>
               </CardContent>
             </Card>
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm"><Award className="h-4 w-4 text-[#4f46e5]" /> Recognition</CardTitle>
               </CardHeader>
@@ -1097,7 +1097,7 @@ export function AdminPerformanceOperations() {
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-[#4f46e5]" /> Rating Distribution</CardTitle>
                 <CardDescription>Final/calibrated ratings across the cycle.</CardDescription>
@@ -1118,7 +1118,7 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><Grid3X3 className="h-5 w-5 text-[#4f46e5]" /> Talent Grid / 9-Box</CardTitle>
                 <CardDescription>Performance and potential bands from ratings, goals, OKRs, and peer signal.</CardDescription>
@@ -1129,7 +1129,7 @@ export function AdminPerformanceOperations() {
                     ['LOW', 'MEDIUM', 'HIGH'].map((performance) => {
                       const people = analytics?.nineBox.filter((item) => item.potentialBand === potential && item.performanceBand === performance) ?? [];
                       return (
-                        <div key={`${potential}-${performance}`} className="min-h-[112px] rounded-md border bg-slate-50 p-3">
+                        <div key={`${potential}-${performance}`} className="min-h-[112px] fusion-glass rounded-2xl p-3">
                           <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
                             <span>{potential} potential</span>
                             <span>{performance} perf.</span>
@@ -1152,14 +1152,14 @@ export function AdminPerformanceOperations() {
           </div>
 
           <div className="grid gap-5 xl:grid-cols-3">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-[#4f46e5]" /> Best Employee Recognition</CardTitle>
                 <CardDescription>Computed from ratings, goals, and feedback.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {analytics?.recognitions.length ? analytics.recognitions.map((recognition) => (
-                  <div key={recognition.workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                  <div key={recognition.workerId} className="fusion-glass rounded-2xl p-3 text-sm">
                     <p className="font-medium">{recognition.employeeName}</p>
                     <p className="text-xs text-muted-foreground">{recognition.reason}</p>
                   </div>
@@ -1167,14 +1167,14 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><TrendingUp className="h-5 w-5 text-[#4f46e5]" /> Action Plans</CardTitle>
                 <CardDescription>Employee-level next actions from review and goal signals.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {analytics?.actionPlans.slice(0, 6).map((plan) => (
-                  <div key={plan.workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                  <div key={plan.workerId} className="fusion-glass rounded-2xl p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{plan.employeeName}</p>
                       <Badge variant={plan.riskLevel === 'HIGH' ? 'destructive' : plan.riskLevel === 'MEDIUM' ? 'secondary' : 'outline'}>{plan.riskLevel}</Badge>
@@ -1204,14 +1204,14 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-[#4f46e5]" /> Feedback Synthesis</CardTitle>
                 <CardDescription>Concise feedback summary, with anonymous reviewer masking.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {Object.values(analytics?.feedbackSummaries ?? {}).filter((item) => item.responseCount > 0).slice(0, 5).map((summary) => (
-                  <div key={summary.workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                  <div key={summary.workerId} className="fusion-glass rounded-2xl p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{workerName(workers.find((worker) => worker.id === summary.workerId))}</p>
                       <Badge variant="outline">{summary.anonymousResponseCount} anon.</Badge>
@@ -1232,14 +1232,14 @@ export function AdminPerformanceOperations() {
           </div>
 
           <div className="grid gap-5 xl:grid-cols-2">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-[#4f46e5]" /> Bias Checks</CardTitle>
                 <CardDescription>Department distributions use suppression when group counts are below the analytics threshold.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {(analytics?.biasChecks?.departmentRatingDistribution ?? []).map((item) => (
-                  <div key={item.group} className="grid grid-cols-[1fr_80px_90px] items-center gap-2 rounded-md border bg-slate-50 p-3 text-sm">
+                  <div key={item.group} className="grid grid-cols-[1fr_80px_90px] items-center gap-2 fusion-glass rounded-2xl p-3 text-sm">
                     <span className="font-medium">{item.group}</span>
                     <span>{item.count} reviews</span>
                     <Badge variant={item.suppressed ? 'secondary' : 'outline'}>{item.suppressed ? 'Suppressed' : item.averageRating ?? '-'}</Badge>
@@ -1249,14 +1249,14 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg"><Activity className="h-5 w-5 text-[#4f46e5]" /> Score Explainability</CardTitle>
                 <CardDescription>Why the analytics engine placed employees in a risk, recognition, or 9-box segment.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {Object.entries(analytics?.scoreExplainability ?? {}).slice(0, 6).map(([workerId, explanation]) => (
-                  <div key={workerId} className="rounded-md border bg-slate-50 p-3 text-sm">
+                  <div key={workerId} className="fusion-glass rounded-2xl p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium">{explanation.employeeName}</p>
                       <Badge variant="outline">{Math.round(explanation.performanceScore)}%</Badge>
@@ -1273,7 +1273,7 @@ export function AdminPerformanceOperations() {
 
       {section === 'reviews' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -1287,7 +1287,7 @@ export function AdminPerformanceOperations() {
               <DataTable columns={reviewColumns} data={reviews} keyExtractor={(review) => review.id} isLoading={reviewsLoading} emptyMessage="No reviews for this employee" />
             </CardContent>
           </Card>
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Create Review</CardTitle>
               <CardDescription>Draft a review tied to employee, manager, and cycle.</CardDescription>
@@ -1316,7 +1316,7 @@ export function AdminPerformanceOperations() {
       {section === 'feedback' ? (
         <div className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg">360 Feedback Cycles</CardTitle>
                 <CardDescription>Cycle launch and close workflow for peer/manager feedback collection.</CardDescription>
@@ -1325,7 +1325,7 @@ export function AdminPerformanceOperations() {
                 <DataTable columns={feedbackCycleColumns} data={feedbackCycles} keyExtractor={(cycle) => cycle.id} emptyMessage="No 360 cycles yet" />
               </CardContent>
             </Card>
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg">Create 360 Cycle</CardTitle>
                 <CardDescription>Configure anonymous peer review rules.</CardDescription>
@@ -1362,7 +1362,7 @@ export function AdminPerformanceOperations() {
           </div>
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -1386,7 +1386,7 @@ export function AdminPerformanceOperations() {
                 <DataTable columns={feedbackResponseColumns} data={feedbackResponses} keyExtractor={(response) => response.id} isLoading={feedbackResponsesLoading} emptyMessage="No responses for this cycle" />
               </CardContent>
             </Card>
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg">Create Response</CardTitle>
                 <CardDescription>Create a feedback response assignment.</CardDescription>
@@ -1403,7 +1403,7 @@ export function AdminPerformanceOperations() {
                   <div className="space-y-2"><Label>Reviewee</Label><EmployeeSelect value={feedbackResponseForm.revieweeId} workers={workers} onChange={(value) => setFeedbackResponseForm({ ...feedbackResponseForm, revieweeId: value })} /></div>
                   <div className="space-y-2"><Label>Reviewer</Label><EmployeeSelect value={feedbackResponseForm.reviewerId} workers={workers} onChange={(value) => setFeedbackResponseForm({ ...feedbackResponseForm, reviewerId: value })} /></div>
                   <div className="space-y-2"><Label>Relationship</Label><Select value={feedbackResponseForm.relationshipType} onValueChange={(value) => setFeedbackResponseForm({ ...feedbackResponseForm, relationshipType: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="PEER">Peer</SelectItem><SelectItem value="MANAGER">Manager</SelectItem><SelectItem value="DIRECT_REPORT">Direct report</SelectItem><SelectItem value="STAKEHOLDER">Stakeholder</SelectItem></SelectContent></Select></div>
-                  <label className="flex items-center gap-2 rounded-md border bg-slate-50 px-3 py-2 text-sm">
+                  <label className="flex items-center gap-2 fusion-glass rounded-2xl px-3 py-2 text-sm">
                     <input
                       type="checkbox"
                       checked={feedbackResponseForm.isAnonymous}
@@ -1421,7 +1421,7 @@ export function AdminPerformanceOperations() {
 
       {section === 'calibration' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -1435,7 +1435,7 @@ export function AdminPerformanceOperations() {
               <DataTable columns={calibrationColumns} data={calibrationSessions} keyExtractor={(session) => session.id} isLoading={calibrationLoading} emptyMessage="No calibration sessions for this cycle" />
             </CardContent>
           </Card>
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Create Calibration</CardTitle>
               <CardDescription>Assign facilitator and participants.</CardDescription>
@@ -1464,7 +1464,7 @@ export function AdminPerformanceOperations() {
 
       {section === 'growth' ? (
         <div className="space-y-5">
-          <div className="rounded-md border bg-white p-4">
+          <div className="fusion-glass rounded-2xl p-4">
             <div className="grid gap-3 md:grid-cols-[260px_260px_1fr]">
               <div className="space-y-2"><Label>Employee</Label><EmployeeSelect value={selectedWorkerId} workers={workers} onChange={setSelectedWorkerId} /></div>
               <div className="space-y-2"><Label>Manager</Label><EmployeeSelect value={selectedManagerId} workers={workers} onChange={setSelectedManagerId} /></div>
@@ -1474,7 +1474,7 @@ export function AdminPerformanceOperations() {
             </div>
           </div>
           <div className="grid gap-5 xl:grid-cols-2">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg">Improvement Plans</CardTitle>
                 <CardDescription>Formal improvement workflow for performance cases.</CardDescription>
@@ -1482,7 +1482,7 @@ export function AdminPerformanceOperations() {
               <CardContent className="space-y-4">
                 <DataTable columns={pipColumns} data={pips} keyExtractor={(pip) => pip.id} isLoading={pipsLoading} emptyMessage="No PIPs for this employee" />
                 <form
-                  className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
+                  className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     const planDurationDays = Number(pipForm.planDurationDays) || 90;
@@ -1540,7 +1540,7 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg">Development Plans</CardTitle>
                 <CardDescription>Growth plans for skills, resources, and career progress.</CardDescription>
@@ -1548,7 +1548,7 @@ export function AdminPerformanceOperations() {
               <CardContent className="space-y-4">
                 <DataTable columns={developmentColumns} data={developmentPlans} keyExtractor={(plan) => plan.id} isLoading={developmentPlansLoading} emptyMessage="No development plans for this employee" />
                 <form
-                  className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
+                  className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     createEntity('development-plans', {
@@ -1582,7 +1582,7 @@ export function AdminPerformanceOperations() {
       {section === 'okr' ? (
         <div className="space-y-5">
           <div className="grid gap-5 xl:grid-cols-2">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -1595,7 +1595,7 @@ export function AdminPerformanceOperations() {
               <CardContent className="space-y-4">
                 <DataTable columns={objectiveColumns} data={objectives} keyExtractor={(objective) => objective.id} isLoading={objectivesLoading} emptyMessage="No objectives for this employee" />
                 <form
-                  className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
+                  className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     createEntity('objectives', {
@@ -1618,7 +1618,7 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -1641,7 +1641,7 @@ export function AdminPerformanceOperations() {
               <CardContent className="space-y-4">
                 <DataTable columns={keyResultColumns} data={keyResults} keyExtractor={(keyResult) => keyResult.id} isLoading={keyResultsLoading} emptyMessage="No key results for this objective" />
                 <form
-                  className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
+                  className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     createEntity('key-results', {
@@ -1662,7 +1662,7 @@ export function AdminPerformanceOperations() {
           </div>
 
           <div className="grid gap-5 xl:grid-cols-2">
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -1675,7 +1675,7 @@ export function AdminPerformanceOperations() {
               <CardContent className="space-y-4">
                 <DataTable columns={kpiColumns} data={kpis} keyExtractor={(kpi) => kpi.id} isLoading={kpisLoading} emptyMessage="No KPIs for this category" />
                 <form
-                  className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
+                  className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     createEntity('kpis', {
@@ -1704,7 +1704,7 @@ export function AdminPerformanceOperations() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
@@ -1727,7 +1727,7 @@ export function AdminPerformanceOperations() {
               <CardContent className="space-y-4">
                 <DataTable columns={measurementColumns} data={kpiMeasurements} keyExtractor={(measurement) => measurement.id} isLoading={measurementsLoading} emptyMessage="No measurements for this KPI" />
                 <form
-                  className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-2"
+                  className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-2"
                   onSubmit={(event) => {
                     event.preventDefault();
                     createEntity('kpi-measurements', {
@@ -1750,15 +1750,15 @@ export function AdminPerformanceOperations() {
       ) : null}
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-md border bg-white p-4 text-sm text-slate-600">
+        <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
           <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="h-4 w-4 text-[#4f46e5]" />Access</div>
           Reads are scoped by tenant, employee, manager line, or HR performance role.
         </div>
-        <div className="rounded-md border bg-white p-4 text-sm text-slate-600">
+        <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
           <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><BarChart3 className="h-4 w-4 text-[#4f46e5]" />Lifecycle</div>
           Mutations use backend command handlers and FSM transitions instead of local-only UI state.
         </div>
-        <div className="rounded-md border bg-white p-4 text-sm text-slate-600">
+        <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
           <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ClipboardCheck className="h-4 w-4 text-[#4f46e5]" />Audit</div>
           Command bus execution keeps idempotency, audit, transition ledger, and outbox behavior in the flow.
         </div>

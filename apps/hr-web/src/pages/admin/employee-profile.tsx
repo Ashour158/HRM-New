@@ -202,7 +202,7 @@ export function AdminEmployeeProfile() {
   if (!currentProfile) {
     return (
       <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">
           Employee profile could not be loaded.
         </div>
       </div>
@@ -304,8 +304,8 @@ export function AdminEmployeeProfile() {
   };
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-7rem)] bg-background">
-      <div className="border-b px-6 py-5">
+    <div className="-m-4 min-h-[calc(100vh-7rem)] space-y-6 px-6 py-6">
+      <div className="fusion-glass rounded-[2rem] px-6 py-5">
         <Button variant="ghost" size="sm" onClick={() => navigate('/admin/employees')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Employees
@@ -316,7 +316,7 @@ export function AdminEmployeeProfile() {
               {profilePhotoSrc ? <img src={profilePhotoSrc} alt="" className="h-full w-full object-cover" /> : `${worker.firstName[0] ?? ''}${worker.lastName[0] ?? ''}`}
             </div>
             <div>
-              <h2 className="text-3xl font-bold">{worker.firstName} {worker.lastName}</h2>
+              <h2 className="text-3xl font-bold fusion-gradient-text">{worker.firstName} {worker.lastName}</h2>
               <p className="text-muted-foreground">{worker.employeeId} - {worker.jobTitle || 'Unassigned'}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge>{worker.status}</Badge>
@@ -360,7 +360,7 @@ export function AdminEmployeeProfile() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-[1fr_340px]">
+      <div className="grid overflow-hidden rounded-[2rem] fusion-glass lg:grid-cols-[1fr_340px]">
         <main className="divide-y px-6">
           <Section title="Identity" icon={<Contact className="h-5 w-5 text-primary" />}>
             <div className="grid gap-x-8 md:grid-cols-3">
@@ -590,7 +590,7 @@ export function AdminEmployeeProfile() {
           </Section>
         </main>
 
-        <aside className="space-y-6 border-l px-5 py-6">
+        <aside className="space-y-6 border-l border-white/40 px-5 py-6">
           <section className="space-y-4">
             <h3 className="flex items-center gap-2 text-lg font-semibold">
               <AlertTriangle className="h-5 w-5 text-destructive" />

@@ -331,7 +331,7 @@ function OrgTree({ nodes, depth = 0 }: { nodes: OrgUnit[]; depth?: number }) {
     <div className="space-y-2">
       {nodes.map((node) => (
         <div key={node.id}>
-          <div className="flex items-center gap-3 rounded-lg border bg-white p-3" style={{ marginLeft: depth * 20 }}>
+          <div className="fusion-glass flex items-center gap-3 rounded-2xl p-3" style={{ marginLeft: depth * 20 }}>
             <Network className="h-4 w-4 text-primary" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{node.name}</p>
@@ -360,7 +360,7 @@ function ReportingTree({ nodes, depth = 0, visited = new Set<string>() }: { node
 
         return (
           <div key={`${node.id}-${depth}`}>
-            <div className="flex items-center gap-3 rounded-lg border bg-white p-3" style={{ marginLeft: depth * 20 }}>
+            <div className="fusion-glass flex items-center gap-3 rounded-2xl p-3" style={{ marginLeft: depth * 20 }}>
               <UserCog className="h-4 w-4 text-primary" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold">{node.name}</p>
@@ -397,7 +397,10 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
 
   const workersQuery = useQuery({
     queryKey: ['admin-organization-workers'],
-    queryFn: async () => unwrap<Worker[]>(await apiClient.get('/hr/core/workers?pageSize=250')),
+    queryFn: async () => {
+      const payload = unwrap<Worker[] | { items?: Worker[] }>(await apiClient.get('/hr/core/workers?pageSize=250'));
+      return Array.isArray(payload) ? payload : payload?.items ?? [];
+    },
   });
 
   const planningQuery = useQuery({
@@ -516,11 +519,11 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
   });
 
   const summary = summaryQuery.data;
-  const workers = workersQuery.data ?? emptyWorkers;
-  const orgUnits = summary?.orgUnits ?? emptyOrgUnits;
-  const legalEntities = summary?.legalEntities ?? emptyLegalEntities;
-  const managerRelationships = summary?.managerRelationships ?? emptyManagerRelationships;
-  const orgChart = summary?.orgChart ?? emptyOrgChart;
+  const workers = Array.isArray(workersQuery.data) ? workersQuery.data : emptyWorkers;
+  const orgUnits = Array.isArray(summary?.orgUnits) ? summary.orgUnits : emptyOrgUnits;
+  const legalEntities = Array.isArray(summary?.legalEntities) ? summary.legalEntities : emptyLegalEntities;
+  const managerRelationships = Array.isArray(summary?.managerRelationships) ? summary.managerRelationships : emptyManagerRelationships;
+  const orgChart = Array.isArray(summary?.orgChart) ? summary.orgChart : emptyOrgChart;
   const planning = planningQuery.data;
   const dynamicChart = dynamicChartQuery.data;
   const reportingTree = React.useMemo(
@@ -624,60 +627,53 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     <div className="space-y-6 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
-            <Building2 className="h-6 w-6 text-primary" />
-            Organization Admin
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Live org graph
+          </div>
+          <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
+            <Building2 className="h-7 w-7 text-[#6366f1]" />
+            <span className="fusion-gradient-text">Organization Admin</span>
           </h2>
-          <p className="text-sm text-muted-foreground">Create legal entities, departments, reporting lines, and employee assignments.</p>
+          <p className="mt-2 text-sm text-slate-500">Create legal entities, departments, reporting lines, and employee assignments.</p>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Legal Entities</p>
-            <p className="mt-1 text-3xl font-bold">{legalEntities.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Org Units</p>
-            <p className="mt-1 text-3xl font-bold">{orgUnits.length}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Assigned Workers</p>
-            <p className="mt-1 text-3xl font-bold">{workers.filter((worker) => worker.departmentId || worker.legalEntityId).length}</p>
-          </CardContent>
-        </Card>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-indigo-500 to-violet-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Legal Entities</p>
+          <p className="mt-2 text-4xl font-extrabold">{legalEntities.length}</p>
+        </div>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-violet-500 to-purple-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Org Units</p>
+          <p className="mt-2 text-4xl font-extrabold">{orgUnits.length}</p>
+        </div>
+        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-teal-500 to-emerald-500 p-5 text-white">
+          <p className="text-sm font-medium text-white/85">Assigned Workers</p>
+          <p className="mt-2 text-4xl font-extrabold">{workers.filter((worker) => worker.departmentId || worker.legalEntityId).length}</p>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Active Headcount</p>
-            <p className="mt-1 text-3xl font-bold">{planning?.summary.activeHeadcount ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Vacancies</p>
-            <p className="mt-1 text-3xl font-bold">{planning?.summary.vacancies ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Pending Demand</p>
-            <p className="mt-1 text-3xl font-bold">{planning?.summary.pendingHeadcount ?? 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm text-muted-foreground">Annual Workforce Cost</p>
-            <p className="mt-1 text-3xl font-bold">{formatMoney(planning?.workforceCostPlan.totalAnnualCost)}</p>
-          </CardContent>
-        </Card>
+        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
+          <p className="text-sm text-muted-foreground">Active Headcount</p>
+          <p className="mt-1 text-3xl font-bold">{planning?.summary?.activeHeadcount ?? 0}</p>
+        </div>
+        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
+          <p className="text-sm text-muted-foreground">Vacancies</p>
+          <p className="mt-1 text-3xl font-bold">{planning?.summary?.vacancies ?? 0}</p>
+        </div>
+        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
+          <p className="text-sm text-muted-foreground">Pending Demand</p>
+          <p className="mt-1 text-3xl font-bold">{planning?.summary?.pendingHeadcount ?? 0}</p>
+        </div>
+        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
+          <p className="text-sm text-muted-foreground">Annual Workforce Cost</p>
+          <p className="mt-1 text-3xl font-bold">{formatMoney(planning?.workforceCostPlan?.totalAnnualCost)}</p>
+        </div>
       </div>
 
       <ErrorMessage error={summaryQuery.error ?? workersQuery.error ?? planningQuery.error ?? dynamicChartQuery.error ?? actionError} />
@@ -756,7 +752,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                     </div>
                   ))}
                 </div>
-                {!dynamicChartQuery.isLoading && (dynamicChart?.nodes.length ?? 0) === 0 ? (
+                {!dynamicChartQuery.isLoading && (dynamicChart?.nodes?.length ?? 0) === 0 ? (
                   <p className="text-sm text-muted-foreground">No workforce grouping data yet. Add employees, assignments, and positions to activate the chart.</p>
                 ) : null}
               </CardContent>
@@ -774,31 +770,31 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-lg bg-[#f1f5f9] p-3">
                     <p className="text-xs text-muted-foreground">Vacancy Risk</p>
-                    <p className="text-2xl font-bold">{planning?.strategicDashboard.vacancyRiskPercent ?? 0}%</p>
+                    <p className="text-2xl font-bold">{planning?.strategicDashboard?.vacancyRiskPercent ?? 0}%</p>
                   </div>
                   <div className="rounded-lg bg-[#f1f5f9] p-3">
                     <p className="text-xs text-muted-foreground">Retirement Risk</p>
-                    <p className="text-2xl font-bold">{planning?.strategicDashboard.retirementRisk ?? 0}</p>
+                    <p className="text-2xl font-bold">{planning?.strategicDashboard?.retirementRisk ?? 0}</p>
                   </div>
                   <div className="rounded-lg bg-[#f1f5f9] p-3">
                     <p className="text-xs text-muted-foreground">Succession Gaps</p>
-                    <p className="text-2xl font-bold">{planning?.strategicDashboard.successionGaps ?? 0}</p>
+                    <p className="text-2xl font-bold">{planning?.strategicDashboard?.successionGaps ?? 0}</p>
                   </div>
                   <div className="rounded-lg bg-[#f1f5f9] p-3">
                     <p className="text-xs text-muted-foreground">Critical Roles</p>
-                    <p className="text-2xl font-bold">{planning?.strategicDashboard.criticalRolesWithoutBackup ?? 0}</p>
+                    <p className="text-2xl font-bold">{planning?.strategicDashboard?.criticalRolesWithoutBackup ?? 0}</p>
                   </div>
                 </div>
                 <div className="rounded-lg border p-3">
                   <p className="text-sm font-semibold">Attrition Hotspots</p>
                   <div className="mt-2 space-y-2">
-                    {(planning?.strategicDashboard.attritionHotspots ?? []).slice(0, 4).map((hotspot) => (
+                    {(planning?.strategicDashboard?.attritionHotspots ?? []).slice(0, 4).map((hotspot) => (
                       <div key={hotspot.departmentId} className="flex items-center justify-between text-sm">
                         <span>{hotspot.departmentName}</span>
                         <Badge variant="outline">{hotspot.terminations}</Badge>
                       </div>
                     ))}
-                    {(planning?.strategicDashboard.attritionHotspots.length ?? 0) === 0 ? (
+                    {(planning?.strategicDashboard?.attritionHotspots?.length ?? 0) === 0 ? (
                       <p className="text-sm text-muted-foreground">No termination hotspots detected.</p>
                     ) : null}
                   </div>
@@ -843,7 +839,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                     ))}
                   </tbody>
                 </table>
-                {!planningQuery.isLoading && (planning?.headcountPlan.length ?? 0) === 0 ? (
+                {!planningQuery.isLoading && (planning?.headcountPlan?.length ?? 0) === 0 ? (
                   <p className="py-4 text-sm text-muted-foreground">No headcount plan rows yet.</p>
                 ) : null}
               </CardContent>
@@ -859,13 +855,13 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
               </CardHeader>
               <CardContent className="space-y-3">
                 {[
-                  ['Salary', planning?.workforceCostPlan.salary],
-                  ['Benefits', planning?.workforceCostPlan.benefits],
-                  ['Social insurance and tax', planning?.workforceCostPlan.socialInsuranceAndTax],
-                  ['Overtime', planning?.workforceCostPlan.overtime],
-                  ['Allowances, travel, relocation', planning?.workforceCostPlan.allowancesTravelRelocation],
-                  ['Training', planning?.workforceCostPlan.training],
-                  ['Contractors', planning?.workforceCostPlan.contractorCost],
+                  ['Salary', planning?.workforceCostPlan?.salary],
+                  ['Benefits', planning?.workforceCostPlan?.benefits],
+                  ['Social insurance and tax', planning?.workforceCostPlan?.socialInsuranceAndTax],
+                  ['Overtime', planning?.workforceCostPlan?.overtime],
+                  ['Allowances, travel, relocation', planning?.workforceCostPlan?.allowancesTravelRelocation],
+                  ['Training', planning?.workforceCostPlan?.training],
+                  ['Contractors', planning?.workforceCostPlan?.contractorCost],
                 ].map(([label, value]) => (
                   <div key={String(label)} className="flex items-center justify-between border-b pb-2 text-sm last:border-0">
                     <span className="text-muted-foreground">{label}</span>
@@ -874,7 +870,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                 ))}
                 <div className="rounded-lg bg-primary/10 p-3">
                   <p className="text-sm text-muted-foreground">Total Annual Cost</p>
-                  <p className="text-2xl font-bold text-primary">{formatMoney(planning?.workforceCostPlan.totalAnnualCost)}</p>
+                  <p className="text-2xl font-bold text-primary">{formatMoney(planning?.workforceCostPlan?.totalAnnualCost)}</p>
                 </div>
               </CardContent>
             </Card>

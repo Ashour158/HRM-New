@@ -83,7 +83,15 @@ export function AdminWorkers() {
     `/hr/core/workers?search=${encodeURIComponent(search)}&page=${page}&pageSize=10`
   );
 
-  const data = workersData ? { items: workersData, total: workersData.length } : undefined;
+  const workerItems: Worker[] = Array.isArray(workersData)
+    ? workersData
+    : (workersData as { items?: Worker[] } | undefined)?.items ?? [];
+  const data = {
+    items: workerItems,
+    total: Array.isArray(workersData)
+      ? workersData.length
+      : (workersData as { total?: number } | undefined)?.total ?? workerItems.length,
+  };
 
   const activateMutation = useApiMutation<void, { workerId: string }>(
     (vars) => `/hr/core/workers/${vars.workerId}/commands/activate`,
@@ -197,8 +205,14 @@ export function AdminWorkers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Employees</h2>
-          <p className="text-muted-foreground">Manage employee records and lifecycle</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl font-bold fusion-gradient-text">Employees</h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 fusion-pulse" />
+              Live
+            </span>
+          </div>
+          <p className="text-slate-500">Manage employee records and lifecycle</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => downloadCsv('/hr/core/workers/export.csv', 'employees.csv')}>
@@ -233,9 +247,9 @@ export function AdminWorkers() {
         </div>
       </div>
 
-      <section className="border-y py-6">
+      <section className="fusion-glass rounded-[2rem] p-6">
         {uploadPreview ? (
-          <div className="mb-4 rounded-md border p-3 text-sm">
+          <div className="mb-4 fusion-glass rounded-2xl p-4 text-sm">
             <Badge variant={uploadPreview.accepted ? 'default' : 'destructive'}>
               {uploadPreview.accepted ? `${uploadPreview.rowCount} rows accepted` : `${uploadPreview.errors.length} validation errors`}
             </Badge>

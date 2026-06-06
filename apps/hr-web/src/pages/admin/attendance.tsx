@@ -667,14 +667,21 @@ export function AdminAttendance() {
   const tabClass = (tab: AttendanceTab) => activeTab === tab ? 'space-y-6' : 'hidden';
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-7rem)] bg-background px-6 py-6">
+    <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
       <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="flex items-center gap-2 text-2xl font-bold">
-            <Clock3 className="h-6 w-6" />
-            Attendance Control
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Live attendance feed
+          </div>
+          <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
+            <Clock3 className="h-7 w-7 text-[#6366f1]" />
+            <span className="fusion-gradient-text">Attendance Control</span>
           </h2>
-          <p className="text-muted-foreground">Payroll-grade attendance closure, evidence, exceptions, and daily ledger control.</p>
+          <p className="mt-2 text-sm text-slate-500">Payroll-grade attendance closure, evidence, exceptions, and daily ledger control.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="grid gap-2">
@@ -698,40 +705,40 @@ export function AdminAttendance() {
         </div>
       </div>
 
-      <section className="grid gap-4 border-b py-6 md:grid-cols-2 xl:grid-cols-8">
-        <div>
+      <section className="grid gap-4 py-6 md:grid-cols-2 xl:grid-cols-8">
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Employees</p>
           <p className="text-2xl font-semibold">{ledger?.summary.totalEmployees ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Present / Out</p>
           <p className="text-2xl font-semibold">{ledger?.summary.present ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Absent</p>
           <p className="text-2xl font-semibold">{ledger?.summary.absent ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">On Leave</p>
           <p className="text-2xl font-semibold">{ledger?.summary.onLeave ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Exceptions</p>
           <p className="text-2xl font-semibold">{ledger?.summary.exceptions ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Period Blockers</p>
           <p className={period?.blockingIssueCount ? 'text-2xl font-semibold text-amber-600' : 'text-2xl font-semibold'}>{period?.blockingIssueCount ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Locked Rows</p>
           <p className="text-2xl font-semibold">{lockedRows}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Coverage Gaps</p>
           <p className={scheduling?.summary.activeCoverageGaps ? 'text-2xl font-semibold text-amber-600' : 'text-2xl font-semibold'}>{scheduling?.summary.activeCoverageGaps ?? 0}</p>
         </div>
-        <div>
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <p className="text-xs text-muted-foreground">Fatigue Risks</p>
           <p className={scheduling?.summary.fatigueRiskCount ? 'text-2xl font-semibold text-amber-600' : 'text-2xl font-semibold'}>{scheduling?.summary.fatigueRiskCount ?? 0}</p>
         </div>

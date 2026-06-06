@@ -858,8 +858,8 @@ export function AdminEmployeeCreate() {
   const displayName = `${form.firstName || 'New'} ${form.lastName || 'Employee'}`.trim();
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-7rem)] bg-background">
-      <div className="border-b px-6 py-5">
+    <div className="-m-4 min-h-[calc(100vh-7rem)] space-y-6 px-6 py-6">
+      <div className="fusion-glass rounded-[2rem] px-6 py-5">
         <Button variant="ghost" size="sm" onClick={() => navigate('/admin/employees')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Employees
@@ -874,7 +874,7 @@ export function AdminEmployeeCreate() {
               )}
             </div>
             <div>
-              <h2 className="text-3xl font-bold">{displayName}</h2>
+              <h2 className="text-3xl font-bold fusion-gradient-text">{displayName}</h2>
               <p className="text-muted-foreground">{current.label} profile intake</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Badge variant="secondary">Draft</Badge>
@@ -907,7 +907,7 @@ export function AdminEmployeeCreate() {
         </nav>
       </div>
 
-      <main className="px-6 py-6">
+      <main className="fusion-glass rounded-[2rem] px-6 py-6">
         {activeStep === 0 && (
           <section className="max-w-6xl space-y-6">
             <div>
@@ -1716,7 +1716,7 @@ export function AdminEmployeeCreate() {
         )}
       </main>
 
-      <div className="sticky bottom-0 flex items-center justify-between border-t bg-background px-6 py-4">
+      <div className="sticky bottom-0 flex items-center justify-between fusion-glass rounded-[2rem] px-6 py-4">
         <Button variant="outline" onClick={() => setActiveStep((currentIndex) => Math.max(currentIndex - 1, 0))} disabled={activeStep === 0}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back

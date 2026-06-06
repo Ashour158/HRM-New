@@ -40,8 +40,8 @@ function InsightCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="relative overflow-hidden">
-      <div className="lumina-accent-strip" />
+    <Card className="relative overflow-hidden border-transparent fusion-glass rounded-2xl">
+      <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-400" />
       <CardHeader className="flex-row items-center gap-3 space-y-0 p-5">
         <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
           <Icon className="h-5 w-5" />
@@ -75,7 +75,7 @@ export function AdminModuleWorkbench() {
   }
 
   return (
-    <div className="min-h-full fusion-bg">
+    <div className="min-h-full">
       <div className="lumina-canvas space-y-5">
         <Button asChild variant="ghost" size="sm" className="w-fit">
           <Link to="/admin/modules">
@@ -84,8 +84,8 @@ export function AdminModuleWorkbench() {
           </Link>
         </Button>
 
-        <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
+        <section className="fusion-glass rounded-[2rem] overflow-hidden">
+          <div className="grid gap-5 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className={cn('rounded-full border bg-white px-2 py-1 font-mono text-xs uppercase tracking-wider', maturityTone[module.maturity])}>
@@ -111,7 +111,7 @@ export function AdminModuleWorkbench() {
             </div>
           </div>
 
-          <div className="grid gap-4 bg-white p-5 md:grid-cols-3">
+          <div className="grid gap-4 p-5 md:grid-cols-3">
             <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
               <p className="lumina-label">Backend Route</p>
               <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">{module.backendRoot}</p>
@@ -152,8 +152,8 @@ export function AdminModuleWorkbench() {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-          <Card className="relative overflow-hidden">
-            <div className="lumina-accent-strip bg-[#6366f1]" />
+          <Card className="relative overflow-hidden border-transparent fusion-glass rounded-2xl">
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 to-violet-500" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Sparkles className="h-5 w-5 text-[#6366f1]" />
@@ -165,8 +165,8 @@ export function AdminModuleWorkbench() {
             </CardContent>
           </Card>
 
-          <Card className="relative overflow-hidden">
-            <div className="lumina-accent-strip bg-[#f59e0b]" />
+          <Card className="relative overflow-hidden border-transparent fusion-glass rounded-2xl">
+            <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-amber-400 to-orange-500" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Route className="h-5 w-5 text-[#f59e0b]" />

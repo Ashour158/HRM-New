@@ -189,18 +189,17 @@ export function EmployeeOnboarding() {
   };
 
   return (
-    <div className="min-h-full fusion-bg">
-      <div className="relative overflow-hidden bg-[#1e1b4b]">
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(30,27,75,0.95),rgba(49,46,129,0.7)),repeating-linear-gradient(135deg,rgba(255,255,255,0.08)_0px,rgba(255,255,255,0.08)_1px,transparent_1px,transparent_18px)]" />
-        <div className="relative mx-auto grid max-w-[1740px] gap-6 px-4 py-8 text-white lg:grid-cols-[1fr_auto] lg:px-5">
+    <div className="min-h-full">
+      <div className="mx-auto max-w-[1740px] px-4 pt-6 lg:px-5">
+        <div className="fusion-glass grid gap-6 rounded-[2rem] p-6 lg:grid-cols-[1fr_auto]">
           <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">Employee preboarding</p>
-            <h2 className="mt-2 font-headline text-3xl font-bold">Welcome, {firstName}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
+            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6366f1]">Employee preboarding</p>
+            <h2 className="fusion-gradient-text mt-2 font-headline text-3xl font-bold">Welcome, {firstName}</h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
               Complete your preboarding checklist, sign documents, upload evidence, confirm IT provisioning, and follow your 30/60/90 plan before probation review.
             </p>
           </div>
-          <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
+          <Button asChild className="w-fit self-end">
             <Link to="/employee">
               Self-Service Home
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -245,7 +244,7 @@ export function EmployeeOnboarding() {
             <CardContent className="p-5">
               {planLoading ? <Skeleton className="h-24 w-full" /> : null}
               {!planLoading && (planError || !plan) ? (
-                <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5">
+                <div className="fusion-glass rounded-2xl p-5">
                   <h3 className="font-semibold text-[#0f172a]">No active preboarding plan yet</h3>
                   <p className="mt-2 text-sm text-[#475569]">HR can launch an onboarding plan once your employee record and start date are ready.</p>
                 </div>
@@ -277,7 +276,7 @@ export function EmployeeOnboarding() {
               });
               const done = sectionTasks.some((task) => task.status === 'COMPLETED');
               return (
-                <Card key={section.label}>
+                <Card key={section.label} className="fusion-hover">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
@@ -317,7 +316,7 @@ export function EmployeeOnboarding() {
                     />
                   ))}
                   {!tasksLoading && tasks.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5 text-sm text-[#475569]">Your checklist will appear here after HR publishes onboarding tasks.</p>
+                    <p className="fusion-glass rounded-2xl p-5 text-sm text-[#475569]">Your checklist will appear here after HR publishes onboarding tasks.</p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -408,7 +407,7 @@ function TaskRow({
 }) {
   const ownerGroup = inferOwnerGroup(task);
   return (
-    <div className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 lg:grid-cols-[1fr_auto]">
+    <div className="fusion-glass grid gap-3 rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-semibold text-[#0f172a]">{task.title}</h3>
@@ -432,7 +431,7 @@ function OwnerBadge({ ownerGroup }: { ownerGroup: OwnerGroup }) {
 
 function Snapshot({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3">
+    <div className="fusion-glass rounded-2xl p-3">
       <p className="lumina-label">{label}</p>
       <p className="mt-1 truncate text-sm font-semibold text-[#0f172a]">{value}</p>
     </div>

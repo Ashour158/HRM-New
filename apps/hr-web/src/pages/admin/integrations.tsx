@@ -144,15 +144,20 @@ export function AdminIntegrations() {
   const selectedHealth = selected ? lastHealth.find((item) => item.adapterName === selected.adapterName) : undefined;
 
   return (
-    <div className="min-h-screen fusion-bg">
-      <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#475569]">
-              <PlugZap className="h-3.5 w-3.5 text-[#4f46e5]" />
-              System Development Control
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/60 fusion-glass px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#475569]">
+                <PlugZap className="h-3.5 w-3.5 text-[#4f46e5]" />
+                System Development Control
+              </div>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 fusion-pulse" />
+                Live
+              </span>
             </div>
-            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0f172a]">System Control - Integrations</h2>
+            <h2 className="mt-3 font-headline text-4xl font-bold fusion-gradient-text">System Control - Integrations</h2>
             <p className="mt-2 max-w-3xl text-lg leading-8 text-[#475569]">
               Manage the integration area of the System Admin Console: registered adapters, health probes, metrics,
               and safe manual adapter checks.
@@ -184,35 +189,34 @@ export function AdminIntegrations() {
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {[
-            { label: 'Registered Adapters', value: adapters.length.toString(), helper: 'From /hr/integrations/status', icon: Router },
-            { label: 'Healthy', value: healthyCount.toString(), helper: 'Cached adapter states', icon: CheckCircle2 },
-            { label: 'Total Failures', value: failedCount.toString(), helper: 'All adapter failures', icon: AlertTriangle },
-            { label: 'Last Health Probe', value: lastHealth.length ? `${lastHealth.filter((item) => item.healthy).length}/${lastHealth.length}` : '-', helper: 'Run health check to refresh', icon: Activity },
+            { label: 'Registered Adapters', value: adapters.length.toString(), helper: 'From /hr/integrations/status', icon: Router, gradient: 'from-indigo-500 to-violet-600' },
+            { label: 'Healthy', value: healthyCount.toString(), helper: 'Cached adapter states', icon: CheckCircle2, gradient: 'from-violet-500 to-purple-600' },
+            { label: 'Total Failures', value: failedCount.toString(), helper: 'All adapter failures', icon: AlertTriangle, gradient: 'from-teal-500 to-emerald-600' },
+            { label: 'Last Health Probe', value: lastHealth.length ? `${lastHealth.filter((item) => item.healthy).length}/${lastHealth.length}` : '-', helper: 'Run health check to refresh', icon: Activity, gradient: 'from-amber-500 to-orange-600' },
           ].map((item) => {
             const Icon = item.icon;
             return (
-              <Card key={item.label} className="relative overflow-hidden">
-                <div className="absolute left-0 top-0 h-1 w-full bg-[#8b5cf6]" />
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-mono text-xs uppercase tracking-wider text-[#475569]">{item.label}</p>
-                      <p className="mt-2 font-headline text-4xl font-bold text-[#0f172a]">{statusQuery.isLoading ? '-' : item.value}</p>
-                      <p className="mt-2 text-sm leading-6 text-[#475569]">{item.helper}</p>
-                    </div>
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
-                      <Icon className="h-5 w-5" />
-                    </div>
+              <div
+                key={item.label}
+                className={`fusion-hover rounded-[1.75rem] bg-gradient-to-br ${item.gradient} p-5 text-white shadow-lg`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-mono text-xs uppercase tracking-wider text-white/80">{item.label}</p>
+                    <p className="mt-2 font-headline text-4xl font-extrabold">{statusQuery.isLoading ? '-' : item.value}</p>
+                    <p className="mt-2 text-sm leading-6 text-white/85">{item.helper}</p>
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/20 text-white">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                </div>
+              </div>
             );
           })}
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-          <Card className="relative overflow-hidden">
-            <div className="absolute left-0 top-0 h-1 w-full bg-[#4f46e5]" />
+          <Card className="overflow-hidden rounded-[2rem]">
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Router className="h-5 w-5 text-[#4f46e5]" />
@@ -226,8 +230,8 @@ export function AdminIntegrations() {
               {statusQuery.isLoading ? (
                 <Skeleton className="h-64 w-full" />
               ) : adapters.length > 0 ? (
-                <div className="overflow-hidden rounded-lg border border-[#e2e8f0] bg-white">
-                  <div className="grid min-w-[760px] grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] border-b border-[#e2e8f0] bg-[#eef2ff] px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#475569]">
+                <div className="overflow-hidden rounded-2xl border border-white/50 fusion-glass">
+                  <div className="grid min-w-[760px] grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] border-b border-[#e2e8f0] bg-[#eef2ff]/70 px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#475569]">
                     <span>Adapter</span>
                     <span>Direction</span>
                     <span>State</span>
@@ -278,20 +282,20 @@ export function AdminIntegrations() {
               <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
                 {selected ? (
                   <>
-                    <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                    <div className="flex items-center justify-between fusion-glass rounded-2xl p-3">
                       <span>State</span>
                       <HealthBadge state={selected.state} />
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                    <div className="flex items-center justify-between fusion-glass rounded-2xl p-3">
                       <span>Direction</span>
                       <span className="font-semibold text-[#0f172a]">{selected.direction}</span>
                     </div>
-                    <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                    <div className="flex items-center justify-between fusion-glass rounded-2xl p-3">
                       <span>Last failure</span>
                       <span className="font-semibold text-[#0f172a]">{formatDate(selected.lastFailureAt)}</span>
                     </div>
                     {selectedHealth ? (
-                      <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                      <div className="fusion-glass rounded-2xl p-3">
                         <p className="font-semibold text-[#0f172a]">Last probe</p>
                         <p>{selectedHealth.healthy ? 'Healthy' : 'Unhealthy'} / {metricValue(selectedHealth.latencyMs, 'ms')}</p>
                         {selectedHealth.errorMessage ? <p className="mt-1 text-[#e11d48]">{selectedHealth.errorMessage}</p> : null}
@@ -317,15 +321,15 @@ export function AdminIntegrations() {
                 ) : metricsQuery.data ? (
                   <>
                     <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-center">
+                      <div className="fusion-glass rounded-2xl p-3 text-center">
                         <p className="text-2xl font-bold text-[#0f172a]">{metricsQuery.data.totalCalls}</p>
                         <p className="text-xs">calls</p>
                       </div>
-                      <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-center">
+                      <div className="fusion-glass rounded-2xl p-3 text-center">
                         <p className="text-2xl font-bold text-[#4f46e5]">{metricsQuery.data.successfulCalls}</p>
                         <p className="text-xs">success</p>
                       </div>
-                      <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-center">
+                      <div className="fusion-glass rounded-2xl p-3 text-center">
                         <p className="text-2xl font-bold text-[#e11d48]">{metricsQuery.data.failedCalls}</p>
                         <p className="text-xs">failed</p>
                       </div>
@@ -361,8 +365,7 @@ export function AdminIntegrations() {
           </Card>
         ) : null}
 
-        <Card className="relative overflow-hidden">
-          <div className="absolute left-0 top-0 h-1 w-full bg-[#f59e0b]" />
+        <Card className="overflow-hidden rounded-[2rem]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
               <ShieldCheck className="h-5 w-5 text-[#f59e0b]" />
@@ -384,7 +387,6 @@ export function AdminIntegrations() {
             ))}
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }

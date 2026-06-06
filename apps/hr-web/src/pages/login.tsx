@@ -125,14 +125,14 @@ export function LoginPage() {
           </div>
         </section>
 
-        <main className="flex flex-1 items-center justify-center border-l border-[#e2e8f0]/40 bg-white px-5 py-10 shadow-[0_4px_20px_rgba(0,0,0,0.05)] lg:px-20 xl:px-[120px]">
+        <main className="fusion-glass flex flex-1 items-center justify-center border-l border-[#e2e8f0]/40 px-5 py-10 lg:px-20 xl:px-[120px]">
           <div className="w-full max-w-[440px]">
             <div className="mb-8 flex items-center gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#8b5cf6] text-white">
                 <Building2 className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="font-headline text-2xl font-bold tracking-tight text-[#4f46e5]">HRM Nexus</h1>
+                <h1 className="fusion-gradient-text font-headline text-2xl font-bold tracking-tight">HRM Nexus</h1>
                 <p className="text-sm text-[#475569]">Enterprise HR portal</p>
               </div>
             </div>

@@ -144,10 +144,17 @@ export function AdminCompliance() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Compliance monitoring live
+          </div>
+          <h1 className="fusion-gradient-text text-2xl font-bold flex items-center gap-2">
             <Scale className="h-6 w-6" />
             Compliance
-          </h2>
+          </h1>
           <p className="text-muted-foreground">Policy management and compliance tracking</p>
         </div>
         <div className="flex items-center gap-2">
@@ -160,7 +167,7 @@ export function AdminCompliance() {
         </div>
       </div>
 
-      <Card>
+      <Card className="fusion-glass rounded-[2rem] border-transparent">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -205,7 +212,7 @@ export function AdminCompliance() {
         </TabsList>
 
         <TabsContent value="policies">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <FileText className="h-5 w-5" />
@@ -226,7 +233,7 @@ export function AdminCompliance() {
         </TabsContent>
 
         <TabsContent value="acknowledgements">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <CheckCircle2 className="h-5 w-5" />
@@ -247,7 +254,7 @@ export function AdminCompliance() {
         </TabsContent>
 
         <TabsContent value="legal-holds">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Gavel className="h-5 w-5" />
@@ -261,7 +268,7 @@ export function AdminCompliance() {
               ) : data?.legalHolds && data.legalHolds.length > 0 ? (
                 <div className="space-y-3">
                   {data.legalHolds.map((hold) => (
-                    <div key={hold.id} className="flex items-start gap-3 rounded-lg border p-4">
+                    <div key={hold.id} className="flex items-start gap-3 fusion-glass rounded-2xl border-transparent p-4">
                       <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
                       <div>
                         <p className="text-sm font-medium">{hold.description}</p>
@@ -280,7 +287,7 @@ export function AdminCompliance() {
         </TabsContent>
 
         <TabsContent value="reports">
-          <Card>
+          <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle className="text-lg">Statutory Reports</CardTitle>
               <CardDescription>Required compliance reports and deadlines</CardDescription>
@@ -291,7 +298,7 @@ export function AdminCompliance() {
               ) : data?.statutoryReports && data.statutoryReports.length > 0 ? (
                 <div className="space-y-3">
                   {data.statutoryReports.map((report) => (
-                    <div key={report.id} className="flex items-center justify-between rounded-lg border p-4">
+                    <div key={report.id} className="flex items-center justify-between fusion-glass rounded-2xl border-transparent p-4">
                       <div>
                         <p className="text-sm font-medium">{report.name}</p>
                         <p className="text-xs text-muted-foreground">Due: {formatDate(report.dueDate)}</p>

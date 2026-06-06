@@ -96,7 +96,7 @@ export function AdminAuditConsole() {
   };
 
   return (
-    <main className="min-h-screen fusion-bg p-6 text-[#0f172a] md:p-8">
+    <main className="p-6 text-[#0f172a] md:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
@@ -104,7 +104,7 @@ export function AdminAuditConsole() {
               <ArrowLeft className="h-4 w-4" />
               Admin Panel
             </Link>
-            <h1 className="font-['Hanken_Grotesk'] text-3xl font-bold md:text-4xl">Audit Trail</h1>
+            <h1 className="fusion-gradient-text font-['Hanken_Grotesk'] text-3xl font-bold md:text-4xl">Audit Trail</h1>
             <p className="mt-2 max-w-3xl text-sm text-[#475569] md:text-base">
               Search, filter, export, and inspect administrative and service evidence from the platform audit ledger.
             </p>
@@ -116,7 +116,7 @@ export function AdminAuditConsole() {
         </div>
 
         <section className="grid gap-4 md:grid-cols-3">
-          <Card className="rounded-lg border-[#e2e8f0]">
+          <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Radar className="h-5 w-5 text-[#4f46e5]" />
@@ -126,7 +126,7 @@ export function AdminAuditConsole() {
             </CardHeader>
             <CardContent className="text-3xl font-bold">{records.length}</CardContent>
           </Card>
-          <Card className="rounded-lg border-[#e2e8f0]">
+          <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
                 <ShieldCheck className="h-5 w-5 text-[#6366f1]" />
@@ -136,7 +136,7 @@ export function AdminAuditConsole() {
             </CardHeader>
             <CardContent className="text-sm text-[#475569]">Audit, compliance, HR, payroll, and platform admins only</CardContent>
           </Card>
-          <Card className="rounded-lg border-[#e2e8f0]">
+          <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Backend Source</CardTitle>
               <CardDescription>Live ledger endpoint</CardDescription>
@@ -145,7 +145,7 @@ export function AdminAuditConsole() {
           </Card>
         </section>
 
-        <Card className="rounded-lg border-[#e2e8f0]">
+        <Card className="fusion-glass rounded-[2rem] border-transparent">
           <CardHeader>
             <CardTitle>Filters</CardTitle>
             <CardDescription>Use these controls for operator investigations, compliance evidence, and export packages.</CardDescription>
@@ -162,7 +162,7 @@ export function AdminAuditConsole() {
           </CardContent>
         </Card>
 
-        <Card className="overflow-hidden rounded-lg border-[#e2e8f0]">
+        <Card className="fusion-glass overflow-hidden rounded-[2rem] border-transparent">
           <CardHeader>
             <CardTitle>Evidence Rows</CardTitle>
             <CardDescription>Newest rows are returned by the audit API, then narrowed by the filters above.</CardDescription>

@@ -94,10 +94,10 @@ export function EmployeeProfile() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">
+          <h2 className="fusion-gradient-text text-2xl font-bold">
             {displayProfile.firstName} {displayProfile.lastName}
           </h2>
-          <p className="text-muted-foreground">{displayProfile.jobTitle} • {displayProfile.department}</p>
+          <p className="text-slate-500">{displayProfile.jobTitle} • {displayProfile.department}</p>
         </div>
         <AllowedActions
           aggregateType="WORKER"
@@ -235,7 +235,7 @@ export function EmployeeProfile() {
               {displayProfile.documents && displayProfile.documents.length > 0 ? (
                 <div className="space-y-3">
                   {displayProfile.documents.map((doc) => (
-                    <div key={doc.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div key={doc.id} className="fusion-glass fusion-hover flex items-center justify-between rounded-2xl p-3">
                       <div className="flex items-center gap-3">
                         <FileText className="h-5 w-5 text-primary" />
                         <div>

@@ -323,7 +323,7 @@ export function EmployeeServices() {
                     <span className="grid h-10 w-10 place-items-center rounded-md bg-[#e7f8ef] text-[#4f46e5]">
                       <Layers3 className="h-5 w-5" />
                     </span>
-                    <Badge variant="outline" className="capitalize">{module.maturity.replace('-', ' ')}</Badge>
+                    <Badge variant="outline" className="capitalize">{module.maturity?.replace('-', ' ') ?? 'general'}</Badge>
                   </div>
                   <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">{module.category}</p>
                   <h3 className="mt-1 text-base font-semibold text-slate-950">{module.label}</h3>
@@ -518,7 +518,7 @@ export function EmployeeServices() {
                   <p className="mt-1 text-xs text-slate-500">{formatDate(serviceCase.createdAt)}</p>
                 </div>
                 <div className="min-w-0">
-                  <p className="font-semibold text-slate-950">{serviceCase.caseType.replace(/_/g, ' ')}</p>
+                  <p className="font-semibold text-slate-950">{serviceCase.caseType?.replace(/_/g, ' ') ?? 'Case'}</p>
                   <p className="mt-1 truncate text-sm text-slate-600">{serviceCase.description}</p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -529,7 +529,7 @@ export function EmployeeServices() {
                   ) : (
                     <Clock3 className="h-4 w-4 text-indigo-600" />
                   )}
-                  <Badge variant="outline" className={statusTone(serviceCase.status)}>{serviceCase.status.replace(/_/g, ' ')}</Badge>
+                  <Badge variant="outline" className={statusTone(serviceCase.status)}>{serviceCase.status?.replace(/_/g, ' ') ?? 'unknown'}</Badge>
                 </div>
                 <div className="text-sm text-slate-500 md:text-right">
                   <p>Priority {serviceCase.priority}</p>

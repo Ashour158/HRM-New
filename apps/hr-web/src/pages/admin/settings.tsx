@@ -48,10 +48,10 @@ function OptionRows({
   onAdd: () => void;
 }) {
   return (
-    <section className="space-y-4 border-t py-6">
+    <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold">{title}</h3>
+          <h3 className="fusion-gradient-text text-base font-semibold">{title}</h3>
           <p className="text-sm text-muted-foreground">{items.filter((item) => item.active).length} active values</p>
         </div>
         <Button type="button" variant="outline" size="sm" onClick={onAdd}>
@@ -150,11 +150,11 @@ export function AdminSettings() {
   const save = () => mutation.mutate(setup);
 
   return (
-    <div className="-m-4 min-h-[calc(100vh-7rem)] bg-background px-6 py-6">
-      <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
+    <div className="space-y-6">
+      <div className="fusion-glass flex flex-col gap-4 rounded-[2rem] p-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Admin Settings</h2>
-          <p className="text-muted-foreground">Low-code employee profile setup, organization values, ID policy, locations, and hiring document rules.</p>
+          <h2 className="fusion-gradient-text text-2xl font-bold">Admin Settings</h2>
+          <p className="text-slate-500">Low-code employee profile setup, organization values, ID policy, locations, and hiring document rules.</p>
         </div>
         <div className="flex items-center gap-3">
           {savedAt ? <Badge variant="secondary">Saved {savedAt}</Badge> : null}
@@ -168,9 +168,9 @@ export function AdminSettings() {
         </div>
       </div>
 
-      <section className="grid gap-6 border-b py-6 lg:grid-cols-[20rem_1fr]">
+      <section className="fusion-glass grid gap-6 rounded-[2rem] p-6 lg:grid-cols-[20rem_1fr]">
         <div>
-          <h3 className="text-base font-semibold">Employee ID Policy</h3>
+          <h3 className="fusion-gradient-text text-base font-semibold">Employee ID Policy</h3>
           <p className="text-sm text-muted-foreground">Controls whether Add Employee asks for manual ID entry or follows an app policy.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
@@ -211,9 +211,9 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="grid gap-6 border-b py-6 lg:grid-cols-[20rem_1fr]">
+      <section className="fusion-glass grid gap-6 rounded-[2rem] p-6 lg:grid-cols-[20rem_1fr]">
         <div>
-          <h3 className="text-base font-semibold">Payroll Calculation Policy</h3>
+          <h3 className="fusion-gradient-text text-base font-semibold">Payroll Calculation Policy</h3>
           <p className="text-sm text-muted-foreground">Percentages used to calculate employee tax and insurance deductions from gross salary.</p>
         </div>
         <div className="grid gap-4 md:grid-cols-3">
@@ -262,10 +262,10 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t py-6">
+      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold">Employee Field Rules</h3>
+            <h3 className="fusion-gradient-text text-base font-semibold">Employee Field Rules</h3>
             <p className="text-sm text-muted-foreground">Controls which Add Employee fields are mandatory or optional.</p>
           </div>
           <Button
@@ -316,10 +316,10 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t py-6">
+      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold">Leave Policies</h3>
+            <h3 className="fusion-gradient-text text-base font-semibold">Leave Policies</h3>
             <p className="text-sm text-muted-foreground">Controls whether a leave type is day-based or hour-based, paid or unpaid, requestable, and payroll-impacting.</p>
           </div>
           <Button
@@ -406,10 +406,10 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t py-6">
+      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold">Public Holiday Calendar</h3>
+            <h3 className="fusion-gradient-text text-base font-semibold">Public Holiday Calendar</h3>
             <p className="text-sm text-muted-foreground">System-managed paid or unpaid days excluded from day-based leave and consumed by attendance/payroll.</p>
           </div>
           <Button
@@ -481,10 +481,10 @@ export function AdminSettings() {
         }}
       />
 
-      <section className="space-y-4 border-t py-6">
+      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold">Work Locations</h3>
+            <h3 className="fusion-gradient-text text-base font-semibold">Work Locations</h3>
             <p className="text-sm text-muted-foreground">Company locations feed workplace, address, country flags, and salary currency defaults.</p>
           </div>
           <Button
@@ -531,10 +531,10 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t py-6">
+      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold">Cities</h3>
+            <h3 className="fusion-gradient-text text-base font-semibold">Cities</h3>
             <p className="text-sm text-muted-foreground">City choices are filtered by selected country and location.</p>
           </div>
           <Button
@@ -566,10 +566,10 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="space-y-4 border-t py-6">
+      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold">Hiring Credentials</h3>
+            <h3 className="fusion-gradient-text text-base font-semibold">Hiring Credentials</h3>
             <p className="text-sm text-muted-foreground">Document and certificate slots shown in Add Employee.</p>
           </div>
           <Button

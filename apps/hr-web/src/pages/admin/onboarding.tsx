@@ -368,12 +368,12 @@ export function AdminOnboarding() {
   };
 
   return (
-    <div className="min-h-full fusion-bg">
+    <div className="min-h-full">
       <div className="lumina-canvas space-y-6">
-        <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
+        <section className="fusion-glass overflow-hidden rounded-[2rem]">
+          <div className="grid gap-5 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
-              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">Native onboarding command center</p>
+              <p className="font-mono text-xs font-semibold uppercase tracking-wider text-white/80">Native onboarding command center</p>
               <h2 className="mt-2 font-headline text-3xl font-bold">Onboarding Operations</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
                 Launch preboarding, coordinate HR, IT, Finance, Admin, Manager, Security, and Facilities work, and keep new hires moving from offer acceptance to probation confirmation.
@@ -387,7 +387,7 @@ export function AdminOnboarding() {
             </Button>
           </div>
 
-          <div className="grid bg-white md:grid-cols-4">
+          <div className="grid md:grid-cols-4">
             <Kpi label="Active plans" value={activePlans} icon={Users} />
             <Kpi label="Selected completion" value={`${completed}%`} icon={CheckCircle2} />
             <Kpi label="Owner groups" value={ownerGroups.length} icon={Building2} />
@@ -451,8 +451,8 @@ export function AdminOnboarding() {
                       key={plan.id}
                       type="button"
                       className={cn(
-                        'w-full rounded-lg border p-3 text-left transition-colors hover:border-[#8b5cf6]/60 hover:bg-[#eef2ff]',
-                        selectedPlan?.id === plan.id ? 'border-[#4f46e5] bg-[#8b5cf6]/10' : 'border-[#e2e8f0]/70 bg-white',
+                        'fusion-hover w-full rounded-2xl border p-3 text-left transition-colors hover:border-[#8b5cf6]/60',
+                        selectedPlan?.id === plan.id ? 'border-[#4f46e5] bg-[#8b5cf6]/10' : 'fusion-glass border-transparent',
                       )}
                       onClick={() => setSelectedPlanId(plan.id)}
                     >
@@ -467,7 +467,7 @@ export function AdminOnboarding() {
                   );
                 })}
                 {!plansLoading && plans.length === 0 ? (
-                  <p className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-4 text-sm text-[#475569]">No onboarding plans yet.</p>
+                  <p className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-4 text-sm text-[#475569]">No onboarding plans yet.</p>
                 ) : null}
               </CardContent>
             </Card>
@@ -524,7 +524,7 @@ export function AdminOnboarding() {
                       {taskTemplates.map((template, index) => {
                         const Icon = template.icon;
                         return (
-                          <div key={template.title} className="rounded-lg border border-[#e2e8f0]/70 bg-[#f6f7fb] p-4">
+                          <div key={template.title} className="fusion-glass rounded-2xl p-4">
                             <div className="flex items-start gap-3">
                               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#4f46e5]">
                                 <Icon className="h-5 w-5" />
@@ -543,7 +543,7 @@ export function AdminOnboarding() {
                       })}
                     </div>
 
-                    <form className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 lg:grid-cols-[1fr_12rem_10rem_auto]" onSubmit={submitTask}>
+                    <form className="grid gap-3 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_12rem_10rem_auto]" onSubmit={submitTask}>
                       <div className="space-y-2">
                         <Label htmlFor="task-title">Task</Label>
                         <Input id="task-title" value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} />
@@ -574,7 +574,7 @@ export function AdminOnboarding() {
                       {selectedTasks.map((task) => {
                         const ownerGroup = inferOwnerGroup(task);
                         return (
-                          <div key={task.id} className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 lg:grid-cols-[1fr_auto]">
+                          <div key={task.id} className="grid gap-3 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="font-semibold text-[#0f172a]">{task.title}</h3>
@@ -596,7 +596,7 @@ export function AdminOnboarding() {
                         );
                       })}
                       {!tasksLoading && selectedTasks.length === 0 ? (
-                        <p className="rounded-lg border border-dashed border-[#e2e8f0] bg-white p-5 text-sm text-[#475569]">Select a plan and add checklist templates for this hire.</p>
+                        <p className="rounded-2xl border border-dashed border-slate-200 bg-white/60 p-5 text-sm text-[#475569]">Select a plan and add checklist templates for this hire.</p>
                       ) : null}
                     </div>
                   </CardContent>
@@ -650,7 +650,7 @@ function Kpi({ label, value, icon: Icon }: { label: string; value: string | numb
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3">
+    <div className="fusion-glass rounded-2xl p-3">
       <p className="lumina-label">{label}</p>
       <p className="mt-1 truncate text-sm font-semibold text-[#0f172a]">{value}</p>
     </div>

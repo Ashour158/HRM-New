@@ -303,9 +303,9 @@ function StatTile({
   value: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border bg-white p-4 shadow-sm">
+    <div className="fusion-glass fusion-hover rounded-2xl p-4">
       <div className="flex items-center gap-3">
-        <div className="grid h-9 w-9 place-items-center rounded-md bg-[#eef2ff] text-[#4f46e5]">
+        <div className="grid h-9 w-9 place-items-center rounded-2xl bg-[#eef2ff] text-[#4f46e5]">
           <Icon className="h-5 w-5" />
         </div>
         <div>
@@ -820,15 +820,19 @@ export function AdminPerformance() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-md border bg-white shadow-sm">
-        <div className="flex flex-col gap-4 border-b bg-[#f8fafc] p-5 lg:flex-row lg:items-center lg:justify-between">
+      <section className="fusion-glass rounded-[2rem]">
+        <div className="flex flex-col gap-4 border-b border-white/40 p-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="bg-white">Performance</Badge>
               <Badge variant="secondary">RBAC scoped</Badge>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                <span className="fusion-pulse h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                Live
+              </span>
             </div>
-            <h2 className="mt-3 text-2xl font-semibold text-slate-950">Performance Management</h2>
-            <p className="mt-1 max-w-3xl text-sm text-slate-600">
+            <h2 className="fusion-gradient-text mt-3 text-2xl font-semibold">Performance Management</h2>
+            <p className="mt-1 max-w-3xl text-sm text-slate-500">
               Build review cycles, templates, competency libraries, and employee goals through the command pipeline.
             </p>
           </div>
@@ -863,7 +867,7 @@ export function AdminPerformance() {
       ) : null}
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
-        <TabsList className="h-auto flex-wrap justify-start bg-white p-1 shadow-sm">
+        <TabsList className="h-auto flex-wrap justify-start fusion-glass p-1">
           <TabsTrigger value="cycles" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Cycles
@@ -893,7 +897,7 @@ export function AdminPerformance() {
 
       {activeTab === 'cycles' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Review Cycles</CardTitle>
               <CardDescription>Cycles move through draft, setup, active, review, and close states.</CardDescription>
@@ -909,7 +913,7 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Create Cycle</CardTitle>
               <CardDescription>Define the calendar window for a review period.</CardDescription>
@@ -996,7 +1000,7 @@ export function AdminPerformance() {
 
       {activeTab === 'templates' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Review Templates</CardTitle>
               <CardDescription>Templates hold questions, rating scale, and role applicability.</CardDescription>
@@ -1012,7 +1016,7 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Create Template</CardTitle>
               <CardDescription>Build a reusable review form.</CardDescription>
@@ -1053,7 +1057,7 @@ export function AdminPerformance() {
 
       {activeTab === 'competencies' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Competency Library</CardTitle>
               <CardDescription>Competencies become active before they are used by templates and reviews.</CardDescription>
@@ -1069,7 +1073,7 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Create Competency</CardTitle>
               <CardDescription>Define behavior indicators and proficiency levels.</CardDescription>
@@ -1106,7 +1110,7 @@ export function AdminPerformance() {
 
       {activeTab === 'goals' ? (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
@@ -1144,7 +1148,7 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Create SMART Goal</CardTitle>
               <CardDescription>Assign a specific, measurable, achievable, relevant, and time-bound goal.</CardDescription>
@@ -1180,7 +1184,7 @@ export function AdminPerformance() {
                     </Select>
                   </div>
                 </div>
-                <div className="space-y-3 rounded-md border bg-slate-50 p-3">
+                <div className="space-y-3 fusion-glass rounded-2xl p-3">
                   <p className="text-sm font-semibold text-slate-900">SMART Definition</p>
                   <FieldTextarea id="goal-smart-specific" label="Specific" value={goalForm.smartSpecific} onChange={(value) => setGoalForm({ ...goalForm, smartSpecific: value })} rows={2} />
                   <FieldTextarea id="goal-smart-measurable" label="Measurable" value={goalForm.smartMeasurable} onChange={(value) => setGoalForm({ ...goalForm, smartMeasurable: value })} rows={2} />
@@ -1229,7 +1233,7 @@ export function AdminPerformance() {
 
       {activeTab === 'manager' ? (
         <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <Card className="rounded-md">
+          <Card className="rounded-2xl">
             <CardHeader>
               <CardTitle className="text-lg">Manager Scope</CardTitle>
               <CardDescription>Dashboard analytics are built from direct reports only.</CardDescription>
@@ -1252,7 +1256,7 @@ export function AdminPerformance() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="rounded-md border bg-slate-50 p-3">
+              <div className="fusion-glass rounded-2xl p-3">
                 <p className="text-sm font-semibold text-slate-950">{selectedManager ? employeeName(selectedManager) : 'No manager selected'}</p>
                 <p className="mt-1 text-sm text-slate-600">{managerDashboard?.reportCount ?? 0} direct reports in the current tenant scope.</p>
               </div>
@@ -1271,14 +1275,14 @@ export function AdminPerformance() {
               <StatTile icon={Gauge} label="At Risk Goals" value={managerDashboard?.analytics.goalMetrics?.atRisk ?? 0} />
             </div>
 
-            <Card className="rounded-md">
+            <Card className="rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-lg">Talent Grid</CardTitle>
                 <CardDescription>Nine-box placement and performance actions from reviews, goals, objectives, and feedback.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {(managerDashboard?.analytics.nineBox ?? []).length ? managerDashboard?.analytics.nineBox?.map((item) => (
-                  <div key={item.workerId} className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-[1fr_140px_140px_160px] md:items-center">
+                  <div key={item.workerId} className="grid gap-3 fusion-glass rounded-2xl p-3 md:grid-cols-[1fr_140px_140px_160px] md:items-center">
                     <div>
                       <p className="font-medium text-slate-950">{item.employeeName}</p>
                       <p className="text-xs text-muted-foreground">{item.workerId}</p>
@@ -1294,14 +1298,14 @@ export function AdminPerformance() {
             </Card>
 
             <div className="grid gap-5 lg:grid-cols-2">
-              <Card className="rounded-md">
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle className="text-lg">Action Plans</CardTitle>
                   <CardDescription>Manager-owned coaching actions generated from performance signals.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(managerDashboard?.analytics.actionPlans ?? []).slice(0, 5).map((plan) => (
-                    <div key={plan.workerId} className="rounded-md border bg-slate-50 p-3">
+                    <div key={plan.workerId} className="fusion-glass rounded-2xl p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium text-slate-950">{plan.employeeName}</p>
                         <Badge variant={plan.riskLevel === 'HIGH' ? 'destructive' : plan.riskLevel === 'MEDIUM' ? 'secondary' : 'outline'}>{plan.riskLevel}</Badge>
@@ -1318,14 +1322,14 @@ export function AdminPerformance() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-md">
+              <Card className="rounded-2xl">
                 <CardHeader>
                   <CardTitle className="text-lg">Recognition</CardTitle>
                   <CardDescription>Best employee signals from the performance analytics engine.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(managerDashboard?.analytics.recognitions ?? []).slice(0, 5).map((recognition) => (
-                    <div key={recognition.workerId} className="rounded-md border bg-slate-50 p-3">
+                    <div key={recognition.workerId} className="fusion-glass rounded-2xl p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="font-medium text-slate-950">{recognition.employeeName}</p>
                         <Badge>{Math.round(recognition.score)}%</Badge>
@@ -1346,21 +1350,21 @@ export function AdminPerformance() {
       {activeTab === 'operations' ? <AdminPerformanceOperations /> : null}
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-md border bg-white p-4">
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <ShieldCheck className="h-4 w-4 text-[#4f46e5]" />
             Governance
           </div>
           <p className="mt-2 text-sm text-slate-600">Tenant, role, and manager scope are enforced by the API before data is returned.</p>
         </div>
-        <div className="rounded-md border bg-white p-4">
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <Users className="h-4 w-4 text-[#4f46e5]" />
             Employee Scope
           </div>
           <p className="mt-2 text-sm text-slate-600">Goals and reviews stay tied to employee records and reporting-line access.</p>
         </div>
-        <div className="rounded-md border bg-white p-4">
+        <div className="fusion-glass fusion-hover rounded-2xl p-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <ClipboardCheck className="h-4 w-4 text-[#4f46e5]" />
             Workflow Ledger

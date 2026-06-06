@@ -58,11 +58,17 @@ export function EmployeeBenefits() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <Heart className="h-6 w-6 text-red-500" />
-            Benefits
-          </h2>
-          <p className="text-muted-foreground">Manage your benefit enrollments and dependents</p>
+          <div className="flex items-center gap-3">
+            <h2 className="fusion-gradient-text text-2xl font-bold flex items-center gap-2">
+              <Heart className="h-6 w-6 text-rose-500" />
+              Benefits
+            </h2>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 fusion-pulse" />
+              Live
+            </span>
+          </div>
+          <p className="text-slate-500">Manage your benefit enrollments and dependents</p>
         </div>
         <AllowedActions
           aggregateType="BENEFITS"
@@ -120,7 +126,7 @@ export function EmployeeBenefits() {
               {data?.lifeEvents && data.lifeEvents.length > 0 ? (
                 <div className="space-y-3">
                   {data.lifeEvents.map((event) => (
-                    <div key={event.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div key={event.id} className="fusion-glass fusion-hover flex items-center justify-between rounded-2xl p-3">
                       <div>
                         <p className="text-sm font-medium">{event.type}</p>
                         <p className="text-xs text-muted-foreground">{formatDate(event.date)}</p>
@@ -149,7 +155,7 @@ export function EmployeeBenefits() {
               {data?.dependents && data.dependents.length > 0 ? (
                 <div className="space-y-3">
                   {data.dependents.map((dep) => (
-                    <div key={dep.id} className="flex items-center justify-between rounded-lg border p-3">
+                    <div key={dep.id} className="fusion-glass fusion-hover flex items-center justify-between rounded-2xl p-3">
                       <div>
                         <p className="text-sm font-medium">{dep.name}</p>
                         <p className="text-xs text-muted-foreground">

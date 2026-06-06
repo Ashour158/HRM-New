@@ -164,10 +164,17 @@ export function AdminCountryPolicy() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+            </span>
+            Policy packs live
+          </div>
+          <h1 className="fusion-gradient-text text-2xl font-bold flex items-center gap-2">
             <Globe className="h-6 w-6" />
             Country Policy v1.4
-          </h2>
+          </h1>
           <p className="text-muted-foreground">Manage country-specific policy packs</p>
         </div>
         <Button asChild variant="outline">
@@ -175,7 +182,7 @@ export function AdminCountryPolicy() {
         </Button>
       </div>
 
-      <Card>
+      <Card className="fusion-glass rounded-[2rem] border-transparent">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Upload className="h-5 w-5" />
@@ -209,7 +216,7 @@ export function AdminCountryPolicy() {
 
       {/* Validation/Simulation Result */}
       {simulationResult && (
-        <Card className={simulationResult.valid ? 'border-green-200' : 'border-amber-200'}>
+        <Card className={`fusion-glass rounded-2xl ${simulationResult.valid ? 'border-green-200' : 'border-amber-200'}`}>
           <CardHeader>
             <div className="flex items-center gap-2">
               {simulationResult.valid ? (
@@ -250,7 +257,7 @@ export function AdminCountryPolicy() {
         </Card>
       )}
 
-      <Card>
+      <Card className="fusion-glass rounded-[2rem] border-transparent">
         <CardHeader>
           <CardTitle className="text-lg">Policy Packs</CardTitle>
           <CardDescription>All country policy packs and their status</CardDescription>

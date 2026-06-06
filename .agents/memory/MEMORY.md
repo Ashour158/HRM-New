@@ -1,3 +1,4 @@
 - [Destructuring null vs undefined](null-destructuring-trap.md) — JS `= []` default in destructuring doesn't cover `null`, only `undefined`; use `?? []` instead.
 - [Mockup screenshot HMR blanks](mockup-screenshot-hmr.md) — Firecrawl external_url screenshots of the mockup-sandbox preview can capture mid-HMR-reload as fully blank/white; re-capture after the reload settles.
+- [hr-web mock shape crashes](hr-web-mock-shape-crashes.md) — hr-web demo mocks don't match page types (paginated list `{items}`, scalar-vs-array fields, omitted nested objects); normalize lists to arrays + full optional chaining.
 - [hr-web dashboards](hr-web-dashboards.md) — employee dashboard `DashboardData` is intentionally hardcoded empty (no backend endpoint); recharts width(-1) warning is benign.

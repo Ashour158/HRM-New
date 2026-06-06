@@ -353,8 +353,8 @@ function MetricCard({ label, value, detail, icon: Icon }: {
   icon: React.ComponentType<{ className?: string }>;
 }) {
   return (
-    <Card className="relative overflow-hidden">
-      <div className="lumina-accent-strip" />
+    <Card className="relative overflow-hidden border-transparent fusion-glass rounded-2xl fusion-hover">
+      <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-400" />
       <CardContent className="flex min-h-[132px] items-center gap-4 p-5">
         <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
           <Icon className="h-6 w-6" />
@@ -383,7 +383,7 @@ function ChipList({ items }: { items: string[] }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="rounded-lg border border-dashed border-[#e2e8f0] bg-[#eef2ff]/60 p-8 text-center text-sm text-[#475569]">
+    <div className="fusion-glass rounded-2xl border-dashed p-8 text-center text-sm text-[#475569]">
       {label}
     </div>
   );
@@ -556,7 +556,7 @@ export function AdminModuleOperations() {
   };
 
   return (
-    <div className="min-h-full fusion-bg">
+    <div className="min-h-full">
       <div className="lumina-canvas space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Button asChild variant="ghost" size="sm">
@@ -577,8 +577,8 @@ export function AdminModuleOperations() {
           </div>
         </div>
 
-        <section className="lumina-panel overflow-hidden">
-          <div className="grid gap-5 border-b border-[#e2e8f0] bg-[#4f46e5] p-6 text-white lg:grid-cols-[1fr_auto]">
+        <section className="fusion-glass rounded-[2rem] overflow-hidden">
+          <div className="grid gap-5 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="border-white/40 bg-white/10 font-mono text-xs uppercase tracking-wider text-white">
@@ -612,7 +612,7 @@ export function AdminModuleOperations() {
             </div>
           </div>
 
-          <div className="grid gap-4 bg-white p-5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Live Records" value={records.length} detail="Persisted operational records in this workspace" icon={Database} />
             <MetricCard label="Live Workflows" value={queue.length} detail="Persisted business flows with visible ownership" icon={Workflow} />
             <MetricCard label="Blocked Items" value={blockedCount} detail="Records needing policy or manager action" icon={ShieldCheck} />
@@ -631,7 +631,7 @@ export function AdminModuleOperations() {
 
           <TabsContent value="command" className="space-y-4">
             <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-              <Card>
+              <Card className="border-transparent fusion-glass rounded-2xl">
                 <CardHeader>
                   <CardTitle>{profile.cockpitTitle}</CardTitle>
                   <CardDescription>Module actions are grouped around the same records, workflows, controls, and events used by the backend domain.</CardDescription>
@@ -662,7 +662,7 @@ export function AdminModuleOperations() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-transparent fusion-glass rounded-2xl">
                 <CardHeader>
                   <CardTitle className="text-xl">Activity Feed</CardTitle>
                   <CardDescription>Visible proof that the workspace actions are writing through the backend API.</CardDescription>
@@ -683,7 +683,7 @@ export function AdminModuleOperations() {
           </TabsContent>
 
           <TabsContent value="records" className="space-y-4">
-            <Card>
+            <Card className="border-transparent fusion-glass rounded-[2rem]">
               <CardHeader className="gap-4 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
                 <div>
                   <CardTitle>Operational Records</CardTitle>
@@ -798,14 +798,14 @@ export function AdminModuleOperations() {
           </TabsContent>
 
           <TabsContent value="workflows" className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-            <Card>
+            <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle>Workflow Queue</CardTitle>
                 <CardDescription>Every commercial workflow has an owner, state, SLA marker, and visible next action.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {queue.map((item) => (
-                  <div key={item.id} className="grid gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
+                  <div key={item.id} className="grid gap-3 fusion-glass rounded-2xl p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
                     <div>
                       <p className="font-semibold text-[#0f172a]">{item.workflow}</p>
                       <p className="mt-1 text-sm text-[#475569]">Owner: {item.owner}</p>
@@ -836,7 +836,7 @@ export function AdminModuleOperations() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-xl">Event Triggers</CardTitle>
                 <CardDescription>The notification system can subscribe to these domain moments.</CardDescription>
@@ -853,7 +853,7 @@ export function AdminModuleOperations() {
           </TabsContent>
 
           <TabsContent value="governance" className="grid gap-4 xl:grid-cols-3">
-            <Card className="xl:col-span-2">
+            <Card className="xl:col-span-2 border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle>Policy Controls</CardTitle>
                 <CardDescription>Controls that keep this module connected to security, approvals, audit, and business rules.</CardDescription>
@@ -869,7 +869,7 @@ export function AdminModuleOperations() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle className="text-xl">Personas</CardTitle>
                 <CardDescription>Users represented in this operational workflow.</CardDescription>
@@ -887,14 +887,14 @@ export function AdminModuleOperations() {
           </TabsContent>
 
           <TabsContent value="wiring" className="grid gap-4 xl:grid-cols-2">
-            <Card>
+            <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle>Integration Map</CardTitle>
                 <CardDescription>Backend and platform connections this module should keep synchronized.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {integrationPoints.map((point, index) => (
-                  <div key={point} className="flex items-center gap-3 rounded-lg border border-[#e2e8f0]/70 bg-white p-3">
+                  <div key={point} className="flex items-center gap-3 fusion-glass rounded-2xl p-3">
                     <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#8b5cf6]/10 font-mono text-xs font-semibold text-[#4f46e5]">
                       {index + 1}
                     </div>
@@ -904,7 +904,7 @@ export function AdminModuleOperations() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle>Route and Service Contract</CardTitle>
                 <CardDescription>The page is tied to a known backend root and the shared module registry.</CardDescription>

@@ -82,15 +82,15 @@ export function EmployeePayslip() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <FileText className="h-6 w-6" />
+          <h2 className="fusion-gradient-text text-2xl font-bold flex items-center gap-2">
+            <FileText className="h-6 w-6 text-indigo-500" />
             Payroll
           </h2>
-          <p className="text-muted-foreground">View and download your payslips</p>
+          <p className="text-slate-500">View and download your payslips</p>
         </div>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="text-xs text-muted-foreground">Sensitive data - access logged</span>
+          <span className="text-xs text-slate-500">Sensitive data - access logged</span>
         </div>
       </div>
 
@@ -107,12 +107,14 @@ export function EmployeePayslip() {
         </div>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={payslips ?? []}
-        keyExtractor={(row) => row.id}
-        emptyMessage="No payslips found"
-      />
+      <div className="fusion-glass rounded-[2rem] p-5">
+        <DataTable
+          columns={columns}
+          data={payslips ?? []}
+          keyExtractor={(row) => row.id}
+          emptyMessage="No payslips found"
+        />
+      </div>
 
       {/* Payslip Detail Modal */}
       {selectedPayslip && (
@@ -134,19 +136,19 @@ export function EmployeePayslip() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-3">
-                <div className="rounded-lg bg-muted p-4">
-                  <p className="text-xs text-muted-foreground">Gross Pay</p>
-                  <p className="text-xl font-bold">{formatCurrency(selectedPayslip.grossPay, selectedPayslip.currency)}</p>
+                <div className="rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 p-4 text-white fusion-hover">
+                  <p className="text-xs text-white/80">Gross Pay</p>
+                  <p className="text-2xl font-extrabold">{formatCurrency(selectedPayslip.grossPay, selectedPayslip.currency)}</p>
                 </div>
-                <div className="rounded-lg bg-muted p-4">
-                  <p className="text-xs text-muted-foreground">Deductions</p>
-                  <p className="text-xl font-bold text-destructive">
+                <div className="rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 p-4 text-white fusion-hover">
+                  <p className="text-xs text-white/80">Deductions</p>
+                  <p className="text-2xl font-extrabold">
                     -{formatCurrency(selectedPayslip.deductions, selectedPayslip.currency)}
                   </p>
                 </div>
-                <div className="rounded-lg bg-primary/10 p-4">
-                  <p className="text-xs text-primary">Net Pay</p>
-                  <p className="text-xl font-bold text-primary">{formatCurrency(selectedPayslip.netPay, selectedPayslip.currency)}</p>
+                <div className="rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-500 p-4 text-white fusion-hover">
+                  <p className="text-xs text-white/80">Net Pay</p>
+                  <p className="text-2xl font-extrabold">{formatCurrency(selectedPayslip.netPay, selectedPayslip.currency)}</p>
                 </div>
               </div>
 

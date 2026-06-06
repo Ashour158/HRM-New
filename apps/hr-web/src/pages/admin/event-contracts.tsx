@@ -48,14 +48,14 @@ export function AdminEventContracts() {
   }, [registryQuery.data?.topicMappings, search]);
 
   return (
-    <main className="min-h-screen fusion-bg p-6 text-[#0f172a] md:p-8">
+    <main className="p-6 text-[#0f172a] md:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div>
           <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#4f46e5] hover:underline" to="/admin/system-console">
             <ArrowLeft className="h-4 w-4" />
             Admin Panel
           </Link>
-          <h1 className="font-['Hanken_Grotesk'] text-3xl font-bold md:text-4xl">Event Contracts</h1>
+          <h1 className="font-['Hanken_Grotesk'] text-3xl font-bold fusion-gradient-text md:text-4xl">Event Contracts</h1>
           <p className="mt-2 max-w-3xl text-sm text-[#475569] md:text-base">
             Inspect the canonical event topics, aggregate routes, schema defaults, and consumer group naming rules used by outbox replay and notification delivery.
           </p>
@@ -70,7 +70,7 @@ export function AdminEventContracts() {
         ) : (
           <>
             <section className="grid gap-4 md:grid-cols-3">
-              <Card className="rounded-lg border-[#e2e8f0]">
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <Network className="h-5 w-5 text-[#4f46e5]" />
@@ -80,7 +80,7 @@ export function AdminEventContracts() {
                 </CardHeader>
                 <CardContent className="text-3xl font-bold">{registryQuery.data?.topics.length ?? 0}</CardContent>
               </Card>
-              <Card className="rounded-lg border-[#e2e8f0]">
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <GitBranch className="h-5 w-5 text-[#6366f1]" />
@@ -90,7 +90,7 @@ export function AdminEventContracts() {
                 </CardHeader>
                 <CardContent className="text-3xl font-bold">{Object.keys(registryQuery.data?.topicMappings ?? {}).length}</CardContent>
               </Card>
-              <Card className="rounded-lg border-[#e2e8f0]">
+              <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <ShieldCheck className="h-5 w-5 text-[#8a4fff]" />
@@ -105,24 +105,24 @@ export function AdminEventContracts() {
               </Card>
             </section>
 
-            <Card className="rounded-lg border-[#e2e8f0]">
+            <Card>
               <CardHeader>
                 <CardTitle>Consumer Group Convention</CardTitle>
                 <CardDescription>Used by inbox consumers so replay does not duplicate or downgrade event envelopes.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-                <div className="rounded-lg bg-[#eef2ff] p-4">
+                <div className="fusion-glass rounded-2xl p-4">
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">Convention</div>
                   <div className="mt-1 font-mono">{registryQuery.data?.consumerGroupNaming.convention}</div>
                 </div>
-                <div className="rounded-lg bg-[#eef2ff] p-4">
+                <div className="fusion-glass rounded-2xl p-4">
                   <div className="text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">Example</div>
                   <div className="mt-1 font-mono">{registryQuery.data?.consumerGroupNaming.example}</div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="overflow-hidden rounded-lg border-[#e2e8f0]">
+            <Card className="overflow-hidden rounded-[2rem]">
               <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <CardTitle>Aggregate Topic Mappings</CardTitle>
@@ -160,7 +160,7 @@ export function AdminEventContracts() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-lg border-[#e2e8f0]">
+            <Card>
               <CardHeader>
                 <CardTitle>Event Prefix Fallbacks</CardTitle>
                 <CardDescription>Fallback routing when legacy producers only provide an event name.</CardDescription>
