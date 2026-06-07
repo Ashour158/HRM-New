@@ -92,6 +92,8 @@ function buildRepository(seed: PolicyRevisionRecord[]): PolicyCenterRepositoryPo
       openAttendanceDays: 1,
       openPayrollCycles: 1,
       pendingComplianceAcknowledgements: 0,
+      pendingBenefitsEnrollments: 0,
+      pendingBenefitsLifeEvents: 0,
     })),
     listImpactRecords: vi.fn(async () => ({
       workers: [
@@ -130,18 +132,24 @@ function buildRepository(seed: PolicyRevisionRecord[]): PolicyCenterRepositoryPo
       ],
       complianceAcknowledgements: [],
       accessGrants: [],
+      benefitsEnrollments: [],
+      benefitsLifeEvents: [],
     })),
   };
 }
 
 function buildService(seed: PolicyRevisionRecord[] = []) {
   const repository = buildRepository(seed);
+  const setupState = {
+    leavePolicies: [],
+    attendancePolicy: { standardDailyMinutes: 480, flexibleHoursEnabled: false, lateGraceMinutes: 10, overtimeAfterMinutes: 480, geofenceEnabled: false },
+  } as Record<string, unknown>;
   const hcmSetup = {
-    getSetup: vi.fn(async () => ({
-      leavePolicies: [],
-      attendancePolicy: { standardDailyMinutes: 480, flexibleHoursEnabled: false, lateGraceMinutes: 10, overtimeAfterMinutes: 480, geofenceEnabled: false },
-    })),
-    updateSetup: vi.fn(async (_tenantId: Uuid, update: unknown) => update),
+    getSetup: vi.fn(async () => setupState),
+    updateSetup: vi.fn(async (_tenantId: Uuid, update: unknown) => {
+      Object.assign(setupState, update);
+      return setupState;
+    }),
   };
   const notifications = { createMany: vi.fn(async () => undefined) };
   const auditLedger = { write: vi.fn(async () => undefined) };
@@ -733,6 +741,234 @@ describe('PolicyCenterService', () => {
     await expect(service.approveRevision(tenantId, reviewed.id, approverActor)).resolves.toEqual(expect.objectContaining({
       status: 'APPROVED',
       approvedBy: approverActor.actorId,
+    }));
+  });
+
+  it('exposes max-depth policy templates for leave, attendance, access, compliance, and benefits', () => {
+    const { service } = buildService();
+
+    const templates = service.getTemplates();
+
+    expect(templates.map((template) => template.code)).toEqual(expect.arrayContaining([
+      'LEAVE-ACCRUAL-LEDGER',
+      'ATTENDANCE-RULE-LEDGER',
+      'ACCESS-GOVERNANCE-LEDGER',
+      'COMPLIANCE-RULE-LEDGER',
+      'BENEFITS-ELIGIBILITY-LEDGER',
+    ]));
+    expect(templates.find((template) => template.area === 'BENEFITS')).toEqual(expect.objectContaining({
+      area: 'BENEFITS',
+      title: expect.stringContaining('Benefits'),
+    }));
+  });
+
+  it('returns domain-specific simulation sections for governed non-payroll policy ledgers', async () => {
+    const benefitsDraft = revision({
+      area: 'BENEFITS',
+      title: 'Benefits eligibility policy',
+      draftConfig: {
+        benefitsPolicyRuntime: {
+          eligibilityRules: [{
+            code: 'MEDICAL_FULL_TIME',
+            label: 'Medical plan full-time eligibility',
+            active: true,
+            logicLedger: {
+              code: 'FULL_TIME_WAITING_PERIOD',
+              source: 'BENEFITS_LEDGER',
+              condition: 'EMPLOYEE_TYPE_IN_SCOPE',
+              outcome: 'ALLOW_ENROLLMENT',
+              waitingPeriodDays: 30,
+              employeeContributionPercent: 20,
+              employerContributionPercent: 80,
+              payrollDeductionCode: 'MEDICAL_EMPLOYEE_SHARE',
+            },
+          }],
+        },
+      },
+    });
+    const { service } = buildService([benefitsDraft]);
+
+    const simulation = await service.simulateRevision(tenantId, benefitsDraft.id, actor);
+
+    expect(simulation.benefitsPolicySimulation).toEqual(expect.objectContaining({
+      ruleCodes: ['MEDICAL_FULL_TIME'],
+      payrollBridgeCodes: ['MEDICAL_EMPLOYEE_SHARE'],
+      enrollmentWindows: expect.arrayContaining([expect.objectContaining({
+        ruleCode: 'MEDICAL_FULL_TIME',
+        waitingPeriodDays: 30,
+      })]),
+    }));
+    expect(simulation.compliancePolicySimulation).toBeUndefined();
+  });
+
+  it('simulates benefits policy rule ledgers that define window days in outcomes', async () => {
+    const benefitsDraft = revision({
+      area: 'BENEFITS',
+      title: 'Benefits enrollment windows',
+      draftConfig: {
+        benefitsPolicyRuntime: {
+          enrollmentWindowRules: [{
+            code: 'OPEN_ENROLLMENT_WAIT',
+            label: 'Open enrollment waiting period',
+            active: true,
+            conditions: [{ field: 'employeeType', operator: 'IN', value: ['FULL_TIME'] }],
+            outcomes: [{ action: 'ALLOW', value: { windowDays: 45 } }],
+          }],
+        },
+      },
+    });
+    const { service } = buildService([benefitsDraft]);
+
+    const simulation = await service.simulateRevision(tenantId, benefitsDraft.id, actor);
+
+    expect(simulation.benefitsPolicySimulation?.enrollmentWindows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        ruleCode: 'OPEN_ENROLLMENT_WAIT',
+        waitingPeriodDays: 45,
+      }),
+    ]));
+  });
+
+  it('rejects malformed benefits policy simulation payloads', async () => {
+    const malformedBenefitsDraft = revision({
+      area: 'BENEFITS',
+      title: 'Malformed benefits policy',
+      draftConfig: {
+        benefitsPolicyRuntime: {
+          eligibilityRules: [{
+            code: 'MEDICAL_FULL_TIME',
+            label: 'Medical plan full-time eligibility',
+            active: true,
+            logicLedger: 'not-a-ledger',
+          }],
+        },
+      },
+    });
+    const { service } = buildService([malformedBenefitsDraft]);
+
+    await expect(service.simulateRevision(tenantId, malformedBenefitsDraft.id, actor)).rejects.toThrow(
+      'Benefits policy rule MEDICAL_FULL_TIME must include a logic ledger object.',
+    );
+  });
+
+  it('persists benefits policy runtime when applying a published benefits revision', async () => {
+    const benefitsRevision = revision({
+      area: 'BENEFITS',
+      title: 'Benefits eligibility policy',
+      status: 'PUBLISHED',
+      draftConfig: {
+        benefitsPolicyRuntime: {
+          eligibilityRules: [{
+            code: 'MEDICAL_FULL_TIME',
+            label: 'Medical plan full-time eligibility',
+            active: true,
+            logicLedger: {
+              code: 'FULL_TIME_WAITING_PERIOD',
+              source: 'BENEFITS_LEDGER',
+              condition: 'EMPLOYEE_TYPE_IN_SCOPE',
+              outcome: 'ALLOW_ENROLLMENT',
+              waitingPeriodDays: 30,
+              employeeContributionPercent: 20,
+              employerContributionPercent: 80,
+              payrollDeductionCode: 'MEDICAL_EMPLOYEE_SHARE',
+            },
+          }],
+          payrollBridgeRules: [{
+            code: 'MEDICAL_PAYROLL_BRIDGE',
+            label: 'Medical payroll bridge',
+            active: true,
+            logicLedger: {
+              code: 'MEDICAL_CONTRIBUTION_SYNC',
+              source: 'BENEFITS_LEDGER',
+              condition: 'ENROLLMENT_ACTIVE',
+              outcome: 'CREATE_PAYROLL_BRIDGE',
+              payrollDeductionCode: 'MEDICAL_EMPLOYEE_SHARE',
+            },
+          }],
+        },
+      },
+    });
+    const { service, hcmSetup } = buildService([benefitsRevision]);
+
+    await service.applyRevision(tenantId, benefitsRevision.id, actor);
+    const storedSetup = await hcmSetup.getSetup();
+
+    expect(storedSetup).toEqual(expect.objectContaining({
+      benefitsPolicyRuntime: expect.objectContaining({
+        eligibilityRules: [
+          expect.objectContaining({
+            code: 'MEDICAL_FULL_TIME',
+            logicLedger: expect.objectContaining({
+              code: 'FULL_TIME_WAITING_PERIOD',
+              payrollDeductionCode: 'MEDICAL_EMPLOYEE_SHARE',
+            }),
+          }),
+        ],
+        payrollBridgeRules: [
+          expect.objectContaining({
+            code: 'MEDICAL_PAYROLL_BRIDGE',
+            logicLedger: expect.objectContaining({
+              code: 'MEDICAL_CONTRIBUTION_SYNC',
+            }),
+          }),
+        ],
+      }),
+      runtimePolicyRevisions: [
+        expect.objectContaining({
+          area: 'BENEFITS',
+          revisionId: benefitsRevision.id,
+          status: 'APPLIED',
+        }),
+      ],
+    }));
+  });
+
+  it('preserves per-component payroll scope when applying a revision-level payroll scope', async () => {
+    const payrollRevision = revision({
+      area: 'PAYROLL',
+      title: 'Scoped payroll deductions',
+      status: 'PUBLISHED',
+      scope: {
+        tenantId: tenantId.value,
+        countryCodes: ['EG'],
+        legalEntityIds: ['revision-entity'],
+        departmentIds: ['revision-dept'],
+        effectiveFrom: '2026-06-01',
+      },
+      draftConfig: {
+        deductionPolicies: [{
+          code: 'ENTITY_LATE_LEDGER',
+          label: 'Entity late penalty',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          scope: {
+            legalEntityIds: ['component-entity'],
+            departmentIds: ['component-dept'],
+          },
+          logicLedger: {
+            code: 'LATE_MINUTES_HIGH_RISK',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+          },
+        }],
+      },
+    });
+    const { service, hcmSetup } = buildService([payrollRevision]);
+
+    await service.applyRevision(tenantId, payrollRevision.id, actor);
+    const storedSetup = await hcmSetup.getSetup();
+
+    expect(storedSetup.deductionPolicies?.[0]).toEqual(expect.objectContaining({
+      code: 'ENTITY_LATE_LEDGER',
+      scope: expect.objectContaining({
+        tenantId: tenantId.value,
+        countryCodes: ['EG'],
+        legalEntityIds: ['component-entity'],
+        departmentIds: ['component-dept'],
+        effectiveFrom: '2026-06-01',
+      }),
     }));
   });
 });

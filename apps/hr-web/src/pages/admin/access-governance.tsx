@@ -928,7 +928,7 @@ export function AdminAccessGovernance() {
       {isError ? (
         <ErrorState
           className="mt-6"
-          title="Access Governance API Unavailable"
+          title="Access governance is unavailable"
           description="The admin page is wired to the backend, but the current API call did not complete."
           error={error}
           onRetry={() => refetch()}
@@ -1396,7 +1396,7 @@ export function AdminAccessGovernance() {
                 </div>
                 <div className="grid gap-2">
                   <Label>Credential Name</Label>
-                  <Input value={serviceCredentialForm.name} onChange={(event) => setServiceCredentialForm({ ...serviceCredentialForm, name: event.target.value })} placeholder="Payroll API key" />
+                  <Input value={serviceCredentialForm.name} onChange={(event) => setServiceCredentialForm({ ...serviceCredentialForm, name: event.target.value })} placeholder="Payroll service credential" />
                 </div>
                 <div className="grid gap-2">
                   <Label>Expires At</Label>
@@ -1726,7 +1726,7 @@ export function AdminAccessGovernance() {
               </div>
               <div className="rounded-lg border p-3">
                 <div className="mb-3 flex items-center justify-between">
-                  <p className="font-semibold">Workflow History</p>
+                  <p className="font-semibold">Review History</p>
                   <Badge variant="outline">{accessReviewWorkflowEvents.length}</Badge>
                 </div>
                 <Table>

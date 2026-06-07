@@ -147,6 +147,28 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it('requires an applied benefits policy for benefits enrollment and life-event commands', () => {
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'BenefitsEnrollment',
+      commandName: 'SubmitBenefitsEnrollment',
+    })).toBe('BENEFITS');
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'BenefitsLifeEvent',
+      commandName: 'ApproveBenefitsLifeEvent',
+    })).toBe('BENEFITS');
+  });
+
+  it('does not classify generic enrollment or life-event commands as benefits policy commands', () => {
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'LearningEnrollment',
+      commandName: 'SubmitEnrollment',
+    })).toBeUndefined();
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'EmployeeLifeEvent',
+      commandName: 'ApproveLifeEvent',
+    })).toBeUndefined();
+  });
+
   it('rejects stale expected state when the stored aggregate state has moved', async () => {
     const executeTakeFirst = async () => ({
       id: workerId.value,

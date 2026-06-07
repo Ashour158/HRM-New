@@ -102,6 +102,8 @@ function emptyImpactRecords(): PolicyImpactRecords {
     payrollCycles: [],
     complianceAcknowledgements: [],
     accessGrants: [],
+    benefitsEnrollments: [],
+    benefitsLifeEvents: [],
   };
 }
 
@@ -273,8 +275,10 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     const openAttendanceDays = await this.countOpenAttendanceDays(tenantId);
     const openPayrollCycles = await this.countOpenPayrollCycles(tenantId);
     const pendingComplianceAcknowledgements = await this.countPendingComplianceAcknowledgements(tenantId);
+    const pendingBenefitsEnrollments = await this.countPendingBenefitsEnrollments(tenantId);
+    const pendingBenefitsLifeEvents = await this.countPendingBenefitsLifeEvents(tenantId);
 
-    return { pendingLeaveRequests, openAttendanceDays, openPayrollCycles, pendingComplianceAcknowledgements };
+    return { pendingLeaveRequests, openAttendanceDays, openPayrollCycles, pendingComplianceAcknowledgements, pendingBenefitsEnrollments, pendingBenefitsLifeEvents };
   }
 
   async listImpactRecords(tenantId: string, area: PolicyArea, scope: PolicyScope): Promise<PolicyImpactRecords> {
@@ -292,6 +296,12 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
       : [];
     records.complianceAcknowledgements = area === 'COMPLIANCE' || area === 'COUNTRY_POLICY'
       ? await this.listComplianceAcknowledgementImpactRecords(tenantId, workerIds)
+      : [];
+    records.benefitsEnrollments = area === 'BENEFITS' || area === 'PAYROLL'
+      ? await this.listBenefitsEnrollmentImpactRecords(tenantId, workerIds)
+      : [];
+    records.benefitsLifeEvents = area === 'BENEFITS'
+      ? await this.listBenefitsLifeEventImpactRecords(tenantId, workerIds)
       : [];
     return records;
   }
@@ -431,6 +441,34 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     }
   }
 
+  private async countPendingBenefitsEnrollments(tenantId: string): Promise<number> {
+    try {
+      const result = await sql<{ count: number }>`
+        SELECT count(*)::int AS count
+        FROM hr_benefits.benefits_enrollments
+        WHERE tenant_id = ${tenantId}
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+      `.execute(this.db);
+      return result.rows[0]?.count ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private async countPendingBenefitsLifeEvents(tenantId: string): Promise<number> {
+    try {
+      const result = await sql<{ count: number }>`
+        SELECT count(*)::int AS count
+        FROM hr_benefits.benefits_life_events
+        WHERE tenant_id = ${tenantId}
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+      `.execute(this.db);
+      return result.rows[0]?.count ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+
   private async listImpactedWorkerRecords(tenantId: string, scope: PolicyScope): Promise<PolicyImpactRecords['workers']> {
     try {
       const workerIds = scope.workerIds ?? [];
@@ -563,6 +601,54 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
         status: row.status,
         beforeDecision: 'Acknowledgement follows current compliance policy.',
         afterDecision: 'Acknowledgement may be regenerated or re-notified after apply.',
+        risk: 'WARNING',
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async listBenefitsEnrollmentImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['benefitsEnrollments']> {
+    try {
+      const result = await sql<{ id: string; worker_id: string; status: string }>`
+        SELECT id, worker_id, status
+        FROM hr_benefits.benefits_enrollments
+        WHERE tenant_id = ${tenantId}
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+        ORDER BY updated_at DESC
+        LIMIT 100
+      `.execute(this.db);
+      return result.rows.map((row) => ({
+        recordId: row.id,
+        workerId: row.worker_id,
+        status: row.status,
+        beforeDecision: 'Enrollment follows current benefits policy.',
+        afterDecision: 'Enrollment may need revalidation after benefits policy apply.',
+        risk: 'WARNING',
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async listBenefitsLifeEventImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['benefitsLifeEvents']> {
+    try {
+      const result = await sql<{ id: string; worker_id: string; status: string }>`
+        SELECT id, worker_id, status
+        FROM hr_benefits.benefits_life_events
+        WHERE tenant_id = ${tenantId}
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+        ORDER BY updated_at DESC
+        LIMIT 100
+      `.execute(this.db);
+      return result.rows.map((row) => ({
+        recordId: row.id,
+        workerId: row.worker_id,
+        status: row.status,
+        beforeDecision: 'Life event follows current benefits policy.',
+        afterDecision: 'Life event may need revalidation after benefits policy apply.',
         risk: 'WARNING',
       }));
     } catch {

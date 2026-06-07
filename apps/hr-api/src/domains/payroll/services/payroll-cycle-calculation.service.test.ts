@@ -439,6 +439,245 @@ describe('PayrollCycleCalculationService', () => {
     expect(rows.find((row) => row.workerId === 'worker-2')?.policyDeductionAmount).toBe(350);
   });
 
+  it('calculates scoped deduction logic-ledger rules with caps and minimum net protection', () => {
+    const logicLedgerSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 0,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'ENTITY_LATE_LEDGER',
+          label: 'Entity late penalty ledger',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'POST_TAX',
+          scope: {
+            countryCodes: ['EG'],
+            legalEntityIds: ['entity-eg'],
+            departmentIds: ['FINANCE'],
+          },
+          logicLedger: {
+            code: 'LATE_MINUTES_HIGH_RISK',
+            label: 'High-risk late minutes',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+            monthlyCap: 2000,
+            minimumNetPay: 8500,
+            posting: {
+              payslipLineType: 'LATE_DEDUCTION',
+              glAccount: '2200',
+            },
+            retroBehavior: 'ADJUSTMENT_QUEUE',
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const rows = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [
+        {
+          ...employee,
+          countryCode: 'EG',
+          legalEntityId: 'entity-eg',
+          departmentId: 'FINANCE',
+          attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+        },
+        {
+          ...employee,
+          workerId: 'worker-2',
+          employeeId: 'EMP-002',
+          countryCode: 'US',
+          legalEntityId: 'entity-us',
+          departmentId: 'FINANCE',
+          attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+        },
+      ],
+      setup: logicLedgerSetup,
+    }).rows;
+
+    const matchingRow = rows.find((row) => row.workerId === 'worker-1');
+    const nonMatchingRow = rows.find((row) => row.workerId === 'worker-2');
+    const logicLine = matchingRow?.explainability.find((line) => line.code === 'LATE_MINUTES_HIGH_RISK');
+
+    expect(matchingRow?.policyDeductionAmount).toBe(1500);
+    expect(matchingRow?.netSalary).toBe(8500);
+    expect(logicLine).toEqual(expect.objectContaining({
+      label: 'High-risk late minutes',
+      amount: 1500,
+      ledgerSource: 'ATTENDANCE_LEDGER',
+      ledgerRuleCode: 'LATE_MINUTES_HIGH_RISK',
+      glAccount: '2200',
+      retroBehavior: 'ADJUSTMENT_QUEUE',
+    }));
+    expect(logicLine?.formula).toContain('minimum net 8500');
+    expect(nonMatchingRow?.policyDeductionAmount).toBe(0);
+  });
+
+  it('treats a zero monthly cap as uncapped for logic-ledger rules', () => {
+    const zeroCapSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 0,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'ZERO_CAP_LATE_LEDGER',
+          label: 'Zero cap late ledger',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'POST_TAX',
+          logicLedger: {
+            code: 'LATE_MINUTES_UNCAPPED',
+            label: 'Late minutes uncapped',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+            monthlyCap: 0,
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const [row] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [{
+        ...employee,
+        attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+      }],
+      setup: zeroCapSetup,
+    }).rows;
+
+    expect(row.policyDeductionAmount).toBe(2250);
+    expect(row.netSalary).toBe(7750);
+    expect(row.explainability.find((line) => line.code === 'LATE_MINUTES_UNCAPPED')?.formula).not.toContain('monthly cap 0');
+  });
+
+  it('calculates scoped pre-tax deduction logic-ledger rules before tax with minimum net protection', () => {
+    const logicLedgerSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 10,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'ENTITY_LATE_LEDGER',
+          label: 'Entity late penalty ledger',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'PRE_TAX',
+          scope: {
+            countryCodes: ['EG'],
+            legalEntityIds: ['entity-eg'],
+            departmentIds: ['FINANCE'],
+          },
+          logicLedger: {
+            code: 'LATE_MINUTES_HIGH_RISK',
+            label: 'High-risk late minutes',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+            monthlyCap: 2000,
+            minimumNetPay: 8500,
+            posting: {
+              payslipLineType: 'LATE_DEDUCTION',
+              glAccount: '2200',
+            },
+            retroBehavior: 'ADJUSTMENT_QUEUE',
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const rows = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [
+        {
+          ...employee,
+          countryCode: 'EG',
+          legalEntityId: 'entity-eg',
+          departmentId: 'FINANCE',
+          attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+        },
+        {
+          ...employee,
+          workerId: 'worker-2',
+          employeeId: 'EMP-002',
+          countryCode: 'US',
+          legalEntityId: 'entity-us',
+          departmentId: 'FINANCE',
+          attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+        },
+      ],
+      setup: logicLedgerSetup,
+    }).rows;
+
+    const matchingRow = rows.find((row) => row.workerId === 'worker-1');
+    const nonMatchingRow = rows.find((row) => row.workerId === 'worker-2');
+    const logicLine = matchingRow?.explainability.find((line) => line.code === 'LATE_MINUTES_HIGH_RISK');
+
+    expect(matchingRow?.policyDeductionAmount).toBe(555.56);
+    expect(matchingRow?.taxAmount).toBe(944.44);
+    expect(matchingRow?.netSalary).toBe(8500);
+    expect(logicLine).toEqual(expect.objectContaining({
+      label: 'High-risk late minutes',
+      amount: 555.56,
+      ledgerSource: 'ATTENDANCE_LEDGER',
+      ledgerRuleCode: 'LATE_MINUTES_HIGH_RISK',
+      glAccount: '2200',
+      retroBehavior: 'ADJUSTMENT_QUEUE',
+    }));
+    expect(logicLine?.formula).toContain('minimum net 8500');
+    expect(logicLine?.formula).toContain('pre-tax');
+    expect(nonMatchingRow?.policyDeductionAmount).toBe(0);
+    expect(nonMatchingRow?.taxAmount).toBe(1000);
+    expect(nonMatchingRow?.netSalary).toBe(9000);
+  });
+
+  it('fails fast when logic-ledger rules require a pipeline base before it is calculated', () => {
+    const logicLedgerSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 10,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'TAXABLE_BASE_LEDGER',
+          label: 'Taxable base deduction',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'POST_TAX',
+          logicLedger: {
+            code: 'TAXABLE_BASE_RULE',
+            source: 'PAYROLL_LEDGER',
+            base: 'TAXABLE_BASE',
+            method: 'PERCENT_OF_BASE',
+            ratePercent: 5,
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    expect(() => service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [employee],
+      setup: logicLedgerSetup,
+    })).toThrow(/TAXABLE_BASE_RULE requires TAXABLE_BASE/);
+  });
+
   it('adds scoped taxable and non-taxable earnings before gross-to-net calculation', () => {
     const earningsSetup = {
       ...setup,
@@ -499,6 +738,69 @@ describe('PayrollCycleCalculationService', () => {
     ]));
     expect(workerTwo?.earningAmount).toBe(0);
     expect(workerTwo?.grossSalary).toBe(10000);
+  });
+
+  it('adds logic-ledger earnings from attendance units with payroll posting evidence', () => {
+    const logicLedgerSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 0,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [],
+      earningPolicies: [
+        {
+          code: 'ENTITY_OVERTIME_PREMIUM',
+          label: 'Entity overtime premium',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          taxable: false,
+          insurable: false,
+          scope: {
+            legalEntityIds: ['entity-eg'],
+            locationCodes: ['CAIRO_HQ'],
+          },
+          logicLedger: {
+            code: 'OVERTIME_HOUR_PREMIUM',
+            label: 'Overtime hour premium',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_OVERTIME_HOURS',
+            method: 'PER_UNIT',
+            amount: 125,
+            monthlyCap: 500,
+            posting: {
+              payslipLineType: 'OVERTIME_EARNING',
+              glAccount: '6100',
+            },
+            retroBehavior: 'FUTURE_ONLY',
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const [row] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [{
+        ...employee,
+        legalEntityId: 'entity-eg',
+        attendanceSummary: { ...employee.attendanceSummary!, overtimeMinutes: 180 },
+      }],
+      setup: logicLedgerSetup,
+    }).rows;
+    const logicLine = row.explainability.find((line) => line.code === 'OVERTIME_HOUR_PREMIUM');
+
+    expect(row.earningAmount).toBe(375);
+    expect(row.taxableEarningAmount).toBe(0);
+    expect(logicLine).toEqual(expect.objectContaining({
+      label: 'Overtime hour premium',
+      amount: 375,
+      ledgerSource: 'ATTENDANCE_LEDGER',
+      ledgerRuleCode: 'OVERTIME_HOUR_PREMIUM',
+      glAccount: '6100',
+      retroBehavior: 'FUTURE_ONLY',
+    }));
+    expect(logicLine?.formula).toContain('ATTENDANCE_OVERTIME_HOURS');
   });
 
   it('calculates hourly employee gross pay from payable attendance minutes', () => {

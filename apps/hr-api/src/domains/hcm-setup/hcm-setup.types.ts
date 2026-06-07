@@ -52,6 +52,47 @@ export type LeavePayrollImpact = 'PAID_LEAVE' | 'UNPAID_LEAVE' | 'PERMISSION' | 
 
 export type LeaveApprovalWorkflow = 'MANAGER' | 'MANAGER_THEN_HR' | 'HR_ONLY' | 'AUTO_APPROVE';
 
+export type PolicyRuleCondition = {
+  field?: string;
+  operator?: 'EQUALS' | 'NOT_EQUALS' | 'IN' | 'NOT_IN' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'EXISTS';
+  value?: unknown;
+};
+
+export type PolicyRuleOutcome = {
+  action:
+    | 'ALLOW'
+    | 'BLOCK'
+    | 'REQUIRE_APPROVAL'
+    | 'REQUIRE_DOCUMENT'
+    | 'CREATE_REVALIDATION'
+    | 'CREATE_NOTIFICATION'
+    | 'CREATE_PAYROLL_BRIDGE'
+    | 'CREATE_ACKNOWLEDGEMENT'
+    | 'MASK_FIELD'
+    | 'REQUIRE_STEP_UP'
+    | 'CREATE_CARRIER_EXPORT';
+  value?: unknown;
+  reason?: string;
+};
+
+export type PolicyRetroBehavior =
+  | 'FUTURE_ONLY'
+  | 'REVALIDATE_PENDING'
+  | 'ADJUSTMENT_QUEUE'
+  | 'RECALCULATE_OPEN_PERIODS'
+  | 'BLOCK_RETROACTIVE';
+
+export type PolicyRuleLedger = SetupOption & {
+  scope?: HcmPolicyScope;
+  conditions?: PolicyRuleCondition[];
+  outcomes: PolicyRuleOutcome[];
+  priority?: number;
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+  retroBehavior?: PolicyRetroBehavior;
+  notificationTemplate?: string;
+};
+
 export type LeavePolicy = SetupOption & {
   unit: LeaveDurationUnit;
   paid: boolean;
@@ -71,6 +112,13 @@ export type LeavePolicy = SetupOption & {
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;
+  scope?: HcmPolicyScope;
+  accrualRules?: PolicyRuleLedger[];
+  carryoverRules?: PolicyRuleLedger[];
+  blackoutRules?: PolicyRuleLedger[];
+  approvalRules?: PolicyRuleLedger[];
+  documentRules?: PolicyRuleLedger[];
+  encashmentRules?: PolicyRuleLedger[];
 };
 
 export type PayrollCalculationPolicy = {
@@ -187,10 +235,86 @@ export type AttendancePolicy = {
   deviceTrustRules?: AttendanceDeviceTrustRule[];
   flexibleHoursRules?: AttendanceFlexibleHoursRule[];
   holidayCalendars?: AttendanceHolidayRule[];
+  ruleLedger?: PolicyRuleLedger[];
+  scheduleRules?: PolicyRuleLedger[];
+  exceptionRules?: PolicyRuleLedger[];
+  correctionRules?: PolicyRuleLedger[];
+  rosterCoverageRules?: PolicyRuleLedger[];
+  payrollBridgeRules?: PolicyRuleLedger[];
+};
+
+export type PayrollPolicyLogicLedgerSource =
+  | 'ATTENDANCE_LEDGER'
+  | 'LEAVE_LEDGER'
+  | 'PAYROLL_LEDGER'
+  | 'BENEFITS_LEDGER'
+  | 'LOAN_LEDGER'
+  | 'MANUAL_INPUT';
+
+export type PayrollPolicyLogicLedgerBase =
+  | 'FIXED_AMOUNT'
+  | 'BASE_GROSS'
+  | 'GROSS_SALARY'
+  | 'TAXABLE_BASE'
+  | 'NET_BEFORE_DEDUCTION'
+  | 'HOURLY_RATE'
+  | 'ATTENDANCE_LATE_MINUTES'
+  | 'ATTENDANCE_UNDERTIME_MINUTES'
+  | 'ATTENDANCE_OVERTIME_MINUTES'
+  | 'ATTENDANCE_OVERTIME_HOURS'
+  | 'ATTENDANCE_ABSENCE_DAYS'
+  | 'ATTENDANCE_PAYABLE_MINUTES'
+  | 'ATTENDANCE_WORKED_MINUTES'
+  | 'ATTENDANCE_GEOFENCE_VIOLATIONS';
+
+export type PayrollPolicyLogicLedgerMethod =
+  | 'FIXED_AMOUNT'
+  | 'PERCENT_OF_BASE'
+  | 'PER_UNIT'
+  | 'BRACKET';
+
+export type PayrollPolicyRetroBehavior =
+  PolicyRetroBehavior;
+
+export type PayrollPolicyLogicLedgerBracket = {
+  code: string;
+  label?: string;
+  thresholdFrom: number;
+  thresholdTo?: number;
+  amount?: number;
+  ratePercent?: number;
+};
+
+export type PayrollPolicyLogicLedgerPosting = {
+  payslipLineType?: string;
+  glAccount?: string;
+  costCenterAccount?: string;
+  liabilityAccount?: string;
+  employerCost?: boolean;
+};
+
+export type PayrollPolicyLogicLedgerRule = {
+  code: string;
+  label?: string;
+  active?: boolean;
+  priority?: number;
+  source: PayrollPolicyLogicLedgerSource;
+  base: PayrollPolicyLogicLedgerBase;
+  method: PayrollPolicyLogicLedgerMethod;
+  amount?: number;
+  ratePercent?: number;
+  multiplier?: number;
+  brackets?: PayrollPolicyLogicLedgerBracket[];
+  monthlyCap?: number;
+  perEventCap?: number;
+  floorAmount?: number;
+  minimumNetPay?: number;
+  posting?: PayrollPolicyLogicLedgerPosting;
+  retroBehavior?: PayrollPolicyRetroBehavior;
 };
 
 export type DeductionPolicy = SetupOption & {
-  type: 'FIXED_AMOUNT' | 'PERCENT_OF_GROSS' | 'PER_MINUTE';
+  type: 'FIXED_AMOUNT' | 'PERCENT_OF_GROSS' | 'PER_MINUTE' | 'LOGIC_LEDGER';
   amount?: number;
   ratePercent?: number;
   attendanceEvent?: 'ABSENCE' | 'GEOFENCE_VIOLATION' | 'LATE' | 'OVERTIME' | 'UNDERTIME';
@@ -205,10 +329,15 @@ export type DeductionPolicy = SetupOption & {
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;
+  scope?: HcmPolicyScope;
+  logicLedger?: PayrollPolicyLogicLedgerRule;
+  calculationLedger?: PayrollPolicyLogicLedgerRule[];
+  glPosting?: PayrollPolicyLogicLedgerPosting;
+  retroBehavior?: PayrollPolicyRetroBehavior;
 };
 
 export type EarningPolicy = SetupOption & {
-  type: 'FIXED_AMOUNT' | 'PERCENT_OF_BASE' | 'PER_MINUTE';
+  type: 'FIXED_AMOUNT' | 'PERCENT_OF_BASE' | 'PER_MINUTE' | 'LOGIC_LEDGER';
   amount?: number;
   ratePercent?: number;
   attendanceEvent?: 'OVERTIME' | 'ON_DUTY' | 'WORKED' | 'PAYABLE';
@@ -224,6 +353,11 @@ export type EarningPolicy = SetupOption & {
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;
+  scope?: HcmPolicyScope;
+  logicLedger?: PayrollPolicyLogicLedgerRule;
+  calculationLedger?: PayrollPolicyLogicLedgerRule[];
+  glPosting?: PayrollPolicyLogicLedgerPosting;
+  retroBehavior?: PayrollPolicyRetroBehavior;
 };
 
 export type PayrollBlockingCondition =
@@ -291,6 +425,37 @@ export type FieldAccessPolicyOverride = {
 export type PolicyGovernanceConfig = {
   allowedActionOverrides: AllowedActionPolicyOverride[];
   fieldAccessOverrides: FieldAccessPolicyOverride[];
+  actionRuleLedgers?: PolicyRuleLedger[];
+  fieldRuleLedgers?: PolicyRuleLedger[];
+  roleGrantRules?: PolicyRuleLedger[];
+  sodRules?: PolicyRuleLedger[];
+  breakGlassRules?: PolicyRuleLedger[];
+  serviceAccountRules?: PolicyRuleLedger[];
+  certificationRules?: PolicyRuleLedger[];
+};
+
+export type CompliancePolicyRuntime = {
+  policyFamily?: string;
+  acknowledgementRequired?: boolean;
+  acknowledgementDueDays?: number;
+  retentionClass?: string;
+  acknowledgementRules?: PolicyRuleLedger[];
+  escalationRules?: PolicyRuleLedger[];
+  retentionRules?: PolicyRuleLedger[];
+  legalHoldRules?: PolicyRuleLedger[];
+  evidenceExportRules?: PolicyRuleLedger[];
+  countryPackRules?: PolicyRuleLedger[];
+};
+
+export type BenefitsPolicyRuntime = {
+  eligibilityRules?: PolicyRuleLedger[];
+  enrollmentWindowRules?: PolicyRuleLedger[];
+  lifeEventRules?: PolicyRuleLedger[];
+  dependentRules?: PolicyRuleLedger[];
+  contributionRules?: PolicyRuleLedger[];
+  carrierExportRules?: PolicyRuleLedger[];
+  payrollBridgeRules?: PolicyRuleLedger[];
+  evidenceRules?: PolicyRuleLedger[];
 };
 
 export type RuntimePolicyArea =
@@ -300,7 +465,8 @@ export type RuntimePolicyArea =
   | 'PAYROLL'
   | 'ACCESS_GOVERNANCE'
   | 'COUNTRY_POLICY'
-  | 'COMPLIANCE';
+  | 'COMPLIANCE'
+  | 'BENEFITS';
 
 export type RuntimePolicyRevisionEvidence = {
   area: RuntimePolicyArea;
@@ -332,7 +498,8 @@ export interface HcmSetupConfig {
   payrollBlockingRules: PayrollBlockingRule[];
   policyGovernance?: PolicyGovernanceConfig;
   countryPolicyRuntime?: Record<string, unknown>;
-  compliancePolicyRuntime?: Record<string, unknown>;
+  compliancePolicyRuntime?: CompliancePolicyRuntime;
+  benefitsPolicyRuntime?: BenefitsPolicyRuntime;
   runtimePolicyRevisions?: RuntimePolicyRevisionEvidence[];
 }
 

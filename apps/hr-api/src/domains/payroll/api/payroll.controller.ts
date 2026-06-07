@@ -569,9 +569,10 @@ export class PayrollController {
   }
 
   private async buildPayrollEmployees(year: number, month: number, req: Request): Promise<PayrollCycleEmployeeInput[]> {
-    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
-    const activeWorkers = await this.workerRepo.findActive();
-    const workers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.search('', { limit: 1000 });
+    const tenantId = this.getTenantId(req);
+    const setup = await this.hcmSetupService.getSetup(tenantId);
+    const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
+    const workers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
 
     return Promise.all(workers.map(async (worker) => {
       const records = await this.personalDataRepo.findByWorker(worker.id);
@@ -585,7 +586,13 @@ export class PayrollController {
       const taxProfile = tax.taxProfile as Record<string, unknown> | undefined;
       const workLocation = contact.workLocation as Record<string, unknown> | undefined;
       const locationCode = typeof workLocation?.code === 'string' ? workLocation.code : undefined;
-      const locationCurrency = setup.locations.find((location) => location.code === locationCode)?.currency;
+      const location = setup.locations.find((item) => item.code === locationCode);
+      const locationCurrency = location?.currency;
+      const orgUnit = contact.orgUnit as Record<string, unknown> | undefined;
+      const departmentId = worker.departmentId?.value;
+      const legalEntityId = worker.legalEntityId?.value;
+      const orgUnitId = readString(contact.orgUnitId ?? orgUnit?.id ?? orgUnit?.code);
+      const countryCode = readString(workLocation?.countryCode ?? location?.countryCode);
       const grossSalary = Number(compensation.grossSalaryAmount ?? compensation.salaryAmount ?? 0);
       const salaryCurrency = String(compensation.salaryCurrency ?? locationCurrency ?? 'EGP');
       const salaryBasis = readString(compensation.salaryBasis)?.toUpperCase();
@@ -605,6 +612,11 @@ export class PayrollController {
         name: `${worker.firstName} ${worker.lastName}`.trim(),
         email: String(basic.workEmail ?? basic.personalEmail ?? worker.email.toString()),
         department: String(contact.departmentName ?? ''),
+        departmentId,
+        legalEntityId,
+        orgUnitId,
+        countryCode,
+        tenantId: tenantId.value,
         workLocationCode: locationCode,
         employmentType: worker.employmentType,
         salaryBasis: salaryBasis === 'HOURLY' ? 'HOURLY' : 'MONTHLY',

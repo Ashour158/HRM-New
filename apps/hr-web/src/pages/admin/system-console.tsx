@@ -51,9 +51,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/common/error-state';
+import { BusinessPageHeader } from '@/components/common/business-page';
 import type { HcmSetupConfig } from '@/types';
 
-type ConsoleStatus = 'live' | 'partial' | 'backend-required' | 'attention';
+type ConsoleStatus = 'live' | 'partial' | 'not-configured' | 'attention';
 
 interface AdminDashboardData {
   headcount: number;
@@ -218,7 +219,7 @@ interface AdminPanelTool {
   path?: string;
   icon: React.ElementType;
   tone: string;
-  status?: 'live' | 'backend-required';
+  status?: 'live' | 'not-configured';
 }
 
 interface PendingAdminWorkItem {
@@ -275,15 +276,15 @@ function StatusBadge({ status, label }: { status: ConsoleStatus; label: string }
 }
 
 function moduleMaturityLabel(module: CommercialModule) {
-  if (module.maturity === 'native-ui') return 'Native admin';
-  if (module.maturity === 'workbench') return 'Operations workspace';
-  return 'API-ready';
+  if (module.maturity === 'native-ui') return 'Admin workspace';
+  if (module.maturity === 'workbench') return 'Operations';
+  return 'Setup needed';
 }
 
 function moduleStatus(module: CommercialModule): ConsoleStatus {
   if (module.maturity === 'native-ui') return 'live';
   if (module.maturity === 'workbench') return 'partial';
-  return 'backend-required';
+  return 'not-configured';
 }
 
 function ControlCard({ control }: { control: ConsoleControl }) {
@@ -307,7 +308,7 @@ function ControlCard({ control }: { control: ConsoleControl }) {
         <div className="space-y-2">
           {control.evidence.map((item) => (
             <div key={item} className="flex items-start gap-2 text-sm leading-6 text-[#475569]">
-              {control.status === 'backend-required' ? (
+              {control.status === 'not-configured' ? (
                 <AlertTriangle className="mt-1 h-4 w-4 shrink-0 text-[#e11d48]" />
               ) : (
                 <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-[#4f46e5]" />
@@ -317,19 +318,19 @@ function ControlCard({ control }: { control: ConsoleControl }) {
           ))}
         </div>
         {control.link ? (
-          <Button asChild className="mt-auto w-full" variant={control.status === 'backend-required' ? 'outline' : 'default'}>
+          <Button asChild className="mt-auto w-full" variant={control.status === 'not-configured' ? 'outline' : 'default'}>
             <Link to={control.link}>
               {control.linkLabel ?? 'Open'}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
-        ) : control.status !== 'backend-required' ? (
+        ) : control.status !== 'not-configured' ? (
           <div className="mt-auto rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-sm font-semibold text-[#475569]">
-            Observed directly in this console.
+            Available in this console.
           </div>
         ) : (
           <div className="mt-auto rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-sm font-semibold text-[#475569]">
-            Backend endpoint required before this can be safely operated.
+            Configure this service before operating it.
           </div>
         )}
       </CardContent>
@@ -349,14 +350,14 @@ function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
           <p className="font-semibold leading-5 text-[#0f172a]">{tool.label}</p>
           <p className="mt-1 text-sm leading-5 text-[#475569]">{tool.description}</p>
         </div>
-        {tool.status === 'backend-required' ? (
+        {tool.status === 'not-configured' ? (
           <span className="absolute right-3 top-3 rounded-full border border-[#f59e0b]/40 bg-[#fde68a] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#78350f]">
-            Backend
+            Setup
           </span>
         ) : null}
       </div>
       <div className="mt-auto flex items-center justify-between pt-4 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
-        <span>{tool.path ? 'Open admin area' : 'Needs admin API'}</span>
+        <span>{tool.path ? 'Open area' : 'Not configured'}</span>
         {tool.path ? <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" /> : null}
       </div>
     </div>
@@ -364,7 +365,7 @@ function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
 
   if (!tool.path) {
     return (
-      <div aria-label={`${tool.label} requires backend support`} className="cursor-not-allowed opacity-80" title="Backend/admin API required">
+      <div aria-label={`${tool.label} is not configured`} className="cursor-not-allowed opacity-80" title="Not configured">
         {content}
       </div>
     );
@@ -457,13 +458,13 @@ export function AdminSystemConsole() {
     { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#f59e0b]' },
     { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#818cf8]' },
     { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#4f46e5]' },
-    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, protected worker data, and runtime field decisions.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#6366f1]' },
+    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, and protected worker data.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#6366f1]' },
     { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/system-console/settings', icon: FolderOpen, tone: 'text-[#818cf8]' },
     { label: 'Leave Management', description: 'Entitlements, balances, requests, approvals, holidays, and payroll impact.', group: 'Workforce Operations', path: '/admin/leave', icon: Umbrella, tone: 'text-[#818cf8]' },
     { label: 'Attendance And Time', description: 'Check-in policies, geolocation evidence, exceptions, ledgers, and exports.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#f59e0b]' },
     { label: 'Shift Scheduling', description: 'Roster planning, coverage gaps, shift bids, swaps, and fatigue controls.', group: 'Workforce Operations', path: '/admin/modules/workforce-management/operations', icon: Timer, tone: 'text-[#f59e0b]' },
     { label: 'HR Service Delivery', description: 'Cases, tasks, service catalog, SLA rules, and employee support queues.', group: 'Workforce Operations', path: '/admin/modules/service-delivery/operations', icon: ClipboardCheck, tone: 'text-[#f59e0b]' },
-    { label: 'Travel And Expenses', description: 'Travel requests, expenses, approvals, and reimbursement integrations.', group: 'Workforce Operations', icon: Plane, tone: 'text-[#818cf8]', status: 'backend-required' },
+    { label: 'Travel And Expenses', description: 'Travel requests, expenses, approvals, and reimbursements.', group: 'Workforce Operations', icon: Plane, tone: 'text-[#818cf8]', status: 'not-configured' },
     { label: 'Payroll Control', description: 'Cycles, statutory packs, blockers, payroll inputs, payslips, and GL handoff.', group: 'Reward And Talent', path: '/admin/payroll', icon: FileText, tone: 'text-[#f59e0b]' },
     { label: 'Compensation', description: 'Bands, pay changes, bonus cycles, equity, and total reward operations.', group: 'Reward And Talent', path: '/admin/modules/compensation/operations', icon: BadgeDollarSign, tone: 'text-[#8b5cf6]' },
     { label: 'Benefits Administration', description: 'Programs, enrollment, life events, carrier reconciliation, and deductions.', group: 'Reward And Talent', path: '/admin/modules/benefits/operations', icon: Umbrella, tone: 'text-[#818cf8]' },
@@ -477,8 +478,8 @@ export function AdminSystemConsole() {
     { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#8b5cf6]' },
     { label: 'Reporting And Analytics', description: 'Report builder operations, scheduled reports, usage, and calculated fields.', group: 'Governance And Insights', path: '/admin/modules/reporting/operations', icon: FileText, tone: 'text-[#818cf8]' },
     { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#4f46e5]' },
-    { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'backend-required' },
-    { label: 'Development Controls', description: 'Runtime health, workflow controls, integrations, outbox, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#development-controls', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'not-configured' },
+    { label: 'System Operations', description: 'Health, queues, integrations, service usage, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
     { label: 'Dead-Letter Events', description: 'Inspect, retry, skip, and export failed inbox/outbox events with operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
     { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#4f46e5]' },
     { label: 'Event Contracts', description: 'Topics, aggregate mappings, schema versions, and consumer naming contracts.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
@@ -499,7 +500,7 @@ export function AdminSystemConsole() {
       description: 'Company setup, IDs, departments, locations, documents, required fields, and sensitive data rules.',
       path: '/admin/system-console/settings',
       status: setupQuery.isSuccess ? 'live' : 'attention',
-      label: setupQuery.isSuccess ? 'Ready' : 'Check setup API',
+      label: setupQuery.isSuccess ? 'Ready' : 'Check setup',
       icon: Settings,
     },
     {
@@ -523,17 +524,17 @@ export function AdminSystemConsole() {
     {
       step: '04',
       title: 'Govern Policies',
-      description: 'Create, scope, validate, simulate, approve, publish, and apply policies into live runtime behavior.',
+      description: 'Create, scope, validate, simulate, approve, publish, and apply active rules.',
       path: '/admin/system-console/policies',
       status: policyQuery.isSuccess ? 'live' : 'attention',
-      label: policyQuery.isSuccess ? 'Policy API live' : 'Check policy API',
+      label: policyQuery.isSuccess ? 'Policy center ready' : 'Check policies',
       icon: ShieldCheck,
     },
     {
       step: '05',
-      title: 'Verify Runtime',
-      description: 'Monitor health, events, notifications, service usage, audit evidence, integrations, and workflow wiring.',
-      path: '/admin/system-console#development-controls',
+      title: 'Verify Operations',
+      description: 'Monitor health, queues, notifications, service usage, audit history, and integrations.',
+      path: '/admin/system-console#system-operations',
       status: readinessQuery.data?.status === 'ready' ? 'live' : readinessQuery.isSuccess ? 'attention' : 'partial',
       label: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch',
       icon: Activity,
@@ -551,15 +552,15 @@ export function AdminSystemConsole() {
   const controls = React.useMemo<ConsoleControl[]>(() => [
     {
       title: 'Health And Readiness',
-      description: 'Platform liveness/readiness checks for API, database, Redis, and Kafka when configured.',
+      description: 'Platform health checks for the application, database, queues, and integrations.',
       status: readinessQuery.data?.status === 'ready' ? 'live' : readinessQuery.isSuccess ? 'attention' : 'partial',
       statusLabel: readinessQuery.data?.status === 'ready' ? 'Ready' : readinessQuery.isSuccess ? 'Not ready' : 'Endpoint check',
       icon: Activity,
       evidence: [
-        `API health: ${healthQuery.data?.status ?? 'not loaded'}${healthQuery.data?.version ? ` / v${healthQuery.data.version}` : ''}`,
-        `Liveness: ${livenessQuery.data?.status ?? 'not loaded'}`,
+        `Application health: ${healthQuery.data?.status ?? 'not loaded'}${healthQuery.data?.version ? ` / v${healthQuery.data.version}` : ''}`,
+        `Availability: ${livenessQuery.data?.status ?? 'not loaded'}`,
         `${readinessQuery.data?.checks?.length ?? 0} readiness checks, ${readinessDown} down`,
-        'Uses /health, /health/ready, and /health/live backend endpoints',
+        'Tracks readiness before administrators make high-risk changes',
       ],
     },
     {
@@ -572,66 +573,66 @@ export function AdminSystemConsole() {
       linkLabel: 'Open Access Governance',
       evidence: [
         'Auth guard and admin role gates protect admin routes',
-        'Native APIs manage roles, permissions, role-permission joins, and user-role grants',
+        'Roles, permissions, and user-role grants are managed here',
         'Service-account identities and access-review campaigns/items are persisted and editable',
         'Policy overrides are evaluated in the command bus before domain handlers run',
       ],
     },
     {
-      title: 'Workflow And Trigger Control',
-      description: 'Domain commands and workflows exist, while a cross-module workflow designer/control plane is not yet exposed.',
+      title: 'Approvals And Triggers',
+      description: 'Domain approvals and automated actions are visible by module.',
       status: 'partial',
       statusLabel: 'Domain-backed',
       icon: Workflow,
       evidence: [
-        'Module operations API supports records and workflows per commercial module',
-        'Domain command handlers emit audit and workflow states',
-        'Missing: central workflow editor, trigger enable/disable, and retry controls',
+        'Module operations show records and approvals per commercial module',
+        'Domain actions record approval states',
+        'Central trigger designer is not configured yet',
       ],
     },
     {
       title: 'Notifications And Outbox',
-      description: 'HR operations notifications, service-usage totals, inbox recovery, and dead-letter operator actions are now visible.',
+      description: 'HR operations notifications, service usage, queue recovery, and failed-event actions.',
       status: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'live' : notificationsQuery.isSuccess ? 'partial' : 'attention',
-      statusLabel: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'Operator console' : notificationsQuery.isSuccess ? 'Partial live' : 'Needs attention',
+      statusLabel: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'Ready' : notificationsQuery.isSuccess ? 'Partial' : 'Needs attention',
       icon: BellRing,
       link: '/admin/system-console/dead-letter-events',
       linkLabel: 'Open Dead-Letter Events',
       evidence: [
-        'Uses /notifications/hr-operations for admin notification visibility',
-        'Inbox recovery replays due FAILED_RETRYABLE events through registered consumers',
+        'HR operations notifications are visible',
+        'Retryable queue items can be recovered',
         'Operator page supports tenant-scoped inspect, retry, skip, and CSV export',
         `${unreadNotifications} unread HR operations notifications in the current inbox`,
-        `${usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0} retryable pending outbox events and ${usageQueueHealth?.outbox.exhaustedEvents ?? usageTotals?.exhaustedOutboxEvents ?? 0} exhausted events in service usage`,
+        `${usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0} pending queue items and ${usageQueueHealth?.outbox.exhaustedEvents ?? usageTotals?.exhaustedOutboxEvents ?? 0} exhausted items`,
         `${usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0} retryable inbox failures and ${usageQueueHealth?.inbox.failedNonRetryableEvents ?? usageTotals?.inboxFailedNonRetryableEvents ?? 0} non-retryable inbox failures`,
         `${deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0} non-retryable inbox rows and ${deadLetterQuery.data?.outbox?.exhausted ?? 0} exhausted outbox rows`,
       ],
     },
     {
       title: 'Integrations',
-      description: 'System development control for external adapters, health checks, metrics, and safe manual integration probes.',
+      description: 'External providers, health checks, ownership, and safe connection checks.',
       status: integrationQuery.isSuccess ? 'partial' : 'attention',
-      statusLabel: integrationQuery.isSuccess ? 'Status API' : 'Needs attention',
+      statusLabel: integrationQuery.isSuccess ? 'Configured' : 'Needs attention',
       icon: PlugZap,
       link: '/admin/system-console/integrations',
       linkLabel: 'Open Integration Controls',
       evidence: [
-        `API base URL: ${apiBaseUrl}`,
+        `Connected environment: ${apiBaseUrl ? 'configured' : 'not configured'}`,
         `${integrationAdapterCount} integration adapters reported by /hr/integrations/status`,
         `Google Maps browser key: ${mapsConfigured ? 'configured' : 'not configured'}`,
       ],
     },
     {
       title: 'Service Usage Reporting',
-      description: 'Cross-module usage is fed by commands, events, notifications, and workflow transitions.',
+      description: 'Cross-module usage by actions, notifications, approvals, and queue health.',
       status: serviceUsageQuery.isSuccess ? 'live' : 'attention',
-      statusLabel: serviceUsageQuery.isSuccess ? 'Live API' : 'Needs attention',
+      statusLabel: serviceUsageQuery.isSuccess ? 'Ready' : 'Needs attention',
       icon: FileText,
       link: '/admin/modules/reporting/operations',
       linkLabel: 'Open Reporting',
       evidence: [
-        `${usageTotals?.commands ?? 0} commands and ${usageTotals?.failedCommands ?? 0} failed commands in summary`,
-        `${usageTotals?.events ?? 0} events, ${usageTotals?.notifications ?? 0} notifications, ${usageTotals?.workflowTransitions ?? 0} workflow transitions`,
+        `${usageTotals?.commands ?? 0} actions and ${usageTotals?.failedCommands ?? 0} failed actions`,
+        `${usageTotals?.events ?? 0} service events, ${usageTotals?.notifications ?? 0} notifications, ${usageTotals?.workflowTransitions ?? 0} approval changes`,
         `${usageTotals?.oldestQueueBacklogAt ? `Oldest queue backlog at ${new Date(usageTotals.oldestQueueBacklogAt).toLocaleString()}` : 'No queue backlog timestamp reported'}`,
         'Uses GET /reporting/service-usage/summary',
       ],
@@ -640,7 +641,7 @@ export function AdminSystemConsole() {
       title: 'Audit And Evidence',
       description: 'Immutable audit trail is queryable by admins and auditors with full search/export from the admin panel.',
       status: auditQuery.isSuccess ? 'live' : 'attention',
-      statusLabel: auditQuery.isSuccess ? 'Audit API' : 'Needs attention',
+      statusLabel: auditQuery.isSuccess ? 'Ready' : 'Needs attention',
       icon: Radar,
       link: '/admin/system-console/audit',
       linkLabel: 'Open Audit Trail',
@@ -666,12 +667,12 @@ export function AdminSystemConsole() {
     },
     {
       title: 'System Reset And Data Operations',
-      description: 'Dangerous data operations need explicit backend workflows, confirmation, audit, backup, and environment restrictions.',
-      status: 'backend-required',
+      description: 'High-risk data changes require approval, backup, audit history, and environment restrictions.',
+      status: 'not-configured',
       statusLabel: 'Not exposed',
       icon: DatabaseZap,
       evidence: [
-        'Seed script exists for initial data, but no safe admin reset API is exposed',
+        'Initial data can be loaded, but self-service reset is not configured',
         'A real reset must create backup, audit, approval, and environment guardrails',
         'Until that exists, this console deliberately does not render a reset button',
       ],
@@ -722,35 +723,35 @@ export function AdminSystemConsole() {
     {
       label: 'Readiness',
       value: readinessQuery.data?.status === 'ready' ? 'Ready' : readinessQuery.isSuccess ? 'Check' : '-',
-      helper: readinessQuery.isSuccess ? `${readinessDown} readiness checks down` : 'API health not loaded',
+      helper: readinessQuery.isSuccess ? `${readinessDown} readiness checks down` : 'Health not loaded',
       icon: Network,
       status: readinessQuery.data?.status === 'ready' ? 'live' as ConsoleStatus : 'attention' as ConsoleStatus,
     },
     {
       label: 'Headcount',
       value: formatNumber(dashboardQuery.data?.headcount),
-      helper: 'From admin dashboard API',
+      helper: 'Current workforce',
       icon: Users,
       status: dashboardQuery.isSuccess ? 'live' : 'attention',
     },
     {
       label: 'Commercial Modules',
       value: commercialModules.length.toString(),
-      helper: `${nativeModules} native, ${workbenchModules} workbench, ${apiReadyModules} API-ready`,
+      helper: `${nativeModules} admin, ${workbenchModules} operations, ${apiReadyModules} setup needed`,
       icon: Layers3,
       status: 'live' as ConsoleStatus,
     },
     {
       label: 'Policy Revisions',
       value: formatNumber(policyQuery.data?.totalRevisions),
-      helper: `${policyQuery.data?.byStatus?.APPLIED ?? 0} applied to runtime`,
+      helper: `${policyQuery.data?.byStatus?.APPLIED ?? 0} active`,
       icon: ShieldCheck,
       status: policyQuery.isSuccess ? 'live' : 'attention',
     },
     {
       label: 'Usage Signals',
       value: formatNumber((usageTotals?.commands ?? 0) + (usageTotals?.events ?? 0) + (usageTotals?.notifications ?? 0) + (usageTotals?.workflowTransitions ?? 0)),
-      helper: 'Commands, events, notifications, and workflows',
+      helper: 'Actions, notifications, and approvals',
       icon: BellRing,
       status: serviceUsageQuery.isSuccess ? 'live' : 'attention',
     },
@@ -772,7 +773,7 @@ export function AdminSystemConsole() {
   const setupGapLabels = [
     setupQuery.isSuccess && activeSetupCounts.departments === 0 ? 'no active departments' : null,
     setupQuery.isSuccess && activeSetupCounts.locations === 0 ? 'no active locations' : null,
-    setupQuery.isError ? 'setup API unavailable' : null,
+    setupQuery.isError ? 'setup unavailable' : null,
   ].filter(Boolean) as string[];
   const integrationGapLabels = [
     integrationQuery.isError ? 'integration status unavailable' : null,
@@ -812,8 +813,8 @@ export function AdminSystemConsole() {
       count: queueBacklog,
       status: queueBacklog > 0 ? 'attention' : serviceUsageQuery.isSuccess ? 'live' : 'partial',
       statusLabel: queueBacklog > 0 ? 'Watch' : serviceUsageQuery.isSuccess ? 'Clear' : 'Loading',
-      path: '/admin/system-console#development-controls',
-      actionLabel: 'Review Runtime',
+      path: '/admin/system-console#system-operations',
+      actionLabel: 'Review Operations',
       icon: Workflow,
     },
     {
@@ -856,11 +857,11 @@ export function AdminSystemConsole() {
       title: 'Readiness Blockers',
       helper: readinessDown > 0
         ? `${readinessDown} readiness checks are down.`
-        : 'Runtime readiness checks are passing.',
+        : 'Readiness checks are passing.',
       count: readinessDown,
       status: readinessDown > 0 ? 'attention' : readinessQuery.isSuccess ? 'live' : 'partial',
       statusLabel: readinessDown > 0 ? 'Blocked' : readinessQuery.isSuccess ? 'Ready' : 'Loading',
-      path: '/admin/system-console#development-controls',
+      path: '/admin/system-console#system-operations',
       actionLabel: 'Open Health',
       icon: Network,
     },
@@ -869,22 +870,12 @@ export function AdminSystemConsole() {
   return (
     <div className="min-h-screen fusion-bg">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[#e2e8f0] bg-white px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#475569]">
-              <Network className="h-3.5 w-3.5 text-[#4f46e5]" />
-              Platform Administration
-            </div>
-            <h2 className="mt-3 font-headline text-4xl font-bold text-[#0f172a]">Administrator Settings</h2>
-            <p className="mt-2 max-w-3xl text-lg leading-8 text-[#475569]">
-              One administration panel for system management: setup, policies, organization, services, compliance,
-              payroll, workforce, reporting, and controlled platform operations.
-            </p>
-          </div>
-          <div className="rounded-lg border border-[#e2e8f0] bg-white px-4 py-3 text-sm leading-6 text-[#475569]">
-            Setup and control starts here. Sidebar tabs stay for using the system as an employee, manager, or HR operator.
-          </div>
-        </header>
+        <BusinessPageHeader
+          eyebrow="Platform Administration"
+          icon={Network}
+          title="Administrator Settings"
+          subtitle="Manage setup, policies, organization, services, compliance, payroll, workforce, reporting, and operations from one panel."
+        />
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
           <Card className="overflow-hidden border-[#e2e8f0] bg-white">
@@ -892,7 +883,7 @@ export function AdminSystemConsole() {
               <div className="border-b border-[#e2e8f0] bg-[#0f172a] px-5 py-5 text-white">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="font-mono text-xs uppercase tracking-wider text-[#a5b4fc]">Admin Panel Home</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#a5b4fc]">Admin Panel Home</p>
                     <h3 className="mt-2 font-headline text-2xl font-bold">Enterprise HR Administration Center</h3>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-[#eef2ff]">
                       Manage business configuration, policies, workforce services, compliance, reporting, and operational
@@ -910,7 +901,7 @@ export function AdminSystemConsole() {
                   { label: 'Employees', value: formatNumber(dashboardQuery.data?.headcount), helper: 'active workforce signal' },
                   { label: 'Setup Data', value: `${activeSetupCounts.departments}/${activeSetupCounts.locations}`, helper: 'departments / locations' },
                   { label: 'Policies', value: formatNumber(policyQuery.data?.totalRevisions), helper: 'versioned revisions' },
-                  { label: 'Runtime', value: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch', helper: `${readinessDown} readiness blockers` },
+                  { label: 'Health', value: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch', helper: `${readinessDown} readiness blockers` },
                 ].map((item) => (
                   <div key={item.label} className="p-4">
                     <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{item.label}</p>
@@ -937,11 +928,11 @@ export function AdminSystemConsole() {
                 <StatusBadge status={policyQuery.isSuccess && setupQuery.isSuccess ? 'live' : 'attention'} label="Panel only" />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>Development controls</span>
+                <span>System operations</span>
                 <StatusBadge status="partial" label="Separated" />
               </div>
               <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>Admin APIs still needed</span>
+                <span>Setup still needed</span>
                 <StatusBadge status="attention" label="Visible" />
               </div>
             </CardContent>
@@ -1013,7 +1004,7 @@ export function AdminSystemConsole() {
                 <StatusBadge status={deadLetterQuery.isSuccess ? 'live' : 'attention'} label={deadLetterQuery.isSuccess ? 'Live' : 'Check'} />
               </div>
               <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>Usage reporting includes commands, events, notifications, and workflows</span>
+                <span>Usage reporting includes actions, notifications, and approvals</span>
                 <StatusBadge status={serviceUsageQuery.isSuccess ? 'live' : 'attention'} label={serviceUsageQuery.isSuccess ? 'Live' : 'Check'} />
               </div>
             </CardContent>
@@ -1025,7 +1016,7 @@ export function AdminSystemConsole() {
             <h3 className="font-headline text-xl font-bold text-[#0f172a]">Administrator Journey</h3>
             <p className="mt-1 text-sm text-[#475569]">
               Follow this path to make changes that affect the whole system: setup first, structure second, people third,
-              policies fourth, runtime verification last.
+              policies fourth, operations verification last.
             </p>
           </div>
           <div className="grid gap-3 lg:grid-cols-5">
@@ -1091,7 +1082,7 @@ export function AdminSystemConsole() {
                       {group === 'Foundation' ? 'Core tenant, organization, identity, employee data, and setup controls.' : null}
                       {group === 'Workforce Operations' ? 'Daily workforce execution, service cases, schedules, attendance, and leave.' : null}
                       {group === 'Reward And Talent' ? 'Payroll, rewards, benefits, performance, learning, onboarding, and engagement.' : null}
-                      {group === 'Governance And Insights' ? 'Policies, compliance, country controls, reporting, AI governance, and system development controls.' : null}
+                      {group === 'Governance And Insights' ? 'Policies, compliance, country controls, reporting, AI governance, and system operations.' : null}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -1154,17 +1145,14 @@ export function AdminSystemConsole() {
           })}
         </section>
 
-        <section id="development-controls" className="grid gap-4 scroll-mt-28 xl:grid-cols-[1fr_24rem]">
+        <section id="system-operations" className="grid gap-4 scroll-mt-28 xl:grid-cols-[1fr_24rem]">
           <Card className="relative overflow-hidden">
             <div className="absolute left-0 top-0 h-1 w-full bg-[#4f46e5]" />
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <SlidersHorizontal className="h-5 w-5 text-[#4f46e5]" />
-                Development Controls
+                System Operations
               </CardTitle>
-              <CardDescription>
-                Runtime and development-control tools stay here. Business administration lives in the Admin Panel above.
-              </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 p-5 pt-0 md:grid-cols-2">
               {controls.map((control) => (
@@ -1178,9 +1166,8 @@ export function AdminSystemConsole() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <LockKeyhole className="h-5 w-5 text-[#4f46e5]" />
-                  Runtime Guardrails
+                  System Guardrails
                 </CardTitle>
-                <CardDescription>Controls that affect platform behavior.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
                 <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
@@ -1189,7 +1176,7 @@ export function AdminSystemConsole() {
                 </div>
                 <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                   <p className="font-semibold text-[#0f172a]">Policy application</p>
-                  <p>Only APPLIED policy revisions update live runtime behavior.</p>
+                  <p>Only applied policy revisions change live service behavior.</p>
                 </div>
                 <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                   <p className="font-semibold text-[#0f172a]">Historical data</p>
@@ -1207,7 +1194,7 @@ export function AdminSystemConsole() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
                 <p className="rounded-lg border border-[#f59e0b]/30 bg-[#fde68a]/40 p-3 text-[#78350f]">
-                  System reset is intentionally not clickable until a real reset workflow exists with backup, approval,
+                  System reset is intentionally not clickable until a real reset process exists with backup, approval,
                   audit evidence, and environment restrictions.
                 </p>
                 <Button asChild className="w-full" variant="outline">
@@ -1299,11 +1286,8 @@ export function AdminSystemConsole() {
               <div>
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Layers3 className="h-5 w-5 text-[#4f46e5]" />
-                  Module Control Matrix
+                  Module Areas
                 </CardTitle>
-                <CardDescription>
-                  Native admin pages and operations workspaces reachable from one control map.
-                </CardDescription>
               </div>
               <Button asChild variant="outline">
                 <Link to="/admin/modules">Open Module Catalog</Link>
@@ -1320,9 +1304,7 @@ export function AdminSystemConsole() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-[#0f172a]">{module.label}</p>
-                        <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">
-                          {module.category} / {module.backendRoot}
-                        </p>
+                        <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-[#94a3b8]">{module.category}</p>
                       </div>
                       <StatusBadge status={status} label={moduleMaturityLabel(module)} />
                     </div>
