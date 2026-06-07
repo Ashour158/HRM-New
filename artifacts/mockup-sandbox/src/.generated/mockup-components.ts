@@ -4,11 +4,11 @@ export const modules: ModuleMap = {
   "./components/mockups/fusion-balanced/Dashboard.tsx": () => import("../components/mockups/fusion-balanced/Dashboard.tsx"),
   "./components/mockups/fusion-coral/Dashboard.tsx": () => import("../components/mockups/fusion-coral/Dashboard.tsx"),
   "./components/mockups/fusion-spectrum/Dashboard.tsx": () => import("../components/mockups/fusion-spectrum/Dashboard.tsx"),
+  "./components/mockups/fusion-verdant/Dashboard.tsx": () => import("../components/mockups/fusion-verdant/Dashboard.tsx"),
   "./components/mockups/hr-dashboard/Aurora.tsx": () => import("../components/mockups/hr-dashboard/Aurora.tsx"),
   "./components/mockups/hr-dashboard/Bento.tsx": () => import("../components/mockups/hr-dashboard/Bento.tsx"),
   "./components/mockups/hr-dashboard/BrutPop.tsx": () => import("../components/mockups/hr-dashboard/BrutPop.tsx"),
   "./components/mockups/hr-dashboard/Command.tsx": () => import("../components/mockups/hr-dashboard/Command.tsx"),
   "./components/mockups/hr-dashboard/Fusion.tsx": () => import("../components/mockups/hr-dashboard/Fusion.tsx"),
-  "./components/mockups/hr-dashboard/Pastel.tsx": () => import("../components/mockups/hr-dashboard/Pastel.tsx"),
-  "./components/mockups/fusion-verdant/Dashboard.tsx": () => import("../components/mockups/fusion-verdant/Dashboard.tsx")
+  "./components/mockups/hr-dashboard/Pastel.tsx": () => import("../components/mockups/hr-dashboard/Pastel.tsx")
 };
