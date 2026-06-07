@@ -1,0 +1,433 @@
+# Instincts generated from https://github.com/Ashour158/HRM-New
+# Generated: 2026-06-07T16:39:38.370Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: HRM-New-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Commit Length
+
+## Action
+
+Keep commit messages concise (~29 characters)
+
+## Evidence
+
+- Average commit message length: 29 chars
+- Based on 1 commits
+
+---
+id: HRM-New-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Naming Files
+
+## Action
+
+Use kebab-case naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: kebab-case
+
+---
+id: HRM-New-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: HRM-New-arch-feature-based
+trigger: "when adding a new feature"
+confidence: 0.85
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Arch Feature Based
+
+## Action
+
+Create a new folder in src/features/ with all related code colocated
+
+## Evidence
+
+- Feature-based module organization detected
+- Structure: src/features/[feature-name]/
+
+---
+id: HRM-New-test-framework
+trigger: "when writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Test Framework
+
+## Action
+
+Use vitest as the test framework
+
+## Evidence
+
+- Test framework detected: vitest
+- File pattern: *.test.ts
+
+---
+id: HRM-New-test-naming
+trigger: "when creating a test file"
+confidence: 0.85
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Test Naming
+
+## Action
+
+Name test files using the pattern: *.test.ts
+
+## Evidence
+
+- File pattern: *.test.ts
+- Consistent across test files
+
+---
+id: HRM-New-test-types
+trigger: "when planning tests for a feature"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/Ashour158/HRM-New
+---
+
+# HRM New Test Types
+
+## Action
+
+Write unit, integration tests to match project standards
+
+## Evidence
+
+- Test types detected: unit, integration
+- Coverage config: no
+
+---
+id: hrm-new-instinct-file-naming
+trigger: "When creating a new file"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct File Naming
+
+## Action
+
+Name the file using kebab-case
+
+## Evidence
+
+- Pattern in namingConventions.files
+
+---
+id: hrm-new-instinct-function-naming
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Function Naming
+
+## Action
+
+Use camelCase for the function name
+
+## Evidence
+
+- Pattern in namingConventions.functions
+
+---
+id: hrm-new-instinct-class-naming
+trigger: "When creating a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Class Naming
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in namingConventions.classes
+
+---
+id: hrm-new-instinct-constant-naming
+trigger: "When declaring a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Constant Naming
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in namingConventions.constants
+
+---
+id: hrm-new-instinct-import-style
+trigger: "When importing modules"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Import Style
+
+## Action
+
+Use either default or named imports as appropriate (mixed style)
+
+## Evidence
+
+- Pattern in importStyle: mixed
+
+---
+id: hrm-new-instinct-export-style
+trigger: "When exporting modules or functions"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: hrm-new-instinct-test-file-pattern
+trigger: "When creating a test file"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Test File Pattern
+
+## Action
+
+Name the file with a .test.ts suffix
+
+## Evidence
+
+- Pattern in testing.filePattern
+
+---
+id: hrm-new-instinct-test-framework
+trigger: "When writing tests"
+confidence: 0.9
+domain: testing
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Test Framework
+
+## Action
+
+Use the vitest framework
+
+## Evidence
+
+- Pattern in testing.framework
+
+---
+id: hrm-new-instinct-test-types
+trigger: "When adding tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Test Types
+
+## Action
+
+Include both unit and integration tests as appropriate
+
+## Evidence
+
+- Pattern in testing.testTypes
+
+---
+id: hrm-new-instinct-test-location
+trigger: "When placing test files"
+confidence: 0.7
+domain: testing
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Test Location
+
+## Action
+
+Place test files in mixed locations (not strictly separated from source files)
+
+## Evidence
+
+- Pattern in architecture.folderStructure.testLocation: mixed
+
+---
+id: hrm-new-instinct-commit-format
+trigger: "When writing a commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Commit Format
+
+## Action
+
+Use a short, freeform message without a required prefix
+
+## Evidence
+
+- Pattern in commits.type: freeform
+- Example: 'Build max-depth policy center'
+
+---
+id: hrm-new-instinct-commit-length
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Commit Length
+
+## Action
+
+Keep the commit message concise (average length ~29 characters)
+
+## Evidence
+
+- Pattern in commits.averageLength
+
+---
+id: hrm-new-instinct-error-handling
+trigger: "When handling errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Error Handling
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- Pattern in errorHandling.style: try-catch
+
+---
+id: hrm-new-instinct-monorepo-structure
+trigger: "When adding new features or apps"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Monorepo Structure
+
+## Action
+
+Organize code in a monorepo structure under common folders like 'apps'
+
+## Evidence
+
+- Pattern in architecture.folderStructure.type: monorepo
+- Pattern in architecture.folderStructure.commonFolders
+
+---
+id: hrm-new-instinct-feature-modules
+trigger: "When structuring modules"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: Ashour158/HRM-New
+---
+
+# Hrm New Instinct Feature Modules
+
+## Action
+
+Organize modules by feature
+
+## Evidence
+
+- Pattern in architecture.moduleOrganization: feature-based
+
