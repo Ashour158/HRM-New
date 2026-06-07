@@ -191,6 +191,15 @@ export class ReportingController {
     });
   }
 
+  @Get('service-usage')
+  async getServiceUsage(
+    @Req() req: Request,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.getServiceUsageSummary(req, from, to);
+  }
+
   private getTenantId(req: Request): Uuid {
     const tenantId = req.tenantId as string | undefined;
     if (!tenantId || !Uuid.isValid(tenantId)) {

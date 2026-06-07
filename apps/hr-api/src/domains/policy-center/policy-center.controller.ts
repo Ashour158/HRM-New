@@ -40,6 +40,13 @@ export class PolicyCenterController {
     return this.service.listRevisions(this.getTenantId(req), areaFromQuery(area));
   }
 
+  @Get('decision-evidence')
+  async decisionEvidence(@Req() req: Request, @Query('limit') limit?: string) {
+    this.assertPolicyAdmin(req);
+    const parsedLimit = Number.parseInt(limit ?? '25', 10);
+    return this.service.listDecisionEvidence(this.getTenantId(req), Number.isFinite(parsedLimit) ? parsedLimit : 25);
+  }
+
   @Post('revisions')
   async create(@Body() body: CreatePolicyRevisionInput, @Req() req: Request) {
     this.assertPolicyAdmin(req);

@@ -283,6 +283,14 @@ export class EmployeeLeaveController {
     return this.toAbsenceDto(updated ?? request, worker);
   }
 
+  @Post('employee/absences/requests')
+  async createEmployeeAbsenceRequest(
+    @Body(new ZodValidationPipe(EmployeeLeaveRequestDtoSchema)) dto: EmployeeLeaveRequestDto,
+    @Req() req: Request,
+  ) {
+    return this.createEmployeeAbsence(dto, req);
+  }
+
   @Get('manager/dashboard')
   async getManagerDashboard(@Req() req: Request) {
     const manager = await this.resolveSelfWorker(req);

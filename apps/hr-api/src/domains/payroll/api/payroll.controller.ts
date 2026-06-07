@@ -715,6 +715,21 @@ export class PayrollController {
     return issues;
   }
 
+  private async buildMonthlyPreviewReadiness(
+    preview: PayrollCyclePreview,
+    req: Request,
+    workLocationCode?: string,
+  ): Promise<PayrollCloseToPayReadiness> {
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    return this.mergeReadiness(this.payrollGovernance.evaluateCloseToPayReadiness({
+      preview,
+      bankRows: this.payrollCalculation.buildBankTransferRows(preview.rows),
+      existingCycles: await this.findExistingCycleSummaries(req),
+      workLocationCode,
+      setup,
+    }), await this.buildAttendanceLockIssues(preview, req));
+  }
+
   private mergeReadiness(readiness: PayrollCloseToPayReadiness, additionalIssues: PayrollReadinessIssue[]): PayrollCloseToPayReadiness {
     const issues = [...readiness.issues, ...additionalIssues];
     const blockingIssueCount = issues.filter((issue) => issue.blocking).length;
@@ -741,12 +756,16 @@ export class PayrollController {
   ) {
     this.assertCanExportPayroll(req);
     const now = new Date();
-    return this.buildMonthlyPreview(
+    const preview = await this.buildMonthlyPreview(
       req,
       year ? Number(year) : now.getUTCFullYear(),
       month ? Number(month) : now.getUTCMonth() + 1,
       workLocationCode,
     );
+    return {
+      ...preview,
+      readiness: await this.buildMonthlyPreviewReadiness(preview, req, workLocationCode),
+    };
   }
 
   @Get('export.csv')

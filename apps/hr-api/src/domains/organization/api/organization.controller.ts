@@ -43,6 +43,7 @@ import {
   RestructureOrgUnitDto,
   AssignManagerDto,
   AssignWorkerOrganizationDto,
+  AssignWorkerOrganizationByBodyDto,
   WorkforceScenarioDto,
 } from './dtos.js';
 
@@ -93,7 +94,7 @@ const ORGANIZATION_ADMIN_ROLES = new Set([
 
 @ApiTags('Organization')
 @UseGuards(AuthGuard)
-@Controller('hr/organization')
+@Controller(['hr/organization', 'organization'])
 export class OrganizationController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -353,6 +354,15 @@ export class OrganizationController {
       managerId,
       jobTitle: this.resolveAssignmentText(dto, 'jobTitle', worker.jobTitle),
     });
+  }
+
+  @Post('assignments')
+  async assignWorkerOrganizationByBody(
+    @Body() dto: AssignWorkerOrganizationByBodyDto,
+    @Req() req: Request,
+  ) {
+    const { workerId, ...assignment } = dto;
+    return this.assignWorkerOrganization(workerId, assignment, req);
   }
 
   // ------------------------------------------------------------------

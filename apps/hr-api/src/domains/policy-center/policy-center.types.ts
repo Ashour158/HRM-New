@@ -165,4 +165,5 @@ export interface PolicyCenterRepositoryPort {
   createApplicationRun(record: PolicyApplicationRunRecord): Promise<PolicyApplicationRunRecord>;
   createImpactResult(record: PolicyImpactResultRecord): Promise<PolicyImpactResultRecord>;
   createDecisionEvidence(record: PolicyDecisionEvidenceRecord): Promise<PolicyDecisionEvidenceRecord>;
+  listDecisionEvidence(tenantId: string, limit?: number): Promise<PolicyDecisionEvidenceRecord[]>;
 }

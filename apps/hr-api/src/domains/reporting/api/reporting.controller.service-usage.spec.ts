@@ -47,4 +47,34 @@ describe('ReportingController service usage surface', () => {
       to: new Date('2026-06-03T23:59:59.999Z'),
     });
   });
+
+  it('keeps the public service usage route wired to the same summary service', async () => {
+    const serviceUsage = {
+      getSummary: vi.fn().mockResolvedValue({
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        services: [{ module: 'leave', actionCount: 2 }],
+      }),
+    } as unknown as ServiceUsageReportingService;
+    const controller = new ReportingController(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      serviceUsage,
+    );
+
+    await expect(controller.getServiceUsage(
+      request(),
+      '2026-06-01T00:00:00.000Z',
+      undefined,
+    )).resolves.toEqual({
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      services: [{ module: 'leave', actionCount: 2 }],
+    });
+    expect(serviceUsage.getSummary).toHaveBeenCalledWith(new Uuid('00000000-0000-0000-0000-000000000001'), {
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: undefined,
+    });
+  });
 });

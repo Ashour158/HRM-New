@@ -69,6 +69,20 @@ function buildRepository(seed: PolicyRevisionRecord[]): PolicyCenterRepositoryPo
     createApplicationRun: vi.fn(async (run) => run as PolicyApplicationRunRecord),
     createImpactResult: vi.fn(async (result) => result),
     createDecisionEvidence: vi.fn(async (evidence) => evidence),
+    listDecisionEvidence: vi.fn(async () => [
+      {
+        id: '00000000-0000-0000-0000-000000000901',
+        tenantId: tenantId.value,
+        policyRevisionId: '00000000-0000-0000-0000-000000000101',
+        serviceArea: 'LEAVE',
+        engineName: 'PolicyApplicationEngine',
+        engineVersion: '1.0.0',
+        scopeMatch: { tenantId: tenantId.value },
+        decision: 'APPLIED',
+        reason: 'Policy revision was written to runtime.',
+        createdAt: '2026-06-01T00:00:00.000Z',
+      },
+    ]),
     summarizePolicyCenter: vi.fn(async () => ({ totalRevisions: rows.size, byStatus: {}, byArea: {}, recentRuns: [] })),
     countImpactedWorkers: vi.fn(async () => ({ count: 3, workerIds: ['worker-a', 'worker-b', 'worker-c'] })),
     countPendingDomainRecords: vi.fn(async () => ({
@@ -223,6 +237,18 @@ describe('PolicyCenterService', () => {
         title: 'Leave policy changed',
       }),
     ]));
+  });
+
+  it('returns recent policy decision evidence for admin audit screens', async () => {
+    const { service } = buildService();
+
+    await expect(service.listDecisionEvidence(tenantId, 5)).resolves.toEqual([
+      expect.objectContaining({
+        policyRevisionId: '00000000-0000-0000-0000-000000000101',
+        engineName: 'PolicyApplicationEngine',
+        decision: 'APPLIED',
+      }),
+    ]);
   });
 
   it('writes blocking audit and outbox evidence when a revision is submitted for review', async () => {

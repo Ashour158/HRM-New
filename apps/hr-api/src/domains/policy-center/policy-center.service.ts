@@ -238,6 +238,10 @@ export class PolicyCenterService {
     return this.repository.listRevisions(tenantId.value, area);
   }
 
+  async listDecisionEvidence(tenantId: Uuid, limit = 25) {
+    return this.repository.listDecisionEvidence(tenantId.value, limit);
+  }
+
   async createRevision(tenantId: Uuid, input: CreatePolicyRevisionInput, actor: PolicyActor): Promise<PolicyRevisionRecord> {
     const setup = await this.hcmSetup.getSetup(tenantId);
     const baselineConfig = extractBaselineConfig(input.area, setup);

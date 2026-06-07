@@ -142,6 +142,18 @@ export class AssignWorkerOrganizationDto {
 }
 
 /**
+ * Public API DTO for assigning a worker into the organization structure.
+ */
+export class AssignWorkerOrganizationByBodyDto extends AssignWorkerOrganizationDto {
+  static zodSchema = AssignWorkerOrganizationDto.zodSchema.extend({
+    workerId: z.string().uuid(),
+  });
+
+  @ApiProperty()
+  workerId!: string;
+}
+
+/**
  * DTO for simulating strategic workforce planning scenarios.
  */
 export class WorkforceScenarioDto {

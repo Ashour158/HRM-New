@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants';
 import type { Request } from 'express';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { HrActor } from '@hcm/command-contracts';
@@ -220,6 +221,13 @@ describe('OrganizationController organization workflow', () => {
     vi.resetAllMocks();
   });
 
+  it('exposes both the existing HR route prefix and the public organization API prefix', () => {
+    expect(Reflect.getMetadata(PATH_METADATA, OrganizationController)).toEqual([
+      'hr/organization',
+      'organization',
+    ]);
+  });
+
   it('builds legal entity creation commands from the authenticated tenant and actor', async () => {
     const { controller, commandBus } = makeController();
 
@@ -373,6 +381,43 @@ describe('OrganizationController organization workflow', () => {
         managerId,
         jobTitle: 'People Partner',
       },
+    }));
+    expect(result).toEqual({
+      workerId: workerId.value,
+      legalEntityId: legalEntityId.value,
+      departmentId: orgUnitId.value,
+      managerId: managerId.value,
+      jobTitle: 'People Partner',
+    });
+  });
+
+  it('supports the public body-based organization assignment API', async () => {
+    const existingWorker = worker();
+    const { controller, commandBus } = makeController({
+      workerRepo: {
+        findById: vi.fn(async () => existingWorker),
+        save: vi.fn(async () => undefined),
+      },
+      managerRelationshipRepo: {
+        findByTenant: vi.fn(),
+        findByWorker: vi.fn(),
+        findActiveForWorker: vi.fn(async () => undefined),
+      },
+    });
+
+    const result = await controller.assignWorkerOrganizationByBody({
+      workerId: workerId.value,
+      legalEntityId: legalEntityId.value,
+      departmentId: orgUnitId.value,
+      managerId: managerId.value,
+      jobTitle: 'People Partner',
+    }, requestWithActor());
+
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'UpdateWorkerOrganizationAssignment',
+      aggregateType: 'WorkerProfile',
+      aggregateId: workerId,
+      subjectWorkerId: workerId,
     }));
     expect(result).toEqual({
       workerId: workerId.value,

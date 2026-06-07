@@ -94,4 +94,24 @@ describe('migration coverage', () => {
     expect(migrationTextContains('20240524000036000_platform_notifications.js', 'recipient_worker_id')).toBe(true);
     expect(migrationTextContains('20240524000036000_platform_notifications.js', 'recipient_role')).toBe(true);
   });
+
+  it('backfills payroll-ready compensation for demo identity workers', () => {
+    const migrationName = '20240524000041000_demo_identity_payroll_readiness.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationTextContains(migrationName, 'personal_data_records')).toBe(true);
+    expect(migrationTextContains(migrationName, 'grossSalaryAmount')).toBe(true);
+    expect(migrationTextContains(migrationName, 'DEMO-EMPLOYEE')).toBe(true);
+  });
+
+  it('backfills canonical outbox topics for historical replay safety', () => {
+    const migrationName = '20240524000042000_backfill_outbox_event_topics.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationTextContains(migrationName, 'event_topic')).toBe(true);
+    expect(migrationTextContains(migrationName, 'AbsenceRequest')).toBe(true);
+    expect(migrationTextContains(migrationName, 'hr.absence.v1')).toBe(true);
+    expect(migrationTextContains(migrationName, 'TimeClockEvent')).toBe(true);
+    expect(migrationTextContains(migrationName, 'hr.time.v1')).toBe(true);
+  });
 });

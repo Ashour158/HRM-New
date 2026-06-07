@@ -1,54 +1,7 @@
-import { getPool } from './connection/pool.js';
-import { createKyselyInstance } from './kysely/database.js';
-import { sql } from 'kysely';
+const DEMO_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
-/**
- * Seed script for local development.
- * Inserts a default tenant so the API can resolve requests immediately
- * after `pnpm infra:up && pnpm db:migrate`.
- */
-async function seed(): Promise<void> {
-  const pool = getPool();
-  const db = createKyselyInstance(pool);
-
-  const defaultTenantId = '00000000-0000-0000-0000-000000000001';
-
-  const existing = await db
-    .selectFrom('tenants')
-    .select('id')
-    .where('id', '=', defaultTenantId)
-    .executeTakeFirst();
-
-  if (existing) {
-    await backfillDemoIdentityPayrollReadiness(db, defaultTenantId);
-    console.log(`Tenant ${defaultTenantId} already exists. Repaired demo identity payroll readiness.`);
-    pool.end();
-    return;
-  }
-
-  await db
-    .insertInto('tenants')
-    .values({
-      id: defaultTenantId,
-      name: 'Default Development Tenant',
-      slug: 'default',
-      status: 'ACTIVE',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .execute();
-
-  await backfillDemoIdentityPayrollReadiness(db, defaultTenantId);
-
-  console.log(`Seeded default tenant ${defaultTenantId}.`);
-  pool.end();
-}
-
-async function backfillDemoIdentityPayrollReadiness(
-  db: ReturnType<typeof createKyselyInstance>,
-  tenantId: string,
-): Promise<void> {
-  await sql`
+exports.up = (pgm) => {
+  pgm.sql(`
     WITH demo_profile_records(worker_id, employee_number, data_category, data_classification, payload) AS (
       VALUES
         (
@@ -202,7 +155,7 @@ async function backfillDemoIdentityPayrollReadiness(
         state = 'ACTIVE',
         updated_at = now()
       FROM demo_profile_records source
-      WHERE existing.tenant_id = ${tenantId}::uuid
+      WHERE existing.tenant_id = '${DEMO_TENANT_ID}'::uuid
         AND existing.worker_id = source.worker_id
         AND existing.data_category = source.data_category
       RETURNING existing.worker_id, existing.data_category
@@ -222,7 +175,7 @@ async function backfillDemoIdentityPayrollReadiness(
     )
     SELECT
       gen_random_uuid(),
-      ${tenantId}::uuid,
+      '${DEMO_TENANT_ID}'::uuid,
       source.worker_id,
       source.data_category,
       source.data_classification,
@@ -237,7 +190,7 @@ async function backfillDemoIdentityPayrollReadiness(
       SELECT 1
       FROM "hr_core"."workers" worker
       WHERE worker.id = source.worker_id
-        AND worker.tenant_id = ${tenantId}::uuid
+        AND worker.tenant_id = '${DEMO_TENANT_ID}'::uuid
         AND worker.employee_number = source.employee_number
     )
       AND NOT EXISTS (
@@ -246,10 +199,18 @@ async function backfillDemoIdentityPayrollReadiness(
         WHERE item.worker_id = source.worker_id
           AND item.data_category = source.data_category
       );
-  `.execute(db);
-}
+  `);
+};
 
-seed().catch((err: unknown) => {
-  console.error('Seed failed:', err);
-  process.exit(1);
-});
+exports.down = (pgm) => {
+  pgm.sql(`
+    DELETE FROM "hr_core"."personal_data_records"
+    WHERE tenant_id = '${DEMO_TENANT_ID}'::uuid
+      AND worker_id IN (
+        '00000000-0000-0000-0000-000000000010',
+        '00000000-0000-0000-0000-000000000011',
+        '00000000-0000-0000-0000-000000000012'
+      )
+      AND data_category IN ('BASIC', 'CONTACT', 'COMPENSATION', 'TAX', 'BANKING');
+  `);
+};

@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { PATH_METADATA } from '@nestjs/common/constants';
 import { describe, expect, it, vi } from 'vitest';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
@@ -166,6 +167,10 @@ describe('EmployeeLeaveController manager leave actions', () => {
 });
 
 describe('EmployeeLeaveController employee leave actions', () => {
+  it('exposes the enterprise readiness leave request command route', () => {
+    expect(Reflect.getMetadata(PATH_METADATA, EmployeeLeaveController.prototype.createEmployeeAbsenceRequest)).toBe('employee/absences/requests');
+  });
+
   it('throws a non-2xx error when employee create returns a failed command outcome', async () => {
     const worker = {
       id: workerId,

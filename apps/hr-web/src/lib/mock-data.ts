@@ -636,6 +636,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   // ── Policies ──────────────────────────────────────────────────────────────
   'GET /admin/policies/summary': () => ok({ leavePolicies: DEFAULT_HCM_SETUP.leavePolicies.length, payrollPacks: DEFAULT_HCM_SETUP.statutoryPayrollPacks.length, earningPolicies: DEFAULT_HCM_SETUP.earningPolicies.length, deductionPolicies: DEFAULT_HCM_SETUP.deductionPolicies.length }),
   'GET /admin/policies/revisions': () => ok([]),
+  'GET /admin/policies/decision-evidence?limit=50': () => ok([]),
 
   // ── Dead Letter ───────────────────────────────────────────────────────────
   'GET /admin/dead-letter/summary': () => ok({ inboxCount: 2, outboxCount: 0, oldestEventAt: '2026-06-03T12:00:00Z' }),

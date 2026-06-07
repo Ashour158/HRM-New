@@ -14,7 +14,7 @@ const HR_NOTIFICATION_ROLES = new Set([
 ]);
 
 @UseGuards(AuthGuard)
-@Controller('notifications')
+@Controller(['notifications', 'platform/notifications'])
 export class PlatformNotificationsController {
   constructor(private readonly repository: PlatformNotificationRepository) {}
 

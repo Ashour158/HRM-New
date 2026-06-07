@@ -61,6 +61,21 @@ interface PolicyApplicationRunRow {
   runtime_snapshot: unknown;
 }
 
+interface PolicyDecisionEvidenceRow {
+  id: string;
+  tenant_id: string;
+  policy_revision_id: string;
+  service_area: PolicyArea;
+  engine_name: string;
+  engine_version: string;
+  scope_match: unknown;
+  decision: string;
+  reason: string;
+  subject_worker_id: string | null;
+  source_record_id: string | null;
+  created_at: Date;
+}
+
 function asArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
@@ -291,6 +306,18 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     return record;
   }
 
+  async listDecisionEvidence(tenantId: string, limit = 25): Promise<PolicyDecisionEvidenceRecord[]> {
+    const boundedLimit = Math.max(1, Math.min(limit, 100));
+    const result = await sql<PolicyDecisionEvidenceRow>`
+      SELECT *
+      FROM hr_platform.admin_policy_decision_evidence
+      WHERE tenant_id = ${tenantId}
+      ORDER BY created_at DESC
+      LIMIT ${boundedLimit}
+    `.execute(this.db);
+    return result.rows.map((row) => this.toDecisionEvidence(row));
+  }
+
   private async upsertScope(revisionId: string, tenantId: string, scope: PolicyScope): Promise<void> {
     await sql`
       INSERT INTO hr_platform.admin_policy_revision_scopes (
@@ -424,6 +451,23 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
       appliedBy: row.applied_by,
       appliedAt: dateIso(row.applied_at) ?? new Date().toISOString(),
       runtimeSnapshot: row.runtime_snapshot as PolicyApplicationRunRecord['runtimeSnapshot'],
+    };
+  }
+
+  private toDecisionEvidence(row: PolicyDecisionEvidenceRow): PolicyDecisionEvidenceRecord {
+    return {
+      id: row.id,
+      tenantId: row.tenant_id,
+      policyRevisionId: row.policy_revision_id,
+      serviceArea: row.service_area,
+      engineName: row.engine_name,
+      engineVersion: row.engine_version,
+      scopeMatch: row.scope_match as PolicyScope,
+      decision: row.decision,
+      reason: row.reason,
+      subjectWorkerId: row.subject_worker_id ?? undefined,
+      sourceRecordId: row.source_record_id ?? undefined,
+      createdAt: dateIso(row.created_at) ?? new Date().toISOString(),
     };
   }
 }
