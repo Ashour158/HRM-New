@@ -224,6 +224,21 @@ function cloneSetup(setup: Partial<HcmSetupConfig>): HcmSetupConfig {
   };
 }
 
+function clonePayload<T>(payload: T): T {
+  return JSON.parse(JSON.stringify(payload)) as T;
+}
+
+function buildPayrollSetupUpdate(setup: HcmSetupConfig): PayrollSetupUpdate {
+  return clonePayload({
+    attendancePolicy: setup.attendancePolicy,
+    payrollCalculationPolicy: setup.payrollCalculationPolicy,
+    statutoryPayrollPacks: setup.statutoryPayrollPacks,
+    earningPolicies: setup.earningPolicies,
+    deductionPolicies: setup.deductionPolicies,
+    payrollBlockingRules: setup.payrollBlockingRules,
+  });
+}
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -283,6 +298,15 @@ const weekdayOptions = [
 ];
 
 type PayrollTab = 'cycle' | 'register' | 'exports' | 'policies' | 'attendance' | 'earnings' | 'deductions';
+type PayrollSetupUpdate = Pick<
+  HcmSetupConfig,
+  'attendancePolicy'
+  | 'payrollCalculationPolicy'
+  | 'statutoryPayrollPacks'
+  | 'earningPolicies'
+  | 'deductionPolicies'
+  | 'payrollBlockingRules'
+>;
 
 const payrollTabs: Array<{ value: PayrollTab; label: string }> = [
   { value: 'cycle', label: 'Run Payroll' },
@@ -317,7 +341,7 @@ export function AdminPayroll() {
   const [workflowMessage, setWorkflowMessage] = React.useState('');
 
   const addNotification = useUIStore((s) => s.addNotification);
-  const { data: setupConfig = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
+  const { data: setupConfig, isLoading: setupLoading, isError: setupError } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const previewUrl = `/payroll/monthly-cycle-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
   const paymentBatchUrl = `/payroll/payment-batch-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
   const { data: preview, isLoading: previewLoading, isError: previewError, error: previewErrorObj, refetch } = useApiQuery<PayrollCyclePreview>(
@@ -330,7 +354,9 @@ export function AdminPayroll() {
   );
 
   React.useEffect(() => {
-    setSetup(cloneSetup(setupConfig));
+    if (setupConfig) {
+      setSetup(cloneSetup(setupConfig));
+    }
   }, [setupConfig]);
 
   React.useEffect(() => {
@@ -398,7 +424,7 @@ export function AdminPayroll() {
     },
   );
 
-  const saveSetupMutation = useApiMutation<HcmSetupConfig, HcmSetupConfig>(
+  const saveSetupMutation = useApiMutation<HcmSetupConfig, PayrollSetupUpdate>(
     '/admin/hcm-setup',
     'patch',
     [['hcm-setup'], ['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode]],
@@ -629,6 +655,7 @@ export function AdminPayroll() {
     || activePayrollTab === 'attendance'
     || activePayrollTab === 'earnings'
     || activePayrollTab === 'deductions';
+  const canSaveRules = Boolean(setupConfig) && !setupLoading && !setupError && !saveSetupMutation.isPending;
 
   const columns = [
     {
@@ -682,8 +709,8 @@ export function AdminPayroll() {
                 Refresh
               </Button>
               {isRuleTab ? (
-                <Button variant="outline" onClick={() => saveSetupMutation.mutate(setup)} disabled={saveSetupMutation.isPending}>
-                  {saveSetupMutation.isPending ? 'Saving...' : 'Save Rules'}
+                <Button variant="outline" onClick={() => saveSetupMutation.mutate(buildPayrollSetupUpdate(setup))} disabled={!canSaveRules}>
+                  {saveSetupMutation.isPending ? 'Saving...' : setupLoading ? 'Loading rules...' : 'Save Rules'}
                 </Button>
               ) : null}
               <Button asChild variant="outline">
