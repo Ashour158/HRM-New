@@ -163,6 +163,18 @@ const policyAreas: Array<{ area: PolicyArea; label: string; icon: React.ElementT
   { area: 'COMPLIANCE', label: 'Compliance Policies', icon: ClipboardCheck, link: '/admin/compliance' },
 ];
 
+const areaTabValues: Record<PolicyArea, string> = {
+  EMPLOYEE_SETUP: 'service',
+  LEAVE: 'leave',
+  ATTENDANCE: 'attendance',
+  PAYROLL: 'payroll',
+  ACCESS_GOVERNANCE: 'access',
+  COUNTRY_POLICY: 'country',
+  COMPLIANCE: 'compliance',
+};
+
+const tabAreas = Object.fromEntries(Object.entries(areaTabValues).map(([area, tab]) => [tab, area])) as Record<string, PolicyArea>;
+
 const emptyScopeForm: ScopeForm = {
   countryCodes: '',
   legalEntityIds: '',
@@ -241,6 +253,10 @@ function statusTone(status: PolicyStatus) {
 
 function areaMeta(area: PolicyArea) {
   return policyAreas.find((item) => item.area === area) ?? policyAreas[0];
+}
+
+function isRevisionEditable(status: PolicyStatus) {
+  return ['DRAFT', 'IN_REVIEW', 'REVIEWED'].includes(status);
 }
 
 function currentAreaConfig(area: PolicyArea, setup: Record<string, unknown> | undefined): Record<string, unknown> {
@@ -344,46 +360,46 @@ function pendingRecordTotal(records?: PolicySimulationResult['pendingRecords']) 
   return Object.values(records).reduce((total, value) => total + value, 0);
 }
 
-function ScopeInputs({ value, onChange }: { value: ScopeForm; onChange: (next: ScopeForm) => void }) {
+function ScopeInputs({ value, onChange, disabled = false }: { value: ScopeForm; onChange: (next: ScopeForm) => void; disabled?: boolean }) {
   const update = (key: keyof ScopeForm, nextValue: string) => onChange({ ...value, [key]: nextValue });
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <div className="space-y-1.5">
         <Label htmlFor="policy-countries">Countries</Label>
-        <Input id="policy-countries" placeholder="EG, AE" value={value.countryCodes} onChange={(event) => update('countryCodes', event.target.value)} />
+        <Input id="policy-countries" disabled={disabled} placeholder="EG, AE" value={value.countryCodes} onChange={(event) => update('countryCodes', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-legal">Legal entities</Label>
-        <Input id="policy-legal" placeholder="UUIDs or codes" value={value.legalEntityIds} onChange={(event) => update('legalEntityIds', event.target.value)} />
+        <Input id="policy-legal" disabled={disabled} placeholder="UUIDs or codes" value={value.legalEntityIds} onChange={(event) => update('legalEntityIds', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-units">Org units</Label>
-        <Input id="policy-units" placeholder="Unit IDs" value={value.orgUnitIds} onChange={(event) => update('orgUnitIds', event.target.value)} />
+        <Input id="policy-units" disabled={disabled} placeholder="Unit IDs" value={value.orgUnitIds} onChange={(event) => update('orgUnitIds', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-departments">Departments</Label>
-        <Input id="policy-departments" placeholder="Department IDs" value={value.departmentIds} onChange={(event) => update('departmentIds', event.target.value)} />
+        <Input id="policy-departments" disabled={disabled} placeholder="Department IDs" value={value.departmentIds} onChange={(event) => update('departmentIds', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-locations">Locations</Label>
-        <Input id="policy-locations" placeholder="CAIRO_HQ" value={value.locationCodes} onChange={(event) => update('locationCodes', event.target.value)} />
+        <Input id="policy-locations" disabled={disabled} placeholder="CAIRO_HQ" value={value.locationCodes} onChange={(event) => update('locationCodes', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-types">Employee types</Label>
-        <Input id="policy-types" placeholder="FULL_TIME" value={value.employeeTypes} onChange={(event) => update('employeeTypes', event.target.value)} />
+        <Input id="policy-types" disabled={disabled} placeholder="FULL_TIME" value={value.employeeTypes} onChange={(event) => update('employeeTypes', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-workers">Workers</Label>
-        <Input id="policy-workers" placeholder="Worker IDs" value={value.workerIds} onChange={(event) => update('workerIds', event.target.value)} />
+        <Input id="policy-workers" disabled={disabled} placeholder="Worker IDs" value={value.workerIds} onChange={(event) => update('workerIds', event.target.value)} />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1.5">
           <Label htmlFor="policy-from">From</Label>
-          <Input id="policy-from" type="date" value={value.effectiveFrom} onChange={(event) => update('effectiveFrom', event.target.value)} />
+          <Input id="policy-from" disabled={disabled} type="date" value={value.effectiveFrom} onChange={(event) => update('effectiveFrom', event.target.value)} />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="policy-until">Until</Label>
-          <Input id="policy-until" type="date" value={value.effectiveUntil} onChange={(event) => update('effectiveUntil', event.target.value)} />
+          <Input id="policy-until" disabled={disabled} type="date" value={value.effectiveUntil} onChange={(event) => update('effectiveUntil', event.target.value)} />
         </div>
       </div>
     </div>
@@ -760,16 +776,43 @@ function RuntimeSnapshotSummary({ area, setup }: { area: PolicyArea; setup?: Rec
   );
 }
 
+function BusinessControlBody({
+  editable,
+  className,
+  children,
+}: {
+  editable: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <fieldset disabled={!editable} className={cn('p-6 pt-0', className, !editable && 'opacity-70')}>
+      {children}
+    </fieldset>
+  );
+}
+
+function RevisionLockedNotice({ status }: { status: PolicyStatus }) {
+  if (isRevisionEditable(status)) return null;
+  return (
+    <div className="rounded-lg border border-[#f59e0b]/30 bg-[#fffbeb] p-3 text-sm leading-6 text-[#78350f]">
+      This revision is {formatEnum(status)} and is locked for audit integrity. Create a change draft from it, edit the draft, then run Controlled Apply.
+    </div>
+  );
+}
+
 function PolicyBusinessControls({
   revision,
   editorJson,
   setEditorJson,
   setEditorError,
+  editable,
 }: {
   revision: PolicyRevision;
   editorJson: string;
   setEditorJson: (value: string) => void;
   setEditorError: (value: string) => void;
+  editable: boolean;
 }) {
   const parsed = React.useMemo(() => tryParseDraft(editorJson), [editorJson]);
   const draft = parsed.draft ?? {};
@@ -784,6 +827,10 @@ function PolicyBusinessControls({
   const [selectedFieldOverride, setSelectedFieldOverride] = React.useState('');
 
   const commit = (change: GuidedPolicyChange) => {
+    if (!editable) {
+      setEditorError('This revision is locked. Create a change draft before editing policy controls.');
+      return;
+    }
     if (parsed.error || !parsed.draft) {
       setEditorError(parsed.error ?? 'Policy draft data is not in a supported format.');
       return;
@@ -850,7 +897,7 @@ function PolicyBusinessControls({
           <CardTitle className="text-lg">Leave Business Controls</CardTitle>
           <CardDescription>Eligibility, balance, approval, documents, and payroll impact consumed by leave request and manager approval commands.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-4">
+        <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
           <div className="space-y-1.5 lg:col-span-2">
             <Label>Leave policy</Label>
             <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={activeCode} onChange={(event) => setSelectedLeaveCode(event.target.value)}>
@@ -880,7 +927,7 @@ function PolicyBusinessControls({
             <GuidedToggle label="Deducts balance" checked={booleanField(selected, 'deductFromBalance', true)} onChange={(checked) => update({ deductFromBalance: checked })} />
             <GuidedToggle label="Paid" checked={booleanField(selected, 'paid', true)} onChange={(checked) => update({ paid: checked })} />
           </div>
-        </CardContent>
+        </BusinessControlBody>
       </Card>
     );
   }
@@ -895,7 +942,7 @@ function PolicyBusinessControls({
           <CardTitle className="text-lg">Attendance Business Controls</CardTitle>
           <CardDescription>Geofence, device trust, shift timing, exception blockers, and payroll ledger behavior.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-4">
+        <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
           <GuidedInput label="Standard start" value={stringField(attendance, 'standardStartTime', '09:00')} onChange={(value) => update({ standardStartTime: value })} />
           <GuidedInput label="Standard end" value={stringField(attendance, 'standardEndTime', '17:00')} onChange={(value) => update({ standardEndTime: value })} />
           <GuidedInput label="Late grace minutes" type="number" value={numberField(attendance, 'lateGraceMinutes')} onChange={(value) => update({ lateGraceMinutes: optionalNumber(value) })} />
@@ -918,7 +965,7 @@ function PolicyBusinessControls({
               </Button>
             </div>
           ) : null}
-        </CardContent>
+        </BusinessControlBody>
       </Card>
     );
   }
@@ -952,7 +999,7 @@ function PolicyBusinessControls({
           <CardTitle className="text-lg">Payroll Business Controls</CardTitle>
           <CardDescription>Calculation, statutory packs, earnings, deductions, close blockers, GL posting, and bank file readiness consumed by payroll preview and close.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
+        <BusinessControlBody editable={editable} className="space-y-5">
           <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
             <div className="mb-3 flex flex-col gap-1">
               <p className="font-semibold text-[#0f172a]">Default Calculation Policy</p>
@@ -1098,7 +1145,7 @@ function PolicyBusinessControls({
               <GuidedToggle label="Blocks payroll close" checked={booleanField(blocker, 'blocking', true)} onChange={(checked) => updateBlocker({ blocking: checked })} />
             </div>
           </div>
-        </CardContent>
+        </BusinessControlBody>
       </Card>
     );
   }
@@ -1139,7 +1186,7 @@ function PolicyBusinessControls({
           <CardTitle className="text-lg">Access Governance Controls</CardTitle>
           <CardDescription>Allowed actions and field access consumed by command authorization and `/policy/allowed-actions`.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-6 xl:grid-cols-2">
+        <BusinessControlBody editable={editable} className="grid gap-6 xl:grid-cols-2">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1.5 md:col-span-2">
               <Label>Allowed action override</Label>
@@ -1178,7 +1225,7 @@ function PolicyBusinessControls({
             <GuidedInput label="Roles CSV" value={Array.isArray(fieldOverride?.roles) ? fieldOverride.roles.join(', ') : ''} onChange={(value) => updateField({ roles: splitCsv(value) })} />
             <div className="md:col-span-2"><GuidedToggle label="Field override active" checked={booleanField(fieldOverride, 'active', true)} onChange={(checked) => updateField({ active: checked })} /></div>
           </div>
-        </CardContent>
+        </BusinessControlBody>
       </Card>
     );
   }
@@ -1198,7 +1245,7 @@ function PolicyBusinessControls({
           <CardTitle className="text-lg">Employee Setup And Data Governance Controls</CardTitle>
           <CardDescription>Required fields and document evidence consumed by employee creation, onboarding, and digital employee file workflows.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-6 xl:grid-cols-2">
+        <BusinessControlBody editable={editable} className="grid gap-6 xl:grid-cols-2">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1.5 md:col-span-2">
               <Label>Profile field</Label>
@@ -1225,7 +1272,7 @@ function PolicyBusinessControls({
             <GuidedToggle label="Required" checked={booleanField(document, 'required', true)} onChange={(checked) => updateDocument({ required: checked })} />
             <GuidedToggle label="Allow multiple" checked={booleanField(document, 'allowMultiple')} onChange={(checked) => updateDocument({ allowMultiple: checked })} />
           </div>
-        </CardContent>
+        </BusinessControlBody>
       </Card>
     );
   }
@@ -1238,12 +1285,12 @@ function PolicyBusinessControls({
           <CardTitle className="text-lg">Country Policy Runtime Controls</CardTitle>
           <CardDescription>Country statutory metadata consumed by country validation, simulation, payroll statutory checks, and compliance reporting.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-4">
+        <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
           <GuidedInput label="Country code" value={stringField(runtime, 'countryCode', 'EG')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { countryCode: value } })} />
           <GuidedInput label="Pack version" value={stringField(runtime, 'packVersion', '2026.1')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { packVersion: value } })} />
           <GuidedInput label="Effective from" type="date" value={stringField(runtime, 'effectiveFrom')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { effectiveFrom: value } })} />
           <GuidedToggle label="Blocks payroll if stale" checked={booleanField(runtime, 'blocksPayrollIfStale', true)} onChange={(checked) => commit({ type: 'COUNTRY_RUNTIME', changes: { blocksPayrollIfStale: checked } })} />
-        </CardContent>
+        </BusinessControlBody>
       </Card>
     );
   }
@@ -1255,12 +1302,12 @@ function PolicyBusinessControls({
         <CardTitle className="text-lg">Compliance Runtime Controls</CardTitle>
         <CardDescription>Policy documents, acknowledgements, legal holds, retention, and statutory reporting behavior.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-3 lg:grid-cols-4">
+      <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
         <GuidedInput label="Policy family" value={stringField(complianceRuntime, 'policyFamily', 'CODE_OF_CONDUCT')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { policyFamily: value } })} />
         <GuidedInput label="Retention class" value={stringField(complianceRuntime, 'retentionClass', 'EXTENDED')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { retentionClass: value } })} />
         <GuidedInput label="Acknowledgement due days" type="number" value={numberField(complianceRuntime, 'acknowledgementDueDays', 7)} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementDueDays: optionalNumber(value) } })} />
         <GuidedToggle label="Employee acknowledgement required" checked={booleanField(complianceRuntime, 'acknowledgementRequired', true)} onChange={(checked) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementRequired: checked } })} />
-      </CardContent>
+      </BusinessControlBody>
     </Card>
   );
 }
@@ -1326,6 +1373,7 @@ function AreaWorkspace({
 export function AdminPolicies() {
   const queryClient = useQueryClient();
   const addNotification = useUIStore((s) => s.addNotification);
+  const [activeTab, setActiveTab] = React.useState('overview');
   const [selectedId, setSelectedId] = React.useState<string>('');
   const [newArea, setNewArea] = React.useState<PolicyArea>('LEAVE');
   const [newTitle, setNewTitle] = React.useState('Leave policy revision');
@@ -1354,19 +1402,41 @@ export function AdminPolicies() {
 
   const revisions = revisionsQuery.data ?? [];
   const summary = summaryQuery.data;
-  const selectedRevision = revisions.find((revision) => revision.id === selectedId) ?? revisions[0];
+  const byArea = React.useMemo(() => {
+    return policyAreas.reduce<Record<PolicyArea, PolicyRevision[]>>((groups, item) => {
+      groups[item.area] = revisions.filter((revision) => revision.area === item.area);
+      return groups;
+    }, {} as Record<PolicyArea, PolicyRevision[]>);
+  }, [revisions]);
+  const activeArea = tabAreas[activeTab];
+  const selectedRevision = revisions.find((revision) => revision.id === selectedId);
+  const selectedIsInActiveArea = !activeArea || selectedRevision?.area === activeArea;
+  const visibleSelectedRevision = selectedIsInActiveArea ? selectedRevision : undefined;
+  const selectedIsEditable = visibleSelectedRevision ? isRevisionEditable(visibleSelectedRevision.status) : false;
 
   React.useEffect(() => {
-    if (!selectedId && revisions[0]?.id) setSelectedId(revisions[0].id);
-  }, [revisions, selectedId]);
+    if (!activeArea) {
+      if (!selectedId && revisions[0]?.id) setSelectedId(revisions[0].id);
+      return;
+    }
+    const current = revisions.find((revision) => revision.id === selectedId);
+    if (current?.area === activeArea) return;
+    setSelectedId(byArea[activeArea]?.[0]?.id ?? '');
+  }, [activeArea, byArea, revisions, selectedId]);
 
   React.useEffect(() => {
-    if (!selectedRevision) return;
-    setEditorTitle(selectedRevision.title);
-    setEditorJson(safeJson(selectedRevision.draftConfig));
-    setEditorScope(scopeToForm(selectedRevision.scope));
+    if (!visibleSelectedRevision) {
+      setEditorTitle('');
+      setEditorJson('{}');
+      setEditorScope(emptyScopeForm);
+      setEditorError('');
+      return;
+    }
+    setEditorTitle(visibleSelectedRevision.title);
+    setEditorJson(safeJson(visibleSelectedRevision.draftConfig));
+    setEditorScope(scopeToForm(visibleSelectedRevision.scope));
     setEditorError('');
-  }, [selectedRevision?.id, selectedRevision?.updatedAt]);
+  }, [visibleSelectedRevision?.id, visibleSelectedRevision?.updatedAt]);
 
   const invalidatePolicies = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-policy-summary'] });
@@ -1385,6 +1455,7 @@ export function AdminPolicies() {
       unwrap<PolicyRevision>(await apiClient.post('/admin/policies/revisions', payload))
     ),
     onSuccess: (revision) => {
+      setActiveTab(areaTabValues[revision.area]);
       setSelectedId(revision.id);
       invalidatePolicies();
       addNotification({ title: 'Draft created', message: 'A new policy revision draft was created.', type: 'success', read: false });
@@ -1416,16 +1487,16 @@ export function AdminPolicies() {
 
   const controlledApply = useMutation({
     mutationFn: async () => {
-      if (!selectedRevision) throw new Error('Select a policy revision first.');
-      const commands = getControlledApplyCommands(selectedRevision.status);
+      if (!visibleSelectedRevision) throw new Error('Select a policy revision first.');
+      const commands = getControlledApplyCommands(visibleSelectedRevision.status);
       if (commands.length === 0) throw new Error('This policy revision is already applied or cannot be applied.');
 
-      let currentRevision = selectedRevision;
-      if (['DRAFT', 'IN_REVIEW', 'REVIEWED'].includes(selectedRevision.status)) {
-        currentRevision = unwrap<PolicyRevision>(await apiClient.patch(`/admin/policies/revisions/${selectedRevision.id}`, {
+      let currentRevision = visibleSelectedRevision;
+      if (isRevisionEditable(visibleSelectedRevision.status)) {
+        currentRevision = unwrap<PolicyRevision>(await apiClient.patch(`/admin/policies/revisions/${visibleSelectedRevision.id}`, {
           title: editorTitle,
           scope: formToScope(editorScope),
-          draftConfig: normalizePolicyDraftForRuntime(selectedRevision.area, parseJson(editorJson)),
+          draftConfig: normalizePolicyDraftForRuntime(visibleSelectedRevision.area, parseJson(editorJson)),
         }));
       }
 
@@ -1453,6 +1524,7 @@ export function AdminPolicies() {
 
   const createDraftForArea = (area: PolicyArea) => {
     const meta = areaMeta(area);
+    setActiveTab(areaTabValues[area]);
     setNewArea(area);
     setNewTitle(`${meta.label} revision`);
     createRevision.mutate({
@@ -1463,27 +1535,41 @@ export function AdminPolicies() {
     });
   };
 
+  const createChangeDraftFromSelected = () => {
+    if (!visibleSelectedRevision) return;
+    setActiveTab(areaTabValues[visibleSelectedRevision.area]);
+    createRevision.mutate({
+      area: visibleSelectedRevision.area,
+      title: `Change: ${visibleSelectedRevision.title}`,
+      scope: visibleSelectedRevision.scope,
+      draftConfig: {
+        ...visibleSelectedRevision.draftConfig,
+        policyReplacement: {
+          replacesRevisionId: visibleSelectedRevision.id,
+          replacesStatus: visibleSelectedRevision.status,
+        },
+      },
+    });
+  };
+
   const saveSelected = () => {
-    if (!selectedRevision) return;
+    if (!visibleSelectedRevision) return;
+    if (!isRevisionEditable(visibleSelectedRevision.status)) {
+      setEditorError('This revision is locked. Create a change draft before saving policy changes.');
+      return;
+    }
     try {
       setEditorError('');
       updateRevision.mutate({
-        id: selectedRevision.id,
+        id: visibleSelectedRevision.id,
         title: editorTitle,
         scope: formToScope(editorScope),
-        draftConfig: normalizePolicyDraftForRuntime(selectedRevision.area, parseJson(editorJson)),
+        draftConfig: normalizePolicyDraftForRuntime(visibleSelectedRevision.area, parseJson(editorJson)),
       });
     } catch (error) {
       setEditorError(error instanceof Error ? error.message : 'Invalid policy draft data.');
     }
   };
-
-  const byArea = React.useMemo(() => {
-    return policyAreas.reduce<Record<PolicyArea, PolicyRevision[]>>((groups, item) => {
-      groups[item.area] = revisions.filter((revision) => revision.area === item.area);
-      return groups;
-    }, {} as Record<PolicyArea, PolicyRevision[]>);
-  }, [revisions]);
 
   return (
     <div className="min-h-screen fusion-bg p-4 md:p-6 lg:p-8">
@@ -1538,7 +1624,7 @@ export function AdminPolicies() {
           ))}
         </div>
 
-        <Tabs defaultValue="overview" className="space-y-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex max-w-full flex-wrap justify-start gap-1 overflow-x-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="service">Service Policies</TabsTrigger>
@@ -1631,29 +1717,29 @@ export function AdminPolicies() {
           </TabsContent>
 
           <TabsContent value="service">
-            <AreaWorkspace area="EMPLOYEE_SETUP" revisions={byArea.EMPLOYEE_SETUP ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="EMPLOYEE_SETUP" revisions={byArea.EMPLOYEE_SETUP ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'EMPLOYEE_SETUP' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
           <TabsContent value="leave">
-            <AreaWorkspace area="LEAVE" revisions={byArea.LEAVE ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="LEAVE" revisions={byArea.LEAVE ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'LEAVE' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
           <TabsContent value="attendance">
-            <AreaWorkspace area="ATTENDANCE" revisions={byArea.ATTENDANCE ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="ATTENDANCE" revisions={byArea.ATTENDANCE ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'ATTENDANCE' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
           <TabsContent value="payroll">
-            <AreaWorkspace area="PAYROLL" revisions={byArea.PAYROLL ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="PAYROLL" revisions={byArea.PAYROLL ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'PAYROLL' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
           <TabsContent value="access">
-            <AreaWorkspace area="ACCESS_GOVERNANCE" revisions={byArea.ACCESS_GOVERNANCE ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="ACCESS_GOVERNANCE" revisions={byArea.ACCESS_GOVERNANCE ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'ACCESS_GOVERNANCE' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
           <TabsContent value="country">
-            <AreaWorkspace area="COUNTRY_POLICY" revisions={byArea.COUNTRY_POLICY ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="COUNTRY_POLICY" revisions={byArea.COUNTRY_POLICY ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'COUNTRY_POLICY' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
           <TabsContent value="compliance">
-            <AreaWorkspace area="COMPLIANCE" revisions={byArea.COMPLIANCE ?? []} setup={setupQuery.data} selectedId={selectedRevision?.id} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+            <AreaWorkspace area="COMPLIANCE" revisions={byArea.COMPLIANCE ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'COMPLIANCE' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
 
           <TabsContent value="impact" className="space-y-4">
-            <ImpactPanel revision={selectedRevision} />
+            <ImpactPanel revision={visibleSelectedRevision} />
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
@@ -1684,13 +1770,13 @@ export function AdminPolicies() {
                   <BellRing className="h-5 w-5 text-[#4f46e5]" />
                   Revision Audit Trail
                 </CardTitle>
-                <CardDescription>{selectedRevision ? selectedRevision.title : 'Select a revision'}</CardDescription>
+                <CardDescription>{visibleSelectedRevision ? visibleSelectedRevision.title : 'Select a revision'}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3">
                   {lifecycleOrder.map((status) => {
                     const key = `${status.toLowerCase().replace(/_/g, '')}At` as keyof PolicyRevision;
-                    const value = selectedRevision?.[key];
+                    const value = visibleSelectedRevision?.[key];
                     return (
                       <div key={status} className="flex items-center justify-between fusion-glass rounded-2xl p-3 text-sm">
                         <span className="font-semibold text-[#0f172a]">{formatEnum(status)}</span>
@@ -1705,7 +1791,7 @@ export function AdminPolicies() {
                     <p className="mt-2">Apply writes structured evidence with revision ID, scope match, engine name/version, decision, and reason. Lifecycle commands also emit outbox/audit events.</p>
                   </div>
                   {(evidenceQuery.data ?? [])
-                    .filter((item) => !selectedRevision || item.policyRevisionId === selectedRevision.id)
+                    .filter((item) => !visibleSelectedRevision || item.policyRevisionId === visibleSelectedRevision.id)
                     .slice(0, 6)
                     .map((item) => (
                       <div key={item.id} className="fusion-glass rounded-2xl p-3 text-sm">
@@ -1717,7 +1803,7 @@ export function AdminPolicies() {
                         <p className="mt-2 text-[#64748b]">{item.reason}</p>
                       </div>
                     ))}
-                  {((evidenceQuery.data ?? []).filter((item) => !selectedRevision || item.policyRevisionId === selectedRevision.id).length === 0) ? (
+                  {((evidenceQuery.data ?? []).filter((item) => !visibleSelectedRevision || item.policyRevisionId === visibleSelectedRevision.id).length === 0) ? (
                     <p className="text-sm text-[#94a3b8]">No decision evidence for the selected revision yet.</p>
                   ) : null}
                 </div>
@@ -1726,7 +1812,7 @@ export function AdminPolicies() {
           </TabsContent>
         </Tabs>
 
-        {selectedRevision ? (
+        {visibleSelectedRevision ? (
           <Card>
             <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
               <div>
@@ -1734,32 +1820,41 @@ export function AdminPolicies() {
                   <Save className="h-5 w-5 text-[#4f46e5]" />
                   Revision Editor
                 </CardTitle>
-                <CardDescription>{formatEnum(selectedRevision.area)} - {selectedRevision.id}</CardDescription>
+                <CardDescription>{formatEnum(visibleSelectedRevision.area)} - {visibleSelectedRevision.id}</CardDescription>
               </div>
-              <span className={cn('inline-flex rounded-full border px-3 py-1 text-sm font-semibold', statusTone(selectedRevision.status))}>
-                {formatEnum(selectedRevision.status)}
-              </span>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {!selectedIsEditable ? (
+                  <Button type="button" variant="outline" onClick={createChangeDraftFromSelected} disabled={createRevision.isPending}>
+                    Create Change Draft
+                  </Button>
+                ) : null}
+                <span className={cn('inline-flex rounded-full border px-3 py-1 text-sm font-semibold', statusTone(visibleSelectedRevision.status))}>
+                  {formatEnum(visibleSelectedRevision.status)}
+                </span>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 lg:grid-cols-[1fr_12rem]">
                 <div className="space-y-1.5">
                   <Label htmlFor="revision-title">Title</Label>
-                  <Input id="revision-title" value={editorTitle} onChange={(event) => setEditorTitle(event.target.value)} />
+                  <Input id="revision-title" disabled={!selectedIsEditable} value={editorTitle} onChange={(event) => setEditorTitle(event.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Area</Label>
                   <div className="flex h-10 items-center rounded-lg border border-[#e2e8f0] bg-[#eef2ff] px-3 text-sm font-semibold text-[#0f172a]">
-                    {formatEnum(selectedRevision.area)}
+                    {formatEnum(visibleSelectedRevision.area)}
                   </div>
                 </div>
               </div>
-              <ScopeInputs value={editorScope} onChange={setEditorScope} />
-              <PolicyRuntimeLens revision={selectedRevision} evidence={evidenceQuery.data ?? []} />
+              <ScopeInputs value={editorScope} onChange={setEditorScope} disabled={!selectedIsEditable} />
+              <RevisionLockedNotice status={visibleSelectedRevision.status} />
+              <PolicyRuntimeLens revision={visibleSelectedRevision} evidence={evidenceQuery.data ?? []} />
               <PolicyBusinessControls
-                revision={selectedRevision}
+                revision={visibleSelectedRevision}
                 editorJson={editorJson}
                 setEditorJson={setEditorJson}
                 setEditorError={setEditorError}
+                editable={selectedIsEditable}
               />
               <Card>
                 <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
@@ -1772,7 +1867,7 @@ export function AdminPolicies() {
                   </div>
                   <Button
                     type="button"
-                    disabled={controlledApply.isPending || getControlledApplyCommands(selectedRevision.status).length === 0}
+                    disabled={controlledApply.isPending || getControlledApplyCommands(visibleSelectedRevision.status).length === 0}
                     onClick={() => controlledApply.mutate()}
                   >
                     {controlledApply.isPending ? 'Applying...' : 'Run Controlled Apply'}
@@ -1780,14 +1875,14 @@ export function AdminPolicies() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex flex-wrap gap-2">
-                    {getControlledApplyCommands(selectedRevision.status).map((command) => (
+                    {getControlledApplyCommands(visibleSelectedRevision.status).map((command) => (
                       <span key={command} className="rounded-full border border-[#c7d2fe] bg-[#eef2ff] px-3 py-1 text-xs font-semibold text-[#312e81]">
                         {formatEnum(command)}
                       </span>
                     ))}
-                    {getControlledApplyCommands(selectedRevision.status).length === 0 ? (
+                    {getControlledApplyCommands(visibleSelectedRevision.status).length === 0 ? (
                       <span className="rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-3 py-1 text-xs font-semibold text-[#64748b]">
-                        No apply action available from {formatEnum(selectedRevision.status)}
+                        No apply action available from {formatEnum(visibleSelectedRevision.status)}
                       </span>
                     ) : null}
                   </div>
@@ -1803,14 +1898,14 @@ export function AdminPolicies() {
                 </div>
               ) : null}
               <div className="flex flex-wrap gap-2">
-                <Button type="button" onClick={saveSelected} disabled={updateRevision.isPending}>Save</Button>
-                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'validate' })}>Validate</Button>
-                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'simulate' })}>Simulate</Button>
-                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'submit-review' })} disabled={selectedRevision.status !== 'DRAFT'}>Submit Review</Button>
-                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'mark-reviewed' })} disabled={selectedRevision.status !== 'IN_REVIEW'}>Mark Reviewed</Button>
-                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'approve' })} disabled={selectedRevision.status !== 'REVIEWED'}>Approve</Button>
-                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'publish' })} disabled={selectedRevision.status !== 'APPROVED'}>Publish</Button>
-                <Button type="button" onClick={() => commandRevision.mutate({ id: selectedRevision.id, command: 'apply' })} disabled={selectedRevision.status !== 'PUBLISHED'}>
+                <Button type="button" onClick={saveSelected} disabled={updateRevision.isPending || !selectedIsEditable}>Save</Button>
+                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'validate' })}>Validate</Button>
+                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'simulate' })}>Simulate</Button>
+                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'submit-review' })} disabled={visibleSelectedRevision.status !== 'DRAFT'}>Submit Review</Button>
+                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'mark-reviewed' })} disabled={visibleSelectedRevision.status !== 'IN_REVIEW'}>Mark Reviewed</Button>
+                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'approve' })} disabled={visibleSelectedRevision.status !== 'REVIEWED'}>Approve</Button>
+                <Button type="button" variant="outline" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'publish' })} disabled={visibleSelectedRevision.status !== 'APPROVED'}>Publish</Button>
+                <Button type="button" onClick={() => commandRevision.mutate({ id: visibleSelectedRevision.id, command: 'apply' })} disabled={visibleSelectedRevision.status !== 'PUBLISHED'}>
                   <CheckCircle2 className="mr-2 h-4 w-4" />
                   Apply
                 </Button>

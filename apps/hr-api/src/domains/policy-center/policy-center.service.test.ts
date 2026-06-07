@@ -166,6 +166,64 @@ describe('PolicyCenterService', () => {
     expect(validation.errors).toContain('Active LEAVE policy 00000000-0000-0000-0000-000000000102 already targets the same scope and effective window.');
   });
 
+  it('allows an explicit change draft to replace the active policy it was created from', async () => {
+    const active = revision({
+      id: '00000000-0000-0000-0000-000000000102',
+      status: 'APPLIED',
+      aggregateVersion: 3,
+      scope: {
+        tenantId: tenantId.value,
+        departmentIds: ['dept-a'],
+        effectiveFrom: '2026-06-01',
+      },
+    });
+    const draft = revision({
+      draftConfig: {
+        ...revision().draftConfig,
+        policyReplacement: {
+          replacesRevisionId: active.id,
+          replacesStatus: active.status,
+        },
+      },
+    });
+    const { service } = buildService([draft, active]);
+
+    const validation = await service.validateRevision(tenantId, draft.id, actor);
+
+    expect(validation.valid).toBe(true);
+    expect(validation.conflicts).toEqual([]);
+  });
+
+  it('archives the replaced active policy when a replacement revision is applied', async () => {
+    const active = revision({
+      id: '00000000-0000-0000-0000-000000000102',
+      status: 'APPLIED',
+      aggregateVersion: 3,
+    });
+    const replacement = revision({
+      id: '00000000-0000-0000-0000-000000000103',
+      status: 'PUBLISHED',
+      draftConfig: {
+        ...revision().draftConfig,
+        policyReplacement: {
+          replacesRevisionId: active.id,
+          replacesStatus: active.status,
+        },
+      },
+    });
+    const { service, repository } = buildService([active, replacement]);
+
+    await service.applyRevision(tenantId, replacement.id, actor);
+
+    expect(repository.updateRevision).toHaveBeenCalledWith(active.id, expect.objectContaining({
+      status: 'ARCHIVED',
+      aggregateVersion: 4,
+    }));
+    expect(repository.updateRevision).toHaveBeenCalledWith(replacement.id, expect.objectContaining({
+      status: 'APPLIED',
+    }));
+  });
+
   it('writes blocking audit and outbox evidence when an editable revision is updated', async () => {
     const draft = revision({ status: 'DRAFT' });
     const { service, auditLedger, outbox } = buildService([draft]);

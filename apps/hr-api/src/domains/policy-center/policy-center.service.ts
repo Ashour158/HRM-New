@@ -196,6 +196,12 @@ function duplicateValues(values: string[]): string[] {
   return [...duplicates];
 }
 
+function replacementRevisionId(revision: PolicyRevisionRecord): string | undefined {
+  const replacement = asObject(asObject(revision.draftConfig).policyReplacement);
+  const value = replacement.replacesRevisionId;
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 function withScope<T extends ScopedPolicy>(policy: T, scope: PolicyScope): T {
   const existing = policy as Record<string, unknown>;
   return {
@@ -443,6 +449,18 @@ export class PolicyCenterService {
       createdAt: nowIso(),
     });
 
+    const replacesRevisionId = replacementRevisionId(revision);
+    if (replacesRevisionId) {
+      const replaced = await this.repository.findRevisionById(tenantId.value, replacesRevisionId);
+      if (replaced && replaced.area === revision.area && ['PUBLISHED', 'APPLIED'].includes(replaced.status)) {
+        await this.repository.updateRevision(replaced.id, {
+          status: 'ARCHIVED',
+          updatedAt: nowIso(),
+          aggregateVersion: replaced.aggregateVersion + 1,
+        });
+      }
+    }
+
     const updated = await this.repository.updateRevision(id, {
       status: 'APPLIED',
       validationResult: validation,
@@ -581,8 +599,10 @@ export class PolicyCenterService {
     }
 
     const active = await this.repository.listActiveRevisionsByArea(tenantId.value, revision.area);
+    const replacesRevisionId = replacementRevisionId(revision);
     for (const candidate of active) {
       if (candidate.id === revision.id) continue;
+      if (candidate.id === replacesRevisionId) continue;
       if (!effectiveWindowOverlaps(revision.scope, candidate.scope)) continue;
       if (!scopesTargetSameAudience(revision.scope, candidate.scope)) continue;
       const reason = `Active ${revision.area} policy ${candidate.id} already targets the same scope and effective window.`;
