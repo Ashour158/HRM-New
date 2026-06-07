@@ -158,6 +158,17 @@ describe('CommandBus security gates', () => {
     })).toBe('BENEFITS');
   });
 
+  it('does not classify generic enrollment or life-event commands as benefits policy commands', () => {
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'LearningEnrollment',
+      commandName: 'SubmitEnrollment',
+    })).toBeUndefined();
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'EmployeeLifeEvent',
+      commandName: 'ApproveLifeEvent',
+    })).toBeUndefined();
+  });
+
   it('rejects stale expected state when the stored aggregate state has moved', async () => {
     const executeTakeFirst = async () => ({
       id: workerId.value,

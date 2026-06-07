@@ -6,13 +6,11 @@ import {
   BellRing,
   CheckCircle2,
   ClipboardCheck,
-  Database,
   Download,
   FileDiff,
   FileText,
   GitBranch,
   HeartPulse,
-  KeyRound,
   Landmark,
   ListChecks,
   LockKeyhole,
@@ -25,7 +23,6 @@ import {
   SlidersHorizontal,
   Umbrella,
   Users,
-  Workflow,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -35,6 +32,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ErrorState } from '@/components/common/error-state';
+import { BusinessPageHeader } from '@/components/common/business-page';
 import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
 import {
@@ -305,14 +303,14 @@ type ScopeForm = {
 };
 
 const policyAreas: Array<{ area: PolicyArea; label: string; icon: React.ElementType; link?: string }> = [
-  { area: 'EMPLOYEE_SETUP', label: 'Service Policies', icon: SlidersHorizontal, link: '/admin/system-console/settings' },
-  { area: 'LEAVE', label: 'Leave', icon: Umbrella, link: '/admin/leave' },
-  { area: 'ATTENDANCE', label: 'Attendance', icon: Radar, link: '/admin/attendance' },
-  { area: 'PAYROLL', label: 'Payroll', icon: Scale, link: '/admin/payroll' },
-  { area: 'ACCESS_GOVERNANCE', label: 'Access Governance', icon: LockKeyhole },
-  { area: 'COUNTRY_POLICY', label: 'Country Policy', icon: Landmark, link: '/admin/country-policy' },
-  { area: 'COMPLIANCE', label: 'Compliance Policies', icon: ClipboardCheck, link: '/admin/compliance' },
-  { area: 'BENEFITS', label: 'Benefits', icon: HeartPulse, link: '/admin/modules/benefits/operations' },
+  { area: 'EMPLOYEE_SETUP', label: 'Service Rules', icon: SlidersHorizontal, link: '/admin/system-console/settings' },
+  { area: 'LEAVE', label: 'Leave Rules', icon: Umbrella, link: '/admin/leave' },
+  { area: 'ATTENDANCE', label: 'Attendance Rules', icon: Radar, link: '/admin/attendance' },
+  { area: 'PAYROLL', label: 'Payroll Rules', icon: Scale, link: '/admin/payroll' },
+  { area: 'ACCESS_GOVERNANCE', label: 'Access Rules', icon: LockKeyhole },
+  { area: 'COUNTRY_POLICY', label: 'Country Rules', icon: Landmark, link: '/admin/country-policy' },
+  { area: 'COMPLIANCE', label: 'Compliance Rules', icon: ClipboardCheck, link: '/admin/compliance' },
+  { area: 'BENEFITS', label: 'Benefits Rules', icon: HeartPulse, link: '/admin/modules/benefits/operations' },
 ];
 
 const areaTabValues: Record<PolicyArea, string> = {
@@ -516,6 +514,15 @@ function recordCode(record: Record<string, unknown> | undefined) {
   return stringField(record, 'code') || stringField(record, 'id');
 }
 
+function keepExistingSelection(
+  current: string,
+  records: Record<string, unknown>[],
+  idForRecord: (record: Record<string, unknown>) => string
+) {
+  const ids = records.map(idForRecord).filter(Boolean);
+  return current && ids.includes(current) ? current : ids[0] ?? '';
+}
+
 function recordLabel(record: Record<string, unknown> | undefined) {
   const code = recordCode(record);
   const label = stringField(record, 'label');
@@ -679,14 +686,13 @@ function DomainSimulationCard({
     <div className="rounded-xl border border-[#c7d2fe] bg-[#eef2ff] p-4">
       <div className="mb-3 flex flex-col gap-1">
         <p className="font-semibold text-[#0f172a]">{title}</p>
-        <p className="text-sm text-[#475569]">Rule ledger, workflow, revalidation, and scope behavior detected before apply.</p>
       </div>
       <div className="grid gap-3 lg:grid-cols-4">
         {[
           ['Rules', simulation.ruleCodes.length],
           ['Scopes', simulation.scopeDimensions.length],
-          ['Workflows', simulation.workflowImpacts.length],
-          ['Queues', simulation.revalidationQueues.length],
+          ['Approvals', simulation.workflowImpacts.length],
+          ['Records', simulation.revalidationQueues.length],
         ].map(([label, value]) => (
           <div key={label} className="rounded-lg bg-white p-3">
             <p className="text-xs uppercase tracking-wider text-[#64748b]">{label}</p>
@@ -696,11 +702,11 @@ function DomainSimulationCard({
       </div>
       <div className="mt-3 grid gap-3 xl:grid-cols-3">
         <div className="rounded-lg border border-[#cbd5e1] bg-white">
-          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Rule Codes</div>
+          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Rules</div>
           <div className="max-h-44 overflow-y-auto p-3 text-xs text-[#475569]">{simulation.ruleCodes.length > 0 ? simulation.ruleCodes.join(', ') : 'No rules detected.'}</div>
         </div>
         <div className="rounded-lg border border-[#cbd5e1] bg-white">
-          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Workflow Impacts</div>
+          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Approval Impact</div>
           <div className="max-h-44 overflow-y-auto divide-y divide-[#e2e8f0]">
             {simulation.workflowImpacts.map((impact, index) => (
               <div key={`${impact.ruleCode}-${index}`} className="p-3 text-xs text-[#475569]">
@@ -709,7 +715,7 @@ function DomainSimulationCard({
                 <Badge className={riskTone(impact.risk)}>{formatEnum(impact.risk)}</Badge>
               </div>
             ))}
-            {simulation.workflowImpacts.length === 0 ? <p className="p-3 text-xs text-[#64748b]">No workflow changes detected.</p> : null}
+            {simulation.workflowImpacts.length === 0 ? <p className="p-3 text-xs text-[#64748b]">No approval changes detected.</p> : null}
           </div>
         </div>
         <div className="rounded-lg border border-[#cbd5e1] bg-white">
@@ -789,7 +795,6 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
               <ShieldCheck className="h-5 w-5 text-[#4f46e5]" />
               Validation
             </CardTitle>
-            <CardDescription>{validation?.engineName ?? 'PolicyValidationEngine'} {validation?.engineVersion ?? ''}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <Badge className={validation?.valid ? 'bg-[#4f46e5] text-white' : 'bg-[#e11d48] text-white'}>
@@ -805,7 +810,6 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
               <Radar className="h-5 w-5 text-[#6366f1]" />
               Simulation
             </CardTitle>
-            <CardDescription>{simulation?.engineName ?? 'PolicyImpactSimulationEngine'} {simulation?.engineVersion ?? ''}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-[#475569]">
             <div className="text-3xl font-bold text-[#0f172a]">{simulation?.impactedEmployees ?? 0}</div>
@@ -962,21 +966,18 @@ function PolicyControlMatrix({ revisions }: { revisions: PolicyRevision[] }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <CardTitle className="text-lg">{lens.label}</CardTitle>
-                  <CardDescription>{lens.description}</CardDescription>
                 </div>
                 <div className="shrink-0 text-right">
                   <Badge className={applied > 0 ? 'bg-[#4f46e5] text-white' : 'bg-[#e2e8f0] text-[#475569]'}>
                     {applied} applied
                   </Badge>
-                  <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{open} open</p>
+                  <p className="mt-1 text-xs font-semibold text-[#64748b]">{open} in progress</p>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
-              <MiniList title="Engines" icon={Workflow} items={lens.engines} />
               <MiniList title="Controls" icon={SlidersHorizontal} items={lens.controls} />
-              <MiniList title="Runtime Keys" icon={Database} items={lens.runtimeKeys} />
-              <MiniList title="Consumers" icon={Users} items={lens.serviceConsumers} />
+              <MiniList title="Used By" icon={Users} items={lens.serviceConsumers} />
             </CardContent>
           </Card>
         );
@@ -993,19 +994,16 @@ function WholeSystemPolicyCoverage({ revisions }: { revisions: PolicyRevision[] 
           <ShieldCheck className="h-5 w-5 text-[#4f46e5]" />
           Whole-System Policy Coverage
         </CardTitle>
-        <CardDescription>Visible modules, governing policy area, command enforcement, notifications, and runtime evidence.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto rounded-lg border border-[#e2e8f0]">
-          <table className="w-full min-w-[980px] border-collapse text-left text-sm">
-            <thead className="bg-[#eef2ff] font-mono text-xs uppercase tracking-wider text-[#475569]">
+          <table className="w-full min-w-[820px] border-collapse text-left text-sm">
+            <thead className="bg-[#eef2ff] text-xs font-semibold uppercase tracking-wide text-[#475569]">
               <tr>
                 <th className="p-3">Module</th>
                 <th className="p-3">Governing Area</th>
                 <th className="p-3">Policy Control</th>
-                <th className="p-3">Command Enforcement</th>
-                <th className="p-3">Evidence</th>
-                <th className="p-3 text-center">Applied</th>
+                <th className="p-3 text-center">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e2e8f0]">
@@ -1016,24 +1014,9 @@ function WholeSystemPolicyCoverage({ revisions }: { revisions: PolicyRevision[] 
                     <td className="p-3 font-semibold text-[#0f172a]">{surface.module}</td>
                     <td className="p-3 text-[#475569]">{formatEnum(surface.policyArea)}</td>
                     <td className="p-3 text-[#475569]">{surface.governedBy}</td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap gap-1">
-                        {surface.commandEnforcement.slice(0, 3).map((command) => (
-                          <span key={command} className="rounded-full border border-[#c7d2fe] bg-white px-2 py-1 text-xs text-[#475569]">{command}</span>
-                        ))}
-                        {surface.commandEnforcement.length > 3 ? <span className="rounded-full bg-[#eef2ff] px-2 py-1 text-xs text-[#475569]">+{surface.commandEnforcement.length - 3}</span> : null}
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex flex-wrap gap-1">
-                        {surface.runtimeEvidence.slice(0, 3).map((item) => (
-                          <span key={item} className="rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-2 py-1 text-xs text-[#64748b]">{item}</span>
-                        ))}
-                      </div>
-                    </td>
                     <td className="p-3 text-center">
                       <Badge className={applied ? 'bg-[#4f46e5] text-white' : 'bg-[#e2e8f0] text-[#475569]'}>
-                        {applied ? 'Runtime' : 'Not applied'}
+                        {applied ? 'Active' : 'Not active'}
                       </Badge>
                     </td>
                   </tr>
@@ -1056,21 +1039,18 @@ function PolicyRuntimeLens({ revision, evidence }: { revision?: PolicyRevision; 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Workflow className="h-5 w-5 text-[#4f46e5]" />
-            {lens.brain}
+            <SlidersHorizontal className="h-5 w-5 text-[#4f46e5]" />
+            {lens.label} Rules
           </CardTitle>
-          <CardDescription>{lens.description}</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <CardContent className="grid gap-3 md:grid-cols-2">
           <MiniList title="Business Controls" icon={SlidersHorizontal} items={lens.controls} />
-          <MiniList title="Runtime Consumers" icon={Users} items={lens.serviceConsumers} />
-          <MiniList title="Evidence Written" icon={KeyRound} items={lens.evidenceFields} />
+          <MiniList title="Used By" icon={Users} items={lens.serviceConsumers} />
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Latest Evidence</CardTitle>
-          <CardDescription>Real records from policy decision evidence</CardDescription>
+          <CardTitle className="text-lg">Recent Decisions</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {latestEvidence.map((item) => (
@@ -1079,11 +1059,10 @@ function PolicyRuntimeLens({ revision, evidence }: { revision?: PolicyRevision; 
                 <span className="font-semibold text-[#0f172a]">{item.decision}</span>
                 <span className="font-mono text-[11px] text-[#94a3b8]">{displayDate(item.createdAt)}</span>
               </div>
-              <p className="mt-1 text-[#475569]">{item.engineName} {item.engineVersion}</p>
               <p className="mt-2 text-[#64748b]">{item.reason}</p>
             </div>
           ))}
-          {latestEvidence.length === 0 ? <p className="text-sm text-[#94a3b8]">No decision evidence has been written for this revision yet.</p> : null}
+          {latestEvidence.length === 0 ? <p className="text-sm text-[#94a3b8]">No policy decisions have been recorded for this revision yet.</p> : null}
         </CardContent>
       </Card>
     </div>
@@ -1157,8 +1136,8 @@ function RuntimeSnapshotSummary({ area, setup }: { area: PolicyArea; setup?: Rec
     facts.push(['Statutory packs', packs.length], ['Close blockers', blockers.filter((item) => booleanField(item, 'blocking')).length]);
     highlights.push(
       ...packs.slice(0, 3).map((item) => `${recordLabel(item)}: ${stringField(item, 'countryCode', 'GLOBAL')} ${stringField(item, 'currency')}`),
-      `${earnings.length} earning policies`,
-      `${deductions.length} deduction policies`,
+      `${earnings.length} earning rules`,
+      `${deductions.length} deduction rules`,
       `${blockers.length} payroll readiness rules`,
     );
   } else if (area === 'ACCESS_GOVERNANCE') {
@@ -1212,7 +1191,7 @@ function RuntimeSnapshotSummary({ area, setup }: { area: PolicyArea; setup?: Rec
             {item}
           </div>
         ))}
-        {highlights.length === 0 ? <p className="text-sm text-[#94a3b8]">No applied runtime records yet.</p> : null}
+        {highlights.length === 0 ? <p className="text-sm text-[#94a3b8]">No active rules yet.</p> : null}
       </div>
     </div>
   );
@@ -1283,23 +1262,31 @@ function PolicyBusinessControls({
 
   React.useEffect(() => {
     if (revision.area === 'LEAVE') {
-      const first = asRecords(draft.leavePolicies)[0];
-      setSelectedLeaveCode((current) => current || recordCode(first));
+      const policies = asRecords(draft.leavePolicies);
+      setSelectedLeaveCode((current) => keepExistingSelection(current, policies, recordCode));
     }
     if (revision.area === 'EMPLOYEE_SETUP') {
-      setSelectedFieldKey((current) => current || stringField(asRecords(draft.fieldRules)[0], 'fieldKey'));
-      setSelectedDocumentCode((current) => current || recordCode(asRecords(draft.documentRequirements)[0]));
+      const fieldRules = asRecords(draft.fieldRules);
+      const documentRequirements = asRecords(draft.documentRequirements);
+      setSelectedFieldKey((current) => keepExistingSelection(current, fieldRules, (record) => stringField(record, 'fieldKey')));
+      setSelectedDocumentCode((current) => keepExistingSelection(current, documentRequirements, recordCode));
     }
     if (revision.area === 'PAYROLL') {
-      setSelectedPayrollPack((current) => current || recordCode(asRecords(draft.statutoryPayrollPacks)[0]));
-      setSelectedEarningPolicy((current) => current || recordCode(asRecords(draft.earningPolicies)[0]));
-      setSelectedDeductionPolicy((current) => current || recordCode(asRecords(draft.deductionPolicies)[0]));
-      setSelectedPayrollBlocker((current) => current || recordCode(asRecords(draft.payrollBlockingRules)[0]));
+      const statutoryPayrollPacks = asRecords(draft.statutoryPayrollPacks);
+      const earningPolicies = asRecords(draft.earningPolicies);
+      const deductionPolicies = asRecords(draft.deductionPolicies);
+      const payrollBlockingRules = asRecords(draft.payrollBlockingRules);
+      setSelectedPayrollPack((current) => keepExistingSelection(current, statutoryPayrollPacks, recordCode));
+      setSelectedEarningPolicy((current) => keepExistingSelection(current, earningPolicies, recordCode));
+      setSelectedDeductionPolicy((current) => keepExistingSelection(current, deductionPolicies, recordCode));
+      setSelectedPayrollBlocker((current) => keepExistingSelection(current, payrollBlockingRules, recordCode));
     }
     if (revision.area === 'ACCESS_GOVERNANCE') {
       const governance = asRecord(draft.policyGovernance);
-      setSelectedActionOverride((current) => current || stringField(asRecords(governance.allowedActionOverrides)[0], 'id'));
-      setSelectedFieldOverride((current) => current || stringField(asRecords(governance.fieldAccessOverrides)[0], 'id'));
+      const allowedActionOverrides = asRecords(governance.allowedActionOverrides);
+      const fieldAccessOverrides = asRecords(governance.fieldAccessOverrides);
+      setSelectedActionOverride((current) => keepExistingSelection(current, allowedActionOverrides, (record) => stringField(record, 'id')));
+      setSelectedFieldOverride((current) => keepExistingSelection(current, fieldAccessOverrides, (record) => stringField(record, 'id')));
     }
   }, [
     revision.area,
@@ -1319,7 +1306,7 @@ function PolicyBusinessControls({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Business Controls</CardTitle>
-          <CardDescription>This draft contains invalid stored policy data. Create a fresh revision from the current runtime snapshot or contact a system administrator.</CardDescription>
+          <CardDescription>This draft contains invalid stored policy data. Create a fresh revision from current active settings or contact a system administrator.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#e11d48]">{parsed.error}</div>
@@ -1344,7 +1331,6 @@ function PolicyBusinessControls({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Leave Business Controls</CardTitle>
-          <CardDescription>Eligibility, balance, approval, documents, and payroll impact consumed by leave request and manager approval commands.</CardDescription>
         </CardHeader>
         <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
           <div className="space-y-1.5 lg:col-span-2">
@@ -1408,7 +1394,6 @@ function PolicyBusinessControls({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Attendance Business Controls</CardTitle>
-          <CardDescription>Geofence, device trust, shift timing, exception blockers, and payroll ledger behavior.</CardDescription>
         </CardHeader>
         <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
           <GuidedInput label="Standard start" value={stringField(attendance, 'standardStartTime', '09:00')} onChange={(value) => update({ standardStartTime: value })} />
@@ -1429,7 +1414,7 @@ function PolicyBusinessControls({
             <div className="lg:col-span-4 rounded-lg border border-[#f59e0b]/30 bg-[#fef3c7]/50 p-3 text-sm text-[#78350f]">
               This draft uses the legacy geofence radius field.{' '}
               <Button type="button" variant="outline" className="ml-2 h-8" onClick={() => update({ allowedRadiusMeters: numberField(attendance, 'geofenceRadiusMeters') })}>
-                Normalize For Runtime Engines
+                Update Field
               </Button>
             </div>
           ) : null}
@@ -1519,7 +1504,6 @@ function PolicyBusinessControls({
           <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
             <div className="mb-3 flex flex-col gap-1">
               <p className="font-semibold text-[#0f172a]">Default Calculation Policy</p>
-              <p className="text-sm text-[#475569]">Fallback tax and insurance rules used when no more specific statutory pack applies.</p>
             </div>
             <div className="grid gap-3 lg:grid-cols-4">
               <div className="space-y-1.5">
@@ -1537,7 +1521,6 @@ function PolicyBusinessControls({
           <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
             <div className="mb-3 flex flex-col gap-1">
               <p className="font-semibold text-[#0f172a]">Statutory Pack, GL, And Bank Output</p>
-              <p className="text-sm text-[#475569]">Country/location payroll pack used by payroll statutory checks, GL posting preview, and bank payment batch generation.</p>
             </div>
             <div className="grid gap-3 lg:grid-cols-4">
               <div className="space-y-1.5 lg:col-span-2">
@@ -1576,8 +1559,7 @@ function PolicyBusinessControls({
           <div className="grid gap-5 xl:grid-cols-2">
             <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
               <div className="mb-3 flex flex-col gap-1">
-                <p className="font-semibold text-[#0f172a]">Earning Policies</p>
-                <p className="text-sm text-[#475569]">Allowances and attendance-driven earnings consumed by payroll result-line calculation.</p>
+                <p className="font-semibold text-[#0f172a]">Earning Rules</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5 md:col-span-2">
@@ -1594,9 +1576,9 @@ function PolicyBusinessControls({
                     {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_BASE', 'LOGIC_LEDGER'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
                   </select>
                 </div>
-                {earningType === 'PERCENT_OF_BASE'
+                {earningType !== 'LOGIC_LEDGER' && (earningType === 'PERCENT_OF_BASE'
                   ? <GuidedInput label="Rate %" type="number" value={numberField(earning, 'ratePercent')} onChange={(value) => updateEarning({ ratePercent: optionalNumber(value) })} />
-                  : <GuidedInput label="Amount" type="number" value={numberField(earning, 'amount')} onChange={(value) => updateEarning({ amount: optionalNumber(value) })} />}
+                  : <GuidedInput label="Amount" type="number" value={numberField(earning, 'amount')} onChange={(value) => updateEarning({ amount: optionalNumber(value) })} />)}
                 <GuidedInput label="Attendance event" value={stringField(earning, 'attendanceEvent')} onChange={(value) => updateEarning({ attendanceEvent: value })} />
                 <GuidedToggle label="Active" checked={booleanField(earning, 'active', true)} onChange={(checked) => updateEarning({ active: checked })} />
                 <GuidedToggle label="Taxable" checked={booleanField(earning, 'taxable', true)} onChange={(checked) => updateEarning({ taxable: checked })} />
@@ -1605,7 +1587,7 @@ function PolicyBusinessControls({
                 <div className="md:col-span-2 rounded-lg border border-[#dbeafe] bg-[#eff6ff] p-3">
                   <div className="mb-3">
                     <p className="text-sm font-semibold text-[#0f172a]">Logic Ledger</p>
-                    <p className="text-xs text-[#475569]">Use this for entity/country scoped calculations driven by attendance, leave, payroll, benefit, loan, or manual ledgers.</p>
+                    <p className="text-xs text-[#475569]">Use this for scoped calculations driven by attendance, leave, benefits, loans, or manual adjustments.</p>
                   </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <GuidedInput label="Ledger rule code" value={stringField(earningLedger, 'code', `${earningCode}_LEDGER`)} onChange={(value) => updateEarningLedger({ code: value })} />
@@ -1647,8 +1629,7 @@ function PolicyBusinessControls({
 
             <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
               <div className="mb-3 flex flex-col gap-1">
-                <p className="font-semibold text-[#0f172a]">Deduction Policies</p>
-                <p className="text-sm text-[#475569]">Late, undertime, statutory, and custom deductions consumed by payroll result-line calculation.</p>
+                <p className="font-semibold text-[#0f172a]">Deduction Rules</p>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1.5 md:col-span-2">
@@ -1665,9 +1646,9 @@ function PolicyBusinessControls({
                     {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_GROSS', 'LOGIC_LEDGER'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
                   </select>
                 </div>
-                {deductionType === 'PERCENT_OF_GROSS'
+                {deductionType !== 'LOGIC_LEDGER' && (deductionType === 'PERCENT_OF_GROSS'
                   ? <GuidedInput label="Rate %" type="number" value={numberField(deduction, 'ratePercent')} onChange={(value) => updateDeduction({ ratePercent: optionalNumber(value) })} />
-                  : <GuidedInput label="Amount" type="number" value={numberField(deduction, 'amount')} onChange={(value) => updateDeduction({ amount: optionalNumber(value) })} />}
+                  : <GuidedInput label="Amount" type="number" value={numberField(deduction, 'amount')} onChange={(value) => updateDeduction({ amount: optionalNumber(value) })} />)}
                 <GuidedInput label="Attendance event" value={stringField(deduction, 'attendanceEvent')} onChange={(value) => updateDeduction({ attendanceEvent: value })} />
                 <div className="space-y-1.5">
                   <Label>Timing</Label>
@@ -1930,7 +1911,7 @@ function PolicyBusinessControls({
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <GuidedInput label="Eligibility rule code" value={recordCode(eligibility) || 'MEDICAL_FULL_TIME'} onChange={(value) => updateEligibility({ code: value })} />
-                <GuidedInput label="Eligibility label" value={recordLabel(eligibility) || 'Medical plan full-time eligibility'} onChange={(value) => updateEligibility({ label: value })} />
+                <GuidedInput label="Eligibility label" value={stringField(eligibility, 'label', 'Medical plan full-time eligibility')} onChange={(value) => updateEligibility({ label: value })} />
                 <GuidedInput label="Employee types CSV" value={stringArrayField(eligibility, 'employeeTypes').join(', ')} onChange={(value) => updateEligibility({ employeeTypes: splitCsv(value) })} />
                 <GuidedInput label="Plan codes CSV" value={stringArrayField(eligibility, 'planCodes').join(', ')} onChange={(value) => updateEligibility({ planCodes: splitCsv(value) })} />
                 <GuidedInput label="Waiting period days" type="number" value={numberField(enrollmentLedger, 'waitingPeriodDays', numberField(enrollment, 'waitingPeriodDays', 30))} onChange={(value) => updateEnrollmentLedger({ waitingPeriodDays: optionalNumber(value) })} />
@@ -2010,7 +1991,6 @@ function PolicyBusinessControls({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Employee Setup And Data Governance Controls</CardTitle>
-          <CardDescription>Required fields and document evidence consumed by employee creation, onboarding, and digital employee file workflows.</CardDescription>
         </CardHeader>
         <BusinessControlBody editable={editable} className="grid gap-6 xl:grid-cols-2">
           <div className="grid gap-3 md:grid-cols-2">
@@ -2049,8 +2029,7 @@ function PolicyBusinessControls({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Country Policy Runtime Controls</CardTitle>
-          <CardDescription>Country statutory metadata consumed by country validation, simulation, payroll statutory checks, and compliance reporting.</CardDescription>
+          <CardTitle className="text-lg">Country Rules</CardTitle>
         </CardHeader>
         <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
           <GuidedInput label="Country code" value={stringField(runtime, 'countryCode', 'EG')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { countryCode: value } })} />
@@ -2077,8 +2056,7 @@ function PolicyBusinessControls({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Compliance Runtime Controls</CardTitle>
-        <CardDescription>Policy documents, acknowledgements, legal holds, retention, and statutory reporting behavior.</CardDescription>
+        <CardTitle className="text-lg">Compliance Rules</CardTitle>
       </CardHeader>
       <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
         <GuidedInput label="Policy family" value={stringField(complianceRuntime, 'policyFamily', 'CODE_OF_CONDUCT')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { policyFamily: value } })} />
@@ -2127,14 +2105,14 @@ function AreaWorkspace({
               <Icon className="h-5 w-5 text-[#4f46e5]" />
               {meta.label}
             </CardTitle>
-            <CardDescription>{revisions.length} revisions in this service area</CardDescription>
+            <CardDescription>{revisions.length} policy versions</CardDescription>
           </div>
           <Button type="button" onClick={() => onCreateDraft(area)}>Create Draft</Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-3 lg:grid-cols-3">
             <MiniList title="Controls" icon={SlidersHorizontal} items={lens.controls} />
-            <MiniList title="Runtime Consumers" icon={Users} items={lens.serviceConsumers} />
+            <MiniList title="Used By" icon={Users} items={lens.serviceConsumers} />
             <MiniList title="Notifications" icon={BellRing} items={lens.notificationEvents} />
           </div>
           <RevisionList revisions={revisions} selectedId={selectedId} onSelect={onSelect} />
@@ -2142,7 +2120,7 @@ function AreaWorkspace({
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Applied Runtime Summary</CardTitle>
+          <CardTitle className="text-lg">Active Rules Summary</CardTitle>
           <CardDescription>Business records generated from applied revisions</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -2294,7 +2272,7 @@ export function AdminPolicies() {
       setActiveTab(areaTabValues[revision.area]);
       setSelectedId(revision.id);
       invalidatePolicies();
-      addNotification({ title: 'Rollback draft created', message: 'The rollback is a governed draft. Validate, review, publish, and apply it before runtime changes.', type: 'success', read: false });
+      addNotification({ title: 'Rollback draft created', message: 'Review, publish, and apply the draft before it affects the system.', type: 'success', read: false });
     },
     onError: (mutationError) => notifyError(mutationError, 'Unable to create rollback draft.'),
   });
@@ -2360,7 +2338,7 @@ export function AdminPolicies() {
     onSuccess: (revision) => {
       setSelectedId(revision.id);
       invalidatePolicies();
-      addNotification({ title: 'Policy applied', message: 'The controlled lifecycle completed and the runtime snapshot was updated.', type: 'success', read: false });
+      addNotification({ title: 'Policy applied', message: 'The policy is now active for the selected scope.', type: 'success', read: false });
     },
     onError: (mutationError) => notifyError(mutationError, 'Unable to complete controlled policy apply.'),
   });
@@ -2430,30 +2408,25 @@ export function AdminPolicies() {
   return (
     <div className="min-h-screen fusion-bg p-4 md:p-6 lg:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#4f46e5] text-white">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="font-headline text-3xl font-bold text-[#0f172a]">Policy Center</h2>
-                <p className="text-sm text-[#475569]">Scoped policy revisions, lifecycle workflow, simulation, application, and notifications.</p>
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link to="/admin/system-console/settings">Setup</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/admin/compliance">Compliance</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link to="/admin/country-policy">Country Policy</Link>
-            </Button>
-          </div>
-        </div>
+        <BusinessPageHeader
+          eyebrow="Governance"
+          icon={ShieldCheck}
+          title="Policy Center"
+          subtitle="Create, review, publish, and apply the rules that control HR services."
+          actions={(
+            <>
+              <Button asChild variant="outline">
+                <Link to="/admin/system-console/settings">Setup</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/admin/compliance">Compliance</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/admin/country-policy">Country Rules</Link>
+              </Button>
+            </>
+          )}
+        />
 
         {revisionsQuery.isError || summaryQuery.isError ? (
           <ErrorState
@@ -2483,16 +2456,16 @@ export function AdminPolicies() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="flex max-w-full flex-wrap justify-start gap-1 overflow-x-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="service">Service Policies</TabsTrigger>
-            <TabsTrigger value="leave">Leave</TabsTrigger>
-            <TabsTrigger value="attendance">Attendance</TabsTrigger>
-            <TabsTrigger value="payroll">Payroll</TabsTrigger>
-            <TabsTrigger value="access">Access Governance</TabsTrigger>
-            <TabsTrigger value="country">Country Policy</TabsTrigger>
-            <TabsTrigger value="compliance">Compliance Policies</TabsTrigger>
-            <TabsTrigger value="benefits">Benefits</TabsTrigger>
-            <TabsTrigger value="impact">Impact & Runs</TabsTrigger>
-            <TabsTrigger value="audit">Audit Trail</TabsTrigger>
+            <TabsTrigger value="service">Service Rules</TabsTrigger>
+            <TabsTrigger value="leave">Leave Rules</TabsTrigger>
+            <TabsTrigger value="attendance">Attendance Rules</TabsTrigger>
+            <TabsTrigger value="payroll">Payroll Rules</TabsTrigger>
+            <TabsTrigger value="access">Access Rules</TabsTrigger>
+            <TabsTrigger value="country">Country Rules</TabsTrigger>
+            <TabsTrigger value="compliance">Compliance Rules</TabsTrigger>
+            <TabsTrigger value="benefits">Benefits Rules</TabsTrigger>
+            <TabsTrigger value="impact">Impact</TabsTrigger>
+            <TabsTrigger value="audit">History</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4">
@@ -2501,18 +2474,17 @@ export function AdminPolicies() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <GitBranch className="h-5 w-5 text-[#4f46e5]" />
-                    Policy Brain And Lifecycle
+                    Policy Lifecycle
                   </CardTitle>
-                  <CardDescription>Live service behavior changes only after APPLIED.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {[
-                    ['PolicyLifecycleWorkflow', 'DRAFT -> IN_REVIEW -> REVIEWED -> APPROVED -> PUBLISHED -> APPLIED'],
-                    ['PolicyScopeResolver', 'Worker, department/unit, entity, country, tenant default precedence'],
-                    ['PolicyValidationEngine', 'Schema, dates, conflicts, geofence, payroll, and access checks'],
-                    ['PolicyImpactSimulationEngine', 'Impacted workers, pending requests, open payroll and attendance periods'],
-                    ['PolicyApplicationEngine', 'Writes approved/published revisions into the runtime setup snapshot'],
-                    ['Notification Engine', 'Review, approval, publish, apply, and impact events to bell/inbox'],
+                    ['Draft', 'Prepare rule changes before they affect employees.'],
+                    ['Review', 'Send changes to the right reviewers before approval.'],
+                    ['Approve', 'Confirm ownership, scope, and risk.'],
+                    ['Publish', 'Make the approved revision ready for use.'],
+                    ['Apply', 'Activate the revision for live service decisions.'],
+                    ['Notify', 'Inform impacted HR teams, managers, and employees.'],
                   ].map(([name, body]) => (
                     <div key={name} className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4">
                       <p className="font-semibold text-[#0f172a]">{name}</p>
@@ -2528,8 +2500,7 @@ export function AdminPolicies() {
                     <FileText className="h-5 w-5 text-[#6366f1]" />
                     Create Revision
                   </CardTitle>
-                  <CardDescription>Start from the current runtime snapshot.</CardDescription>
-                </CardHeader>
+              </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="new-area">Area</Label>
@@ -2564,7 +2535,7 @@ export function AdminPolicies() {
                   <FileText className="h-5 w-5 text-[#4f46e5]" />
                   Enterprise Policy Templates
                 </CardTitle>
-                <CardDescription>Start from controlled domain templates instead of editing raw configuration.</CardDescription>
+                <CardDescription>Start from ready-to-use business templates.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {(templatesQuery.data ?? []).map((template) => (
@@ -2589,9 +2560,8 @@ export function AdminPolicies() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <ListChecks className="h-5 w-5 text-[#4f46e5]" />
-                  Full System Policy Control Matrix
+                  Policy Coverage
                 </CardTitle>
-                <CardDescription>Every governed service area shows the engines, runtime keys, consumers, and notifications controlled from this center.</CardDescription>
               </CardHeader>
               <CardContent>
                 <PolicyControlMatrix revisions={revisions} />
@@ -2642,7 +2612,6 @@ export function AdminPolicies() {
                       <span className="text-[#475569]">{displayDate(run.appliedAt)}</span>
                     </div>
                     <p className="mt-2 text-[#475569]">{run.impactedEmployees} employees impacted</p>
-                    <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{run.revisionId}</p>
                   </div>
                 ))}
                 {(summary?.recentRuns ?? []).length === 0 ? <p className="text-sm text-[#94a3b8]">No application runs yet.</p> : null}
@@ -2657,7 +2626,6 @@ export function AdminPolicies() {
                   <BellRing className="h-5 w-5 text-[#4f46e5]" />
                   Revision Audit Trail
                 </CardTitle>
-                <CardDescription>{visibleSelectedRevision ? visibleSelectedRevision.title : 'Select a revision'}</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3">
@@ -2674,8 +2642,8 @@ export function AdminPolicies() {
                 </div>
                 <div className="space-y-3">
                   <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4 text-sm leading-6 text-[#475569]">
-                    <p className="font-semibold text-[#0f172a]">Decision Evidence</p>
-                    <p className="mt-2">Apply writes structured evidence with revision ID, scope match, engine name/version, decision, and reason. Lifecycle commands also emit outbox/audit events.</p>
+                    <p className="font-semibold text-[#0f172a]">Decision History</p>
+                    <p className="mt-2">Each applied rule records the decision, reason, affected record, and responsible actor.</p>
                   </div>
                   {(evidenceQuery.data ?? [])
                     .filter((item) => !visibleSelectedRevision || item.policyRevisionId === visibleSelectedRevision.id)
@@ -2686,12 +2654,11 @@ export function AdminPolicies() {
                           <span className="font-semibold text-[#0f172a]">{item.decision}</span>
                           <span className="font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{item.serviceArea}</span>
                         </div>
-                        <p className="mt-1 text-[#475569]">{item.engineName} {item.engineVersion}</p>
                         <p className="mt-2 text-[#64748b]">{item.reason}</p>
                       </div>
                     ))}
                   {((evidenceQuery.data ?? []).filter((item) => !visibleSelectedRevision || item.policyRevisionId === visibleSelectedRevision.id).length === 0) ? (
-                    <p className="text-sm text-[#94a3b8]">No decision evidence for the selected revision yet.</p>
+                    <p className="text-sm text-[#94a3b8]">No policy decisions have been recorded for the selected revision yet.</p>
                   ) : null}
                 </div>
               </CardContent>
@@ -2707,7 +2674,7 @@ export function AdminPolicies() {
                   <Save className="h-5 w-5 text-[#4f46e5]" />
                   Revision Editor
                 </CardTitle>
-                <CardDescription>{formatEnum(visibleSelectedRevision.area)} - {visibleSelectedRevision.id}</CardDescription>
+                <CardDescription>{formatEnum(visibleSelectedRevision.area)}</CardDescription>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-2">
                 {!selectedIsEditable ? (
@@ -2746,10 +2713,10 @@ export function AdminPolicies() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <FileDiff className="h-5 w-5 text-[#4f46e5]" />
-                    Enterprise Change Controls
-                  </CardTitle>
-                  <CardDescription>Compare, export, dry-run import, and create rollback drafts without directly mutating runtime.</CardDescription>
+                  <FileDiff className="h-5 w-5 text-[#4f46e5]" />
+                  Enterprise Change Controls
+                </CardTitle>
+                  <CardDescription>Compare, export, test import, and create rollback drafts.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -2828,7 +2795,7 @@ export function AdminPolicies() {
                       <CheckCircle2 className="h-5 w-5 text-[#4f46e5]" />
                       Controlled Apply
                     </CardTitle>
-                    <CardDescription>Runs save, validation, simulation, lifecycle approval, publish, and apply through the governed API path.</CardDescription>
+                  <CardDescription>Runs the required review, approval, publish, and apply steps.</CardDescription>
                   </div>
                   <Button
                     type="button"
@@ -2852,7 +2819,7 @@ export function AdminPolicies() {
                     ) : null}
                   </div>
                   <p className="text-sm leading-6 text-[#475569]">
-                    The wizard does not write directly to runtime. It calls the same lifecycle endpoints as the manual buttons, so audit, outbox events, notifications, application runs, and decision evidence remain intact.
+                    The wizard follows the same approval path as the manual buttons and records the change history.
                   </p>
                 </CardContent>
               </Card>

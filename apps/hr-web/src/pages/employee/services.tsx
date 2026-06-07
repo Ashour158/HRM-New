@@ -288,14 +288,14 @@ export function EmployeeServices() {
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2">
-                <span className="text-slate-600">Catalog API</span>
+                <span className="text-slate-600">Service catalog</span>
                 <Badge variant={catalogError ? 'destructive' : 'outline'}>{catalogError ? 'Fallback' : 'Live'}</Badge>
               </div>
               <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2">
-                <span className="text-slate-600">My cases API</span>
+                <span className="text-slate-600">My requests</span>
                 <Badge variant={casesError ? 'destructive' : 'outline'}>{casesError ? 'Error' : 'Live'}</Badge>
               </div>
-              <p className="text-xs leading-5 text-slate-500">Submitting a request uses the HR service-delivery command workflow and audit trail.</p>
+              <p className="text-xs leading-5 text-slate-500">Submitting a request sends it to the right HR team for review.</p>
             </CardContent>
           </Card>
         </section>
@@ -303,10 +303,10 @@ export function EmployeeServices() {
         <section className="rounded-lg border border-[#e2e8f0] bg-white shadow-sm">
           <div className="grid gap-4 border-b border-[#e2e8f0] p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div>
-              <Badge variant="secondary" className="mb-3 bg-[#eef2ff] text-[#4f46e5]">Built Module Coverage</Badge>
-              <h2 className="font-headline text-2xl font-semibold text-slate-950">Platform coverage visible from the employee side</h2>
+              <Badge variant="secondary" className="mb-3 bg-[#eef2ff] text-[#4f46e5]">Available Services</Badge>
+              <h2 className="font-headline text-2xl font-semibold text-slate-950">Employee services</h2>
               <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
-                This launcher mirrors the platform module registry so employee self-service does not hide built capabilities behind unknown routes.
+                Use these shortcuts to find the services available to employees.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 text-center text-sm">
@@ -379,7 +379,7 @@ export function EmployeeServices() {
                 <div key={module.id} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-3 py-3">
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-slate-950">{module.label}</p>
-                    <p className="truncate text-xs text-slate-500">{module.category} / {module.backendRoot}</p>
+                <p className="truncate text-xs text-slate-500">{module.category}</p>
                   </div>
                   {canOpenAdminWorkspaces ? (
                     <Button asChild size="sm" variant="outline">
@@ -485,7 +485,7 @@ export function EmployeeServices() {
                 </div>
                 {selectedService ? (
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs leading-5 text-slate-600">
-                    <p className="font-semibold text-slate-800">Fulfillment workflow</p>
+                    <p className="font-semibold text-slate-800">How this request is handled</p>
                     <p className="mt-1">{selectedService.fulfillmentProcess}</p>
                   </div>
                 ) : null}
@@ -498,7 +498,7 @@ export function EmployeeServices() {
                 ) : null}
                 {openCaseMutation.isError ? (
                   <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    Service request failed. Check that the service-delivery migration has run and your employee profile is active.
+                    Service request failed. Check that your employee profile is active or contact HR support.
                   </p>
                 ) : null}
               </CardContent>

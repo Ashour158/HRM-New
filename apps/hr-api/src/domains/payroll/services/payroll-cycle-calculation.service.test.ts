@@ -460,6 +460,7 @@ describe('PayrollCycleCalculationService', () => {
           },
           logicLedger: {
             code: 'LATE_MINUTES_HIGH_RISK',
+            label: 'High-risk late minutes',
             source: 'ATTENDANCE_LEDGER',
             base: 'ATTENDANCE_LATE_MINUTES',
             method: 'PER_UNIT',
@@ -502,11 +503,12 @@ describe('PayrollCycleCalculationService', () => {
 
     const matchingRow = rows.find((row) => row.workerId === 'worker-1');
     const nonMatchingRow = rows.find((row) => row.workerId === 'worker-2');
-    const logicLine = matchingRow?.explainability.find((line) => line.code === 'ENTITY_LATE_LEDGER');
+    const logicLine = matchingRow?.explainability.find((line) => line.code === 'LATE_MINUTES_HIGH_RISK');
 
     expect(matchingRow?.policyDeductionAmount).toBe(1500);
     expect(matchingRow?.netSalary).toBe(8500);
     expect(logicLine).toEqual(expect.objectContaining({
+      label: 'High-risk late minutes',
       amount: 1500,
       ledgerSource: 'ATTENDANCE_LEDGER',
       ledgerRuleCode: 'LATE_MINUTES_HIGH_RISK',
@@ -515,6 +517,123 @@ describe('PayrollCycleCalculationService', () => {
     }));
     expect(logicLine?.formula).toContain('minimum net 8500');
     expect(nonMatchingRow?.policyDeductionAmount).toBe(0);
+  });
+
+  it('calculates scoped pre-tax deduction logic-ledger rules before tax with minimum net protection', () => {
+    const logicLedgerSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 10,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'ENTITY_LATE_LEDGER',
+          label: 'Entity late penalty ledger',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'PRE_TAX',
+          scope: {
+            countryCodes: ['EG'],
+            legalEntityIds: ['entity-eg'],
+            departmentIds: ['FINANCE'],
+          },
+          logicLedger: {
+            code: 'LATE_MINUTES_HIGH_RISK',
+            label: 'High-risk late minutes',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+            monthlyCap: 2000,
+            minimumNetPay: 8500,
+            posting: {
+              payslipLineType: 'LATE_DEDUCTION',
+              glAccount: '2200',
+            },
+            retroBehavior: 'ADJUSTMENT_QUEUE',
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const rows = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [
+        {
+          ...employee,
+          countryCode: 'EG',
+          legalEntityId: 'entity-eg',
+          departmentId: 'FINANCE',
+          attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+        },
+        {
+          ...employee,
+          workerId: 'worker-2',
+          employeeId: 'EMP-002',
+          countryCode: 'US',
+          legalEntityId: 'entity-us',
+          departmentId: 'FINANCE',
+          attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+        },
+      ],
+      setup: logicLedgerSetup,
+    }).rows;
+
+    const matchingRow = rows.find((row) => row.workerId === 'worker-1');
+    const nonMatchingRow = rows.find((row) => row.workerId === 'worker-2');
+    const logicLine = matchingRow?.explainability.find((line) => line.code === 'LATE_MINUTES_HIGH_RISK');
+
+    expect(matchingRow?.policyDeductionAmount).toBe(555.56);
+    expect(matchingRow?.taxAmount).toBe(944.44);
+    expect(matchingRow?.netSalary).toBe(8500);
+    expect(logicLine).toEqual(expect.objectContaining({
+      label: 'High-risk late minutes',
+      amount: 555.56,
+      ledgerSource: 'ATTENDANCE_LEDGER',
+      ledgerRuleCode: 'LATE_MINUTES_HIGH_RISK',
+      glAccount: '2200',
+      retroBehavior: 'ADJUSTMENT_QUEUE',
+    }));
+    expect(logicLine?.formula).toContain('minimum net 8500');
+    expect(logicLine?.formula).toContain('pre-tax');
+    expect(nonMatchingRow?.policyDeductionAmount).toBe(0);
+    expect(nonMatchingRow?.taxAmount).toBe(1000);
+    expect(nonMatchingRow?.netSalary).toBe(9000);
+  });
+
+  it('fails fast when logic-ledger rules require a pipeline base before it is calculated', () => {
+    const logicLedgerSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 10,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'TAXABLE_BASE_LEDGER',
+          label: 'Taxable base deduction',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'POST_TAX',
+          logicLedger: {
+            code: 'TAXABLE_BASE_RULE',
+            source: 'PAYROLL_LEDGER',
+            base: 'TAXABLE_BASE',
+            method: 'PERCENT_OF_BASE',
+            ratePercent: 5,
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    expect(() => service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [employee],
+      setup: logicLedgerSetup,
+    })).toThrow(/TAXABLE_BASE_RULE requires TAXABLE_BASE/);
   });
 
   it('adds scoped taxable and non-taxable earnings before gross-to-net calculation', () => {
@@ -601,6 +720,7 @@ describe('PayrollCycleCalculationService', () => {
           },
           logicLedger: {
             code: 'OVERTIME_HOUR_PREMIUM',
+            label: 'Overtime hour premium',
             source: 'ATTENDANCE_LEDGER',
             base: 'ATTENDANCE_OVERTIME_HOURS',
             method: 'PER_UNIT',
@@ -626,11 +746,12 @@ describe('PayrollCycleCalculationService', () => {
       }],
       setup: logicLedgerSetup,
     }).rows;
-    const logicLine = row.explainability.find((line) => line.code === 'ENTITY_OVERTIME_PREMIUM');
+    const logicLine = row.explainability.find((line) => line.code === 'OVERTIME_HOUR_PREMIUM');
 
     expect(row.earningAmount).toBe(375);
     expect(row.taxableEarningAmount).toBe(0);
     expect(logicLine).toEqual(expect.objectContaining({
+      label: 'Overtime hour premium',
       amount: 375,
       ledgerSource: 'ATTENDANCE_LEDGER',
       ledgerRuleCode: 'OVERTIME_HOUR_PREMIUM',

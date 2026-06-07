@@ -624,6 +624,51 @@ function validatePayrollLogicLedgerComponents(
   }
 }
 
+const BENEFITS_POLICY_RUNTIME_KEYS = [
+  'eligibilityRules',
+  'enrollmentWindowRules',
+  'lifeEventRules',
+  'dependentRules',
+  'contributionRules',
+  'carrierExportRules',
+  'payrollBridgeRules',
+  'evidenceRules',
+] as const;
+
+function benefitsPolicyRuntime(draftConfig: unknown): Record<string, unknown> {
+  return asObject(asObject(draftConfig).benefitsPolicyRuntime ?? draftConfig);
+}
+
+function hasBenefitsPolicyPayload(runtime: Record<string, unknown>): boolean {
+  return BENEFITS_POLICY_RUNTIME_KEYS.some((key) => {
+    const value = runtime[key];
+    if (Array.isArray(value)) return value.length > 0;
+    return Object.keys(asObject(value)).length > 0;
+  });
+}
+
+function validateBenefitsLogicLedgerComponents(draftConfig: unknown, errors: string[]): void {
+  const runtime = benefitsPolicyRuntime(draftConfig);
+  const components = [
+    ...policyRecords(runtime, 'eligibilityRules'),
+    ...policyRecords(runtime, 'enrollmentWindowRules'),
+    ...policyRecords(runtime, 'lifeEventRules'),
+    ...policyRecords(runtime, 'dependentRules'),
+    ...policyRecords(runtime, 'contributionRules'),
+    ...policyRecords(runtime, 'carrierExportRules'),
+    ...policyRecords(runtime, 'payrollBridgeRules'),
+    ...policyRecords(runtime, 'evidenceRules'),
+  ];
+
+  for (const component of components) {
+    const code = typeof component.code === 'string' ? component.code : 'BENEFITS_RULE';
+    const logicLedger = component.logicLedger;
+    if (!logicLedger || typeof logicLedger !== 'object' || Array.isArray(logicLedger)) {
+      errors.push(`Benefits policy rule ${code} must include a logic ledger object.`);
+    }
+  }
+}
+
 function buildPayrollComponentSimulation(draftConfig: unknown): PolicyImpactSimulationResult['payrollComponentSimulation'] | undefined {
   const earnings = policyRecords(draftConfig, 'earningPolicies').map((component) => ({ kind: 'earning', component }));
   const deductions = policyRecords(draftConfig, 'deductionPolicies').map((component) => ({ kind: 'deduction', component }));
@@ -804,11 +849,16 @@ function benefitsWaitingPeriodDays(rule: Record<string, unknown>): number {
   const outcome = asObject(ledger.outcome);
   const outcomeValue = asObject(outcome.value);
   const value = ledger.waitingPeriodDays ?? rule.waitingPeriodDays ?? outcomeValue.waitingPeriodDays;
-  return typeof value === 'number' && Number.isFinite(value) ? value : Number(value ?? 0);
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
 }
 
 function buildBenefitsPolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['benefitsPolicySimulation'] | undefined {
-  const runtime = asObject(asObject(draftConfig).benefitsPolicyRuntime ?? draftConfig);
+  const runtime = benefitsPolicyRuntime(draftConfig);
   if (Object.keys(runtime).length === 0) return undefined;
   const ledgers = ruleLedgersFromRecord(runtime, ['eligibilityRules', 'enrollmentWindowRules', 'lifeEventRules', 'dependentRules', 'contributionRules', 'carrierExportRules', 'payrollBridgeRules', 'evidenceRules']);
   const eligibilityRules = policyRecords(runtime, 'eligibilityRules');
@@ -846,6 +896,8 @@ function emptyImpactRecords(): PolicyImpactRecords {
     payrollCycles: [],
     complianceAcknowledgements: [],
     accessGrants: [],
+    benefitsEnrollments: [],
+    benefitsLifeEvents: [],
   };
 }
 
@@ -863,6 +915,8 @@ function impactRiskSummary(records: PolicyImpactRecords) {
     ...records.payrollCycles,
     ...records.complianceAcknowledgements,
     ...records.accessGrants,
+    ...records.benefitsEnrollments,
+    ...records.benefitsLifeEvents,
   ].map((record) => record.risk);
   for (const risk of risks) {
     if (risk === 'SAFE') summary.safe += 1;
@@ -1190,6 +1244,11 @@ export class PolicyCenterService {
 
   async simulateRevision(tenantId: Uuid, id: string, actor: PolicyActor): Promise<PolicyImpactSimulationResult> {
     const revision = await this.getRevisionOrThrow(tenantId, id);
+    const validation = await this.validatePolicyRevision(tenantId, revision);
+    if (!validation.valid) {
+      await this.repository.updateRevision(id, { validationResult: validation, updatedAt: nowIso() });
+      throw new BadRequestException(`Policy cannot be simulated: ${validation.errors.join(' ')}`);
+    }
     const result = await this.simulatePolicyRevision(tenantId, revision);
     await this.repository.updateRevision(id, {
       simulationResult: result,
@@ -1503,8 +1562,11 @@ export class PolicyCenterService {
       warnings.push('Access governance policy has no allowed-action or field-access override payload.');
     }
 
-    if (revision.area === 'BENEFITS' && Object.keys(asObject(asObject(revision.draftConfig).benefitsPolicyRuntime ?? revision.draftConfig)).length === 0) {
-      errors.push('Benefits policy revision must include benefits eligibility, enrollment, contribution, carrier, or payroll bridge rules.');
+    if (revision.area === 'BENEFITS') {
+      if (!hasBenefitsPolicyPayload(benefitsPolicyRuntime(revision.draftConfig))) {
+        errors.push('Benefits policy revision must include benefits eligibility, enrollment, contribution, carrier, or payroll bridge rules.');
+      }
+      validateBenefitsLogicLedgerComponents(revision.draftConfig, errors);
     }
 
     return {

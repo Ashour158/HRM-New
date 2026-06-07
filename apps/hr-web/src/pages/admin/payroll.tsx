@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,10 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { ErrorState } from '@/components/common/error-state';
+import { BusinessPageHeader } from '@/components/common/business-page';
 import { useUIStore } from '@/stores/ui-store';
 import { formatCurrency } from '@/lib/utils';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
-import { CalendarDays, CheckCircle2, Download, FileSpreadsheet, FileText, Landmark, RefreshCw, Save, Trash2, Upload } from 'lucide-react';
+import { CalendarDays, CheckCircle2, Download, FileSpreadsheet, FileText, Landmark, RefreshCw, Trash2, Upload } from 'lucide-react';
 import type { AttendancePolicy, DeductionPolicy, EarningPolicy, HcmSetupConfig, PayrollBlockingRule, WorkLocationOption } from '@/types';
 
 function mutationError(error: unknown): string {
@@ -282,17 +282,13 @@ const weekdayOptions = [
   { value: 6, label: 'Sat' },
 ];
 
-const payrollTabs = [
-  { value: 'cycle', label: 'Cycle' },
-  { value: 'register', label: 'Register' },
-  { value: 'policies', label: 'Policies' },
-  { value: 'earnings', label: 'Earnings' },
-  { value: 'deductions', label: 'Deductions' },
-  { value: 'attendance', label: 'Attendance' },
-  { value: 'exports', label: 'Exports' },
-] as const;
+type PayrollTab = 'cycle' | 'register' | 'exports' | 'policies' | 'earnings' | 'deductions' | 'attendance';
 
-type PayrollTab = typeof payrollTabs[number]['value'];
+const payrollTabs: Array<{ value: PayrollTab; label: string }> = [
+  { value: 'cycle', label: 'Run Payroll' },
+  { value: 'register', label: 'Register' },
+  { value: 'exports', label: 'Payments & Reports' },
+];
 
 export function AdminPayroll() {
   const now = new Date();
@@ -316,7 +312,6 @@ export function AdminPayroll() {
   const [offCyclePreview, setOffCyclePreview] = React.useState<PayrollCyclePreview | null>(null);
   const [workflowMessage, setWorkflowMessage] = React.useState('');
 
-  const queryClient = useQueryClient();
   const addNotification = useUIStore((s) => s.addNotification);
   const { data: setupConfig = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const previewUrl = `/payroll/monthly-cycle-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
@@ -373,20 +368,6 @@ export function AdminPayroll() {
       cancelled = true;
     };
   }, [closeResult?.payrollCycleId]);
-
-  const policyMutation = useApiMutation<HcmSetupConfig, Partial<HcmSetupConfig>>(
-    '/admin/hcm-setup',
-    'patch',
-    [['hcm-setup'], ['payroll-monthly-preview', year, month, workLocationCode]],
-    {
-      onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['hcm-setup'] });
-        queryClient.invalidateQueries({ queryKey: ['payroll-monthly-preview', year, month, workLocationCode] });
-        addNotification({ title: 'Policies saved', message: 'Payroll policies were updated.', type: 'success', read: false });
-      },
-      onError: (error) => addNotification({ title: 'Something went wrong', message: mutationError(error), type: 'error', read: false }),
-    },
-  );
 
   const massPreviewMutation = useApiMutation<PayrollMassUpdatePreview, { rows: PayrollMassUpdateRow[] }>(
     '/payroll/mass-update-preview',
@@ -510,17 +491,6 @@ export function AdminPayroll() {
       ...current,
       payrollBlockingRules: current.payrollBlockingRules.map((rule, rowIndex) => rowIndex === index ? { ...rule, ...patch } : rule),
     }));
-  };
-
-  const savePolicies = () => {
-    policyMutation.mutate({
-      attendancePolicy: setup.attendancePolicy,
-      payrollCalculationPolicy: setup.payrollCalculationPolicy,
-      statutoryPayrollPacks: setup.statutoryPayrollPacks,
-      earningPolicies: setup.earningPolicies,
-      deductionPolicies: setup.deductionPolicies,
-      payrollBlockingRules: setup.payrollBlockingRules,
-    });
   };
 
   const downloadCsv = async (url: string, filename: string) => {
@@ -678,39 +648,27 @@ export function AdminPayroll() {
   return (
     <div className="min-h-full">
       <div className="px-6 py-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
-            Payroll engine live
-          </div>
-          <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
-            <CalendarDays className="h-7 w-7 text-[#6366f1]" />
-            <span className="fusion-gradient-text">Payroll & Attendance</span>
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Monthly payroll cycles fed by attendance, compensation, deductions, and tenant policies.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
-            <CheckCircle2 className="mr-2 h-4 w-4" />
-            {closeToPayMutation.isPending ? 'Closing...' : 'Close to Pay'}
-          </Button>
-          <Button variant="outline" onClick={() => refetch()}>
-            <RefreshCw className="mr-2 h-4 w-4" />
-            Refresh
-          </Button>
-          <Button variant="outline" onClick={savePolicies} disabled={policyMutation.isPending}>
-            <Save className="mr-2 h-4 w-4" />
-            {policyMutation.isPending ? 'Saving...' : 'Save Policies'}
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/admin/system-console/policies">Policy Center</Link>
-          </Button>
-        </div>
-        </div>
+        <BusinessPageHeader
+          eyebrow="Reward Operations"
+          icon={CalendarDays}
+          title="Payroll"
+          subtitle="Run payroll, review exceptions, prepare payments, and publish payslips."
+          actions={(
+            <>
+              <Button onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                {closeToPayMutation.isPending ? 'Closing...' : 'Close to Pay'}
+              </Button>
+              <Button variant="outline" onClick={() => refetch()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
+              </Button>
+              <Button asChild variant="outline">
+                <Link to="/admin/system-console/policies">Payroll Rules</Link>
+              </Button>
+            </>
+          )}
+        />
       </div>
 
       <Tabs value={activePayrollTab} onValueChange={(value) => setActivePayrollTab(value as PayrollTab)}>
@@ -843,9 +801,9 @@ export function AdminPayroll() {
             <p className="text-xs text-muted-foreground">{closeResult.payrollCycleId}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Payment Artifact</p>
-            <p className="font-semibold">{closeResult.paymentBatchId ? 'Persisted' : 'Pending'}</p>
-            <p className="text-xs text-muted-foreground">{closeResult.paymentBatchId ?? 'No batch id'}</p>
+          <p className="text-xs text-muted-foreground">Payment Batch</p>
+          <p className="font-semibold">{closeResult.paymentBatchId ? 'Persisted' : 'Pending'}</p>
+          <p className="text-xs text-muted-foreground">{closeResult.paymentBatchId ?? 'No batch id'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Approved Inputs</p>
@@ -859,7 +817,7 @@ export function AdminPayroll() {
           <div>
             <p className="text-xs text-muted-foreground">Payslips</p>
             <p className="text-xl font-semibold">{closeResult.payslipArtifactCount ?? 0}</p>
-            <p className="text-xs text-muted-foreground">HTML artifacts</p>
+            <p className="text-xs text-muted-foreground">ready to publish</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Bank Ready</p>
@@ -917,8 +875,7 @@ export function AdminPayroll() {
         <section className="space-y-6">
           <Card id="payroll-register" className={tabClass('register', '')}>
             <CardHeader>
-              <CardTitle className="text-lg">Monthly Payroll Preview</CardTitle>
-              <CardDescription>All active employees are pulled into the cycle and calculated from compensation plus attendance.</CardDescription>
+              <CardTitle className="text-lg">Payroll Register</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {previewError ? (
@@ -944,7 +901,7 @@ export function AdminPayroll() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Uses the backend gross-to-net engine, deduction policies, and attendance minutes for the selected cycle.
+                    Review the selected employee's pay components for this cycle.
                   </p>
                   <Button
                     type="button"
@@ -1007,7 +964,6 @@ export function AdminPayroll() {
                               <strong>{line.label}</strong>
                               <span>{formatCurrency(line.amount, selectedPayrollRow.currency)}</span>
                             </div>
-                            <p className="mt-1 text-muted-foreground">{line.formula}</p>
                           </div>
                         ))}
                       </div>
@@ -1020,8 +976,7 @@ export function AdminPayroll() {
 
           <Card id="payroll-exports" className={tabClass('exports', '')}>
             <CardHeader>
-              <CardTitle className="text-lg">Mass Payroll Update</CardTitle>
-              <CardDescription>Upload the system template to validate bulk salary and deduction changes before applying them.</CardDescription>
+              <CardTitle className="text-lg">Payments & Reports</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
@@ -1860,8 +1815,8 @@ export function AdminPayroll() {
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-lg">Deduction Policies</CardTitle>
-                  <CardDescription>Low-code events used in payroll calculations.</CardDescription>
+                  <CardTitle className="text-lg">Deduction Rules</CardTitle>
+                  <CardDescription>Rules applied to payroll deductions.</CardDescription>
                 </div>
                 <Button
                   variant="outline"

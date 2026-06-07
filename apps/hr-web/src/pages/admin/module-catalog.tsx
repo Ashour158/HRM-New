@@ -33,7 +33,7 @@ const categoryIcons: Record<CommercialModule['category'], React.ComponentType<{ 
 
 const maturityLabels: Record<CommercialModuleMaturity, { label: string; tone: string; description: string }> = {
   'native-ui': {
-    label: 'Native UI',
+    label: 'Full Page',
     tone: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
     description: 'Has a dedicated product page or employee/admin experience.',
   },
@@ -43,9 +43,9 @@ const maturityLabels: Record<CommercialModuleMaturity, { label: string; tone: st
     description: 'Has a native operations workspace and shared module workbench.',
   },
   'api-ready': {
-    label: 'API Ready',
+    label: 'Setup Needed',
     tone: 'border-[#f59e0b]/30 bg-[#fde68a]/65 text-[#92400e]',
-    description: 'Backend workflows exist and need a dedicated product UI.',
+    description: 'The service is available through an operations workspace until a full page is configured.',
   },
 };
 
@@ -97,7 +97,7 @@ function ModuleCard({ module }: { module: CommercialModule }) {
                 {maturity.label}
               </Badge>
             </div>
-            <p className="mt-1 text-xs font-semibold text-[#4f46e5]">{module.category} / {module.backendRoot}</p>
+            <p className="mt-1 text-xs font-semibold text-[#4f46e5]">{module.category}</p>
           </div>
         </div>
         <p className="min-h-[4.5rem] text-sm leading-6 text-[#475569]">{module.summary}</p>
@@ -148,7 +148,7 @@ export function AdminModuleCatalog() {
           <div className="grid gap-5 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#c7d2fe]">Commercialization Command Center</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#c7d2fe]">Module Catalog</p>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                   <span className="h-2 w-2 rounded-full bg-emerald-300 fusion-pulse" />
                   Live
@@ -156,7 +156,7 @@ export function AdminModuleCatalog() {
               </div>
               <h2 className="mt-2 font-headline text-3xl font-bold">All Built HR Modules</h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-white/85">
-                Every backend HR domain is now exposed in the product UI with clear module status, real data objects, personas, workflows, and a workbench path for API-ready areas.
+                Every HR service is reachable from the product UI with clear status, data objects, people roles, and an operations path where a full page is not configured yet.
               </p>
             </div>
             <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
@@ -173,8 +173,8 @@ export function AdminModuleCatalog() {
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search modules, workflows, objects, or backend routes"
-                aria-label="Search modules, workflows, objects, or backend routes"
+                placeholder="Search modules, workflows, or objects"
+                aria-label="Search modules, workflows, or objects"
                 className="h-11 pl-9"
               />
             </div>
@@ -198,9 +198,9 @@ export function AdminModuleCatalog() {
 
           <div className="grid sm:grid-cols-2 xl:grid-cols-4">
             <StatBlock label="Total Modules" value={commercialModules.length} icon={Layers3} />
-            <StatBlock label="Native UI" value={nativeCount} icon={CheckCircle2} />
-            <StatBlock label="Workbench" value={workbenchCount} icon={Activity} />
-            <StatBlock label="API Ready" value={apiReadyCount} icon={BarChart3} />
+            <StatBlock label="Full Pages" value={nativeCount} icon={CheckCircle2} />
+            <StatBlock label="Operations" value={workbenchCount} icon={Activity} />
+            <StatBlock label="Setup Needed" value={apiReadyCount} icon={BarChart3} />
           </div>
         </section>
 

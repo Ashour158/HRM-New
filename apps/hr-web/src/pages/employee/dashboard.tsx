@@ -1188,7 +1188,7 @@ export function EmployeeAttendanceAction() {
           <h1 className="text-xl font-semibold text-[#0f172a]">{actionLabel}</h1>
         </div>
         <p className="mt-3 text-sm text-slate-600">
-          Attendance is recorded through the policy engine with timestamp, workplace, device, and geolocation evidence.
+          Attendance is recorded with timestamp, workplace, device, and location details when required.
         </p>
         <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
           Workplace: <span className="font-semibold">{workplaceCode ?? 'Not selected'}</span>
@@ -1290,8 +1290,8 @@ function AttendanceLocationMap({
         <div className="grid h-64 place-items-center bg-slate-50 px-5 text-center text-sm text-slate-600">
           <div>
             <MapPin className="mx-auto mb-3 h-6 w-6 text-[#4f46e5]" />
-            <p className="font-medium text-slate-800">Google Maps API key is not configured.</p>
-            <p className="mt-1">Set VITE_GOOGLE_MAPS_API_KEY to render the embedded map.</p>
+            <p className="font-medium text-slate-800">Map preview is not configured.</p>
+            <p className="mt-1">Your location was captured and can still be reviewed by HR.</p>
           </div>
         </div>
       )}

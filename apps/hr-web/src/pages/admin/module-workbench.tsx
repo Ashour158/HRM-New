@@ -25,9 +25,9 @@ const maturityTone: Record<CommercialModuleMaturity, string> = {
 };
 
 const maturityLabel: Record<CommercialModuleMaturity, string> = {
-  'native-ui': 'Native UI',
-  workbench: 'Workbench',
-  'api-ready': 'API Ready',
+  'native-ui': 'Full Page',
+  workbench: 'Operations',
+  'api-ready': 'Setup Needed',
 };
 
 function InsightCard({
@@ -113,8 +113,8 @@ export function AdminModuleWorkbench() {
 
           <div className="grid gap-4 p-5 md:grid-cols-3">
             <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-              <p className="lumina-label">Backend Route</p>
-              <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">{module.backendRoot}</p>
+              <p className="lumina-label">Service Area</p>
+              <p className="mt-2 text-sm font-semibold text-[#0f172a]">{module.category}</p>
             </div>
             <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
               <p className="lumina-label">Personas</p>
@@ -132,7 +132,7 @@ export function AdminModuleWorkbench() {
             <BulletList items={module.builtCapabilities} />
           </InsightCard>
 
-          <InsightCard title="Commercial Workflows" icon={GitBranch}>
+            <InsightCard title="Service Workflows" icon={GitBranch}>
             <BulletList items={module.keyWorkflows} />
           </InsightCard>
 
@@ -157,7 +157,7 @@ export function AdminModuleWorkbench() {
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Sparkles className="h-5 w-5 text-[#6366f1]" />
-                Next Commercial UI Work
+                Next Product Work
               </CardTitle>
             </CardHeader>
             <CardContent className="p-5 pt-0">
@@ -170,12 +170,12 @@ export function AdminModuleWorkbench() {
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Route className="h-5 w-5 text-[#f59e0b]" />
-                Route Contract
+                Product Coverage
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0 text-sm leading-6 text-[#475569]">
-              <p>This workbench is the UI landing zone for backend capabilities that do not yet have a full product page.</p>
-              <p>Dedicated pages should keep this route visible as the governance, workflow, and data dictionary layer.</p>
+              <p>This workspace keeps service records, approvals, and data visible until a dedicated page is configured.</p>
+              <p>Dedicated pages should keep this area available for governance and data review.</p>
               <Button asChild variant="outline" className="w-full">
                 <Link to="/admin/modules">
                   <Users className="mr-2 h-4 w-4" />

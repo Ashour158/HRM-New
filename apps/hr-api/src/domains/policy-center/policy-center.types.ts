@@ -67,6 +67,8 @@ export interface PolicyImpactRecords {
   payrollCycles: PolicyImpactedDomainRecord[];
   complianceAcknowledgements: PolicyImpactedDomainRecord[];
   accessGrants: PolicyImpactedDomainRecord[];
+  benefitsEnrollments: PolicyImpactedDomainRecord[];
+  benefitsLifeEvents: PolicyImpactedDomainRecord[];
 }
 
 export interface PayrollComponentPolicySimulation {
@@ -192,6 +194,8 @@ export interface PolicyImpactSimulationResult {
     openAttendanceDays: number;
     openPayrollCycles: number;
     pendingComplianceAcknowledgements: number;
+    pendingBenefitsEnrollments: number;
+    pendingBenefitsLifeEvents: number;
   };
   oldDataRule: string;
   newDataRule: string;

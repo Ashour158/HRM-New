@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import type { HcmPolicyScope, HcmSetupConfig, PayrollPolicyLogicLedgerRule } from '../../hcm-setup/hcm-setup.types.js';
+import type { HcmPolicyScope, HcmSetupConfig, PayrollCalculationPolicy, PayrollPolicyLogicLedgerRule } from '../../hcm-setup/hcm-setup.types.js';
 import type { AttendanceMonthlySummary } from '../../time-attendance/services/attendance-calculation.service.js';
 import { PayrollStatutoryPolicyService } from './payroll-statutory-policy.service.js';
 
@@ -362,6 +362,7 @@ type EvaluatedPolicyComponent<T extends PayrollPolicyWithLedger> = {
   logicRule?: PayrollPolicyLogicLedgerRule;
   ledgerSource?: string;
   ledgerRuleCode?: string;
+  ledgerRuleLabel?: string;
   calculationBase?: string;
   calculationMethod?: string;
   glAccount?: string;
@@ -378,6 +379,17 @@ function ledgerRules(policy: PayrollPolicyWithLedger): PayrollPolicyLogicLedgerR
     .sort((left, right) => (left.priority ?? 1000) - (right.priority ?? 1000));
 }
 
+function ruleIdentity(rule: PayrollPolicyLogicLedgerRule): string {
+  return rule.code || rule.label || `${rule.source}:${rule.base}:${rule.method}`;
+}
+
+function requiredPipelineBase(rule: PayrollPolicyLogicLedgerRule, value: number | undefined, base: string): number {
+  if (value === undefined || !Number.isFinite(value)) {
+    throw new Error(`Payroll logic-ledger rule ${ruleIdentity(rule)} requires ${base}, but that base has not been calculated yet.`);
+  }
+  return value;
+}
+
 function baseValueForRule(rule: PayrollPolicyLogicLedgerRule, context: LogicEvaluationContext): number {
   switch (rule.base) {
     case 'FIXED_AMOUNT':
@@ -387,9 +399,9 @@ function baseValueForRule(rule: PayrollPolicyLogicLedgerRule, context: LogicEval
     case 'GROSS_SALARY':
       return context.grossSalary;
     case 'TAXABLE_BASE':
-      return context.taxableBase ?? context.grossSalary;
+      return requiredPipelineBase(rule, context.taxableBase, 'TAXABLE_BASE');
     case 'NET_BEFORE_DEDUCTION':
-      return context.netBeforeDeductions ?? context.grossSalary;
+      return requiredPipelineBase(rule, context.netBeforeDeductions, 'NET_BEFORE_DEDUCTION');
     case 'HOURLY_RATE':
       return context.employee.hourlyRate ?? 0;
     default:
@@ -457,6 +469,7 @@ function evaluateLogicRule(
     logicRule: rule,
     ledgerSource: rule.source,
     ledgerRuleCode: rule.code,
+    ledgerRuleLabel: rule.label,
     calculationBase: rule.base,
     calculationMethod: rule.method,
     glAccount: rule.posting?.glAccount ?? policy.glPosting?.glAccount,
@@ -464,6 +477,48 @@ function evaluateLogicRule(
     retroBehavior: rule.retroBehavior ?? policy.retroBehavior,
     scopeMatch: policy.scope,
     minimumNetPay: rule.minimumNetPay,
+  };
+}
+
+function explainabilityCode(item: EvaluatedPolicyComponent<PayrollPolicyWithLedger>): string {
+  return item.ledgerRuleCode || item.policy.code;
+}
+
+function explainabilityLabel(item: EvaluatedPolicyComponent<PayrollPolicyWithLedger>): string {
+  return item.ledgerRuleLabel || item.policy.label;
+}
+
+function calculateTax(policy: PayrollCalculationPolicy, taxableBase: number): { amount: number; lines: PayrollExplainabilityLine[] } {
+  if (policy.taxMode === 'PROGRESSIVE_BRACKETS' && policy.taxBrackets?.length) {
+    let amount = 0;
+    const lines: PayrollExplainabilityLine[] = [];
+    const brackets = [...policy.taxBrackets].sort((left, right) => left.thresholdFrom - right.thresholdFrom);
+    for (const bracket of brackets) {
+      const bracketUpper = bracket.thresholdTo ?? taxableBase;
+      const taxableSlice = Math.max(Math.min(taxableBase, bracketUpper) - bracket.thresholdFrom, 0);
+      const bracketTax = roundMoney(taxableSlice * (bracket.ratePercent / 100));
+      amount += bracketTax;
+      lines.push({
+        code: bracket.code,
+        label: bracket.label ?? bracket.code,
+        amount: bracketTax,
+        source: 'POLICY',
+        formula: `${taxableSlice} taxable base slice * ${bracket.ratePercent}%`,
+      });
+    }
+    return { amount: roundMoney(amount), lines };
+  }
+
+  const amount = roundMoney(taxableBase * (policy.taxRatePercent / 100));
+  return {
+    amount,
+    lines: [{
+      code: 'TAX',
+      label: 'Payroll tax',
+      amount,
+      source: 'POLICY',
+      formula: `taxable base ${taxableBase} * ${policy.taxRatePercent}%`,
+    }],
   };
 }
 
@@ -592,8 +647,8 @@ export class PayrollCycleCalculationService {
     for (const item of evaluatedEarnings) {
       if (item.amount > 0) {
         explainability.push({
-          code: item.policy.code,
-          label: item.policy.label,
+          code: explainabilityCode(item),
+          label: explainabilityLabel(item),
           amount: item.amount,
           source: 'EARNING',
           formula: item.formula,
@@ -658,44 +713,54 @@ export class PayrollCycleCalculationService {
         }];
       });
 
-    const preTaxDeductionAmount = roundMoney(evaluatedDeductions
-      .filter((item) => item.policy.timing === 'PRE_TAX')
-      .reduce((total, item) => total + item.amount, 0));
-    const taxableBase = roundMoney(Math.max(baseGrossSalary + taxableEarningAmount - preTaxDeductionAmount, 0));
-
-    let taxAmount = 0;
-    if (policy.taxMode === 'PROGRESSIVE_BRACKETS' && policy.taxBrackets?.length) {
-      const brackets = [...policy.taxBrackets].sort((left, right) => left.thresholdFrom - right.thresholdFrom);
-      for (const bracket of brackets) {
-        const bracketUpper = bracket.thresholdTo ?? taxableBase;
-        const taxableSlice = Math.max(Math.min(taxableBase, bracketUpper) - bracket.thresholdFrom, 0);
-        const bracketTax = roundMoney(taxableSlice * (bracket.ratePercent / 100));
-        taxAmount += bracketTax;
-        explainability.push({
-          code: bracket.code,
-          label: bracket.label ?? bracket.code,
-          amount: bracketTax,
-          source: 'POLICY',
-          formula: `${taxableSlice} taxable base slice * ${bracket.ratePercent}%`,
-        });
-      }
-      taxAmount = roundMoney(taxAmount);
-    } else {
-      taxAmount = roundMoney(taxableBase * (policy.taxRatePercent / 100));
-      explainability.push({
-        code: 'TAX',
-        label: 'Payroll tax',
-        amount: taxAmount,
-        source: 'POLICY',
-        formula: `taxable base ${taxableBase} * ${policy.taxRatePercent}%`,
-      });
-    }
-
     const insuranceBase = roundMoney(baseGrossSalary + insurableEarningAmount);
     const employeeInsuranceRaw = insuranceBase * (policy.employeeInsuranceRatePercent / 100);
     const employerInsuranceRaw = insuranceBase * ((policy.employerInsuranceRatePercent ?? 0) / 100);
     const employeeInsuranceAmount = roundMoney(minOptional(employeeInsuranceRaw, policy.employeeInsuranceCap));
     const employerInsuranceAmount = roundMoney(minOptional(employerInsuranceRaw, policy.employerInsuranceCap));
+
+    const protectMinimumNetPay = (
+      deductions: Array<EvaluatedPolicyComponent<PayrollPolicyWithLedger>>,
+      currentTaxAmount: number,
+    ) => {
+      let deductionTotalBeforeCurrent = 0;
+      return deductions.map((item) => {
+        if (item.minimumNetPay === undefined) {
+          deductionTotalBeforeCurrent += item.amount;
+          return item;
+        }
+
+        const maxAllowed = Math.max(grossSalary - currentTaxAmount - employeeInsuranceAmount - deductionTotalBeforeCurrent - item.minimumNetPay, 0);
+        const protectedAmount = roundMoney(Math.min(item.amount, maxAllowed));
+        deductionTotalBeforeCurrent += protectedAmount;
+        if (protectedAmount === item.amount) return item;
+
+        const note = `minimum net ${item.minimumNetPay}`;
+        return {
+          ...item,
+          amount: protectedAmount,
+          formula: item.formula.includes(note) ? item.formula : `${item.formula}; ${note}`,
+        };
+      });
+    };
+
+    let taxAmount = 0;
+    let taxExplainability: PayrollExplainabilityLine[] = [];
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      const preTaxDeductionAmount = roundMoney(evaluatedDeductions
+        .filter((item) => item.policy.timing === 'PRE_TAX')
+        .reduce((total, item) => total + item.amount, 0));
+      const taxableBase = roundMoney(Math.max(baseGrossSalary + taxableEarningAmount - preTaxDeductionAmount, 0));
+      const tax = calculateTax(policy, taxableBase);
+      const before = evaluatedDeductions.map((item) => item.amount).join('|');
+      evaluatedDeductions = protectMinimumNetPay(evaluatedDeductions, tax.amount);
+      const after = evaluatedDeductions.map((item) => item.amount).join('|');
+      taxAmount = tax.amount;
+      taxExplainability = tax.lines;
+      if (before === after) break;
+    }
+
+    explainability.push(...taxExplainability);
     explainability.push(
       {
         code: 'EMPLOYEE_INSURANCE',
@@ -717,30 +782,11 @@ export class PayrollCycleCalculationService {
       },
     );
 
-    let deductionTotalBeforeCurrent = 0;
-    evaluatedDeductions = evaluatedDeductions.map((item) => {
-      if (item.minimumNetPay === undefined) {
-        deductionTotalBeforeCurrent += item.amount;
-        return item;
-      }
-
-      const maxAllowed = Math.max(grossSalary - taxAmount - employeeInsuranceAmount - deductionTotalBeforeCurrent - item.minimumNetPay, 0);
-      const protectedAmount = roundMoney(Math.min(item.amount, maxAllowed));
-      deductionTotalBeforeCurrent += protectedAmount;
-      if (protectedAmount === item.amount) return item;
-
-      return {
-        ...item,
-        amount: protectedAmount,
-        formula: `${item.formula}; minimum net ${item.minimumNetPay}`,
-      };
-    });
-
     for (const item of evaluatedDeductions) {
       if (item.amount > 0) {
         explainability.push({
-          code: item.policy.code,
-          label: item.policy.label,
+          code: explainabilityCode(item),
+          label: explainabilityLabel(item),
           amount: item.amount,
           source: item.ledgerSource === 'ATTENDANCE_LEDGER' || item.policy.attendanceEvent ? 'ATTENDANCE' : 'POLICY',
           formula: item.policy.timing === 'PRE_TAX' ? `${item.formula}; pre-tax` : item.formula,

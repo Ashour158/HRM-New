@@ -212,16 +212,25 @@ export type LeaveApprovalWorkflow = 'MANAGER' | 'MANAGER_THEN_HR' | 'HR_ONLY' | 
 
 export type PolicyRuleCondition = {
   field?: string;
-  operator?: 'EQUALS' | 'NOT_EQUALS' | 'IN' | 'NOT_IN' | 'GREATER_THAN' | 'GREATER_THAN_OR_EQUAL' | 'LESS_THAN' | 'LESS_THAN_OR_EQUAL' | 'BETWEEN' | 'EXISTS' | 'MISSING';
+  operator?: 'EQUALS' | 'NOT_EQUALS' | 'IN' | 'NOT_IN' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'EXISTS';
   value?: unknown;
-  values?: unknown[];
 };
 
 export type PolicyRuleOutcome = {
-  action: string;
+  action:
+    | 'ALLOW'
+    | 'BLOCK'
+    | 'REQUIRE_APPROVAL'
+    | 'REQUIRE_DOCUMENT'
+    | 'CREATE_REVALIDATION'
+    | 'CREATE_NOTIFICATION'
+    | 'CREATE_PAYROLL_BRIDGE'
+    | 'CREATE_ACKNOWLEDGEMENT'
+    | 'MASK_FIELD'
+    | 'REQUIRE_STEP_UP'
+    | 'CREATE_CARRIER_EXPORT';
   value?: unknown;
   reason?: string;
-  severity?: 'INFO' | 'WARNING' | 'BLOCK';
 };
 
 export type PolicyRetroBehavior =
@@ -232,13 +241,14 @@ export type PolicyRetroBehavior =
   | 'BLOCK_RETROACTIVE';
 
 export interface PolicyRuleLedger extends SetupOption {
+  scope?: HcmPolicyScope;
   priority?: number;
   conditions?: PolicyRuleCondition[];
   outcomes: PolicyRuleOutcome[];
+  effectiveFrom?: string;
+  effectiveUntil?: string;
   retroBehavior?: PolicyRetroBehavior;
-  scope?: HcmPolicyScope;
-  engineVersion?: string;
-  logicLedger?: Record<string, unknown>;
+  notificationTemplate?: string;
 }
 
 export interface LeavePolicy extends SetupOption {
@@ -430,6 +440,15 @@ export type PayrollPolicyLogicLedgerMethod = 'FIXED_AMOUNT' | 'PERCENT_OF_BASE' 
 
 export type PayrollPolicyRetroBehavior = PolicyRetroBehavior;
 
+export interface PayrollPolicyLogicLedgerBracket {
+  code: string;
+  label?: string;
+  thresholdFrom: number;
+  thresholdTo?: number;
+  amount?: number;
+  ratePercent?: number;
+}
+
 export interface PayrollPolicyLogicLedgerPosting {
   payslipLineType?: string;
   glAccount?: string;
@@ -449,6 +468,7 @@ export interface PayrollPolicyLogicLedgerRule {
   amount?: number;
   ratePercent?: number;
   multiplier?: number;
+  brackets?: PayrollPolicyLogicLedgerBracket[];
   monthlyCap?: number;
   perEventCap?: number;
   floorAmount?: number;
