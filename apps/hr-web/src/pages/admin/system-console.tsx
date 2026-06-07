@@ -221,6 +221,17 @@ interface AdminPanelTool {
   status?: 'live' | 'backend-required';
 }
 
+interface PendingAdminWorkItem {
+  title: string;
+  helper: string;
+  count: number;
+  status: ConsoleStatus;
+  statusLabel: string;
+  path: string;
+  actionLabel: string;
+  icon: React.ElementType;
+}
+
 function unwrapApiData<T>(payload: unknown): T {
   const maybeResponse = payload as { data?: unknown };
   const body = maybeResponse && typeof maybeResponse === 'object' && 'data' in maybeResponse
@@ -745,6 +756,116 @@ export function AdminSystemConsole() {
     },
   ];
 
+  const pendingPolicyActions = ['IN_REVIEW', 'REVIEWED', 'APPROVED', 'PUBLISHED'].reduce(
+    (total, status) => total + (policyQuery.data?.byStatus?.[status] ?? 0),
+    0,
+  );
+  const unappliedPolicyRevisions = Math.max(
+    (policyQuery.data?.totalRevisions ?? 0) - (policyQuery.data?.byStatus?.APPLIED ?? 0),
+    0,
+  );
+  const unresolvedDeadLetters = (deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0)
+    + (deadLetterQuery.data?.outbox?.exhausted ?? 0);
+  const queueBacklog = (usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0)
+    + (usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0)
+    + (usageQueueHealth?.inbox.inProgressEvents ?? usageTotals?.inboxInProgressEvents ?? 0);
+  const setupGapLabels = [
+    setupQuery.isSuccess && activeSetupCounts.departments === 0 ? 'no active departments' : null,
+    setupQuery.isSuccess && activeSetupCounts.locations === 0 ? 'no active locations' : null,
+    setupQuery.isError ? 'setup API unavailable' : null,
+  ].filter(Boolean) as string[];
+  const integrationGapLabels = [
+    integrationQuery.isError ? 'integration status unavailable' : null,
+    integrationQuery.isSuccess && integrationAdapterCount === 0 ? 'no adapters registered' : null,
+    mapsConfigured ? null : 'Google Maps key missing',
+  ].filter(Boolean) as string[];
+  const pendingAdminWork: PendingAdminWorkItem[] = [
+    {
+      title: 'Policy Approval And Apply Queue',
+      helper: pendingPolicyActions > 0
+        ? `${pendingPolicyActions} revisions need review, approval, publish, or apply. ${unappliedPolicyRevisions} revisions are not applied.`
+        : 'No policy lifecycle action is waiting for this tenant.',
+      count: pendingPolicyActions,
+      status: pendingPolicyActions > 0 ? 'attention' : 'live',
+      statusLabel: pendingPolicyActions > 0 ? 'Action' : 'Clear',
+      path: '/admin/system-console/policies',
+      actionLabel: 'Open Policy Center',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Failed Events And Dead Letters',
+      helper: unresolvedDeadLetters > 0
+        ? `${unresolvedDeadLetters} non-retryable or exhausted events need an operator decision.`
+        : 'No non-retryable inbox or exhausted outbox rows reported.',
+      count: unresolvedDeadLetters,
+      status: unresolvedDeadLetters > 0 ? 'attention' : deadLetterQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: unresolvedDeadLetters > 0 ? 'Inspect' : deadLetterQuery.isSuccess ? 'Clear' : 'Loading',
+      path: '/admin/system-console/dead-letter-events',
+      actionLabel: 'Open Dead Letters',
+      icon: AlertTriangle,
+    },
+    {
+      title: 'Queue Health And Backlog',
+      helper: queueBacklog > 0
+        ? `${queueBacklog} pending, retryable, or in-progress queue items need monitoring.`
+        : 'Outbox/inbox backlog is clear in service usage reporting.',
+      count: queueBacklog,
+      status: queueBacklog > 0 ? 'attention' : serviceUsageQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: queueBacklog > 0 ? 'Watch' : serviceUsageQuery.isSuccess ? 'Clear' : 'Loading',
+      path: '/admin/system-console#development-controls',
+      actionLabel: 'Review Runtime',
+      icon: Workflow,
+    },
+    {
+      title: 'Missing Setup And Data Quality',
+      helper: setupGapLabels.length > 0
+        ? setupGapLabels.join(', ')
+        : 'Tenant departments and locations are configured.',
+      count: setupGapLabels.length,
+      status: setupGapLabels.length > 0 ? 'attention' : setupQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: setupGapLabels.length > 0 ? 'Fix setup' : setupQuery.isSuccess ? 'Ready' : 'Loading',
+      path: '/admin/system-console/settings',
+      actionLabel: 'Open Settings',
+      icon: DatabaseZap,
+    },
+    {
+      title: 'Integration Readiness',
+      helper: integrationGapLabels.length > 0
+        ? integrationGapLabels.join(', ')
+        : `${integrationAdapterCount} adapters registered and attendance map key configured.`,
+      count: integrationGapLabels.length,
+      status: integrationGapLabels.length > 0 ? 'attention' : integrationQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: integrationGapLabels.length > 0 ? 'Configure' : integrationQuery.isSuccess ? 'Ready' : 'Loading',
+      path: '/admin/system-console/integrations',
+      actionLabel: 'Open Integrations',
+      icon: PlugZap,
+    },
+    {
+      title: 'Unread Admin Notifications',
+      helper: unreadNotifications > 0
+        ? `${unreadNotifications} HR operations notifications are unread.`
+        : 'No unread HR operations notifications for this actor.',
+      count: unreadNotifications,
+      status: unreadNotifications > 0 ? 'attention' : notificationsQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: unreadNotifications > 0 ? 'Review' : notificationsQuery.isSuccess ? 'Clear' : 'Loading',
+      path: '/admin/system-console#admin-notifications',
+      actionLabel: 'View Inbox',
+      icon: BellRing,
+    },
+    {
+      title: 'Readiness Blockers',
+      helper: readinessDown > 0
+        ? `${readinessDown} readiness checks are down.`
+        : 'Runtime readiness checks are passing.',
+      count: readinessDown,
+      status: readinessDown > 0 ? 'attention' : readinessQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: readinessDown > 0 ? 'Blocked' : readinessQuery.isSuccess ? 'Ready' : 'Loading',
+      path: '/admin/system-console#development-controls',
+      actionLabel: 'Open Health',
+      icon: Network,
+    },
+  ];
+
   return (
     <div className="min-h-screen fusion-bg">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
@@ -822,6 +943,78 @@ export function AdminSystemConsole() {
               <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
                 <span>Admin APIs still needed</span>
                 <StatusBadge status="attention" label="Visible" />
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
+          <Card className="relative overflow-hidden border-[#e2e8f0] bg-white">
+            <div className="absolute left-0 top-0 h-1 w-full bg-[#f59e0b]" />
+            <CardHeader className="p-5">
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Radar className="h-5 w-5 text-[#f59e0b]" />
+                Enterprise Command Center
+              </CardTitle>
+              <CardDescription>
+                Pending admin work from policies, setup, queues, notifications, integrations, and platform readiness.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 p-5 pt-0 md:grid-cols-2">
+              {pendingAdminWork.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.title}
+                    to={item.path}
+                    className="group rounded-2xl border border-[#e2e8f0] bg-[#f6f7fb] p-4 transition-all hover:-translate-y-0.5 hover:border-[#f59e0b]/50 hover:bg-white hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)] focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/20"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3">
+                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white text-[#f59e0b]">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-[#0f172a]">{item.title}</p>
+                          <p className="mt-1 text-sm leading-5 text-[#475569]">{item.helper}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-headline text-3xl font-bold text-[#0f172a]">{item.count}</p>
+                        <StatusBadge status={item.status} label={item.statusLabel} />
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between border-t border-[#e2e8f0] pt-3 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
+                      <span>{item.actionLabel}</span>
+                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          <Card className="border-[#e2e8f0] bg-white">
+            <CardHeader>
+              <CardTitle className="text-lg">Enterprise Gates</CardTitle>
+              <CardDescription>High-risk controls that must stay true before calling the system enterprise-grade.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                <span>Setup and control surfaces live in Admin Panel</span>
+                <StatusBadge status="live" label="Grouped" />
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                <span>Policy lifecycle has governed approvals and apply controls</span>
+                <StatusBadge status={policyQuery.isSuccess ? 'live' : 'attention'} label={policyQuery.isSuccess ? 'Live' : 'Check'} />
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                <span>Queues and failures have inspect/retry/skip/export actions</span>
+                <StatusBadge status={deadLetterQuery.isSuccess ? 'live' : 'attention'} label={deadLetterQuery.isSuccess ? 'Live' : 'Check'} />
+              </div>
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
+                <span>Usage reporting includes commands, events, notifications, and workflows</span>
+                <StatusBadge status={serviceUsageQuery.isSuccess ? 'live' : 'attention'} label={serviceUsageQuery.isSuccess ? 'Live' : 'Check'} />
               </div>
             </CardContent>
           </Card>
@@ -1025,7 +1218,7 @@ export function AdminSystemConsole() {
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <section id="admin-notifications" className="grid gap-4 scroll-mt-28 xl:grid-cols-[1fr_1fr]">
           <Card className="relative overflow-hidden">
             <div className="absolute left-0 top-0 h-1 w-full bg-[#6366f1]" />
             <CardHeader className="p-5">

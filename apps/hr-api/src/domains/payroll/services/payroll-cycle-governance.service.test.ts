@@ -284,4 +284,73 @@ describe('PayrollCycleGovernanceService', () => {
       }),
     ]));
   });
+
+  it('blocks payroll close when the applied country statutory runtime is missing or stale', () => {
+    const readiness = service.evaluateCloseToPayReadiness({
+      preview: { ...preview, rows: [preview.rows[0]], employeeCount: 1 },
+      bankRows: [bankRows[0]],
+      workLocationCode: 'CAIRO_HQ',
+      existingCycles: [],
+      setup: {
+        countryPolicyRuntime: {
+          countryCode: 'EG',
+          packVersion: '2025.4',
+          blocksPayrollIfStale: true,
+          effectiveUntil: '2026-04-30',
+        },
+        statutoryPayrollPacks: [],
+        payrollBlockingRules: [{
+          code: 'COUNTRY_PACK_CURRENT',
+          label: 'Country statutory pack current',
+          active: true,
+          condition: 'COUNTRY_POLICY_STALE',
+          severity: 'ERROR',
+          blocking: true,
+          locationCodes: ['CAIRO_HQ'],
+        }],
+      },
+    });
+
+    expect(readiness.canClose).toBe(false);
+    expect(readiness.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'COUNTRY_PACK_CURRENT',
+        condition: 'COUNTRY_POLICY_STALE',
+        blocking: true,
+        message: expect.stringContaining('country statutory policy'),
+      }),
+    ]));
+  });
+
+  it('evaluates close readiness for a large tenant payroll preview without dropping worker-level blockers', () => {
+    const rowCount = 1_000;
+    const largeRows = Array.from({ length: rowCount }, (_, index) => ({
+      ...preview.rows[0],
+      workerId: `worker-${index + 1}`,
+      employeeId: `EMP-${String(index + 1).padStart(4, '0')}`,
+      netSalary: index % 100 === 0 ? 0 : 8400,
+      grossSalary: index % 100 === 0 ? 0 : 10000,
+    }));
+    const largeBankRows = largeRows.map<PayrollBankTransferRow>((row) => ({
+      ...bankRows[0],
+      workerId: row.workerId,
+      employeeId: row.employeeId,
+      netSalary: row.netSalary ?? 0,
+      bankReady: true,
+    }));
+
+    const readiness = service.evaluateCloseToPayReadiness({
+      preview: {
+        ...preview,
+        employeeCount: rowCount,
+        rows: largeRows,
+      },
+      bankRows: largeBankRows,
+      existingCycles: [],
+    });
+
+    expect(readiness.canClose).toBe(false);
+    expect(readiness.issues.filter((issue) => issue.code === 'MISSING_PAYROLL_COMPENSATION')).toHaveLength(10);
+    expect(readiness.issues.filter((issue) => issue.code === 'ZERO_OR_NEGATIVE_NET_PAY')).toHaveLength(10);
+  });
 });

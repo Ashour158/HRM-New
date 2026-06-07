@@ -390,7 +390,8 @@ export type PayrollBlockingCondition =
   | 'ZERO_OR_NEGATIVE_NET_PAY'
   | 'MISSING_TAX_IDENTIFIER'
   | 'MISSING_POLICY_ASSIGNMENT'
-  | 'NET_BELOW_MINIMUM';
+  | 'NET_BELOW_MINIMUM'
+  | 'COUNTRY_POLICY_STALE';
 
 export interface PayrollBlockingRule extends SetupOption {
   condition: PayrollBlockingCondition;
@@ -403,6 +404,36 @@ export interface PayrollBlockingRule extends SetupOption {
   departmentCodes?: string[];
   locationCodes?: string[];
   minNetSalary?: number;
+}
+
+export type RuntimePolicyArea =
+  | 'EMPLOYEE_SETUP'
+  | 'LEAVE'
+  | 'ATTENDANCE'
+  | 'PAYROLL'
+  | 'ACCESS_GOVERNANCE'
+  | 'COUNTRY_POLICY'
+  | 'COMPLIANCE';
+
+export interface RuntimePolicyRevisionEvidence {
+  area: RuntimePolicyArea;
+  revisionId: string;
+  status: 'APPLIED';
+  appliedAt: string;
+  scope?: {
+    tenantId?: string;
+    countryCodes?: string[];
+    legalEntityIds?: string[];
+    orgUnitIds?: string[];
+    departmentIds?: string[];
+    locationCodes?: string[];
+    employeeTypes?: string[];
+    workerIds?: string[];
+    effectiveFrom?: string;
+    effectiveUntil?: string;
+  };
+  engineName: string;
+  engineVersion: string;
 }
 
 export interface HcmSetupConfig {
@@ -423,6 +454,7 @@ export interface HcmSetupConfig {
   earningPolicies: EarningPolicy[];
   deductionPolicies: DeductionPolicy[];
   payrollBlockingRules: PayrollBlockingRule[];
+  runtimePolicyRevisions?: RuntimePolicyRevisionEvidence[];
 }
 
 export interface EmployeeDuplicateCheckResult {

@@ -1,5 +1,15 @@
 import type { HcmSetupConfig } from './hcm-setup.types.js';
 
+const BOOTSTRAP_RUNTIME_POLICY_AREAS = [
+  'EMPLOYEE_SETUP',
+  'LEAVE',
+  'ATTENDANCE',
+  'PAYROLL',
+  'ACCESS_GOVERNANCE',
+  'COUNTRY_POLICY',
+  'COMPLIANCE',
+] as const;
+
 export const DEFAULT_HCM_SETUP: HcmSetupConfig = {
   genderOptions: [
     { code: 'FEMALE', value: 'FEMALE', label: 'Female', active: true },
@@ -405,5 +415,33 @@ export const DEFAULT_HCM_SETUP: HcmSetupConfig = {
       severity: 'WARNING',
       blocking: false,
     },
+    {
+      code: 'COUNTRY_POLICY_STALE',
+      label: 'Country statutory policy is missing or stale',
+      active: true,
+      condition: 'COUNTRY_POLICY_STALE',
+      severity: 'ERROR',
+      blocking: true,
+    },
   ],
+  countryPolicyRuntime: {
+    countryCode: 'EG',
+    packVersion: 'SYSTEM_BOOTSTRAP_2026',
+    blocksPayrollIfStale: true,
+    effectiveFrom: '2026-01-01',
+    effectiveUntil: '2026-12-31',
+  },
+  compliancePolicyRuntime: {
+    acknowledgementRequired: true,
+    acknowledgementDueDays: 14,
+    policyFamily: 'SYSTEM_BOOTSTRAP',
+  },
+  runtimePolicyRevisions: BOOTSTRAP_RUNTIME_POLICY_AREAS.map((area) => ({
+    area,
+    revisionId: `SYSTEM_BOOTSTRAP_${area}`,
+    status: 'APPLIED',
+    appliedAt: '2026-01-01T00:00:00.000Z',
+    engineName: 'BootstrapPolicyRuntime',
+    engineVersion: '1.0.0',
+  })),
 };

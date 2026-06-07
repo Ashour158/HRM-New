@@ -22,6 +22,8 @@ export type PolicyRevisionStatus =
   | 'REJECTED'
   | 'ARCHIVED';
 
+export type PolicyImpactRisk = 'SAFE' | 'WARNING' | 'BLOCKED' | 'RETROACTIVE_ADJUSTMENT_REQUIRED';
+
 export interface PolicyScope {
   tenantId: string;
   countryCodes?: string[];
@@ -33,6 +35,60 @@ export interface PolicyScope {
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;
+}
+
+export interface PolicyImpactedWorkerRecord {
+  workerId: string;
+  displayName?: string;
+  employeeNumber?: string;
+  managerWorkerId?: string;
+  departmentId?: string;
+  legalEntityId?: string;
+  countryCode?: string;
+  beforeDecision: string;
+  afterDecision: string;
+  risk: PolicyImpactRisk;
+}
+
+export interface PolicyImpactedDomainRecord {
+  recordId: string;
+  workerId?: string;
+  status?: string;
+  beforeDecision: string;
+  afterDecision: string;
+  risk: PolicyImpactRisk;
+}
+
+export interface PolicyImpactRecords {
+  workers: PolicyImpactedWorkerRecord[];
+  leaveRequests: PolicyImpactedDomainRecord[];
+  attendanceDays: PolicyImpactedDomainRecord[];
+  payrollCycles: PolicyImpactedDomainRecord[];
+  complianceAcknowledgements: PolicyImpactedDomainRecord[];
+  accessGrants: PolicyImpactedDomainRecord[];
+}
+
+export interface PolicyNotificationPreviewRecipient {
+  audience: 'HR_OPERATIONS' | 'EMPLOYEE' | 'MANAGER' | 'POLICY_REVIEWER' | 'SERVICE_OWNER';
+  workerId?: string;
+  role?: string;
+  title: string;
+  body: string;
+  channel: 'IN_APP';
+  privacyLevel: 'LOW' | 'CONFIDENTIAL' | 'RESTRICTED';
+}
+
+export interface PolicyNotificationPreview {
+  recipients: PolicyNotificationPreviewRecipient[];
+  truncated: boolean;
+  totalRecipients: number;
+}
+
+export interface PolicyRiskSummary {
+  safe: number;
+  warning: number;
+  blocked: number;
+  retroactiveAdjustmentRequired: number;
 }
 
 export interface PolicyValidationResult {
@@ -50,6 +106,9 @@ export interface PolicyValidationResult {
 export interface PolicyImpactSimulationResult {
   impactedEmployees: number;
   impactedWorkerIds: string[];
+  impactedRecords: PolicyImpactRecords;
+  notificationPreview: PolicyNotificationPreview;
+  riskSummary: PolicyRiskSummary;
   pendingRecords: {
     pendingLeaveRequests: number;
     openAttendanceDays: number;
@@ -62,6 +121,72 @@ export interface PolicyImpactSimulationResult {
   warnings: string[];
   engineName: 'PolicyImpactSimulationEngine';
   engineVersion: string;
+}
+
+export interface PolicyRevisionDiffChange {
+  key: string;
+  label: string;
+  before: unknown;
+  after: unknown;
+  changeType: 'ADDED' | 'REMOVED' | 'CHANGED';
+  risk: PolicyImpactRisk;
+}
+
+export interface PolicyRevisionDiffResult {
+  area: PolicyArea;
+  leftRevisionId: string;
+  rightRevisionId: string;
+  changes: PolicyRevisionDiffChange[];
+}
+
+export interface PolicyTemplateRecord {
+  area: PolicyArea;
+  code: string;
+  title: string;
+  description: string;
+  draftConfig: Partial<HcmSetupConfig> | Record<string, unknown>;
+  recommendedScope: Partial<PolicyScope>;
+}
+
+export interface PolicyExportBundle {
+  exportedAt: string;
+  exportedBy: string;
+  revisions: Array<Pick<PolicyRevisionRecord, 'area' | 'title' | 'draftConfig' | 'scope' | 'validationResult' | 'simulationResult'>>;
+}
+
+export interface PolicyImportRevisionInput {
+  area: PolicyArea;
+  title: string;
+  draftConfig?: Partial<HcmSetupConfig> | Record<string, unknown>;
+  scope?: Partial<PolicyScope>;
+}
+
+export interface PolicyImportDryRunInput {
+  revisions: PolicyImportRevisionInput[];
+}
+
+export interface PolicyImportDryRunResult {
+  valid: boolean;
+  revisions: Array<{
+    title: string;
+    area: PolicyArea;
+    action: 'CREATE_DRAFT';
+    validation: PolicyValidationResult;
+  }>;
+  errors: string[];
+}
+
+export interface PolicyRollbackInput {
+  reason: string;
+}
+
+export interface PolicyApplyInput {
+  confirmedHighRisk?: boolean;
+  emergencyOverride?: {
+    reason: string;
+    expiresAt: string;
+    postReviewRequired?: boolean;
+  };
 }
 
 export interface PolicyApplicationRunRecord {
@@ -162,6 +287,7 @@ export interface PolicyCenterRepositoryPort {
   summarizePolicyCenter(tenantId: string): Promise<PolicyCenterSummary>;
   countImpactedWorkers(tenantId: string, scope: PolicyScope): Promise<{ count: number; workerIds: string[] }>;
   countPendingDomainRecords(tenantId: string, area: PolicyArea, scope: PolicyScope): Promise<PolicyImpactSimulationResult['pendingRecords']>;
+  listImpactRecords(tenantId: string, area: PolicyArea, scope: PolicyScope): Promise<PolicyImpactRecords>;
   createApplicationRun(record: PolicyApplicationRunRecord): Promise<PolicyApplicationRunRecord>;
   createImpactResult(record: PolicyImpactResultRecord): Promise<PolicyImpactResultRecord>;
   createDecisionEvidence(record: PolicyDecisionEvidenceRecord): Promise<PolicyDecisionEvidenceRecord>;

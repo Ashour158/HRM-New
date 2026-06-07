@@ -21,17 +21,27 @@ import type {
   StatutoryPayrollPack,
 } from '../hcm-setup/hcm-setup.types.js';
 import { PolicyCenterRepository } from './policy-center.repository.js';
+import { POLICY_AREAS } from './policy-center.types.js';
 import type {
   CreatePolicyRevisionInput,
   PolicyActor,
   PolicyArea,
   PolicyCenterRepositoryPort,
+  PolicyExportBundle,
+  PolicyImpactRecords,
   PolicyImpactSimulationResult,
+  PolicyImportDryRunInput,
+  PolicyImportDryRunResult,
+  PolicyNotificationPreview,
+  PolicyRevisionDiffResult,
   PolicyRevisionRecord,
   PolicyRevisionStatus,
+  PolicyRollbackInput,
   PolicyScope,
+  PolicyTemplateRecord,
   PolicyValidationResult,
   UpdatePolicyRevisionInput,
+  PolicyApplyInput,
 } from './policy-center.types.js';
 
 const ENGINE_VERSION = '1.0.0';
@@ -55,6 +65,131 @@ const AREA_NOTIFICATION_TITLES: Record<PolicyArea, string> = {
   COUNTRY_POLICY: 'Country policy changed',
   COMPLIANCE: 'Compliance policy changed',
 };
+
+const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
+  {
+    area: 'LEAVE',
+    code: 'LEAVE-MANAGER-BALANCE',
+    title: 'Manager-approved paid leave',
+    description: 'Employee-requestable leave with manager approval, balance deduction, payroll impact, and document thresholds.',
+    recommendedScope: { employeeTypes: ['FULL_TIME'] },
+    draftConfig: {
+      leavePolicies: [{
+        code: 'ANNUAL',
+        label: 'Annual Leave',
+        active: true,
+        unit: 'DAYS',
+        paid: true,
+        deductFromBalance: true,
+        requestableByEmployee: true,
+        payrollImpact: 'PAID_LEAVE',
+        approvalWorkflow: 'MANAGER',
+        annualEntitlement: 21,
+        maxPerRequest: 15,
+        minNoticeDays: 2,
+      }],
+    },
+  },
+  {
+    area: 'ATTENDANCE',
+    code: 'ATTENDANCE-GEOFENCE-MOBILE',
+    title: 'Mobile geofence attendance',
+    description: 'Mobile check-in with geofence, trust score, late grace, overtime threshold, and evidence requirements.',
+    recommendedScope: { locationCodes: ['HQ'] },
+    draftConfig: {
+      attendancePolicy: {
+        geofenceEnabled: true,
+        allowedRadiusMeters: 150,
+        minClockTrustScore: 70,
+        lateGraceMinutes: 10,
+        overtimeAfterMinutes: 480,
+        standardDailyMinutes: 480,
+      },
+    },
+  },
+  {
+    area: 'PAYROLL',
+    code: 'PAYROLL-STATUTORY-CLOSE',
+    title: 'Statutory payroll close controls',
+    description: 'Payroll calculation, statutory pack, GL/bank export and close blockers.',
+    recommendedScope: { countryCodes: ['EG'] },
+    draftConfig: {
+      payrollCalculationPolicy: {
+        taxMode: 'PROGRESSIVE',
+        defaultCurrency: 'EGP',
+        makerCheckerRequired: true,
+      },
+      statutoryPayrollPacks: [{
+        code: 'EG-DEFAULT',
+        label: 'Egypt statutory default',
+        countryCode: 'EG',
+        active: true,
+        calculationPolicy: { taxMode: 'PROGRESSIVE' },
+      }],
+      payrollBlockingRules: [{
+        code: 'BLOCK-UNRESOLVED-ATTENDANCE',
+        label: 'Block unresolved attendance',
+        active: true,
+        severity: 'BLOCKER',
+      }],
+    },
+  },
+  {
+    area: 'ACCESS_GOVERNANCE',
+    code: 'ACCESS-MAKER-CHECKER',
+    title: 'Maker-checker access governance',
+    description: 'Allowed-action, field access, service-account, SoD, and access certification controls.',
+    recommendedScope: {},
+    draftConfig: {
+      policyGovernance: {
+        makerCheckerRequired: true,
+        allowedActionOverrides: [],
+        fieldAccessOverrides: [],
+      },
+    },
+  },
+  {
+    area: 'COMPLIANCE',
+    code: 'COMPLIANCE-ACKNOWLEDGEMENT',
+    title: 'Policy acknowledgement controls',
+    description: 'Required acknowledgements, due dates, legal hold links, and notification policy.',
+    recommendedScope: {},
+    draftConfig: {
+      compliancePolicyRuntime: {
+        acknowledgementRequired: true,
+        acknowledgementDueDays: 14,
+      },
+    },
+  },
+  {
+    area: 'COUNTRY_POLICY',
+    code: 'COUNTRY-STATUTORY-PACK',
+    title: 'Country statutory pack lifecycle',
+    description: 'Country pack validation, simulation, publication, payroll blocker, and legal evidence controls.',
+    recommendedScope: { countryCodes: ['EG'] },
+    draftConfig: {
+      countryPolicyRuntime: {
+        countryCode: 'EG',
+        packVersion: '2026.1',
+        blocksPayrollIfStale: true,
+      },
+    },
+  },
+  {
+    area: 'EMPLOYEE_SETUP',
+    code: 'DATA-GOVERNANCE-REQUIRED-FIELDS',
+    title: 'Core HR data governance',
+    description: 'Required fields, sensitive fields, document requirements, and field-level controls.',
+    recommendedScope: {},
+    draftConfig: {
+      fieldRules: [{
+        fieldKey: 'workEmail',
+        required: true,
+        sensitivity: 'CONFIDENTIAL',
+      }],
+    },
+  },
+];
 
 type ScopedPolicy =
   | LeavePolicy
@@ -202,6 +337,112 @@ function replacementRevisionId(revision: PolicyRevisionRecord): string | undefin
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+function emptyImpactRecords(): PolicyImpactRecords {
+  return {
+    workers: [],
+    leaveRequests: [],
+    attendanceDays: [],
+    payrollCycles: [],
+    complianceAcknowledgements: [],
+    accessGrants: [],
+  };
+}
+
+function impactRiskSummary(records: PolicyImpactRecords) {
+  const summary = {
+    safe: 0,
+    warning: 0,
+    blocked: 0,
+    retroactiveAdjustmentRequired: 0,
+  };
+  const risks = [
+    ...records.workers,
+    ...records.leaveRequests,
+    ...records.attendanceDays,
+    ...records.payrollCycles,
+    ...records.complianceAcknowledgements,
+    ...records.accessGrants,
+  ].map((record) => record.risk);
+  for (const risk of risks) {
+    if (risk === 'SAFE') summary.safe += 1;
+    if (risk === 'WARNING') summary.warning += 1;
+    if (risk === 'BLOCKED') summary.blocked += 1;
+    if (risk === 'RETROACTIVE_ADJUSTMENT_REQUIRED') summary.retroactiveAdjustmentRequired += 1;
+  }
+  return summary;
+}
+
+function areaTitle(area: PolicyArea): string {
+  return area.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function labelForLeaf(path: string, fallbackLabel?: string): string {
+  const labels: Record<string, string> = {
+    annualEntitlement: 'annual entitlement',
+    maxPerRequest: 'maximum per request',
+    minNoticeDays: 'minimum notice days',
+    payrollImpact: 'payroll impact',
+    approvalWorkflow: 'approval workflow',
+    paid: 'paid status',
+    deductFromBalance: 'balance deduction',
+    geofenceEnabled: 'geofence enabled',
+    allowedRadiusMeters: 'allowed radius',
+    minClockTrustScore: 'minimum clock trust score',
+    taxMode: 'tax mode',
+    defaultCurrency: 'default currency',
+    makerCheckerRequired: 'maker-checker requirement',
+  };
+  return `${fallbackLabel ? `${fallbackLabel} ` : ''}${labels[path] ?? path.replace(/([A-Z])/g, ' $1').toLowerCase()}`.trim();
+}
+
+function diffRisk(path: string, before: unknown, after: unknown) {
+  if (path.includes('tax') || path.includes('statutory') || path.includes('payroll') || path.includes('makerChecker')) return 'BLOCKED' as const;
+  if (path.includes('annualEntitlement') || path.includes('allowedRadiusMeters') || path.includes('minClockTrustScore')) return 'WARNING' as const;
+  if (typeof before === 'boolean' || typeof after === 'boolean') return 'WARNING' as const;
+  return 'SAFE' as const;
+}
+
+function flattenBusinessConfig(area: PolicyArea, config: unknown): Map<string, { label: string; value: unknown }> {
+  const entries = new Map<string, { label: string; value: unknown }>();
+  const root = asObject(config);
+
+  if (area === 'LEAVE' && Array.isArray(root.leavePolicies)) {
+    for (const policy of root.leavePolicies) {
+      const row = asObject(policy);
+      const code = typeof row.code === 'string' ? row.code : 'UNKNOWN';
+      const label = typeof row.label === 'string' ? row.label : code;
+      for (const key of ['annualEntitlement', 'maxPerRequest', 'minNoticeDays', 'payrollImpact', 'approvalWorkflow', 'paid', 'deductFromBalance']) {
+        if (key in row) entries.set(`leavePolicies.${code}.${key}`, { label: labelForLeaf(key, label), value: row[key] });
+      }
+    }
+    return entries;
+  }
+
+  if (area === 'PAYROLL') {
+    const payroll = asObject(root.payrollCalculationPolicy);
+    for (const key of ['taxMode', 'defaultCurrency', 'makerCheckerRequired']) {
+      if (key in payroll) entries.set(`payrollCalculationPolicy.${key}`, { label: labelForLeaf(key, 'Payroll calculation'), value: payroll[key] });
+    }
+  }
+
+  const visit = (value: unknown, path: string[] = []) => {
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => visit(item, [...path, String(index)]));
+      return;
+    }
+    if (typeof value === 'object' && value !== null) {
+      for (const [key, child] of Object.entries(value as Record<string, unknown>)) visit(child, [...path, key]);
+      return;
+    }
+    if (path.length > 0) {
+      const key = path.join('.');
+      if (!entries.has(key)) entries.set(key, { label: labelForLeaf(path.at(-1) ?? key, areaTitle(area)), value });
+    }
+  };
+  visit(config);
+  return entries;
+}
+
 function withScope<T extends ScopedPolicy>(policy: T, scope: PolicyScope): T {
   const existing = policy as Record<string, unknown>;
   return {
@@ -246,6 +487,128 @@ export class PolicyCenterService {
 
   async listDecisionEvidence(tenantId: Uuid, limit = 25) {
     return this.repository.listDecisionEvidence(tenantId.value, limit);
+  }
+
+  getTemplates(): PolicyTemplateRecord[] {
+    return ENTERPRISE_POLICY_TEMPLATES.map((template) => ({
+      ...template,
+      draftConfig: { ...template.draftConfig },
+      recommendedScope: { ...template.recommendedScope },
+    }));
+  }
+
+  async exportRevision(tenantId: Uuid, id: string, actor: PolicyActor): Promise<PolicyExportBundle> {
+    const revision = await this.getRevisionOrThrow(tenantId, id);
+    return {
+      exportedAt: nowIso(),
+      exportedBy: actor.actorId,
+      revisions: [{
+        area: revision.area,
+        title: revision.title,
+        draftConfig: revision.draftConfig,
+        scope: revision.scope,
+        validationResult: revision.validationResult,
+        simulationResult: revision.simulationResult,
+      }],
+    };
+  }
+
+  async compareRevisions(tenantId: Uuid, leftId: string, rightId: string): Promise<PolicyRevisionDiffResult> {
+    const left = await this.getRevisionOrThrow(tenantId, leftId);
+    const right = await this.getRevisionOrThrow(tenantId, rightId);
+    if (left.area !== right.area) {
+      throw new BadRequestException('Policy revisions can only be compared inside the same service area.');
+    }
+
+    const before = flattenBusinessConfig(left.area, left.draftConfig);
+    const after = flattenBusinessConfig(right.area, right.draftConfig);
+    const keys = [...new Set([...before.keys(), ...after.keys()])].sort();
+    const changes = keys.flatMap((key) => {
+      const leftEntry = before.get(key);
+      const rightEntry = after.get(key);
+      if (JSON.stringify(leftEntry?.value) === JSON.stringify(rightEntry?.value)) return [];
+      return [{
+        key,
+        label: rightEntry?.label ?? leftEntry?.label ?? key,
+        before: leftEntry?.value,
+        after: rightEntry?.value,
+        changeType: !leftEntry ? 'ADDED' as const : !rightEntry ? 'REMOVED' as const : 'CHANGED' as const,
+        risk: diffRisk(key, leftEntry?.value, rightEntry?.value),
+      }];
+    });
+
+    return {
+      area: left.area,
+      leftRevisionId: left.id,
+      rightRevisionId: right.id,
+      changes,
+    };
+  }
+
+  async dryRunImport(tenantId: Uuid, input: PolicyImportDryRunInput, actor: PolicyActor): Promise<PolicyImportDryRunResult> {
+    const errors: string[] = [];
+    if (!Array.isArray(input.revisions) || input.revisions.length === 0) {
+      return { valid: false, revisions: [], errors: ['Import bundle must contain at least one policy revision.'] };
+    }
+
+    const timestamp = nowIso();
+    const revisions = [];
+    for (const item of input.revisions) {
+      if (!(POLICY_AREAS as readonly string[]).includes(item.area)) {
+        errors.push(`Unsupported policy area ${String(item.area)}.`);
+        continue;
+      }
+      const candidate: PolicyRevisionRecord = {
+        id: Uuid.generate().value,
+        tenantId: tenantId.value,
+        area: item.area,
+        title: item.title,
+        status: 'DRAFT',
+        baselineConfig: {},
+        draftConfig: item.draftConfig ?? {},
+        scope: normalizedScope(tenantId, item.scope),
+        createdBy: actor.actorId,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        aggregateVersion: 0,
+      };
+      revisions.push({
+        title: candidate.title,
+        area: candidate.area,
+        action: 'CREATE_DRAFT' as const,
+        validation: await this.validatePolicyRevision(tenantId, candidate),
+      });
+    }
+
+    return {
+      valid: errors.length === 0 && revisions.every((revision) => revision.validation.valid),
+      revisions,
+      errors,
+    };
+  }
+
+  async createRollbackDraft(tenantId: Uuid, id: string, input: PolicyRollbackInput, actor: PolicyActor): Promise<PolicyRevisionRecord> {
+    const revision = await this.getRevisionOrThrow(tenantId, id);
+    if (!['PUBLISHED', 'APPLIED', 'ARCHIVED'].includes(revision.status)) {
+      throw new BadRequestException('Only published, applied, or archived policy revisions can be used to create a rollback draft.');
+    }
+    const baseline = asObject(revision.baselineConfig);
+    return this.createRevision(tenantId, {
+      area: revision.area,
+      title: `Rollback: ${revision.title}`,
+      draftConfig: {
+        ...baseline,
+        policyReplacement: {
+          kind: 'ROLLBACK',
+          replacesRevisionId: revision.id,
+          replacesStatus: revision.status,
+          rollbackReason: input.reason,
+          requestedBy: actor.actorId,
+          requestedAt: nowIso(),
+        },
+      },
+      scope: revision.scope,
+    }, actor);
   }
 
   async createRevision(tenantId: Uuid, input: CreatePolicyRevisionInput, actor: PolicyActor): Promise<PolicyRevisionRecord> {
@@ -393,11 +756,12 @@ export class PolicyCenterService {
     return updated;
   }
 
-  async applyRevision(tenantId: Uuid, id: string, actor: PolicyActor): Promise<PolicyRevisionRecord> {
+  async applyRevision(tenantId: Uuid, id: string, actor: PolicyActor, input: PolicyApplyInput = {}): Promise<PolicyRevisionRecord> {
     const revision = await this.getRevisionOrThrow(tenantId, id);
     if (revision.status !== 'PUBLISHED') {
       throw new BadRequestException('Only published policy revisions can be applied.');
     }
+    this.assertMakerChecker(revision, 'APPLIED', actor);
 
     const validation = await this.validatePolicyRevision(tenantId, revision);
     if (!validation.valid) {
@@ -406,6 +770,12 @@ export class PolicyCenterService {
     }
 
     const simulation = await this.simulatePolicyRevision(tenantId, revision);
+    if (this.requiresHighRiskConfirmation(revision) && (simulation.riskSummary.blocked > 0 || simulation.riskSummary.retroactiveAdjustmentRequired > 0) && !input.confirmedHighRisk && !input.emergencyOverride) {
+      throw new BadRequestException('High-risk policy apply requires explicit confirmation or an emergency override.');
+    }
+    if (input.emergencyOverride && (!input.emergencyOverride.reason || !input.emergencyOverride.expiresAt)) {
+      throw new BadRequestException('Emergency policy override requires a reason and expiry.');
+    }
     const runtimeSnapshot = this.buildRuntimeSnapshot(revision);
     await this.recordLifecycleGovernance(tenantId, {
       revision,
@@ -422,6 +792,7 @@ export class PolicyCenterService {
           engineName: simulation.engineName,
           engineVersion: simulation.engineVersion,
         },
+        emergencyOverride: input.emergencyOverride,
       },
     });
     await this.hcmSetup.updateSetup(tenantId, runtimeSnapshot);
@@ -486,6 +857,7 @@ export class PolicyCenterService {
     if (!allowed.includes(revision.status)) {
       throw new BadRequestException(`Policy revision ${revision.id} cannot move from ${revision.status} to ${status}.`);
     }
+    this.assertMakerChecker(revision, status, actor);
     await this.recordLifecycleGovernance(tenantId, {
       revision,
       actor,
@@ -636,6 +1008,17 @@ export class PolicyCenterService {
   private async simulatePolicyRevision(tenantId: Uuid, revision: PolicyRevisionRecord): Promise<PolicyImpactSimulationResult> {
     const impacted = await this.repository.countImpactedWorkers(tenantId.value, revision.scope);
     const pendingRecords = await this.repository.countPendingDomainRecords(tenantId.value, revision.area, revision.scope);
+    const impactedRecords = await this.repository.listImpactRecords(tenantId.value, revision.area, revision.scope).catch(() => emptyImpactRecords());
+    if (impactedRecords.workers.length === 0 && impacted.workerIds.length > 0) {
+      impactedRecords.workers = impacted.workerIds.map((workerId) => ({
+        workerId,
+        beforeDecision: 'Uses currently applied runtime policy.',
+        afterDecision: 'Will be re-evaluated using this policy revision when it is applied.',
+        risk: 'SAFE',
+      }));
+    }
+    const riskSummary = impactRiskSummary(impactedRecords);
+    const notificationPreview = this.buildNotificationPreview(revision, impactedRecords, impacted.workerIds);
     const warnings: string[] = [];
     if (revision.scope.effectiveFrom && new Date(`${revision.scope.effectiveFrom}T00:00:00.000Z`).getTime() < Date.now()) {
       warnings.push('Policy is retroactive; final historical records will not be rewritten automatically.');
@@ -647,6 +1030,9 @@ export class PolicyCenterService {
     return {
       impactedEmployees: impacted.count,
       impactedWorkerIds: impacted.workerIds,
+      impactedRecords,
+      notificationPreview,
+      riskSummary,
       pendingRecords,
       oldDataRule: 'Approved, locked, and finalized historical records are not silently rewritten.',
       newDataRule: 'New transactions use the applied policy active on the transaction date.',
@@ -657,19 +1043,94 @@ export class PolicyCenterService {
     };
   }
 
+  private buildNotificationPreview(revision: PolicyRevisionRecord, impactedRecords: PolicyImpactRecords, fallbackWorkerIds: string[]): PolicyNotificationPreview {
+    const title = AREA_NOTIFICATION_TITLES[revision.area];
+    const workers = impactedRecords.workers.length > 0
+      ? impactedRecords.workers.map((worker) => worker.workerId)
+      : fallbackWorkerIds;
+    const managerWorkerIds = [...new Set(impactedRecords.workers.map((worker) => worker.managerWorkerId).filter((id): id is string => Boolean(id)))];
+    const recipients: PolicyNotificationPreview['recipients'] = [
+      {
+        audience: 'HR_OPERATIONS',
+        role: 'HR_ADMIN',
+        title: `${revision.area} policy impact detected`,
+        body: `${revision.title} affects ${workers.length} employee(s) and ${managerWorkerIds.length} manager(s).`,
+        channel: 'IN_APP',
+        privacyLevel: 'CONFIDENTIAL',
+      },
+      ...workers.slice(0, 250).map((workerId) => ({
+        audience: 'EMPLOYEE' as const,
+        workerId,
+        title,
+        body: `${revision.title} is scheduled to affect your HR services from ${revision.scope.effectiveFrom ?? 'the apply date'}.`,
+        channel: 'IN_APP' as const,
+        privacyLevel: 'CONFIDENTIAL' as const,
+      })),
+      ...managerWorkerIds.slice(0, 250).map((workerId) => ({
+        audience: 'MANAGER' as const,
+        workerId,
+        title: `${title} for your team`,
+        body: `${revision.title} is scheduled to affect one or more direct reports.`,
+        channel: 'IN_APP' as const,
+        privacyLevel: 'CONFIDENTIAL' as const,
+      })),
+    ];
+    const totalRecipients = 1 + workers.length + managerWorkerIds.length;
+    return {
+      recipients,
+      totalRecipients,
+      truncated: recipients.length < totalRecipients,
+    };
+  }
+
+  private requiresHighRiskConfirmation(revision: PolicyRevisionRecord): boolean {
+    const draft = asObject(revision.draftConfig);
+    return asObject(draft.policyControls).requiresHighRiskConfirmation === true
+      || asObject(draft.policyGovernance).requiresHighRiskConfirmation === true;
+  }
+
+  private requiresMakerChecker(revision: PolicyRevisionRecord): boolean {
+    const draft = asObject(revision.draftConfig);
+    if (asObject(draft.policyControls).makerCheckerRequired === true) return true;
+    if (asObject(draft.policyGovernance).makerCheckerRequired === true) return true;
+    if (asObject(draft.payrollCalculationPolicy).makerCheckerRequired === true) return true;
+    return ['PAYROLL', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'COMPLIANCE'].includes(revision.area);
+  }
+
+  private assertMakerChecker(revision: PolicyRevisionRecord, toStatus: PolicyRevisionStatus, actor: PolicyActor): void {
+    if (!this.requiresMakerChecker(revision)) return;
+    if (toStatus === 'REVIEWED' && revision.createdBy && revision.createdBy === actor.actorId) {
+      throw new BadRequestException('Maker-checker policy blocks creator from reviewing this revision.');
+    }
+    if (toStatus === 'APPROVED') {
+      if (revision.createdBy && revision.createdBy === actor.actorId) {
+        throw new BadRequestException('Maker-checker policy blocks creator from approving this revision.');
+      }
+      if (revision.reviewedBy && revision.reviewedBy === actor.actorId) {
+        throw new BadRequestException('Maker-checker policy blocks reviewer from approving this revision.');
+      }
+    }
+    if (toStatus === 'PUBLISHED' && revision.approvedBy && revision.approvedBy === actor.actorId) {
+      throw new BadRequestException('Maker-checker policy blocks approver from publishing this revision.');
+    }
+    if (toStatus === 'APPLIED' && revision.publishedBy && revision.publishedBy === actor.actorId) {
+      throw new BadRequestException('Maker-checker policy blocks publisher from applying this revision.');
+    }
+  }
+
   private buildRuntimeSnapshot(revision: PolicyRevisionRecord): HcmSetupUpdate {
     const draft = revision.draftConfig as HcmSetupUpdate;
     const scope = revision.scope;
 
     if (revision.area === 'LEAVE') {
-      return {
+      return this.withRuntimePolicyEvidence(revision, {
         leavePolicies: (draft.leavePolicies ?? []).map((policy) => withScope(policy, scope)),
-      };
+      });
     }
 
     if (revision.area === 'ATTENDANCE') {
       const attendancePolicy = asObject(draft.attendancePolicy) as Partial<AttendancePolicy>;
-      return {
+      return this.withRuntimePolicyEvidence(revision, {
         attendancePolicy: {
           ...attendancePolicy,
           shiftRotations: attendancePolicy.shiftRotations?.map((policy: AttendanceShiftRotationRule) => withScope(policy, scope)),
@@ -677,34 +1138,49 @@ export class PolicyCenterService {
           deviceTrustRules: attendancePolicy.deviceTrustRules?.map((policy: AttendanceDeviceTrustRule) => withScope(policy, scope)),
           flexibleHoursRules: attendancePolicy.flexibleHoursRules?.map((policy: AttendanceFlexibleHoursRule) => withScope(policy, scope)),
         },
-      } as HcmSetupUpdate;
+      } as HcmSetupUpdate);
     }
 
     if (revision.area === 'PAYROLL') {
-      return {
+      return this.withRuntimePolicyEvidence(revision, {
         payrollCalculationPolicy: draft.payrollCalculationPolicy,
         statutoryPayrollPacks: draft.statutoryPayrollPacks?.map((policy) => withPayrollScope(policy, scope)),
         earningPolicies: draft.earningPolicies?.map((policy) => withPayrollScope(policy, scope)),
         deductionPolicies: draft.deductionPolicies?.map((policy) => withPayrollScope(policy, scope)),
         payrollBlockingRules: draft.payrollBlockingRules?.map((policy) => withPayrollScope(policy, scope)),
-      };
+      });
     }
 
     if (revision.area === 'ACCESS_GOVERNANCE') {
-      return { policyGovernance: draft.policyGovernance };
+      return this.withRuntimePolicyEvidence(revision, { policyGovernance: draft.policyGovernance });
     }
 
     if (revision.area === 'COUNTRY_POLICY') {
       const draftObject = asObject(revision.draftConfig);
-      return { countryPolicyRuntime: asObject(draftObject.countryPolicyRuntime ?? draftObject) };
+      return this.withRuntimePolicyEvidence(revision, { countryPolicyRuntime: asObject(draftObject.countryPolicyRuntime ?? draftObject) });
     }
 
     if (revision.area === 'COMPLIANCE') {
       const draftObject = asObject(revision.draftConfig);
-      return { compliancePolicyRuntime: asObject(draftObject.compliancePolicyRuntime ?? draftObject) };
+      return this.withRuntimePolicyEvidence(revision, { compliancePolicyRuntime: asObject(draftObject.compliancePolicyRuntime ?? draftObject) });
     }
 
-    return draft;
+    return this.withRuntimePolicyEvidence(revision, draft);
+  }
+
+  private withRuntimePolicyEvidence(revision: PolicyRevisionRecord, snapshot: HcmSetupUpdate): HcmSetupUpdate {
+    return {
+      ...snapshot,
+      runtimePolicyRevisions: [{
+        area: revision.area,
+        revisionId: revision.id,
+        status: 'APPLIED',
+        appliedAt: nowIso(),
+        scope: revision.scope,
+        engineName: 'PolicyApplicationEngine',
+        engineVersion: ENGINE_VERSION,
+      }],
+    };
   }
 
   private async notifyLifecycle(

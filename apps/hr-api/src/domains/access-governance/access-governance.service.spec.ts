@@ -129,6 +129,7 @@ function repository(overrides: Record<string, unknown> = {}) {
     createServiceAccountCredential: vi.fn(async (_tenant: Uuid, input: Record<string, unknown>) => credential(input)),
     updateServiceAccountCredential: vi.fn(async (_tenant: Uuid, _account: Uuid, _credential: Uuid, input: Record<string, unknown>) => credential(input)),
     updateServiceAccount: vi.fn(async (_tenant: Uuid, _account: Uuid, input: Record<string, unknown>) => serviceAccount(input)),
+    removeUserRole: vi.fn(async () => []),
     findAccessReviewCampaign: vi.fn(async () => campaign()),
     listAccessReviewItemsForCampaign: vi.fn(async () => []),
     updateAccessReviewCampaign: vi.fn(async (_tenant: Uuid, _campaign: Uuid, input: Record<string, unknown>) => campaign(input)),
@@ -199,5 +200,38 @@ describe('AccessGovernanceService credential vault and certification workflow', 
       campaignId,
       expect.objectContaining({ escalation_count: 1 }),
     );
+  });
+
+  it('fulfills revoke certification decisions by removing the granted role and writing workflow evidence', async () => {
+    const itemId = new Uuid('00000000-0000-0000-0000-000000000070');
+    const userId = '00000000-0000-0000-0000-000000000080';
+    const roleId = '00000000-0000-0000-0000-000000000090';
+    const repo = repository({
+      updateAccessReviewItem: vi.fn(async () => reviewItem('REVOKE', {
+        id: itemId.value,
+        subject_user_id: userId,
+        role_id: roleId,
+        role_code: 'PAYROLL_ADMIN',
+        evidence: { reviewerComment: 'No longer needed' },
+      })),
+    });
+    const service = new AccessGovernanceService(repo as never) as unknown as {
+      updateAccessReviewItem: AccessGovernanceService['updateAccessReviewItem'];
+    };
+
+    const result = await service.updateAccessReviewItem(tenantId, itemId, { decision: 'REVOKE' }, actorId);
+
+    expect(result.decision).toBe('REVOKE');
+    expect(repo.removeUserRole).toHaveBeenCalledWith(tenantId, new Uuid(userId), new Uuid(roleId));
+    expect(repo.createAccessReviewWorkflowEvent).toHaveBeenCalledWith(tenantId, expect.objectContaining({
+      campaign_id: campaignId.value,
+      event_type: 'REVOKE_FULFILLED',
+      actor_id: actorId.value,
+      message: 'Access review revoke decision fulfilled',
+      payload: expect.objectContaining({
+        action: 'USER_ROLE_REMOVED',
+        roleCode: 'PAYROLL_ADMIN',
+      }),
+    }));
   });
 });

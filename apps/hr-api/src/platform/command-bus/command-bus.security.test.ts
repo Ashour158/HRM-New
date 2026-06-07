@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { AccessControlService } from '@hcm/access-control';
-import { CommandBus } from './command-bus.js';
+import { CommandBus, requiredPolicyAreaForCommand } from './command-bus.js';
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440001');
@@ -457,6 +457,59 @@ describe('CommandBus security gates', () => {
     }))).rejects.toMatchObject({
       errorCode: 'RUNTIME_POLICY_ACTION_DENIED',
     });
+  });
+
+  it.each([
+    ['LEAVE', 'SubmitAbsenceRequest', 'AbsenceRequest'],
+    ['ATTENDANCE', 'RecordTimeClockEvent', 'TimeClockEvent'],
+    ['PAYROLL', 'ClosePayrollCycle', 'PayrollCycle'],
+    ['ACCESS_GOVERNANCE', 'CreateRole', 'AccessGovernanceRole'],
+    ['COMPLIANCE', 'RequirePolicyAcknowledgement', 'PolicyAcknowledgement'],
+    ['COUNTRY_POLICY', 'PublishCountryPolicyPack', 'CountryPolicyPack'],
+    ['EMPLOYEE_SETUP', 'CreateWorker', 'WorkerProfile'],
+  ])('maps %s governed commands to an applied policy prerequisite', (area, commandName, aggregateType) => {
+    expect(requiredPolicyAreaForCommand(makeCommand({ commandName, aggregateType }))).toBe(area);
+  });
+
+  it('fails closed when a governed command has no applied runtime policy revision evidence', async () => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      payload: { workerId },
+    }))).rejects.toMatchObject({
+      errorCode: 'REQUIRED_POLICY_REVISION_NOT_APPLIED',
+    });
+  });
+
+  it('allows a governed command when matching applied runtime policy revision evidence exists', async () => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [{
+            area: 'LEAVE',
+            revisionId: 'policy-leave-v7',
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          }],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      payload: { workerId },
+    }))).resolves.toBeUndefined();
   });
 
   it('blocks command payload writes when applied field-access overrides deny the written field', async () => {

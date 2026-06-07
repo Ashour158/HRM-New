@@ -234,7 +234,8 @@ export type PayrollBlockingCondition =
   | 'ZERO_OR_NEGATIVE_NET_PAY'
   | 'MISSING_TAX_IDENTIFIER'
   | 'MISSING_POLICY_ASSIGNMENT'
-  | 'NET_BELOW_MINIMUM';
+  | 'NET_BELOW_MINIMUM'
+  | 'COUNTRY_POLICY_STALE';
 
 export type PayrollBlockingRule = SetupOption & {
   condition: PayrollBlockingCondition;
@@ -292,6 +293,25 @@ export type PolicyGovernanceConfig = {
   fieldAccessOverrides: FieldAccessPolicyOverride[];
 };
 
+export type RuntimePolicyArea =
+  | 'EMPLOYEE_SETUP'
+  | 'LEAVE'
+  | 'ATTENDANCE'
+  | 'PAYROLL'
+  | 'ACCESS_GOVERNANCE'
+  | 'COUNTRY_POLICY'
+  | 'COMPLIANCE';
+
+export type RuntimePolicyRevisionEvidence = {
+  area: RuntimePolicyArea;
+  revisionId: string;
+  status: 'APPLIED';
+  appliedAt: string;
+  scope?: HcmPolicyScope;
+  engineName: string;
+  engineVersion: string;
+};
+
 export interface HcmSetupConfig {
   genderOptions: GenderOption[];
   workPhoneEnabled: boolean;
@@ -313,6 +333,7 @@ export interface HcmSetupConfig {
   policyGovernance?: PolicyGovernanceConfig;
   countryPolicyRuntime?: Record<string, unknown>;
   compliancePolicyRuntime?: Record<string, unknown>;
+  runtimePolicyRevisions?: RuntimePolicyRevisionEvidence[];
 }
 
 export type HcmSetupUpdate = Partial<HcmSetupConfig>;

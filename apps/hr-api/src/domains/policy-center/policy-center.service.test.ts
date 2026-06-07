@@ -9,6 +9,8 @@ import type {
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const actor = { actorId: '00000000-0000-0000-0000-000000000010', actorName: 'HR Admin' };
+const reviewerActor = { actorId: '00000000-0000-0000-0000-000000000011', actorName: 'Policy Reviewer' };
+const approverActor = { actorId: '00000000-0000-0000-0000-000000000012', actorName: 'Policy Approver' };
 
 function revision(overrides: Partial<PolicyRevisionRecord> = {}): PolicyRevisionRecord {
   return {
@@ -90,6 +92,44 @@ function buildRepository(seed: PolicyRevisionRecord[]): PolicyCenterRepositoryPo
       openAttendanceDays: 1,
       openPayrollCycles: 1,
       pendingComplianceAcknowledgements: 0,
+    })),
+    listImpactRecords: vi.fn(async () => ({
+      workers: [
+        {
+          workerId: 'worker-a',
+          displayName: 'Amina Hassan',
+          employeeNumber: 'E-001',
+          managerWorkerId: 'manager-a',
+          departmentId: 'dept-a',
+          legalEntityId: 'entity-a',
+          countryCode: 'EG',
+          beforeDecision: 'Uses current leave policy',
+          afterDecision: 'Will use Annual leave policy',
+          risk: 'SAFE',
+        },
+      ],
+      leaveRequests: [
+        {
+          recordId: 'leave-a',
+          workerId: 'worker-a',
+          status: 'SUBMITTED',
+          beforeDecision: 'Pending under current policy',
+          afterDecision: 'Revalidation required under new policy',
+          risk: 'WARNING',
+        },
+      ],
+      attendanceDays: [],
+      payrollCycles: [
+        {
+          recordId: 'payroll-a',
+          status: 'OPEN',
+          beforeDecision: 'Open cycle has no statutory pack link',
+          afterDecision: 'Cycle must be revalidated before close',
+          risk: 'BLOCKED',
+        },
+      ],
+      complianceAcknowledgements: [],
+      accessGrants: [],
     })),
   };
 }
@@ -261,6 +301,14 @@ describe('PolicyCenterService', () => {
             code: 'ANNUAL',
             departmentCodes: ['dept-a'],
             effectiveFrom: '2026-06-01',
+          }),
+        ],
+        runtimePolicyRevisions: [
+          expect.objectContaining({
+            area: 'LEAVE',
+            revisionId: published.id,
+            status: 'APPLIED',
+            engineName: 'PolicyApplicationEngine',
           }),
         ],
       }),
@@ -472,20 +520,34 @@ describe('PolicyCenterService', () => {
     await service.applyRevision(tenantId, country.id, actor);
     await service.applyRevision(tenantId, compliance.id, actor);
 
-    expect(hcmSetup.updateSetup).toHaveBeenNthCalledWith(1, tenantId, {
+    expect(hcmSetup.updateSetup).toHaveBeenNthCalledWith(1, tenantId, expect.objectContaining({
       countryPolicyRuntime: {
         countryCode: 'EG',
         packVersion: '2026.2',
         blocksPayrollIfStale: true,
       },
-    });
-    expect(hcmSetup.updateSetup).toHaveBeenNthCalledWith(2, tenantId, {
+      runtimePolicyRevisions: [
+        expect.objectContaining({
+          area: 'COUNTRY_POLICY',
+          revisionId: country.id,
+          status: 'APPLIED',
+        }),
+      ],
+    }));
+    expect(hcmSetup.updateSetup).toHaveBeenNthCalledWith(2, tenantId, expect.objectContaining({
       compliancePolicyRuntime: {
         policyFamily: 'CODE_OF_CONDUCT',
         acknowledgementDueDays: 14,
         acknowledgementRequired: true,
       },
-    });
+      runtimePolicyRevisions: [
+        expect.objectContaining({
+          area: 'COMPLIANCE',
+          revisionId: compliance.id,
+          status: 'APPLIED',
+        }),
+      ],
+    }));
   });
 
   it('enforces lifecycle transitions before a policy can be published or applied', async () => {
@@ -494,5 +556,183 @@ describe('PolicyCenterService', () => {
 
     await expect(service.publishRevision(tenantId, draft.id, actor)).rejects.toThrow('Only approved policy revisions can be published.');
     await expect(service.applyRevision(tenantId, draft.id, actor)).rejects.toThrow('Only published policy revisions can be applied.');
+  });
+
+  it('simulates exact impacted records and notification recipients before apply', async () => {
+    const draft = revision();
+    const { service } = buildService([draft]);
+
+    const simulation = await service.simulateRevision(tenantId, draft.id, actor);
+
+    expect(simulation.impactedRecords.workers).toEqual([
+      expect.objectContaining({
+        workerId: 'worker-a',
+        displayName: 'Amina Hassan',
+        beforeDecision: 'Uses current leave policy',
+        afterDecision: 'Will use Annual leave policy',
+        risk: 'SAFE',
+      }),
+    ]);
+    expect(simulation.impactedRecords.leaveRequests).toEqual([
+      expect.objectContaining({
+        recordId: 'leave-a',
+        risk: 'WARNING',
+      }),
+    ]);
+    expect(simulation.impactedRecords.payrollCycles).toEqual([
+      expect.objectContaining({
+        recordId: 'payroll-a',
+        risk: 'BLOCKED',
+      }),
+    ]);
+    expect(simulation.notificationPreview.recipients).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        audience: 'HR_OPERATIONS',
+        title: 'LEAVE policy impact detected',
+        privacyLevel: 'CONFIDENTIAL',
+      }),
+      expect.objectContaining({
+        audience: 'EMPLOYEE',
+        workerId: 'worker-a',
+        title: 'Leave policy changed',
+      }),
+      expect.objectContaining({
+        audience: 'MANAGER',
+        workerId: 'manager-a',
+        title: 'Leave policy changed for your team',
+      }),
+    ]));
+    expect(simulation.riskSummary).toEqual({
+      safe: 1,
+      warning: 1,
+      blocked: 1,
+      retroactiveAdjustmentRequired: 0,
+    });
+  });
+
+  it('returns semantic revision differences using business labels instead of raw JSON', async () => {
+    const current = revision({
+      id: '00000000-0000-0000-0000-000000000201',
+      title: 'Current leave policy',
+      draftConfig: {
+        leavePolicies: [
+          { code: 'ANNUAL', label: 'Annual Leave', annualEntitlement: 21, maxPerRequest: 15 },
+        ],
+      },
+    });
+    const proposed = revision({
+      id: '00000000-0000-0000-0000-000000000202',
+      title: 'Proposed leave policy',
+      draftConfig: {
+        leavePolicies: [
+          { code: 'ANNUAL', label: 'Annual Leave', annualEntitlement: 24, maxPerRequest: 10 },
+        ],
+      },
+    });
+    const { service } = buildService([current, proposed]);
+
+    const diff = await service.compareRevisions(tenantId, current.id, proposed.id);
+
+    expect(diff.area).toBe('LEAVE');
+    expect(diff.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: 'Annual Leave annual entitlement',
+        before: 21,
+        after: 24,
+        risk: 'WARNING',
+      }),
+      expect.objectContaining({
+        label: 'Annual Leave maximum per request',
+        before: 15,
+        after: 10,
+        risk: 'SAFE',
+      }),
+    ]));
+  });
+
+  it('creates rollback as a governed replacement draft without mutating runtime', async () => {
+    const applied = revision({
+      id: '00000000-0000-0000-0000-000000000301',
+      status: 'APPLIED',
+      baselineConfig: {
+        leavePolicies: [{ code: 'ANNUAL', label: 'Annual Leave', annualEntitlement: 21 }],
+      },
+      draftConfig: {
+        leavePolicies: [{ code: 'ANNUAL', label: 'Annual Leave', annualEntitlement: 24 }],
+      },
+    });
+    const { service, repository, hcmSetup } = buildService([applied]);
+
+    const rollback = await service.createRollbackDraft(tenantId, applied.id, { reason: 'Incorrect entitlement' }, actor);
+
+    expect(rollback.status).toBe('DRAFT');
+    expect(rollback.title).toBe('Rollback: Annual leave policy');
+    expect(rollback.draftConfig).toEqual(expect.objectContaining({
+      leavePolicies: [{ code: 'ANNUAL', label: 'Annual Leave', annualEntitlement: 21 }],
+      policyReplacement: expect.objectContaining({
+        kind: 'ROLLBACK',
+        replacesRevisionId: applied.id,
+        rollbackReason: 'Incorrect entitlement',
+      }),
+    }));
+    expect(repository.createRevision).toHaveBeenCalledWith(expect.objectContaining({
+      id: rollback.id,
+      status: 'DRAFT',
+    }));
+    expect(hcmSetup.updateSetup).not.toHaveBeenCalled();
+  });
+
+  it('dry-runs imported policy bundles and reports conflicts without creating revisions', async () => {
+    const active = revision({ status: 'APPLIED' });
+    const { service, repository } = buildService([active]);
+
+    const result = await service.dryRunImport(tenantId, {
+      revisions: [
+        {
+          area: 'LEAVE',
+          title: 'Imported annual leave',
+          draftConfig: revision().draftConfig,
+          scope: {
+            tenantId: tenantId.value,
+            departmentIds: ['dept-a'],
+            effectiveFrom: '2026-06-01',
+          },
+        },
+      ],
+    }, actor);
+
+    expect(result.valid).toBe(false);
+    expect(result.revisions).toEqual([
+      expect.objectContaining({
+        title: 'Imported annual leave',
+        action: 'CREATE_DRAFT',
+        validation: expect.objectContaining({ valid: false }),
+      }),
+    ]);
+    expect(repository.createRevision).not.toHaveBeenCalled();
+  });
+
+  it('blocks maker-checker violations for high-risk payroll policy approval', async () => {
+    const reviewed = revision({
+      area: 'PAYROLL',
+      status: 'REVIEWED',
+      createdBy: actor.actorId,
+      reviewedBy: reviewerActor.actorId,
+      draftConfig: {
+        payrollCalculationPolicy: {
+          taxMode: 'PROGRESSIVE',
+          makerCheckerRequired: true,
+        },
+      },
+    });
+    const { service } = buildService([reviewed]);
+
+    await expect(service.approveRevision(tenantId, reviewed.id, actor)).rejects.toThrow(
+      'Maker-checker policy blocks creator from approving this revision.',
+    );
+    await expect(service.approveRevision(tenantId, reviewed.id, approverActor)).resolves.toEqual(expect.objectContaining({
+      status: 'APPROVED',
+      approvedBy: approverActor.actorId,
+    }));
   });
 });

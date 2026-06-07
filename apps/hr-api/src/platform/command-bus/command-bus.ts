@@ -28,7 +28,9 @@ import type {
   AllowedActionPolicyOverride,
   FieldAccessPolicyOverride,
   HcmPolicyScope,
+  HcmSetupConfig,
   PolicyGovernanceConfig,
+  RuntimePolicyArea,
 } from '../../domains/hcm-setup/hcm-setup.types.js';
 import { COMMAND_HANDLER_METADATA } from './command-handler.decorator.js';
 
@@ -60,6 +62,12 @@ type ActorScopeClaims = {
   orgUnitIds?: string[];
   locationCodes?: string[];
   employeeTypes?: string[];
+};
+
+type GovernedCommandPolicyRule = {
+  area: RuntimePolicyArea;
+  aggregateTypes: string[];
+  commandPatterns: RegExp[];
 };
 
 function aggregateLoader(table: string, stateColumn: 'status' | 'state' = 'status'): AggregateLoaderConfig {
@@ -204,6 +212,51 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   PerformanceFeedback360Cycle: aggregateLoader('performance_feedback_360_cycles'),
 };
 
+export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
+  {
+    area: 'EMPLOYEE_SETUP',
+    aggregateTypes: ['WorkerProfile', 'EmploymentRelationship', 'JobAssignment', 'EmploymentContract', 'PersonalDataRecord'],
+    commandPatterns: [/Worker/i, /Employment/i, /JobAssignment/i, /PersonalData/i],
+  },
+  {
+    area: 'LEAVE',
+    aggregateTypes: ['AbsenceRequest', 'LeaveCase', 'AbsenceAccrualBalance', 'LeaveEntitlementCalculation'],
+    commandPatterns: [/Absence/i, /Leave/i],
+  },
+  {
+    area: 'ATTENDANCE',
+    aggregateTypes: ['TimeClockEvent', 'AttendanceException', 'AttendanceCorrectionRequest', 'AttendanceDailyLedger', 'Timesheet', 'WorkSchedule', 'OvertimeApproval'],
+    commandPatterns: [/TimeClock/i, /Attendance/i, /Timesheet/i, /WorkSchedule/i, /Overtime/i],
+  },
+  {
+    area: 'PAYROLL',
+    aggregateTypes: ['PayrollCycle', 'PayrollInput', 'PayrollCalculationRun', 'PayrollResultLine', 'PayrollPaymentBatch', 'PayrollPayslipArtifact'],
+    commandPatterns: [/Payroll/i, /Payslip/i],
+  },
+  {
+    area: 'ACCESS_GOVERNANCE',
+    aggregateTypes: ['AccessGovernanceRole', 'AccessGovernancePermission', 'AccessReviewCampaign', 'AccessReviewItem', 'ServiceAccount'],
+    commandPatterns: [/Role/i, /Permission/i, /AccessReview/i, /ServiceAccount/i, /Credential/i, /^CreateRole$/i],
+  },
+  {
+    area: 'COUNTRY_POLICY',
+    aggregateTypes: ['CountryPolicyPack', 'CountryPolicyValidationRun', 'CountryPolicyImpactSimulation'],
+    commandPatterns: [/CountryPolicy/i],
+  },
+  {
+    area: 'COMPLIANCE',
+    aggregateTypes: ['PolicyDocument', 'PolicyAcknowledgement', 'LegalHold', 'StatutoryReport'],
+    commandPatterns: [/PolicyDocument/i, /PolicyAcknowledgement/i, /LegalHold/i, /StatutoryReport/i, /Compliance/i],
+  },
+];
+
+export function requiredPolicyAreaForCommand(command: Pick<HrCommandEnvelope<unknown>, 'aggregateType' | 'commandName'>): RuntimePolicyArea | undefined {
+  return GOVERNED_COMMAND_POLICY_MATRIX.find((rule) => (
+    rule.aggregateTypes.includes(command.aggregateType)
+    || rule.commandPatterns.some((pattern) => pattern.test(command.commandName))
+  ))?.area;
+}
+
 const SENSITIVE_FIELD_RULES: Array<{
   policyField: string;
   dataClassification: 'HIGH_SENSITIVITY' | 'SPECIAL_CATEGORY' | 'LEGAL_HOLD';
@@ -328,6 +381,9 @@ export class CommandBus implements OnModuleInit {
 
         step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
         await this.stepEvaluateRuntimeAccessGovernance(command);
+
+        step = CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE;
+        await this.stepEnforceAppliedPolicyRevision(command);
 
         step = CommandPipelineStep.EVALUATE_MANAGER_HRBP_RELATIONSHIP;
         await this.stepEvaluateManagerRelationship(command);
@@ -712,6 +768,29 @@ export class CommandBus implements OnModuleInit {
     await this.stepEvaluateRuntimeFieldAccessOverrides(command);
   }
 
+  private async stepEnforceAppliedPolicyRevision(command: HrCommandEnvelope<unknown>): Promise<void> {
+    if (command.actor.actorType === 'SYSTEM') return;
+
+    const requiredArea = requiredPolicyAreaForCommand(command);
+    if (!requiredArea) return;
+
+    const setup = await this.getRuntimeSetup(command);
+    const evidence = setup?.runtimePolicyRevisions?.find((candidate) => (
+      candidate.area === requiredArea
+      && candidate.status === 'APPLIED'
+      && this.policyScopeMatches(candidate.scope, command)
+    ));
+    if (evidence) return;
+
+    throw this.makeError(
+      command,
+      CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE,
+      'REQUIRED_POLICY_REVISION_NOT_APPLIED',
+      `${requiredArea} commands require an applied Policy Center revision before ${command.commandName} can execute.`,
+      false,
+    );
+  }
+
   private async stepEvaluateRuntimeAllowedActionOverrides(command: HrCommandEnvelope<unknown>): Promise<void> {
     if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT') {
       return;
@@ -758,9 +837,12 @@ export class CommandBus implements OnModuleInit {
   }
 
   private async getRuntimeGovernance(command: HrCommandEnvelope<unknown>): Promise<PolicyGovernanceConfig | undefined> {
+    return (await this.getRuntimeSetup(command))?.policyGovernance;
+  }
+
+  private async getRuntimeSetup(command: HrCommandEnvelope<unknown>): Promise<Partial<HcmSetupConfig> | undefined> {
     if (this.hcmSetup) {
-      const setup = await this.hcmSetup.getSetup(command.tenantId);
-      return setup.policyGovernance;
+      return this.hcmSetup.getSetup(command.tenantId);
     }
     if (!this.db) return undefined;
 
@@ -769,8 +851,7 @@ export class CommandBus implements OnModuleInit {
       .select(['config'])
       .where('tenant_id', '=', command.tenantId.value)
       .executeTakeFirst();
-    const setup = row?.config as { policyGovernance?: PolicyGovernanceConfig } | undefined;
-    return setup?.policyGovernance;
+    return row?.config as Partial<HcmSetupConfig> | undefined;
   }
 
   private allowedActionOverrideMatches(

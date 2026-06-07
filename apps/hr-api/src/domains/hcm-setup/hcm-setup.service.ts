@@ -2,7 +2,7 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
 import { DEFAULT_HCM_SETUP } from './hcm-setup.defaults.js';
 import { HcmSetupRepository } from './hcm-setup.repository.js';
-import type { HcmSetupConfig, HcmSetupUpdate } from './hcm-setup.types.js';
+import type { HcmSetupConfig, HcmSetupUpdate, RuntimePolicyRevisionEvidence } from './hcm-setup.types.js';
 
 export interface HcmSetupStore {
   getByTenant(tenantId: Uuid): Promise<HcmSetupConfig | undefined>;
@@ -11,6 +11,21 @@ export interface HcmSetupStore {
 
 function cloneSetup(setup: HcmSetupConfig): HcmSetupConfig {
   return JSON.parse(JSON.stringify(setup)) as HcmSetupConfig;
+}
+
+function mergeRuntimePolicyRevisions(
+  existing: RuntimePolicyRevisionEvidence[] | undefined,
+  incoming: RuntimePolicyRevisionEvidence[] | undefined,
+): RuntimePolicyRevisionEvidence[] | undefined {
+  if (!incoming) return existing;
+  const byArea = new Map<string, RuntimePolicyRevisionEvidence>();
+  for (const evidence of existing ?? []) {
+    byArea.set(evidence.area, evidence);
+  }
+  for (const evidence of incoming) {
+    byArea.set(evidence.area, evidence);
+  }
+  return Array.from(byArea.values());
 }
 
 function mergeSetup(...configs: Array<Partial<HcmSetupConfig> | undefined>): HcmSetupConfig {
@@ -30,6 +45,10 @@ function mergeSetup(...configs: Array<Partial<HcmSetupConfig> | undefined>): Hcm
         ...merged.attendancePolicy,
         ...(config?.attendancePolicy ?? {}),
       },
+      runtimePolicyRevisions: mergeRuntimePolicyRevisions(
+        merged.runtimePolicyRevisions,
+        config?.runtimePolicyRevisions,
+      ),
     }),
     cloneSetup(DEFAULT_HCM_SETUP),
   );

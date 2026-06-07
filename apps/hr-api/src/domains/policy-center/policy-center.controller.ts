@@ -4,7 +4,16 @@ import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
 import { PolicyCenterService } from './policy-center.service.js';
-import { POLICY_AREAS, type CreatePolicyRevisionInput, type PolicyActor, type PolicyArea, type UpdatePolicyRevisionInput } from './policy-center.types.js';
+import {
+  POLICY_AREAS,
+  type CreatePolicyRevisionInput,
+  type PolicyActor,
+  type PolicyApplyInput,
+  type PolicyArea,
+  type PolicyImportDryRunInput,
+  type PolicyRollbackInput,
+  type UpdatePolicyRevisionInput,
+} from './policy-center.types.js';
 
 const POLICY_ADMIN_ROLES = new Set([
   'APP_ADMIN',
@@ -40,11 +49,35 @@ export class PolicyCenterController {
     return this.service.listRevisions(this.getTenantId(req), areaFromQuery(area));
   }
 
+  @Get('templates')
+  async templates(@Req() req: Request) {
+    this.assertPolicyAdmin(req);
+    return this.service.getTemplates();
+  }
+
+  @Post('import/dry-run')
+  async dryRunImport(@Body() body: PolicyImportDryRunInput, @Req() req: Request) {
+    this.assertPolicyAdmin(req);
+    return this.service.dryRunImport(this.getTenantId(req), body, this.getActor(req));
+  }
+
   @Get('decision-evidence')
   async decisionEvidence(@Req() req: Request, @Query('limit') limit?: string) {
     this.assertPolicyAdmin(req);
     const parsedLimit = Number.parseInt(limit ?? '25', 10);
     return this.service.listDecisionEvidence(this.getTenantId(req), Number.isFinite(parsedLimit) ? parsedLimit : 25);
+  }
+
+  @Get('revisions/:id/export')
+  async exportRevision(@Param('id') id: string, @Req() req: Request) {
+    this.assertPolicyAdmin(req);
+    return this.service.exportRevision(this.getTenantId(req), id, this.getActor(req));
+  }
+
+  @Get('revisions/:leftId/compare/:rightId')
+  async compare(@Param('leftId') leftId: string, @Param('rightId') rightId: string, @Req() req: Request) {
+    this.assertPolicyAdmin(req);
+    return this.service.compareRevisions(this.getTenantId(req), leftId, rightId);
   }
 
   @Post('revisions')
@@ -96,9 +129,15 @@ export class PolicyCenterController {
   }
 
   @Post('revisions/:id/commands/apply')
-  async apply(@Param('id') id: string, @Req() req: Request) {
+  async apply(@Param('id') id: string, @Body() body: PolicyApplyInput | undefined, @Req() req: Request) {
     this.assertPolicyAdmin(req);
-    return this.service.applyRevision(this.getTenantId(req), id, this.getActor(req));
+    return this.service.applyRevision(this.getTenantId(req), id, this.getActor(req), body ?? {});
+  }
+
+  @Post('revisions/:id/commands/create-rollback')
+  async createRollback(@Param('id') id: string, @Body() body: PolicyRollbackInput, @Req() req: Request) {
+    this.assertPolicyAdmin(req);
+    return this.service.createRollbackDraft(this.getTenantId(req), id, body, this.getActor(req));
   }
 
   private getTenantId(req: Request): Uuid {

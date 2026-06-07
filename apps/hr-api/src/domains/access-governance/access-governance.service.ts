@@ -62,7 +62,7 @@ const SERVICE_ACCOUNT_STATUSES = new Set(['ACTIVE', 'DISABLED', 'ROTATION_DUE', 
 const SERVICE_ACCOUNT_CREDENTIAL_STATUSES = new Set(['ACTIVE', 'ROTATED', 'REVOKED', 'EXPIRED']);
 const ACCESS_REVIEW_STATUSES = new Set(['DRAFT', 'LAUNCHED', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']);
 const ACCESS_REVIEW_DECISIONS = new Set(['PENDING', 'APPROVED', 'REVOKE', 'ESCALATE']);
-const ACCESS_REVIEW_WORKFLOW_EVENTS = new Set(['LAUNCHED', 'REMINDER_SENT', 'ESCALATED', 'COMPLETED']);
+const ACCESS_REVIEW_WORKFLOW_EVENTS = new Set(['LAUNCHED', 'REMINDER_SENT', 'ESCALATED', 'COMPLETED', 'REVOKE_FULFILLED']);
 
 @Injectable()
 export class AccessGovernanceService {
@@ -418,6 +418,9 @@ export class AccessGovernanceService {
       ...(dto.evidence !== undefined ? { evidence: dto.evidence } : {}),
     });
     if (!item) throw new NotFoundException('Access review item not found');
+    if (decision === 'REVOKE') {
+      await this.fulfillAccessReviewRevocation(tenantId, item, reviewerId);
+    }
     return this.toAccessReviewItemView(item);
   }
 
@@ -596,6 +599,48 @@ export class AccessGovernanceService {
   private async pendingAccessReviewItemCount(tenantId: Uuid, campaignId: Uuid): Promise<number> {
     const items = await this.repository.listAccessReviewItemsForCampaign(tenantId, campaignId);
     return items.filter((item) => item.decision === 'PENDING').length;
+  }
+
+  private async fulfillAccessReviewRevocation(
+    tenantId: Uuid,
+    item: AccessReviewItemRecord,
+    actorId?: Uuid,
+  ): Promise<void> {
+    if (item.subject_user_id && item.role_id) {
+      await this.repository.removeUserRole(tenantId, new Uuid(item.subject_user_id), new Uuid(item.role_id));
+      await this.createAccessReviewWorkflowEvent(tenantId, new Uuid(item.campaign_id), {
+        eventType: 'REVOKE_FULFILLED',
+        actorId,
+        targetRole: null,
+        message: 'Access review revoke decision fulfilled',
+        pendingItemCount: await this.pendingAccessReviewItemCount(tenantId, new Uuid(item.campaign_id)),
+        payload: {
+          action: 'USER_ROLE_REMOVED',
+          itemId: item.id,
+          subjectUserId: item.subject_user_id,
+          roleId: item.role_id,
+          roleCode: item.role_code,
+        },
+      });
+      return;
+    }
+
+    if (item.service_account_id) {
+      await this.repository.updateServiceAccount(tenantId, new Uuid(item.service_account_id), { status: 'DISABLED' });
+      await this.createAccessReviewWorkflowEvent(tenantId, new Uuid(item.campaign_id), {
+        eventType: 'REVOKE_FULFILLED',
+        actorId,
+        targetRole: null,
+        message: 'Access review revoke decision fulfilled',
+        pendingItemCount: await this.pendingAccessReviewItemCount(tenantId, new Uuid(item.campaign_id)),
+        payload: {
+          action: 'SERVICE_ACCOUNT_DISABLED',
+          itemId: item.id,
+          serviceAccountId: item.service_account_id,
+          serviceAccountCode: item.service_account_code,
+        },
+      });
+    }
   }
 
   private async createAccessReviewWorkflowEvent(

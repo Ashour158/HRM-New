@@ -35,7 +35,7 @@ export interface PayrollCloseToPayReadinessInput {
   bankRows: PayrollBankTransferRow[];
   existingCycles?: ExistingPayrollCycleSummary[];
   workLocationCode?: string;
-  setup?: Pick<HcmSetupConfig, 'payrollBlockingRules'>;
+  setup?: Pick<HcmSetupConfig, 'payrollBlockingRules' | 'countryPolicyRuntime' | 'statutoryPayrollPacks'>;
 }
 
 type AttendanceSummaryWithBlockers = NonNullable<PayrollCycleRow['attendanceSummary']> & {
@@ -112,6 +112,21 @@ function ruleTargetsCycle(rule: PayrollBlockingRule, workLocationCode?: string):
   return matchesOptionalList(rule.locationCodes, workLocationCode);
 }
 
+function dateIsAfter(value: string | undefined, reference: string): boolean {
+  if (!value) return false;
+  return new Date(`${value}T23:59:59.999Z`).getTime() < new Date(`${reference}T00:00:00.000Z`).getTime();
+}
+
+function runtimeString(runtime: Record<string, unknown>, key: string): string | undefined {
+  const value = runtime[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function runtimeBoolean(runtime: Record<string, unknown>, key: string, fallback: boolean): boolean {
+  const value = runtime[key];
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 function issueFromRule(
   rule: PayrollBlockingRule,
   input: Omit<PayrollReadinessIssue, 'code' | 'condition' | 'severity' | 'blocking' | 'message'> & { message?: string },
@@ -135,6 +150,19 @@ export class PayrollCycleGovernanceService {
     const activeRules = rules.filter((rule) => rule.active);
     const rulesFor = (condition: PayrollBlockingCondition) => activeRules.filter((rule) => rule.condition === condition);
 
+    const countryRuntime = (input.setup?.countryPolicyRuntime ?? {}) as Record<string, unknown>;
+    const countryCode = runtimeString(countryRuntime, 'countryCode');
+    const packVersion = runtimeString(countryRuntime, 'packVersion');
+    const runtimeEffectiveUntil = runtimeString(countryRuntime, 'effectiveUntil');
+    const countryPolicyBlocksPayroll = runtimeBoolean(countryRuntime, 'blocksPayrollIfStale', true);
+    const activeStatutoryPackExists = Boolean(countryCode && input.setup?.statutoryPayrollPacks?.some((pack) => (
+      pack.active
+      && pack.countryCode === countryCode
+      && matchesOptionalList(pack.locationCodes, input.workLocationCode)
+      && !dateIsAfter(pack.effectiveUntil, input.preview.periodEnd)
+      && (!pack.effectiveFrom || new Date(`${pack.effectiveFrom}T00:00:00.000Z`).getTime() <= new Date(`${input.preview.periodEnd}T00:00:00.000Z`).getTime())
+    )));
+
     for (const rule of rulesFor('DUPLICATE_PAYROLL_CYCLE')) {
       if (!ruleTargetsCycle(rule, input.workLocationCode)) continue;
       for (const existing of input.existingCycles ?? []) {
@@ -142,6 +170,16 @@ export class PayrollCycleGovernanceService {
         issues.push(issueFromRule(rule, {
           payrollCycleId: existing.payrollCycleId,
           message: `Payroll cycle ${existing.payrollCycleId} already covers ${input.preview.periodStart} to ${input.preview.periodEnd}.`,
+        }));
+      }
+    }
+
+    if (countryPolicyBlocksPayroll) {
+      for (const rule of rulesFor('COUNTRY_POLICY_STALE')) {
+        if (!ruleTargetsCycle(rule, input.workLocationCode)) continue;
+        if (countryCode && packVersion && !dateIsAfter(runtimeEffectiveUntil, input.preview.periodEnd) && activeStatutoryPackExists) continue;
+        issues.push(issueFromRule(rule, {
+          message: `Payroll close is blocked because the country statutory policy for ${countryCode ?? 'this payroll scope'} is missing, stale, or lacks an active statutory payroll pack.`,
         }));
       }
     }

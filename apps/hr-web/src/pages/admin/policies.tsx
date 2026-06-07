@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Database,
+  Download,
+  FileDiff,
   FileText,
   GitBranch,
   KeyRound,
@@ -15,6 +17,7 @@ import {
   LockKeyhole,
   PlayCircle,
   Radar,
+  RotateCcw,
   Save,
   Scale,
   ShieldCheck,
@@ -72,6 +75,44 @@ type PolicyValidationResult = {
 type PolicySimulationResult = {
   impactedEmployees: number;
   impactedWorkerIds: string[];
+  impactedRecords: {
+    workers: Array<{
+      workerId: string;
+      displayName?: string;
+      employeeNumber?: string;
+      managerWorkerId?: string;
+      departmentId?: string;
+      legalEntityId?: string;
+      countryCode?: string;
+      beforeDecision: string;
+      afterDecision: string;
+      risk: PolicyImpactRisk;
+    }>;
+    leaveRequests: PolicyImpactRecord[];
+    attendanceDays: PolicyImpactRecord[];
+    payrollCycles: PolicyImpactRecord[];
+    complianceAcknowledgements: PolicyImpactRecord[];
+    accessGrants: PolicyImpactRecord[];
+  };
+  notificationPreview: {
+    recipients: Array<{
+      audience: string;
+      workerId?: string;
+      role?: string;
+      title: string;
+      body: string;
+      channel: string;
+      privacyLevel: string;
+    }>;
+    truncated: boolean;
+    totalRecipients: number;
+  };
+  riskSummary: {
+    safe: number;
+    warning: number;
+    blocked: number;
+    retroactiveAdjustmentRequired: number;
+  };
   pendingRecords: {
     pendingLeaveRequests: number;
     openAttendanceDays: number;
@@ -84,6 +125,51 @@ type PolicySimulationResult = {
   warnings: string[];
   engineName: string;
   engineVersion: string;
+};
+
+type PolicyImpactRisk = 'SAFE' | 'WARNING' | 'BLOCKED' | 'RETROACTIVE_ADJUSTMENT_REQUIRED';
+
+type PolicyImpactRecord = {
+  recordId: string;
+  workerId?: string;
+  status?: string;
+  beforeDecision: string;
+  afterDecision: string;
+  risk: PolicyImpactRisk;
+};
+
+type PolicyTemplate = {
+  area: PolicyArea;
+  code: string;
+  title: string;
+  description: string;
+  draftConfig: Record<string, unknown>;
+  recommendedScope: PolicyScope;
+};
+
+type PolicyRevisionDiff = {
+  area: PolicyArea;
+  leftRevisionId: string;
+  rightRevisionId: string;
+  changes: Array<{
+    key: string;
+    label: string;
+    before: unknown;
+    after: unknown;
+    changeType: 'ADDED' | 'REMOVED' | 'CHANGED';
+    risk: PolicyImpactRisk;
+  }>;
+};
+
+type PolicyImportDryRun = {
+  valid: boolean;
+  revisions: Array<{
+    title: string;
+    area: PolicyArea;
+    action: string;
+    validation: PolicyValidationResult;
+  }>;
+  errors: string[];
 };
 
 type PolicyRevision = {
@@ -249,6 +335,19 @@ function statusTone(status: PolicyStatus) {
   if (status === 'PUBLISHED' || status === 'APPROVED') return 'bg-[#8b5cf6]/10 text-[#4f46e5] border-[#8b5cf6]/30';
   if (status === 'REJECTED' || status === 'ARCHIVED') return 'bg-[#e11d48]/10 text-[#e11d48] border-[#e11d48]/30';
   return 'bg-[#e0e7ff] text-[#0f172a] border-[#e2e8f0]';
+}
+
+function riskTone(risk: PolicyImpactRisk | string | undefined) {
+  if (risk === 'BLOCKED') return 'bg-[#e11d48]/10 text-[#e11d48] border-[#e11d48]/30';
+  if (risk === 'WARNING' || risk === 'RETROACTIVE_ADJUSTMENT_REQUIRED') return 'bg-[#f59e0b]/10 text-[#92400e] border-[#f59e0b]/30';
+  return 'bg-[#059669]/10 text-[#047857] border-[#059669]/30';
+}
+
+function displayValue(value: unknown) {
+  if (value === undefined || value === null || value === '') return '-';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return JSON.stringify(value);
 }
 
 function areaMeta(area: PolicyArea) {
@@ -453,55 +552,128 @@ function RevisionList({
   );
 }
 
+function ImpactRecordList({
+  title,
+  records,
+  empty,
+}: {
+  title: string;
+  records: Array<PolicyImpactRecord | NonNullable<PolicySimulationResult['impactedRecords']>['workers'][number]>;
+  empty: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[#e2e8f0] bg-white">
+      <div className="border-b border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm font-semibold text-[#0f172a]">{title}</div>
+      <div className="max-h-56 overflow-y-auto divide-y divide-[#e2e8f0]">
+        {records.slice(0, 8).map((record, index) => {
+          const id = 'workerId' in record ? record.workerId : record.recordId;
+          const label = 'displayName' in record && record.displayName ? record.displayName : id;
+          return (
+            <div key={`${id}-${index}`} className="p-3 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[#0f172a]">{label}</span>
+                <Badge className={riskTone(record.risk)}>{formatEnum(record.risk)}</Badge>
+              </div>
+              <p className="mt-1 text-[#64748b]">{record.beforeDecision}</p>
+              <p className="mt-1 text-[#475569]">{record.afterDecision}</p>
+            </div>
+          );
+        })}
+        {records.length === 0 ? <p className="p-3 text-sm text-[#94a3b8]">{empty}</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
   const validation = revision?.validationResult;
   const simulation = revision?.simulationResult;
+  const risk = simulation?.riskSummary;
+  const impactedRecords = simulation?.impactedRecords;
+  const notificationPreview = simulation?.notificationPreview;
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <ShieldCheck className="h-5 w-5 text-[#4f46e5]" />
-            Validation
-          </CardTitle>
-          <CardDescription>{validation?.engineName ?? 'PolicyValidationEngine'} {validation?.engineVersion ?? ''}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <Badge className={validation?.valid ? 'bg-[#4f46e5] text-white' : 'bg-[#e11d48] text-white'}>
-            {validation ? (validation.valid ? 'Valid' : 'Blocked') : 'Not run'}
-          </Badge>
-          {(validation?.errors ?? []).map((error) => <p key={error} className="rounded-md border border-[#e11d48]/30 bg-[#e11d48]/5 p-2 text-[#e11d48]">{error}</p>)}
-          {(validation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#f59e0b]/30 bg-[#fde68a]/30 p-2 text-[#78350f]">{warning}</p>)}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Radar className="h-5 w-5 text-[#6366f1]" />
-            Simulation
-          </CardTitle>
-          <CardDescription>{simulation?.engineName ?? 'PolicyImpactSimulationEngine'} {simulation?.engineVersion ?? ''}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-[#475569]">
-          <div className="text-3xl font-bold text-[#0f172a]">{simulation?.impactedEmployees ?? 0}</div>
-          <p>employees in scope</p>
-          <p>{pendingRecordTotal(simulation?.pendingRecords)} pending/open records flagged</p>
-          {(simulation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#f59e0b]/30 bg-[#fde68a]/30 p-2 text-[#78350f]">{warning}</p>)}
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <GitBranch className="h-5 w-5 text-[#4f46e5]" />
-            Data Impact
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm text-[#475569]">
-          <p>{simulation?.newDataRule ?? 'New transactions use the applied policy active on the transaction date.'}</p>
-          <p>{simulation?.oldDataRule ?? 'Locked historical records are not silently rewritten.'}</p>
-          <p>{simulation?.retroactiveRule ?? 'Retroactive effects require explicit admin action.'}</p>
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <ShieldCheck className="h-5 w-5 text-[#4f46e5]" />
+              Validation
+            </CardTitle>
+            <CardDescription>{validation?.engineName ?? 'PolicyValidationEngine'} {validation?.engineVersion ?? ''}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <Badge className={validation?.valid ? 'bg-[#4f46e5] text-white' : 'bg-[#e11d48] text-white'}>
+              {validation ? (validation.valid ? 'Valid' : 'Blocked') : 'Not run'}
+            </Badge>
+            {(validation?.errors ?? []).map((error) => <p key={error} className="rounded-md border border-[#e11d48]/30 bg-[#e11d48]/5 p-2 text-[#e11d48]">{error}</p>)}
+            {(validation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#f59e0b]/30 bg-[#fde68a]/30 p-2 text-[#78350f]">{warning}</p>)}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Radar className="h-5 w-5 text-[#6366f1]" />
+              Simulation
+            </CardTitle>
+            <CardDescription>{simulation?.engineName ?? 'PolicyImpactSimulationEngine'} {simulation?.engineVersion ?? ''}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm text-[#475569]">
+            <div className="text-3xl font-bold text-[#0f172a]">{simulation?.impactedEmployees ?? 0}</div>
+            <p>employees in scope</p>
+            <p>{pendingRecordTotal(simulation?.pendingRecords)} pending/open records flagged</p>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              {[
+                ['Safe', risk?.safe ?? 0, 'SAFE'],
+                ['Warning', risk?.warning ?? 0, 'WARNING'],
+                ['Blocked', risk?.blocked ?? 0, 'BLOCKED'],
+                ['Retro', risk?.retroactiveAdjustmentRequired ?? 0, 'RETROACTIVE_ADJUSTMENT_REQUIRED'],
+              ].map(([label, value, tone]) => (
+                <div key={label} className={cn('rounded-lg border px-3 py-2', riskTone(tone as string))}>
+                  <p className="font-mono text-[11px] uppercase tracking-wider">{label}</p>
+                  <p className="text-xl font-bold">{value}</p>
+                </div>
+              ))}
+            </div>
+            {(simulation?.warnings ?? []).map((warning) => <p key={warning} className="rounded-md border border-[#f59e0b]/30 bg-[#fde68a]/30 p-2 text-[#78350f]">{warning}</p>)}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <GitBranch className="h-5 w-5 text-[#4f46e5]" />
+              Data Impact
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-[#475569]">
+            <p>{simulation?.newDataRule ?? 'New transactions use the applied policy active on the transaction date.'}</p>
+            <p>{simulation?.oldDataRule ?? 'Locked historical records are not silently rewritten.'}</p>
+            <p>{simulation?.retroactiveRule ?? 'Retroactive effects require explicit admin action.'}</p>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ImpactRecordList title="Impacted Employees" records={impactedRecords?.workers ?? []} empty="Run simulation to see exact employees." />
+        <ImpactRecordList title="Open Leave And Payroll Records" records={[...(impactedRecords?.leaveRequests ?? []), ...(impactedRecords?.payrollCycles ?? [])]} empty="No open leave or payroll records flagged." />
+        <ImpactRecordList title="Attendance And Compliance Records" records={[...(impactedRecords?.attendanceDays ?? []), ...(impactedRecords?.complianceAcknowledgements ?? [])]} empty="No attendance or compliance records flagged." />
+        <div className="rounded-lg border border-[#e2e8f0] bg-white">
+          <div className="border-b border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm font-semibold text-[#0f172a]">Notification Preview</div>
+          <div className="max-h-56 overflow-y-auto divide-y divide-[#e2e8f0]">
+            {(notificationPreview?.recipients ?? []).slice(0, 8).map((recipient, index) => (
+              <div key={`${recipient.audience}-${recipient.workerId ?? recipient.role ?? index}`} className="p-3 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-[#0f172a]">{recipient.title}</span>
+                  <Badge className="bg-[#eef2ff] text-[#312e81]">{recipient.audience}</Badge>
+                </div>
+                <p className="mt-1 text-[#475569]">{recipient.body}</p>
+                <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{recipient.channel} - {recipient.privacyLevel}</p>
+              </div>
+            ))}
+            {(notificationPreview?.recipients ?? []).length === 0 ? <p className="p-3 text-sm text-[#94a3b8]">Run simulation to preview impacted users and notifications.</p> : null}
+          </div>
+          {notificationPreview?.truncated ? <p className="border-t border-[#e2e8f0] p-3 text-xs text-[#92400e]">Preview is truncated. Total recipients: {notificationPreview.totalRecipients}</p> : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1382,6 +1554,7 @@ export function AdminPolicies() {
   const [editorTitle, setEditorTitle] = React.useState('');
   const [editorScope, setEditorScope] = React.useState<ScopeForm>(emptyScopeForm);
   const [editorError, setEditorError] = React.useState('');
+  const [importDryRun, setImportDryRun] = React.useState<PolicyImportDryRun | undefined>();
 
   const summaryQuery = useQuery({
     queryKey: ['admin-policy-summary'],
@@ -1399,6 +1572,10 @@ export function AdminPolicies() {
     queryKey: ['admin-policy-decision-evidence'],
     queryFn: async () => unwrap<PolicyDecisionEvidence[]>(await apiClient.get('/admin/policies/decision-evidence?limit=50')),
   });
+  const templatesQuery = useQuery({
+    queryKey: ['admin-policy-templates'],
+    queryFn: async () => unwrap<PolicyTemplate[]>(await apiClient.get('/admin/policies/templates')),
+  });
 
   const revisions = revisionsQuery.data ?? [];
   const summary = summaryQuery.data;
@@ -1413,6 +1590,14 @@ export function AdminPolicies() {
   const selectedIsInActiveArea = !activeArea || selectedRevision?.area === activeArea;
   const visibleSelectedRevision = selectedIsInActiveArea ? selectedRevision : undefined;
   const selectedIsEditable = visibleSelectedRevision ? isRevisionEditable(visibleSelectedRevision.status) : false;
+  const comparisonTarget = visibleSelectedRevision
+    ? revisions.find((revision) => revision.area === visibleSelectedRevision.area && revision.id !== visibleSelectedRevision.id)
+    : undefined;
+  const diffQuery = useQuery({
+    queryKey: ['admin-policy-diff', comparisonTarget?.id, visibleSelectedRevision?.id],
+    enabled: Boolean(comparisonTarget && visibleSelectedRevision),
+    queryFn: async () => unwrap<PolicyRevisionDiff>(await apiClient.get(`/admin/policies/revisions/${comparisonTarget?.id}/compare/${visibleSelectedRevision?.id}`)),
+  });
 
   React.useEffect(() => {
     if (!activeArea) {
@@ -1485,6 +1670,48 @@ export function AdminPolicies() {
     onError: (mutationError) => notifyError(mutationError, 'Unable to run the policy command.'),
   });
 
+  const createRollbackDraft = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => (
+      unwrap<PolicyRevision>(await apiClient.post(`/admin/policies/revisions/${id}/commands/create-rollback`, { reason }))
+    ),
+    onSuccess: (revision) => {
+      setActiveTab(areaTabValues[revision.area]);
+      setSelectedId(revision.id);
+      invalidatePolicies();
+      addNotification({ title: 'Rollback draft created', message: 'The rollback is a governed draft. Validate, review, publish, and apply it before runtime changes.', type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to create rollback draft.'),
+  });
+
+  const exportRevision = useMutation({
+    mutationFn: async (id: string) => unwrap<Record<string, unknown>>(await apiClient.get(`/admin/policies/revisions/${id}/export`)),
+    onSuccess: async (bundle) => {
+      const text = JSON.stringify(bundle, null, 2);
+      const canCopy = typeof navigator.clipboard?.writeText === 'function';
+      if (canCopy) {
+        await navigator.clipboard.writeText(text);
+      }
+      addNotification({ title: 'Policy bundle exported', message: canCopy ? 'Export bundle copied to clipboard.' : 'Export bundle generated.', type: 'success', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to export policy revision.'),
+  });
+
+  const dryRunImport = useMutation({
+    mutationFn: async (revision: PolicyRevision) => unwrap<PolicyImportDryRun>(await apiClient.post('/admin/policies/import/dry-run', {
+      revisions: [{
+        area: revision.area,
+        title: `Import check: ${revision.title}`,
+        draftConfig: revision.draftConfig,
+        scope: revision.scope,
+      }],
+    })),
+    onSuccess: (result) => {
+      setImportDryRun(result);
+      addNotification({ title: 'Import dry-run complete', message: result.valid ? 'Bundle can be imported safely.' : 'Bundle has validation or conflict issues.', type: result.valid ? 'success' : 'warning', read: false });
+    },
+    onError: (mutationError) => notifyError(mutationError, 'Unable to dry-run policy import.'),
+  });
+
   const controlledApply = useMutation({
     mutationFn: async () => {
       if (!visibleSelectedRevision) throw new Error('Select a policy revision first.');
@@ -1549,6 +1776,19 @@ export function AdminPolicies() {
           replacesStatus: visibleSelectedRevision.status,
         },
       },
+    });
+  };
+
+  const createDraftFromTemplate = (template: PolicyTemplate) => {
+    setActiveTab(areaTabValues[template.area]);
+    createRevision.mutate({
+      area: template.area,
+      title: template.title,
+      scope: {
+        ...template.recommendedScope,
+        effectiveFrom: new Date().toISOString().slice(0, 10),
+      },
+      draftConfig: template.draftConfig,
     });
   };
 
@@ -1704,6 +1944,33 @@ export function AdminPolicies() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-[#4f46e5]" />
+                  Enterprise Policy Templates
+                </CardTitle>
+                <CardDescription>Start from controlled domain templates instead of editing raw configuration.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {(templatesQuery.data ?? []).map((template) => (
+                  <div key={template.code} className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-[#0f172a]">{template.title}</p>
+                        <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">{formatEnum(template.area)}</p>
+                      </div>
+                      <Badge className="bg-[#eef2ff] text-[#312e81]">{template.code}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-[#475569]">{template.description}</p>
+                    <Button className="mt-4 w-full" variant="outline" type="button" onClick={() => createDraftFromTemplate(template)} disabled={createRevision.isPending}>
+                      Create Draft
+                    </Button>
+                  </div>
+                ))}
+                {(templatesQuery.data ?? []).length === 0 ? <p className="text-sm text-[#94a3b8]">Policy templates are loading.</p> : null}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
                   <ListChecks className="h-5 w-5 text-[#4f46e5]" />
                   Full System Policy Control Matrix
                 </CardTitle>
@@ -1856,6 +2123,84 @@ export function AdminPolicies() {
                 setEditorError={setEditorError}
                 editable={selectedIsEditable}
               />
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <FileDiff className="h-5 w-5 text-[#4f46e5]" />
+                    Enterprise Change Controls
+                  </CardTitle>
+                  <CardDescription>Compare, export, dry-run import, and create rollback drafts without directly mutating runtime.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <Button type="button" variant="outline" onClick={() => exportRevision.mutate(visibleSelectedRevision.id)} disabled={exportRevision.isPending}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Export Bundle
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => dryRunImport.mutate(visibleSelectedRevision)} disabled={dryRunImport.isPending}>
+                      <FileText className="mr-2 h-4 w-4" />
+                      Import Dry-Run
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={!['PUBLISHED', 'APPLIED', 'ARCHIVED'].includes(visibleSelectedRevision.status) || createRollbackDraft.isPending}
+                      onClick={() => {
+                        const reason = window.prompt('Rollback reason');
+                        if (reason?.trim()) createRollbackDraft.mutate({ id: visibleSelectedRevision.id, reason: reason.trim() });
+                      }}
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Create Rollback Draft
+                    </Button>
+                    <Button type="button" variant="outline" disabled={!comparisonTarget} onClick={() => diffQuery.refetch()}>
+                      <FileDiff className="mr-2 h-4 w-4" />
+                      Refresh Compare
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                      <p className="font-semibold text-[#0f172a]">Semantic Version Comparison</p>
+                      <p className="mt-1 text-sm text-[#64748b]">
+                        {comparisonTarget ? `Comparing against ${comparisonTarget.title}` : 'Create or select another revision in this area to compare changes.'}
+                      </p>
+                      <div className="mt-3 max-h-56 overflow-y-auto space-y-2">
+                        {(diffQuery.data?.changes ?? []).slice(0, 8).map((change) => (
+                          <div key={change.key} className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold text-[#0f172a]">{change.label}</span>
+                              <Badge className={riskTone(change.risk)}>{formatEnum(change.risk)}</Badge>
+                            </div>
+                            <p className="mt-1 text-[#64748b]">{displayValue(change.before)} {'->'} {displayValue(change.after)}</p>
+                          </div>
+                        ))}
+                        {comparisonTarget && (diffQuery.data?.changes ?? []).length === 0 ? <p className="text-sm text-[#94a3b8]">No business-level differences found.</p> : null}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                      <p className="font-semibold text-[#0f172a]">Import Validation Dry-Run</p>
+                      <p className="mt-1 text-sm text-[#64748b]">Dry-run validates schema and active-scope conflicts before any revision is created.</p>
+                      <div className="mt-3 space-y-2">
+                        {importDryRun ? (
+                          <>
+                            <Badge className={importDryRun.valid ? 'bg-[#059669] text-white' : 'bg-[#e11d48] text-white'}>
+                              {importDryRun.valid ? 'Import Safe' : 'Import Blocked'}
+                            </Badge>
+                            {importDryRun.revisions.map((item) => (
+                              <div key={`${item.area}-${item.title}`} className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                                <p className="font-semibold text-[#0f172a]">{item.title}</p>
+                                <p className="text-[#64748b]">{formatEnum(item.area)} - {item.validation.valid ? 'Valid' : 'Blocked'}</p>
+                                {item.validation.errors.slice(0, 3).map((error) => <p key={error} className="mt-1 text-[#e11d48]">{error}</p>)}
+                              </div>
+                            ))}
+                          </>
+                        ) : <p className="text-sm text-[#94a3b8]">Run an import dry-run from the selected revision.</p>}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
               <Card>
                 <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">
                   <div>
