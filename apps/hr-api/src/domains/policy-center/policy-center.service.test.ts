@@ -801,6 +801,34 @@ describe('PolicyCenterService', () => {
     expect(simulation.compliancePolicySimulation).toBeUndefined();
   });
 
+  it('simulates benefits policy rule ledgers that define window days in outcomes', async () => {
+    const benefitsDraft = revision({
+      area: 'BENEFITS',
+      title: 'Benefits enrollment windows',
+      draftConfig: {
+        benefitsPolicyRuntime: {
+          enrollmentWindowRules: [{
+            code: 'OPEN_ENROLLMENT_WAIT',
+            label: 'Open enrollment waiting period',
+            active: true,
+            conditions: [{ field: 'employeeType', operator: 'IN', value: ['FULL_TIME'] }],
+            outcomes: [{ action: 'ALLOW', value: { windowDays: 45 } }],
+          }],
+        },
+      },
+    });
+    const { service } = buildService([benefitsDraft]);
+
+    const simulation = await service.simulateRevision(tenantId, benefitsDraft.id, actor);
+
+    expect(simulation.benefitsPolicySimulation?.enrollmentWindows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        ruleCode: 'OPEN_ENROLLMENT_WAIT',
+        waitingPeriodDays: 45,
+      }),
+    ]));
+  });
+
   it('rejects malformed benefits policy simulation payloads', async () => {
     const malformedBenefitsDraft = revision({
       area: 'BENEFITS',
@@ -892,6 +920,55 @@ describe('PolicyCenterService', () => {
           status: 'APPLIED',
         }),
       ],
+    }));
+  });
+
+  it('preserves per-component payroll scope when applying a revision-level payroll scope', async () => {
+    const payrollRevision = revision({
+      area: 'PAYROLL',
+      title: 'Scoped payroll deductions',
+      status: 'PUBLISHED',
+      scope: {
+        tenantId: tenantId.value,
+        countryCodes: ['EG'],
+        legalEntityIds: ['revision-entity'],
+        departmentIds: ['revision-dept'],
+        effectiveFrom: '2026-06-01',
+      },
+      draftConfig: {
+        deductionPolicies: [{
+          code: 'ENTITY_LATE_LEDGER',
+          label: 'Entity late penalty',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          scope: {
+            legalEntityIds: ['component-entity'],
+            departmentIds: ['component-dept'],
+          },
+          logicLedger: {
+            code: 'LATE_MINUTES_HIGH_RISK',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+          },
+        }],
+      },
+    });
+    const { service, hcmSetup } = buildService([payrollRevision]);
+
+    await service.applyRevision(tenantId, payrollRevision.id, actor);
+    const storedSetup = await hcmSetup.getSetup();
+
+    expect(storedSetup.deductionPolicies?.[0]).toEqual(expect.objectContaining({
+      code: 'ENTITY_LATE_LEDGER',
+      scope: expect.objectContaining({
+        tenantId: tenantId.value,
+        countryCodes: ['EG'],
+        legalEntityIds: ['component-entity'],
+        departmentIds: ['component-dept'],
+        effectiveFrom: '2026-06-01',
+      }),
     }));
   });
 });

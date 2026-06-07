@@ -663,8 +663,12 @@ function validateBenefitsLogicLedgerComponents(draftConfig: unknown, errors: str
   for (const component of components) {
     const code = typeof component.code === 'string' ? component.code : 'BENEFITS_RULE';
     const logicLedger = component.logicLedger;
-    if (!logicLedger || typeof logicLedger !== 'object' || Array.isArray(logicLedger)) {
+    const outcomes = component.outcomes;
+    if (logicLedger !== undefined && (typeof logicLedger !== 'object' || logicLedger === null || Array.isArray(logicLedger))) {
       errors.push(`Benefits policy rule ${code} must include a logic ledger object.`);
+    }
+    if (logicLedger === undefined && (!Array.isArray(outcomes) || outcomes.length === 0)) {
+      errors.push(`Benefits policy rule ${code} must include outcomes or a logic ledger object.`);
     }
   }
 }
@@ -848,7 +852,17 @@ function benefitsWaitingPeriodDays(rule: Record<string, unknown>): number {
   const ledger = asObject(rule.logicLedger);
   const outcome = asObject(ledger.outcome);
   const outcomeValue = asObject(outcome.value);
-  const value = ledger.waitingPeriodDays ?? rule.waitingPeriodDays ?? outcomeValue.waitingPeriodDays;
+  const outcomeValues = Array.isArray(rule.outcomes)
+    ? rule.outcomes.map((candidate) => asObject(asObject(candidate).value))
+    : [];
+  const firstOutcomeWindow = outcomeValues
+    .map((candidate) => candidate.waitingPeriodDays ?? candidate.windowDays)
+    .find((candidate) => candidate !== undefined);
+  const value = ledger.waitingPeriodDays
+    ?? rule.waitingPeriodDays
+    ?? outcomeValue.waitingPeriodDays
+    ?? outcomeValue.windowDays
+    ?? firstOutcomeWindow;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   if (typeof value === 'string' && value.trim().length > 0) {
     const parsed = Number(value);
@@ -1011,16 +1025,33 @@ function withScope<T extends ScopedPolicy>(policy: T, scope: PolicyScope): T {
   };
 }
 
+function mergePayrollScope(revisionScope: PolicyScope, policyScope?: Partial<PolicyScope>): PolicyScope {
+  const specific = policyScope ?? {};
+  return {
+    tenantId: specific.tenantId ?? revisionScope.tenantId,
+    countryCodes: nonEmpty(specific.countryCodes).length > 0 ? nonEmpty(specific.countryCodes) : revisionScope.countryCodes,
+    legalEntityIds: nonEmpty(specific.legalEntityIds).length > 0 ? nonEmpty(specific.legalEntityIds) : revisionScope.legalEntityIds,
+    orgUnitIds: nonEmpty(specific.orgUnitIds).length > 0 ? nonEmpty(specific.orgUnitIds) : revisionScope.orgUnitIds,
+    departmentIds: nonEmpty(specific.departmentIds).length > 0 ? nonEmpty(specific.departmentIds) : revisionScope.departmentIds,
+    locationCodes: nonEmpty(specific.locationCodes).length > 0 ? nonEmpty(specific.locationCodes) : revisionScope.locationCodes,
+    employeeTypes: nonEmpty(specific.employeeTypes).length > 0 ? nonEmpty(specific.employeeTypes) : revisionScope.employeeTypes,
+    workerIds: nonEmpty(specific.workerIds).length > 0 ? nonEmpty(specific.workerIds) : revisionScope.workerIds,
+    effectiveFrom: specific.effectiveFrom ?? revisionScope.effectiveFrom,
+    effectiveUntil: specific.effectiveUntil ?? revisionScope.effectiveUntil,
+  };
+}
+
 function withPayrollScope<T extends StatutoryPayrollPack | EarningPolicy | DeductionPolicy | PayrollBlockingRule>(policy: T, scope: PolicyScope): T {
+  const mergedScope = mergePayrollScope(scope, (policy as { scope?: Partial<PolicyScope> }).scope);
   const scoped = {
-    ...(withScope(policy as ScopedPolicy, scope) as T),
-    scope,
+    ...(withScope(policy as ScopedPolicy, mergedScope) as T),
+    scope: mergedScope,
   } as T;
-  if ('countryCode' in scoped && nonEmpty(scope.countryCodes).length === 1) {
-    return { ...scoped, countryCode: scope.countryCodes?.[0] } as T;
+  if ('countryCode' in scoped && nonEmpty(mergedScope.countryCodes).length === 1) {
+    return { ...scoped, countryCode: mergedScope.countryCodes?.[0] } as T;
   }
-  if ('appliesToEmployeeTypes' in scoped && nonEmpty(scope.employeeTypes).length > 0) {
-    return { ...scoped, appliesToEmployeeTypes: nonEmpty(scope.employeeTypes) } as T;
+  if ('appliesToEmployeeTypes' in scoped && nonEmpty(mergedScope.employeeTypes).length > 0) {
+    return { ...scoped, appliesToEmployeeTypes: nonEmpty(mergedScope.employeeTypes) } as T;
   }
   return scoped;
 }

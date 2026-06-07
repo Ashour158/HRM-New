@@ -519,6 +519,48 @@ describe('PayrollCycleCalculationService', () => {
     expect(nonMatchingRow?.policyDeductionAmount).toBe(0);
   });
 
+  it('treats a zero monthly cap as uncapped for logic-ledger rules', () => {
+    const zeroCapSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 0,
+        employeeInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [
+        {
+          code: 'ZERO_CAP_LATE_LEDGER',
+          label: 'Zero cap late ledger',
+          active: true,
+          type: 'LOGIC_LEDGER',
+          timing: 'POST_TAX',
+          logicLedger: {
+            code: 'LATE_MINUTES_UNCAPPED',
+            label: 'Late minutes uncapped',
+            source: 'ATTENDANCE_LEDGER',
+            base: 'ATTENDANCE_LATE_MINUTES',
+            method: 'PER_UNIT',
+            amount: 50,
+            monthlyCap: 0,
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const [row] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [{
+        ...employee,
+        attendanceSummary: { ...employee.attendanceSummary!, lateMinutes: 45 },
+      }],
+      setup: zeroCapSetup,
+    }).rows;
+
+    expect(row.policyDeductionAmount).toBe(2250);
+    expect(row.netSalary).toBe(7750);
+    expect(row.explainability.find((line) => line.code === 'LATE_MINUTES_UNCAPPED')?.formula).not.toContain('monthly cap 0');
+  });
+
   it('calculates scoped pre-tax deduction logic-ledger rules before tax with minimum net protection', () => {
     const logicLedgerSetup = {
       ...setup,

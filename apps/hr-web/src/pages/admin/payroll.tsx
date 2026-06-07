@@ -282,12 +282,16 @@ const weekdayOptions = [
   { value: 6, label: 'Sat' },
 ];
 
-type PayrollTab = 'cycle' | 'register' | 'exports' | 'policies' | 'earnings' | 'deductions' | 'attendance';
+type PayrollTab = 'cycle' | 'register' | 'exports' | 'policies' | 'attendance' | 'earnings' | 'deductions';
 
 const payrollTabs: Array<{ value: PayrollTab; label: string }> = [
   { value: 'cycle', label: 'Run Payroll' },
   { value: 'register', label: 'Register' },
   { value: 'exports', label: 'Payments & Reports' },
+  { value: 'policies', label: 'Payroll Rules' },
+  { value: 'attendance', label: 'Attendance Rules' },
+  { value: 'earnings', label: 'Earnings' },
+  { value: 'deductions', label: 'Deductions' },
 ];
 
 export function AdminPayroll() {
@@ -391,6 +395,16 @@ export function AdminPayroll() {
     [['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode], ['employee-payslips']],
     {
       onError: (error) => addNotification({ title: 'Close to pay failed', message: mutationError(error), type: 'error', read: false }),
+    },
+  );
+
+  const saveSetupMutation = useApiMutation<HcmSetupConfig, HcmSetupConfig>(
+    '/admin/hcm-setup',
+    'patch',
+    [['hcm-setup'], ['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode]],
+    {
+      onSuccess: () => addNotification({ title: 'Payroll rules saved', message: 'Payroll setup changes are now available for calculation previews.', type: 'success', read: false }),
+      onError: (error) => addNotification({ title: 'Could not save payroll rules', message: mutationError(error), type: 'error', read: false }),
     },
   );
 
@@ -611,6 +625,10 @@ export function AdminPayroll() {
   const currency = preview?.currency ?? setup.locations[0]?.currency ?? 'EGP';
   const selectedPayrollRow = rows.find((row) => row.workerId === selectedWorkerId) ?? rows[0];
   const tabClass = (tab: PayrollTab, className: string) => activePayrollTab === tab ? className : 'hidden';
+  const isRuleTab = activePayrollTab === 'policies'
+    || activePayrollTab === 'attendance'
+    || activePayrollTab === 'earnings'
+    || activePayrollTab === 'deductions';
 
   const columns = [
     {
@@ -663,6 +681,11 @@ export function AdminPayroll() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
+              {isRuleTab ? (
+                <Button variant="outline" onClick={() => saveSetupMutation.mutate(setup)} disabled={saveSetupMutation.isPending}>
+                  {saveSetupMutation.isPending ? 'Saving...' : 'Save Rules'}
+                </Button>
+              ) : null}
               <Button asChild variant="outline">
                 <Link to="/admin/system-console/policies">Payroll Rules</Link>
               </Button>

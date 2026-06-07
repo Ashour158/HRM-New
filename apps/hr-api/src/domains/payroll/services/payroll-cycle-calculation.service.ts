@@ -428,7 +428,7 @@ function capAndFloorAmount(amount: number, rule: PayrollPolicyLogicLedgerRule, f
     notes.push(`floor ${rule.floorAmount}`);
   }
   const cap = rule.monthlyCap ?? fallbackMaxAmount;
-  if (cap !== undefined && cap >= 0 && evaluated > cap) {
+  if (cap !== undefined && cap > 0 && evaluated > cap) {
     evaluated = cap;
     notes.push(`monthly cap ${cap}`);
   }

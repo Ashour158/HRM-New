@@ -475,6 +475,7 @@ export interface PayrollPolicyLogicLedgerRule {
   minimumNetPay?: number;
   posting?: PayrollPolicyLogicLedgerPosting;
   retroBehavior?: PayrollPolicyRetroBehavior;
+  employerCost?: boolean;
 }
 
 export interface DeductionPolicy extends SetupOption {
