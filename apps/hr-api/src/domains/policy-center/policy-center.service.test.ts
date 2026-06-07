@@ -384,6 +384,52 @@ describe('PolicyCenterService', () => {
     );
   });
 
+  it('unwraps country and compliance runtime containers when applying policy revisions', async () => {
+    const country = revision({
+      id: '00000000-0000-0000-0000-000000000102',
+      area: 'COUNTRY_POLICY',
+      status: 'PUBLISHED',
+      draftConfig: {
+        countryPolicyRuntime: {
+          countryCode: 'EG',
+          packVersion: '2026.2',
+          blocksPayrollIfStale: true,
+        },
+      },
+    });
+    const compliance = revision({
+      id: '00000000-0000-0000-0000-000000000103',
+      area: 'COMPLIANCE',
+      status: 'PUBLISHED',
+      draftConfig: {
+        compliancePolicyRuntime: {
+          policyFamily: 'CODE_OF_CONDUCT',
+          acknowledgementDueDays: 14,
+          acknowledgementRequired: true,
+        },
+      },
+    });
+    const { service, hcmSetup } = buildService([country, compliance]);
+
+    await service.applyRevision(tenantId, country.id, actor);
+    await service.applyRevision(tenantId, compliance.id, actor);
+
+    expect(hcmSetup.updateSetup).toHaveBeenNthCalledWith(1, tenantId, {
+      countryPolicyRuntime: {
+        countryCode: 'EG',
+        packVersion: '2026.2',
+        blocksPayrollIfStale: true,
+      },
+    });
+    expect(hcmSetup.updateSetup).toHaveBeenNthCalledWith(2, tenantId, {
+      compliancePolicyRuntime: {
+        policyFamily: 'CODE_OF_CONDUCT',
+        acknowledgementDueDays: 14,
+        acknowledgementRequired: true,
+      },
+    });
+  });
+
   it('enforces lifecycle transitions before a policy can be published or applied', async () => {
     const draft = revision({ status: 'DRAFT' });
     const { service } = buildService([draft]);

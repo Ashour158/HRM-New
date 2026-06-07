@@ -276,7 +276,7 @@ function safeJson(value: unknown) {
 function parseJson(value: string): Record<string, unknown> {
   const parsed = JSON.parse(value) as unknown;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Policy payload must be a JSON object.');
+    throw new Error('Policy draft data is not in a supported format.');
   }
   return parsed as Record<string, unknown>;
 }
@@ -291,7 +291,7 @@ function tryParseDraft(value: string): { draft?: Record<string, unknown>; error?
   try {
     return { draft: parseJson(value) };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Policy payload is not valid JSON.' };
+    return { error: error instanceof Error ? error.message : 'Policy draft data is not in a supported format.' };
   }
 }
 
@@ -316,6 +316,11 @@ function numberField(record: Record<string, unknown> | undefined, key: string, f
 function booleanField(record: Record<string, unknown> | undefined, key: string, fallback = false) {
   const value = record?.[key];
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function stringArrayField(record: Record<string, unknown> | undefined, key: string) {
+  const value = record?.[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
 function optionalNumber(value: string): number | undefined {
@@ -669,6 +674,92 @@ function GuidedToggle({ label, checked, onChange }: { label: string; checked: bo
   );
 }
 
+function RuntimeSnapshotSummary({ area, setup }: { area: PolicyArea; setup?: Record<string, unknown> }) {
+  const snapshot = currentAreaConfig(area, setup);
+  const facts: Array<[string, string | number]> = [];
+  const highlights: string[] = [];
+
+  if (area === 'EMPLOYEE_SETUP') {
+    const fields = asRecords(snapshot.fieldRules);
+    const documents = asRecords(snapshot.documentRequirements);
+    facts.push(['Profile fields', fields.length], ['Required fields', fields.filter((item) => booleanField(item, 'required')).length]);
+    facts.push(['Document rules', documents.length], ['Required documents', documents.filter((item) => booleanField(item, 'required')).length]);
+    highlights.push(
+      ...fields.slice(0, 4).map((item) => `${stringField(item, 'label', stringField(item, 'fieldKey'))}: ${booleanField(item, 'required') ? 'required' : 'optional'}`),
+      ...documents.slice(0, 3).map((item) => `${recordLabel(item)} document`),
+    );
+  } else if (area === 'LEAVE') {
+    const policies = asRecords(snapshot.leavePolicies);
+    facts.push(['Leave types', policies.length], ['Employee requestable', policies.filter((item) => booleanField(item, 'requestableByEmployee')).length]);
+    facts.push(['Paid policies', policies.filter((item) => stringField(item, 'payrollImpact') === 'PAID_LEAVE' || booleanField(item, 'paid')).length]);
+    highlights.push(...policies.slice(0, 5).map((item) => `${recordLabel(item)}: ${numberField(item, 'annualEntitlement')} days, ${formatEnum(stringField(item, 'approvalWorkflow', 'MANAGER'))}`));
+  } else if (area === 'ATTENDANCE') {
+    const policy = asRecord(snapshot.attendancePolicy);
+    facts.push(['Standard start', stringField(policy, 'standardStartTime', '09:00')], ['Standard end', stringField(policy, 'standardEndTime', '17:00')]);
+    facts.push(['Late grace', `${numberField(policy, 'lateGraceMinutes')} min`], ['Geofence radius', `${numberField(policy, 'allowedRadiusMeters', numberField(policy, 'geofenceRadiusMeters'))} m`]);
+    highlights.push(
+      `${booleanField(policy, 'geofenceEnabled') ? 'Geofence required' : 'Geofence optional'}`,
+      `${numberField(policy, 'minClockTrustScore')} minimum trust score`,
+      `${asRecords(policy.shiftRotations).length} shift rotations`,
+      `${asRecords(policy.geofenceProfiles).length} geofence profiles`,
+    );
+  } else if (area === 'PAYROLL') {
+    const calculation = asRecord(snapshot.payrollCalculationPolicy);
+    const packs = asRecords(snapshot.statutoryPayrollPacks);
+    const earnings = asRecords(snapshot.earningPolicies);
+    const deductions = asRecords(snapshot.deductionPolicies);
+    const blockers = asRecords(snapshot.payrollBlockingRules);
+    facts.push(['Tax mode', formatEnum(stringField(calculation, 'taxMode', 'FLAT_PERCENT'))], ['Tax rate', `${numberField(calculation, 'taxRatePercent')}%`]);
+    facts.push(['Statutory packs', packs.length], ['Close blockers', blockers.filter((item) => booleanField(item, 'blocking')).length]);
+    highlights.push(
+      ...packs.slice(0, 3).map((item) => `${recordLabel(item)}: ${stringField(item, 'countryCode', 'GLOBAL')} ${stringField(item, 'currency')}`),
+      `${earnings.length} earning policies`,
+      `${deductions.length} deduction policies`,
+      `${blockers.length} payroll readiness rules`,
+    );
+  } else if (area === 'ACCESS_GOVERNANCE') {
+    const governance = asRecord(snapshot.policyGovernance);
+    const actions = asRecords(governance.allowedActionOverrides);
+    const fields = asRecords(governance.fieldAccessOverrides);
+    facts.push(['Action overrides', actions.length], ['Field access rules', fields.length]);
+    highlights.push(
+      ...actions.slice(0, 4).map((item) => `${stringField(item, 'aggregateType')}.${stringField(item, 'action')}: ${stringField(item, 'effect', 'ALLOW')}`),
+      ...fields.slice(0, 4).map((item) => `${stringField(item, 'fieldPath')}: ${stringField(item, 'decision', 'VISIBLE')}`),
+    );
+  } else if (area === 'COUNTRY_POLICY') {
+    const runtime = asRecord(snapshot.countryPolicyRuntime);
+    facts.push(['Country', stringField(runtime, 'countryCode', 'Not set')], ['Pack version', stringField(runtime, 'packVersion', 'Not set')]);
+    facts.push(['Effective from', stringField(runtime, 'effectiveFrom', 'Not set')]);
+    highlights.push(`${booleanField(runtime, 'blocksPayrollIfStale', true) ? 'Blocks payroll if stale' : 'Does not block payroll when stale'}`);
+  } else {
+    const runtime = asRecord(snapshot.compliancePolicyRuntime);
+    facts.push(['Policy family', stringField(runtime, 'policyFamily', 'Not set')], ['Retention', stringField(runtime, 'retentionClass', 'Not set')]);
+    facts.push(['Acknowledgement due', `${numberField(runtime, 'acknowledgementDueDays', 0)} days`]);
+    highlights.push(`${booleanField(runtime, 'acknowledgementRequired', true) ? 'Employee acknowledgement required' : 'No employee acknowledgement required'}`);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-2 sm:grid-cols-2">
+        {facts.map(([label, value]) => (
+          <div key={label} className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
+            <p className="font-mono text-[11px] uppercase tracking-wider text-[#64748b]">{label}</p>
+            <p className="mt-1 text-lg font-semibold text-[#0f172a]">{value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="space-y-2">
+        {highlights.slice(0, 8).map((item) => (
+          <div key={item} className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#475569]">
+            {item}
+          </div>
+        ))}
+        {highlights.length === 0 ? <p className="text-sm text-[#94a3b8]">No applied runtime records yet.</p> : null}
+      </div>
+    </div>
+  );
+}
+
 function PolicyBusinessControls({
   revision,
   editorJson,
@@ -685,13 +776,16 @@ function PolicyBusinessControls({
   const [selectedLeaveCode, setSelectedLeaveCode] = React.useState('');
   const [selectedFieldKey, setSelectedFieldKey] = React.useState('');
   const [selectedDocumentCode, setSelectedDocumentCode] = React.useState('');
+  const [selectedPayrollPack, setSelectedPayrollPack] = React.useState('');
+  const [selectedEarningPolicy, setSelectedEarningPolicy] = React.useState('');
+  const [selectedDeductionPolicy, setSelectedDeductionPolicy] = React.useState('');
   const [selectedPayrollBlocker, setSelectedPayrollBlocker] = React.useState('');
   const [selectedActionOverride, setSelectedActionOverride] = React.useState('');
   const [selectedFieldOverride, setSelectedFieldOverride] = React.useState('');
 
   const commit = (change: GuidedPolicyChange) => {
     if (parsed.error || !parsed.draft) {
-      setEditorError(parsed.error ?? 'Policy payload is not valid JSON.');
+      setEditorError(parsed.error ?? 'Policy draft data is not in a supported format.');
       return;
     }
     setEditorError('');
@@ -708,6 +802,9 @@ function PolicyBusinessControls({
       setSelectedDocumentCode((current) => current || recordCode(asRecords(draft.documentRequirements)[0]));
     }
     if (revision.area === 'PAYROLL') {
+      setSelectedPayrollPack((current) => current || recordCode(asRecords(draft.statutoryPayrollPacks)[0]));
+      setSelectedEarningPolicy((current) => current || recordCode(asRecords(draft.earningPolicies)[0]));
+      setSelectedDeductionPolicy((current) => current || recordCode(asRecords(draft.deductionPolicies)[0]));
       setSelectedPayrollBlocker((current) => current || recordCode(asRecords(draft.payrollBlockingRules)[0]));
     }
     if (revision.area === 'ACCESS_GOVERNANCE') {
@@ -715,14 +812,25 @@ function PolicyBusinessControls({
       setSelectedActionOverride((current) => current || stringField(asRecords(governance.allowedActionOverrides)[0], 'id'));
       setSelectedFieldOverride((current) => current || stringField(asRecords(governance.fieldAccessOverrides)[0], 'id'));
     }
-  }, [revision.area, revision.id, draft.leavePolicies, draft.fieldRules, draft.documentRequirements, draft.payrollBlockingRules, draft.policyGovernance]);
+  }, [
+    revision.area,
+    revision.id,
+    draft.leavePolicies,
+    draft.fieldRules,
+    draft.documentRequirements,
+    draft.statutoryPayrollPacks,
+    draft.earningPolicies,
+    draft.deductionPolicies,
+    draft.payrollBlockingRules,
+    draft.policyGovernance,
+  ]);
 
   if (parsed.error) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Business Controls</CardTitle>
-          <CardDescription>Fix the JSON payload before guided controls can safely edit it.</CardDescription>
+          <CardDescription>This draft contains invalid stored policy data. Create a fresh revision from the current runtime snapshot or contact a system administrator.</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#e11d48]">{parsed.error}</div>
@@ -817,41 +925,179 @@ function PolicyBusinessControls({
 
   if (revision.area === 'PAYROLL') {
     const calculation = asRecord(draft.payrollCalculationPolicy);
+    const packs = asRecords(draft.statutoryPayrollPacks);
+    const earnings = asRecords(draft.earningPolicies);
+    const deductions = asRecords(draft.deductionPolicies);
     const blockers = asRecords(draft.payrollBlockingRules);
+    const pack = packs.find((item) => recordCode(item) === selectedPayrollPack) ?? packs[0];
+    const earning = earnings.find((item) => recordCode(item) === selectedEarningPolicy) ?? earnings[0];
+    const deduction = deductions.find((item) => recordCode(item) === selectedDeductionPolicy) ?? deductions[0];
     const blocker = blockers.find((item) => recordCode(item) === selectedPayrollBlocker) ?? blockers[0];
+    const packCode = selectedPayrollPack || recordCode(pack) || 'DEFAULT_STATUTORY_PACK';
+    const earningCode = selectedEarningPolicy || recordCode(earning) || 'TRANSPORT_ALLOWANCE';
+    const deductionCode = selectedDeductionPolicy || recordCode(deduction) || 'LATE_PER_MINUTE';
     const blockerCode = selectedPayrollBlocker || recordCode(blocker) || 'ATTENDANCE_BLOCKER';
+    const packCalculation = asRecord(pack?.calculationPolicy);
+    const glMapping = asRecord(pack?.glAccountMapping);
     const updateCalculation = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_CALCULATION', changes });
+    const updatePack = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_STATUTORY_PACK', code: packCode, changes });
+    const updatePackCalculation = (changes: Record<string, unknown>) => updatePack({ calculationPolicy: { ...packCalculation, ...changes } });
+    const updatePackGl = (changes: Record<string, unknown>) => updatePack({ glAccountMapping: { ...glMapping, ...changes } });
+    const updateEarning = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_EARNING_POLICY', code: earningCode, changes });
+    const updateDeduction = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_DEDUCTION_POLICY', code: deductionCode, changes });
     const updateBlocker = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_BLOCKER', code: blockerCode, changes });
     return (
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Payroll Business Controls</CardTitle>
-          <CardDescription>Tax, insurance, statutory packs, deductions, earnings, close blockers, GL and bank readiness.</CardDescription>
+          <CardDescription>Calculation, statutory packs, earnings, deductions, close blockers, GL posting, and bank file readiness consumed by payroll preview and close.</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label>Tax mode</Label>
-            <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(calculation, 'taxMode', 'FLAT_PERCENT')} onChange={(event) => updateCalculation({ taxMode: event.target.value })}>
-              {['FLAT_PERCENT', 'PROGRESSIVE_BRACKETS'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
-            </select>
+        <CardContent className="space-y-5">
+          <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+            <div className="mb-3 flex flex-col gap-1">
+              <p className="font-semibold text-[#0f172a]">Default Calculation Policy</p>
+              <p className="text-sm text-[#475569]">Fallback tax and insurance rules used when no more specific statutory pack applies.</p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div className="space-y-1.5">
+                <Label>Tax mode</Label>
+                <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(calculation, 'taxMode', 'FLAT_PERCENT')} onChange={(event) => updateCalculation({ taxMode: event.target.value })}>
+                  {['FLAT_PERCENT', 'PROGRESSIVE_BRACKETS'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                </select>
+              </div>
+              <GuidedInput label="Flat tax rate %" type="number" value={numberField(calculation, 'taxRatePercent')} onChange={(value) => updateCalculation({ taxRatePercent: optionalNumber(value) })} />
+              <GuidedInput label="Employee insurance %" type="number" value={numberField(calculation, 'employeeInsuranceRatePercent')} onChange={(value) => updateCalculation({ employeeInsuranceRatePercent: optionalNumber(value) })} />
+              <GuidedInput label="Employer insurance %" type="number" value={numberField(calculation, 'employerInsuranceRatePercent')} onChange={(value) => updateCalculation({ employerInsuranceRatePercent: optionalNumber(value) })} />
+            </div>
           </div>
-          <GuidedInput label="Flat tax rate %" type="number" value={numberField(calculation, 'taxRatePercent')} onChange={(value) => updateCalculation({ taxRatePercent: optionalNumber(value) })} />
-          <GuidedInput label="Employee insurance %" type="number" value={numberField(calculation, 'employeeInsuranceRatePercent')} onChange={(value) => updateCalculation({ employeeInsuranceRatePercent: optionalNumber(value) })} />
-          <GuidedInput label="Employer insurance %" type="number" value={numberField(calculation, 'employerInsuranceRatePercent')} onChange={(value) => updateCalculation({ employerInsuranceRatePercent: optionalNumber(value) })} />
-          <div className="space-y-1.5 lg:col-span-2">
-            <Label>Close blocker</Label>
-            <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={blockerCode} onChange={(event) => setSelectedPayrollBlocker(event.target.value)}>
-              {blockers.map((item) => <option key={recordCode(item)} value={recordCode(item)}>{recordLabel(item)}</option>)}
-              {blockers.length === 0 ? <option value="ATTENDANCE_BLOCKER">New attendance blocker</option> : null}
-            </select>
+
+          <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+            <div className="mb-3 flex flex-col gap-1">
+              <p className="font-semibold text-[#0f172a]">Statutory Pack, GL, And Bank Output</p>
+              <p className="text-sm text-[#475569]">Country/location payroll pack used by payroll statutory checks, GL posting preview, and bank payment batch generation.</p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div className="space-y-1.5 lg:col-span-2">
+                <Label>Statutory pack</Label>
+                <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={packCode} onChange={(event) => setSelectedPayrollPack(event.target.value)}>
+                  {packs.map((item) => <option key={recordCode(item)} value={recordCode(item)}>{recordLabel(item)}</option>)}
+                  {packs.length === 0 ? <option value="DEFAULT_STATUTORY_PACK">New statutory pack</option> : null}
+                </select>
+              </div>
+              <GuidedInput label="Pack label" value={stringField(pack, 'label', 'Default statutory payroll pack')} onChange={(value) => updatePack({ label: value })} />
+              <GuidedInput label="Country code" value={stringField(pack, 'countryCode', 'EG')} onChange={(value) => updatePack({ countryCode: value })} />
+              <GuidedInput label="Currency" value={stringField(pack, 'currency', 'EGP')} onChange={(value) => updatePack({ currency: value })} />
+              <GuidedInput label="Effective from" type="date" value={stringField(pack, 'effectiveFrom')} onChange={(value) => updatePack({ effectiveFrom: value })} />
+              <GuidedInput label="Location codes" value={stringArrayField(pack, 'locationCodes').join(', ')} onChange={(value) => updatePack({ locationCodes: splitCsv(value) })} />
+              <GuidedInput label="Employee types" value={stringArrayField(pack, 'employeeTypes').join(', ')} onChange={(value) => updatePack({ employeeTypes: splitCsv(value) })} />
+              <div className="lg:col-span-4"><GuidedToggle label="Pack active" checked={booleanField(pack, 'active', true)} onChange={(checked) => updatePack({ active: checked })} /></div>
+
+              <div className="lg:col-span-4 grid gap-3 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3 md:grid-cols-4">
+                <GuidedInput label="Pack tax rate %" type="number" value={numberField(packCalculation, 'taxRatePercent')} onChange={(value) => updatePackCalculation({ taxRatePercent: optionalNumber(value) })} />
+                <GuidedInput label="Pack employee insurance %" type="number" value={numberField(packCalculation, 'employeeInsuranceRatePercent')} onChange={(value) => updatePackCalculation({ employeeInsuranceRatePercent: optionalNumber(value) })} />
+                <GuidedInput label="Employee insurance cap" type="number" value={numberField(packCalculation, 'employeeInsuranceCap')} onChange={(value) => updatePackCalculation({ employeeInsuranceCap: optionalNumber(value) })} />
+                <GuidedInput label="Employer insurance cap" type="number" value={numberField(packCalculation, 'employerInsuranceCap')} onChange={(value) => updatePackCalculation({ employerInsuranceCap: optionalNumber(value) })} />
+              </div>
+
+              <div className="lg:col-span-4 grid gap-3 rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3 md:grid-cols-3">
+                <GuidedInput label="Salary expense GL" value={stringField(glMapping, 'salaryExpenseAccount', '6000')} onChange={(value) => updatePackGl({ salaryExpenseAccount: value })} />
+                <GuidedInput label="Tax payable GL" value={stringField(glMapping, 'taxPayableAccount', '2100')} onChange={(value) => updatePackGl({ taxPayableAccount: value })} />
+                <GuidedInput label="Insurance payable GL" value={stringField(glMapping, 'insurancePayableAccount', '2110')} onChange={(value) => updatePackGl({ insurancePayableAccount: value })} />
+                <GuidedInput label="Deduction payable GL" value={stringField(glMapping, 'deductionPayableAccount', '2200')} onChange={(value) => updatePackGl({ deductionPayableAccount: value })} />
+                <GuidedInput label="Bank clearing GL" value={stringField(glMapping, 'bankClearingAccount', '1000')} onChange={(value) => updatePackGl({ bankClearingAccount: value })} />
+                <GuidedInput label="Bank file formats" value={stringArrayField(pack, 'bankFileFormats').join(', ')} onChange={(value) => updatePack({ bankFileFormats: splitCsv(value) })} />
+              </div>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Severity</Label>
-            <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(blocker, 'severity', 'ERROR')} onChange={(event) => updateBlocker({ severity: event.target.value })}>
-              {['ERROR', 'WARNING'].map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+              <div className="mb-3 flex flex-col gap-1">
+                <p className="font-semibold text-[#0f172a]">Earning Policies</p>
+                <p className="text-sm text-[#475569]">Allowances and attendance-driven earnings consumed by payroll result-line calculation.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Earning policy</Label>
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={earningCode} onChange={(event) => setSelectedEarningPolicy(event.target.value)}>
+                    {earnings.map((item) => <option key={recordCode(item)} value={recordCode(item)}>{recordLabel(item)}</option>)}
+                    {earnings.length === 0 ? <option value="TRANSPORT_ALLOWANCE">New earning policy</option> : null}
+                  </select>
+                </div>
+                <GuidedInput label="Label" value={stringField(earning, 'label', 'Transport allowance')} onChange={(value) => updateEarning({ label: value })} />
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(earning, 'type', 'FIXED_AMOUNT')} onChange={(event) => updateEarning({ type: event.target.value })}>
+                    {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_BASE'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                  </select>
+                </div>
+                <GuidedInput label="Amount / rate" type="number" value={numberField(earning, 'amount')} onChange={(value) => updateEarning({ amount: optionalNumber(value) })} />
+                <GuidedInput label="Attendance event" value={stringField(earning, 'attendanceEvent')} onChange={(value) => updateEarning({ attendanceEvent: value })} />
+                <GuidedToggle label="Active" checked={booleanField(earning, 'active', true)} onChange={(checked) => updateEarning({ active: checked })} />
+                <GuidedToggle label="Taxable" checked={booleanField(earning, 'taxable', true)} onChange={(checked) => updateEarning({ taxable: checked })} />
+                <GuidedToggle label="Insurable" checked={booleanField(earning, 'insurable', true)} onChange={(checked) => updateEarning({ insurable: checked })} />
+                <GuidedToggle label="Recurring" checked={booleanField(earning, 'recurring', true)} onChange={(checked) => updateEarning({ recurring: checked })} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+              <div className="mb-3 flex flex-col gap-1">
+                <p className="font-semibold text-[#0f172a]">Deduction Policies</p>
+                <p className="text-sm text-[#475569]">Late, undertime, statutory, and custom deductions consumed by payroll result-line calculation.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label>Deduction policy</Label>
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={deductionCode} onChange={(event) => setSelectedDeductionPolicy(event.target.value)}>
+                    {deductions.map((item) => <option key={recordCode(item)} value={recordCode(item)}>{recordLabel(item)}</option>)}
+                    {deductions.length === 0 ? <option value="LATE_PER_MINUTE">New deduction policy</option> : null}
+                  </select>
+                </div>
+                <GuidedInput label="Label" value={stringField(deduction, 'label', 'Late arrival deduction')} onChange={(value) => updateDeduction({ label: value })} />
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(deduction, 'type', 'PER_MINUTE')} onChange={(event) => updateDeduction({ type: event.target.value })}>
+                    {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_BASE'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                  </select>
+                </div>
+                <GuidedInput label="Amount / rate" type="number" value={numberField(deduction, 'amount')} onChange={(value) => updateDeduction({ amount: optionalNumber(value) })} />
+                <GuidedInput label="Attendance event" value={stringField(deduction, 'attendanceEvent')} onChange={(value) => updateDeduction({ attendanceEvent: value })} />
+                <div className="space-y-1.5">
+                  <Label>Timing</Label>
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(deduction, 'timing', 'POST_TAX')} onChange={(event) => updateDeduction({ timing: event.target.value })}>
+                    {['PRE_TAX', 'POST_TAX'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                  </select>
+                </div>
+                <GuidedToggle label="Active" checked={booleanField(deduction, 'active', true)} onChange={(checked) => updateDeduction({ active: checked })} />
+              </div>
+            </div>
           </div>
-          <GuidedToggle label="Blocks payroll close" checked={booleanField(blocker, 'blocking', true)} onChange={(checked) => updateBlocker({ blocking: checked })} />
+
+          <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+            <div className="mb-3 flex flex-col gap-1">
+              <p className="font-semibold text-[#0f172a]">Payroll Close Blockers</p>
+              <p className="text-sm text-[#475569]">Rules that block or warn before payroll close, payslip generation, GL posting, and bank batch approval.</p>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-4">
+              <div className="space-y-1.5 lg:col-span-2">
+                <Label>Close blocker</Label>
+                <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={blockerCode} onChange={(event) => setSelectedPayrollBlocker(event.target.value)}>
+                  {blockers.map((item) => <option key={recordCode(item)} value={recordCode(item)}>{recordLabel(item)}</option>)}
+                  {blockers.length === 0 ? <option value="ATTENDANCE_BLOCKER">New attendance blocker</option> : null}
+                </select>
+              </div>
+              <GuidedInput label="Label" value={stringField(blocker, 'label', 'Unresolved attendance blocker')} onChange={(value) => updateBlocker({ label: value })} />
+              <GuidedInput label="Condition" value={stringField(blocker, 'condition', blockerCode)} onChange={(value) => updateBlocker({ condition: value })} />
+              <div className="space-y-1.5">
+                <Label>Severity</Label>
+                <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(blocker, 'severity', 'ERROR')} onChange={(event) => updateBlocker({ severity: event.target.value })}>
+                  {['ERROR', 'WARNING'].map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </div>
+              <GuidedToggle label="Active" checked={booleanField(blocker, 'active', true)} onChange={(checked) => updateBlocker({ active: checked })} />
+              <GuidedToggle label="Blocks payroll close" checked={booleanField(blocker, 'blocking', true)} onChange={(checked) => updateBlocker({ blocking: checked })} />
+            </div>
+          </div>
         </CardContent>
       </Card>
     );
@@ -985,6 +1231,7 @@ function PolicyBusinessControls({
   }
 
   if (revision.area === 'COUNTRY_POLICY') {
+    const runtime = asRecord(draft.countryPolicyRuntime);
     return (
       <Card>
         <CardHeader>
@@ -992,15 +1239,16 @@ function PolicyBusinessControls({
           <CardDescription>Country statutory metadata consumed by country validation, simulation, payroll statutory checks, and compliance reporting.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-4">
-          <GuidedInput label="Country code" value={stringField(draft, 'countryCode', 'EG')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { countryCode: value } })} />
-          <GuidedInput label="Pack version" value={stringField(draft, 'packVersion', '2026.1')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { packVersion: value } })} />
-          <GuidedInput label="Effective from" type="date" value={stringField(draft, 'effectiveFrom')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { effectiveFrom: value } })} />
-          <GuidedToggle label="Blocks payroll if stale" checked={booleanField(draft, 'blocksPayrollIfStale', true)} onChange={(checked) => commit({ type: 'COUNTRY_RUNTIME', changes: { blocksPayrollIfStale: checked } })} />
+          <GuidedInput label="Country code" value={stringField(runtime, 'countryCode', 'EG')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { countryCode: value } })} />
+          <GuidedInput label="Pack version" value={stringField(runtime, 'packVersion', '2026.1')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { packVersion: value } })} />
+          <GuidedInput label="Effective from" type="date" value={stringField(runtime, 'effectiveFrom')} onChange={(value) => commit({ type: 'COUNTRY_RUNTIME', changes: { effectiveFrom: value } })} />
+          <GuidedToggle label="Blocks payroll if stale" checked={booleanField(runtime, 'blocksPayrollIfStale', true)} onChange={(checked) => commit({ type: 'COUNTRY_RUNTIME', changes: { blocksPayrollIfStale: checked } })} />
         </CardContent>
       </Card>
     );
   }
 
+  const complianceRuntime = asRecord(draft.compliancePolicyRuntime);
   return (
     <Card>
       <CardHeader>
@@ -1008,10 +1256,10 @@ function PolicyBusinessControls({
         <CardDescription>Policy documents, acknowledgements, legal holds, retention, and statutory reporting behavior.</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-3 lg:grid-cols-4">
-        <GuidedInput label="Policy family" value={stringField(draft, 'policyFamily', 'CODE_OF_CONDUCT')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { policyFamily: value } })} />
-        <GuidedInput label="Retention class" value={stringField(draft, 'retentionClass', 'EXTENDED')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { retentionClass: value } })} />
-        <GuidedInput label="Acknowledgement due days" type="number" value={numberField(draft, 'acknowledgementDueDays', 7)} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementDueDays: optionalNumber(value) } })} />
-        <GuidedToggle label="Employee acknowledgement required" checked={booleanField(draft, 'acknowledgementRequired', true)} onChange={(checked) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementRequired: checked } })} />
+        <GuidedInput label="Policy family" value={stringField(complianceRuntime, 'policyFamily', 'CODE_OF_CONDUCT')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { policyFamily: value } })} />
+        <GuidedInput label="Retention class" value={stringField(complianceRuntime, 'retentionClass', 'EXTENDED')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { retentionClass: value } })} />
+        <GuidedInput label="Acknowledgement due days" type="number" value={numberField(complianceRuntime, 'acknowledgementDueDays', 7)} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementDueDays: optionalNumber(value) } })} />
+        <GuidedToggle label="Employee acknowledgement required" checked={booleanField(complianceRuntime, 'acknowledgementRequired', true)} onChange={(checked) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementRequired: checked } })} />
       </CardContent>
     </Card>
   );
@@ -1059,13 +1307,11 @@ function AreaWorkspace({
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Runtime Snapshot</CardTitle>
-          <CardDescription>Generated from applied revisions</CardDescription>
+          <CardTitle className="text-lg">Applied Runtime Summary</CardTitle>
+          <CardDescription>Business records generated from applied revisions</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <pre className="max-h-72 overflow-auto rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-xs text-[#0f172a]">
-            {safeJson(currentAreaConfig(area, setup))}
-          </pre>
+          <RuntimeSnapshotSummary area={area} setup={setup} />
           {meta.link ? (
             <Button asChild variant="outline" className="w-full">
               <Link to={meta.link}>Open Native Screen</Link>
@@ -1228,7 +1474,7 @@ export function AdminPolicies() {
         draftConfig: normalizePolicyDraftForRuntime(selectedRevision.area, parseJson(editorJson)),
       });
     } catch (error) {
-      setEditorError(error instanceof Error ? error.message : 'Invalid policy JSON.');
+      setEditorError(error instanceof Error ? error.message : 'Invalid policy draft data.');
     }
   };
 
@@ -1550,16 +1796,6 @@ export function AdminPolicies() {
                   </p>
                 </CardContent>
               </Card>
-              <div className="space-y-1.5">
-                <Label htmlFor="revision-json">Policy Payload</Label>
-                <textarea
-                  id="revision-json"
-                  className="min-h-[22rem] w-full fusion-glass rounded-2xl p-3 font-mono text-xs leading-5 text-[#0f172a] outline-none focus:ring-2 focus:ring-[#4f46e5]/20"
-                  value={editorJson}
-                  onChange={(event) => setEditorJson(event.target.value)}
-                  spellCheck={false}
-                />
-              </div>
               {editorError || updateRevision.error || commandRevision.error ? (
                 <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#e11d48]">
                   <AlertTriangle className="mr-2 inline h-4 w-4" />

@@ -675,11 +675,13 @@ export class PolicyCenterService {
     }
 
     if (revision.area === 'COUNTRY_POLICY') {
-      return { countryPolicyRuntime: asObject(revision.draftConfig) };
+      const draftObject = asObject(revision.draftConfig);
+      return { countryPolicyRuntime: asObject(draftObject.countryPolicyRuntime ?? draftObject) };
     }
 
     if (revision.area === 'COMPLIANCE') {
-      return { compliancePolicyRuntime: asObject(revision.draftConfig) };
+      const draftObject = asObject(revision.draftConfig);
+      return { compliancePolicyRuntime: asObject(draftObject.compliancePolicyRuntime ?? draftObject) };
     }
 
     return draft;

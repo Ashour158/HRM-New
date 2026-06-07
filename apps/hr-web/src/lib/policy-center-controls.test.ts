@@ -184,4 +184,92 @@ describe('policy center controls', () => {
       fieldAccessOverrides: [],
     });
   });
+
+  it('updates payroll statutory packs, earnings, deductions, and blockers as business records', () => {
+    const draft = {
+      statutoryPayrollPacks: [
+        {
+          code: 'EG_2026',
+          label: 'Egypt statutory payroll 2026',
+          active: true,
+          countryCode: 'EG',
+          calculationPolicy: { taxRatePercent: 15 },
+          glAccountMapping: { salaryExpenseAccount: '6000' },
+          bankFileFormats: ['CSV'],
+        },
+      ],
+      earningPolicies: [{ code: 'TRANSPORT_ALLOWANCE', label: 'Transport allowance', active: true, amount: 100 }],
+      deductionPolicies: [{ code: 'LATE_PER_MINUTE', label: 'Late arrival deduction', active: true, amount: 2 }],
+      payrollBlockingRules: [{ code: 'MISSING_BANK_ACCOUNT', label: 'Missing bank account', active: true, blocking: true }],
+    };
+
+    const withPack = applyGuidedPolicyChange('PAYROLL', draft, {
+      type: 'PAYROLL_STATUTORY_PACK',
+      code: 'EG_2026',
+      changes: {
+        currency: 'EGP',
+        bankFileFormats: ['CSV', 'CBE_EGYPT_CSV'],
+        glAccountMapping: { salaryExpenseAccount: '6100', bankClearingAccount: '1000' },
+      },
+    });
+    const withEarning = applyGuidedPolicyChange('PAYROLL', withPack, {
+      type: 'PAYROLL_EARNING_POLICY',
+      code: 'TRANSPORT_ALLOWANCE',
+      changes: { amount: 250, taxable: false, recurring: true },
+    });
+    const withDeduction = applyGuidedPolicyChange('PAYROLL', withEarning, {
+      type: 'PAYROLL_DEDUCTION_POLICY',
+      code: 'LATE_PER_MINUTE',
+      changes: { amount: 3, timing: 'POST_TAX' },
+    });
+    const next = applyGuidedPolicyChange('PAYROLL', withDeduction, {
+      type: 'PAYROLL_BLOCKER',
+      code: 'MISSING_BANK_ACCOUNT',
+      changes: { severity: 'WARNING', blocking: false },
+    });
+
+    expect(next.statutoryPayrollPacks).toEqual([
+      expect.objectContaining({
+        code: 'EG_2026',
+        currency: 'EGP',
+        bankFileFormats: ['CSV', 'CBE_EGYPT_CSV'],
+        glAccountMapping: { salaryExpenseAccount: '6100', bankClearingAccount: '1000' },
+      }),
+    ]);
+    expect(next.earningPolicies).toEqual([
+      expect.objectContaining({ code: 'TRANSPORT_ALLOWANCE', amount: 250, taxable: false, recurring: true }),
+    ]);
+    expect(next.deductionPolicies).toEqual([
+      expect.objectContaining({ code: 'LATE_PER_MINUTE', amount: 3, timing: 'POST_TAX' }),
+    ]);
+    expect(next.payrollBlockingRules).toEqual([
+      expect.objectContaining({ code: 'MISSING_BANK_ACCOUNT', severity: 'WARNING', blocking: false }),
+    ]);
+  });
+
+  it('updates country and compliance runtime containers instead of writing stray root fields', () => {
+    const country = applyGuidedPolicyChange('COUNTRY_POLICY', { countryPolicyRuntime: { countryCode: 'EG' } }, {
+      type: 'COUNTRY_RUNTIME',
+      changes: { packVersion: '2026.2', blocksPayrollIfStale: true },
+    });
+    const compliance = applyGuidedPolicyChange('COMPLIANCE', { compliancePolicyRuntime: { policyFamily: 'CODE_OF_CONDUCT' } }, {
+      type: 'COMPLIANCE_RUNTIME',
+      changes: { acknowledgementDueDays: 14, acknowledgementRequired: true },
+    });
+
+    expect(country).toEqual({
+      countryPolicyRuntime: {
+        countryCode: 'EG',
+        packVersion: '2026.2',
+        blocksPayrollIfStale: true,
+      },
+    });
+    expect(compliance).toEqual({
+      compliancePolicyRuntime: {
+        policyFamily: 'CODE_OF_CONDUCT',
+        acknowledgementDueDays: 14,
+        acknowledgementRequired: true,
+      },
+    });
+  });
 });

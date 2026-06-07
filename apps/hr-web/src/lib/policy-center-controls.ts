@@ -39,6 +39,9 @@ export type GuidedPolicyChange =
   | { type: 'LEAVE_RULE'; code: string; changes: Record<string, unknown> }
   | { type: 'ATTENDANCE_RULE'; changes: Record<string, unknown> }
   | { type: 'PAYROLL_CALCULATION'; changes: Record<string, unknown> }
+  | { type: 'PAYROLL_STATUTORY_PACK'; code: string; changes: Record<string, unknown> }
+  | { type: 'PAYROLL_EARNING_POLICY'; code: string; changes: Record<string, unknown> }
+  | { type: 'PAYROLL_DEDUCTION_POLICY'; code: string; changes: Record<string, unknown> }
   | { type: 'PAYROLL_BLOCKER'; code: string; changes: Record<string, unknown> }
   | { type: 'ACCESS_ACTION_OVERRIDE'; override: Record<string, unknown> & { id: string } }
   | { type: 'FIELD_ACCESS_OVERRIDE'; override: Record<string, unknown> & { id: string } }
@@ -330,6 +333,18 @@ export function applyGuidedPolicyChange(area: PolicyArea, draft: Record<string, 
     return { ...current, payrollCalculationPolicy: { ...asRecord(current.payrollCalculationPolicy), ...change.changes } };
   }
 
+  if (area === 'PAYROLL' && change.type === 'PAYROLL_STATUTORY_PACK') {
+    return { ...current, statutoryPayrollPacks: upsertByKey(current.statutoryPayrollPacks, 'code', change.code, change.changes) };
+  }
+
+  if (area === 'PAYROLL' && change.type === 'PAYROLL_EARNING_POLICY') {
+    return { ...current, earningPolicies: upsertByKey(current.earningPolicies, 'code', change.code, change.changes) };
+  }
+
+  if (area === 'PAYROLL' && change.type === 'PAYROLL_DEDUCTION_POLICY') {
+    return { ...current, deductionPolicies: upsertByKey(current.deductionPolicies, 'code', change.code, change.changes) };
+  }
+
   if (area === 'PAYROLL' && change.type === 'PAYROLL_BLOCKER') {
     return { ...current, payrollBlockingRules: upsertByKey(current.payrollBlockingRules, 'code', change.code, change.changes) };
   }
@@ -359,11 +374,23 @@ export function applyGuidedPolicyChange(area: PolicyArea, draft: Record<string, 
   }
 
   if (area === 'COUNTRY_POLICY' && change.type === 'COUNTRY_RUNTIME') {
-    return { ...current, ...change.changes };
+    return {
+      ...current,
+      countryPolicyRuntime: {
+        ...asRecord(current.countryPolicyRuntime),
+        ...change.changes,
+      },
+    };
   }
 
   if (area === 'COMPLIANCE' && change.type === 'COMPLIANCE_RUNTIME') {
-    return { ...current, ...change.changes };
+    return {
+      ...current,
+      compliancePolicyRuntime: {
+        ...asRecord(current.compliancePolicyRuntime),
+        ...change.changes,
+      },
+    };
   }
 
   return current;
