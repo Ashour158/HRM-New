@@ -239,6 +239,11 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
     commandPatterns: [/Role/i, /Permission/i, /AccessReview/i, /ServiceAccount/i, /Credential/i, /^CreateRole$/i],
   },
   {
+    area: 'BENEFITS',
+    aggregateTypes: ['BenefitsProgram', 'BenefitsEnrollment', 'BenefitsLifeEvent', 'SpendingAccount', 'CarrierReconciliationRun'],
+    commandPatterns: [/Benefits/i, /Enrollment/i, /LifeEvent/i, /SpendingAccount/i, /CarrierReconciliation/i],
+  },
+  {
     area: 'COUNTRY_POLICY',
     aggregateTypes: ['CountryPolicyPack', 'CountryPolicyValidationRun', 'CountryPolicyImpactSimulation'],
     commandPatterns: [/CountryPolicy/i],

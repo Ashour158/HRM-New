@@ -5,7 +5,8 @@ export type PolicyArea =
   | 'PAYROLL'
   | 'ACCESS_GOVERNANCE'
   | 'COUNTRY_POLICY'
-  | 'COMPLIANCE';
+  | 'COMPLIANCE'
+  | 'BENEFITS';
 
 export type PolicyStatus = 'DRAFT' | 'IN_REVIEW' | 'REVIEWED' | 'APPROVED' | 'PUBLISHED' | 'APPLIED' | 'REJECTED' | 'ARCHIVED';
 
@@ -43,10 +44,12 @@ export type GuidedPolicyChange =
   | { type: 'PAYROLL_EARNING_POLICY'; code: string; changes: Record<string, unknown> }
   | { type: 'PAYROLL_DEDUCTION_POLICY'; code: string; changes: Record<string, unknown> }
   | { type: 'PAYROLL_BLOCKER'; code: string; changes: Record<string, unknown> }
+  | { type: 'ACCESS_GOVERNANCE_RUNTIME'; changes: Record<string, unknown> }
   | { type: 'ACCESS_ACTION_OVERRIDE'; override: Record<string, unknown> & { id: string } }
   | { type: 'FIELD_ACCESS_OVERRIDE'; override: Record<string, unknown> & { id: string } }
   | { type: 'COUNTRY_RUNTIME'; changes: Record<string, unknown> }
-  | { type: 'COMPLIANCE_RUNTIME'; changes: Record<string, unknown> };
+  | { type: 'COMPLIANCE_RUNTIME'; changes: Record<string, unknown> }
+  | { type: 'BENEFITS_RUNTIME'; changes: Record<string, unknown> };
 
 export const POLICY_CONTROL_LENSES = {
   EMPLOYEE_SETUP: {
@@ -89,12 +92,12 @@ export const POLICY_CONTROL_LENSES = {
     area: 'PAYROLL',
     label: 'Payroll And Reward',
     brain: 'PayrollPolicyBrain',
-    description: 'Controls statutory packs, tax, insurance, earnings, deductions, blockers, GL preview, and bank file readiness.',
-    engines: ['PayrollStatutoryPolicyService', 'PayrollCalculationEngine', 'PayrollBlockingEngine', 'PayrollCloseWorkflow'],
-    controls: ['Tax mode/rates', 'Insurance rates/caps', 'Earnings', 'Deductions', 'Close blockers', 'GL accounts and bank file formats'],
+    description: 'Controls statutory packs, tax, insurance, scoped earning/deduction logic ledgers, blockers, GL preview, and bank file readiness.',
+    engines: ['PayrollStatutoryPolicyService', 'PayrollCalculationEngine', 'PayrollLogicLedgerEngine', 'PayrollBlockingEngine', 'PayrollCloseWorkflow'],
+    controls: ['Tax mode/rates', 'Insurance rates/caps', 'Scoped earning logic ledgers', 'Scoped deduction logic ledgers', 'Minimum-net protection', 'Close blockers', 'GL accounts and bank file formats'],
     runtimeKeys: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'earningPolicies', 'deductionPolicies', 'payrollBlockingRules'],
     serviceConsumers: ['Payroll preview', 'Payroll close', 'Payslip generation', 'GL posting preview', 'Bank batch preview'],
-    evidenceFields: ['policyRevisionId', 'statutoryPackCode', 'calculationPolicy', 'blockers', 'decision', 'reason'],
+    evidenceFields: ['policyRevisionId', 'statutoryPackCode', 'ledgerRuleCode', 'scopeMatch', 'calculationBase', 'glAccount', 'decision', 'reason'],
     notificationEvents: ['PolicyRevisionApplied', 'PayrollPolicyChanged', 'PayrollCycleRevalidationRequired'],
   },
   ACCESS_GOVERNANCE: {
@@ -132,6 +135,18 @@ export const POLICY_CONTROL_LENSES = {
     serviceConsumers: ['Compliance documents', 'Employee acknowledgement center', 'Legal holds', 'Statutory reports', 'Audit export'],
     evidenceFields: ['policyRevisionId', 'documentId', 'acknowledgementId', 'legalHoldId', 'decision'],
     notificationEvents: ['PolicyRevisionApplied', 'ComplianceAcknowledgementRequired', 'LegalHoldChanged'],
+  },
+  BENEFITS: {
+    area: 'BENEFITS',
+    label: 'Benefits Rules',
+    brain: 'BenefitsPolicyBrain',
+    description: 'Controls eligibility, enrollment windows, life events, dependents, evidence, carrier exports, contributions, and payroll deduction bridges.',
+    engines: ['BenefitsPolicyResolutionService', 'BenefitsEligibilityEngine', 'BenefitsLifeEventWorkflow', 'BenefitsPayrollBridgeEngine', 'CarrierExportGovernanceEngine'],
+    controls: ['Eligibility ledgers', 'Enrollment windows', 'Life event approval', 'Dependent evidence', 'Contribution split', 'Carrier exports', 'Payroll deduction bridge'],
+    runtimeKeys: ['benefitsPolicyRuntime'],
+    serviceConsumers: ['Employee benefits enrollment', 'Life event approval', 'Dependent evidence review', 'Carrier reconciliation', 'Payroll contribution sync'],
+    evidenceFields: ['policyRevisionId', 'benefitsRuleCode', 'scopeMatch', 'workerId', 'enrollmentId', 'decision', 'reason'],
+    notificationEvents: ['PolicyRevisionApplied', 'BenefitsPolicyChanged', 'BenefitsEnrollmentRevalidated', 'BenefitsEvidenceRequired'],
   },
 } satisfies Record<PolicyArea, PolicyControlLens>;
 
@@ -171,18 +186,18 @@ export const SYSTEM_POLICY_SURFACES: SystemPolicySurface[] = [
   {
     module: 'Payroll',
     policyArea: 'PAYROLL',
-    governedBy: 'Statutory packs, earnings, deductions, tax, insurance, close blockers, GL and bank policies',
-    commandEnforcement: ['PreviewPayrollCycle', 'CalculatePayrollResultLine', 'ClosePayrollCycle', 'GeneratePayslip'],
+    governedBy: 'Statutory packs, scoped earning/deduction logic ledgers, tax, insurance, close blockers, GL and bank policies',
+    commandEnforcement: ['PreviewPayrollCycle', 'CalculatePayrollResultLine', 'ApplyPayrollLogicLedger', 'ClosePayrollCycle', 'GeneratePayslip'],
     notificationEvents: ['PayrollPolicyChanged', 'PayrollCycleRevalidationRequired'],
-    runtimeEvidence: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'payrollBlockingRules'],
+    runtimeEvidence: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'earningPolicies.logicLedger', 'deductionPolicies.logicLedger', 'payrollBlockingRules'],
   },
   {
     module: 'Benefits',
-    policyArea: 'EMPLOYEE_SETUP',
-    governedBy: 'Dependent/beneficiary data governance plus access and compliance policies',
-    commandEnforcement: ['SubmitBenefitsEnrollment', 'UpdateDependents', 'ApproveBenefitsChange'],
-    notificationEvents: ['PolicyRevisionApplied', 'BenefitsEvidenceRequired'],
-    runtimeEvidence: ['fieldRules.dependents', 'fieldRules.beneficiaries', 'policyGovernance'],
+    policyArea: 'BENEFITS',
+    governedBy: 'Eligibility, enrollment windows, life events, dependents, contributions, carrier export, evidence, and payroll bridge policies',
+    commandEnforcement: ['SubmitBenefitsEnrollment', 'ChangeBenefitsCoverage', 'ApproveBenefitsLifeEvent', 'ReconcileCarrierFile', 'SyncPayrollContribution'],
+    notificationEvents: ['BenefitsPolicyChanged', 'BenefitsEnrollmentRevalidated', 'BenefitsEvidenceRequired'],
+    runtimeEvidence: ['benefitsPolicyRuntime', 'admin_policy_decision_evidence', 'notification_inbox'],
   },
   {
     module: 'Onboarding',
@@ -373,6 +388,16 @@ export function applyGuidedPolicyChange(area: PolicyArea, draft: Record<string, 
     };
   }
 
+  if (area === 'ACCESS_GOVERNANCE' && change.type === 'ACCESS_GOVERNANCE_RUNTIME') {
+    return {
+      ...current,
+      policyGovernance: {
+        ...asRecord(current.policyGovernance),
+        ...change.changes,
+      },
+    };
+  }
+
   if (area === 'COUNTRY_POLICY' && change.type === 'COUNTRY_RUNTIME') {
     return {
       ...current,
@@ -388,6 +413,16 @@ export function applyGuidedPolicyChange(area: PolicyArea, draft: Record<string, 
       ...current,
       compliancePolicyRuntime: {
         ...asRecord(current.compliancePolicyRuntime),
+        ...change.changes,
+      },
+    };
+  }
+
+  if (area === 'BENEFITS' && change.type === 'BENEFITS_RUNTIME') {
+    return {
+      ...current,
+      benefitsPolicyRuntime: {
+        ...asRecord(current.benefitsPolicyRuntime),
         ...change.changes,
       },
     };

@@ -11,6 +11,7 @@ import {
   FileDiff,
   FileText,
   GitBranch,
+  HeartPulse,
   KeyRound,
   Landmark,
   ListChecks,
@@ -72,6 +73,13 @@ type PolicyValidationResult = {
   engineVersion: string;
 };
 
+type DomainPolicySimulation = {
+  ruleCodes: string[];
+  scopeDimensions: string[];
+  workflowImpacts: Array<{ ruleCode: string; action: string; risk: PolicyImpactRisk }>;
+  revalidationQueues: string[];
+};
+
 type PolicySimulationResult = {
   impactedEmployees: number;
   impactedWorkerIds: string[];
@@ -122,6 +130,63 @@ type PolicySimulationResult = {
   oldDataRule: string;
   newDataRule: string;
   retroactiveRule: string;
+  payrollComponentSimulation?: {
+    componentCodes: string[];
+    calculationInputs: Array<{
+      componentCode: string;
+      ledgerRuleCode?: string;
+      source?: string;
+      base?: string;
+      method?: string;
+      amount?: number;
+      ratePercent?: number;
+      monthlyCap?: number;
+      minimumNetPay?: number;
+    }>;
+    glPostingPreview: Array<{
+      componentCode: string;
+      payslipLineType?: string;
+      glAccount?: string;
+      missingPosting: boolean;
+    }>;
+    retroAdjustments: Array<{
+      componentCode: string;
+      behavior?: string;
+      action: string;
+    }>;
+    estimatedGrossDelta: number;
+    estimatedTaxableDelta: number;
+    estimatedInsurableDelta: number;
+    estimatedEmployeeDeductionDelta: number;
+    estimatedEmployerCostDelta: number;
+    estimatedNetPayDelta: number;
+    blockedPayrollCycleIds: string[];
+  };
+  leavePolicySimulation?: DomainPolicySimulation & {
+    accrualRuleCodes: string[];
+    approvalWorkflows: string[];
+    payrollImpactCodes: string[];
+  };
+  attendancePolicySimulation?: DomainPolicySimulation & {
+    geofenceRuleCodes: string[];
+    ledgerRuleCodes: string[];
+    payrollBridgeCodes: string[];
+  };
+  accessPolicySimulation?: DomainPolicySimulation & {
+    actionOverrideIds: string[];
+    fieldOverrideIds: string[];
+    sodRuleCodes: string[];
+  };
+  compliancePolicySimulation?: DomainPolicySimulation & {
+    acknowledgementRules: string[];
+    retentionClasses: string[];
+    legalHoldRules: string[];
+  };
+  benefitsPolicySimulation?: DomainPolicySimulation & {
+    payrollBridgeCodes: string[];
+    enrollmentWindows: Array<{ ruleCode: string; waitingPeriodDays: number }>;
+    carrierExportRules: string[];
+  };
   warnings: string[];
   engineName: string;
   engineVersion: string;
@@ -247,6 +312,7 @@ const policyAreas: Array<{ area: PolicyArea; label: string; icon: React.ElementT
   { area: 'ACCESS_GOVERNANCE', label: 'Access Governance', icon: LockKeyhole },
   { area: 'COUNTRY_POLICY', label: 'Country Policy', icon: Landmark, link: '/admin/country-policy' },
   { area: 'COMPLIANCE', label: 'Compliance Policies', icon: ClipboardCheck, link: '/admin/compliance' },
+  { area: 'BENEFITS', label: 'Benefits', icon: HeartPulse, link: '/admin/modules/benefits/operations' },
 ];
 
 const areaTabValues: Record<PolicyArea, string> = {
@@ -257,6 +323,7 @@ const areaTabValues: Record<PolicyArea, string> = {
   ACCESS_GOVERNANCE: 'access',
   COUNTRY_POLICY: 'country',
   COMPLIANCE: 'compliance',
+  BENEFITS: 'benefits',
 };
 
 const tabAreas = Object.fromEntries(Object.entries(areaTabValues).map(([area, tab]) => [tab, area])) as Record<string, PolicyArea>;
@@ -374,6 +441,7 @@ function currentAreaConfig(area: PolicyArea, setup: Record<string, unknown> | un
   if (area === 'ACCESS_GOVERNANCE') return { policyGovernance: setup.policyGovernance ?? { allowedActionOverrides: [], fieldAccessOverrides: [] } };
   if (area === 'COUNTRY_POLICY') return { countryPolicyRuntime: setup.countryPolicyRuntime ?? {} };
   if (area === 'COMPLIANCE') return { compliancePolicyRuntime: setup.compliancePolicyRuntime ?? {} };
+  if (area === 'BENEFITS') return { benefitsPolicyRuntime: setup.benefitsPolicyRuntime ?? {} };
   return {
     genderOptions: setup.genderOptions ?? [],
     locations: setup.locations ?? [],
@@ -452,6 +520,18 @@ function recordLabel(record: Record<string, unknown> | undefined) {
   const code = recordCode(record);
   const label = stringField(record, 'label');
   return label ? `${label} (${code})` : code;
+}
+
+function firstLedgerRecord(records: unknown, fallbackCode: string, fallbackLabel: string) {
+  return asRecords(records)[0] ?? { code: fallbackCode, label: fallbackLabel, active: true, outcomes: [] };
+}
+
+function upsertFirstLedgerRecord(records: unknown, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) {
+  const rows = asRecords(records);
+  const selected = rows[0] ?? { code: fallbackCode, label: fallbackLabel, active: true, outcomes: [] };
+  return rows.length > 0
+    ? rows.map((row, index) => index === 0 ? { ...selected, ...changes } : row)
+    : [{ ...selected, ...changes }];
 }
 
 function pendingRecordTotal(records?: PolicySimulationResult['pendingRecords']) {
@@ -585,12 +665,121 @@ function ImpactRecordList({
   );
 }
 
+function DomainSimulationCard({
+  title,
+  simulation,
+  highlights,
+}: {
+  title: string;
+  simulation?: DomainPolicySimulation;
+  highlights?: Array<{ label: string; value: string | number }>;
+}) {
+  if (!simulation) return null;
+  return (
+    <div className="rounded-xl border border-[#c7d2fe] bg-[#eef2ff] p-4">
+      <div className="mb-3 flex flex-col gap-1">
+        <p className="font-semibold text-[#0f172a]">{title}</p>
+        <p className="text-sm text-[#475569]">Rule ledger, workflow, revalidation, and scope behavior detected before apply.</p>
+      </div>
+      <div className="grid gap-3 lg:grid-cols-4">
+        {[
+          ['Rules', simulation.ruleCodes.length],
+          ['Scopes', simulation.scopeDimensions.length],
+          ['Workflows', simulation.workflowImpacts.length],
+          ['Queues', simulation.revalidationQueues.length],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-lg bg-white p-3">
+            <p className="text-xs uppercase tracking-wider text-[#64748b]">{label}</p>
+            <p className="text-xl font-bold text-[#0f172a]">{value}</p>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+        <div className="rounded-lg border border-[#cbd5e1] bg-white">
+          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Rule Codes</div>
+          <div className="max-h-44 overflow-y-auto p-3 text-xs text-[#475569]">{simulation.ruleCodes.length > 0 ? simulation.ruleCodes.join(', ') : 'No rules detected.'}</div>
+        </div>
+        <div className="rounded-lg border border-[#cbd5e1] bg-white">
+          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Workflow Impacts</div>
+          <div className="max-h-44 overflow-y-auto divide-y divide-[#e2e8f0]">
+            {simulation.workflowImpacts.map((impact, index) => (
+              <div key={`${impact.ruleCode}-${index}`} className="p-3 text-xs text-[#475569]">
+                <p className="font-semibold text-[#0f172a]">{impact.ruleCode}</p>
+                <p>{impact.action}</p>
+                <Badge className={riskTone(impact.risk)}>{formatEnum(impact.risk)}</Badge>
+              </div>
+            ))}
+            {simulation.workflowImpacts.length === 0 ? <p className="p-3 text-xs text-[#64748b]">No workflow changes detected.</p> : null}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[#cbd5e1] bg-white">
+          <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Domain Highlights</div>
+          <div className="max-h-44 overflow-y-auto divide-y divide-[#e2e8f0]">
+            {(highlights ?? []).map((item) => (
+              <div key={item.label} className="flex items-center justify-between gap-3 p-3 text-xs">
+                <span className="font-semibold text-[#0f172a]">{item.label}</span>
+                <span className="text-[#475569]">{item.value}</span>
+              </div>
+            ))}
+            {(highlights ?? []).length === 0 ? <p className="p-3 text-xs text-[#64748b]">No domain-specific highlights yet.</p> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
   const validation = revision?.validationResult;
   const simulation = revision?.simulationResult;
   const risk = simulation?.riskSummary;
   const impactedRecords = simulation?.impactedRecords;
   const notificationPreview = simulation?.notificationPreview;
+  const payrollSimulation = simulation?.payrollComponentSimulation;
+  const domainSimulation =
+    simulation?.leavePolicySimulation ??
+    simulation?.attendancePolicySimulation ??
+    simulation?.accessPolicySimulation ??
+    simulation?.compliancePolicySimulation ??
+    simulation?.benefitsPolicySimulation;
+  const domainSimulationTitle = revision?.area === 'LEAVE'
+    ? 'Leave Rule Ledger Simulation'
+    : revision?.area === 'ATTENDANCE'
+      ? 'Attendance Rule Ledger Simulation'
+      : revision?.area === 'ACCESS_GOVERNANCE'
+        ? 'Access Governance Rule Simulation'
+        : revision?.area === 'COMPLIANCE'
+          ? 'Compliance Rule Ledger Simulation'
+          : revision?.area === 'BENEFITS'
+            ? 'Benefits Eligibility And Payroll Bridge Simulation'
+            : 'Policy Rule Ledger Simulation';
+  const domainHighlights = [
+    ...(simulation?.leavePolicySimulation ? [
+      { label: 'Accrual rules', value: simulation.leavePolicySimulation.accrualRuleCodes.length },
+      { label: 'Approval workflows', value: simulation.leavePolicySimulation.approvalWorkflows.join(', ') || '-' },
+      { label: 'Payroll impacts', value: simulation.leavePolicySimulation.payrollImpactCodes.join(', ') || '-' },
+    ] : []),
+    ...(simulation?.attendancePolicySimulation ? [
+      { label: 'Geofence rules', value: simulation.attendancePolicySimulation.geofenceRuleCodes.length },
+      { label: 'Ledger rules', value: simulation.attendancePolicySimulation.ledgerRuleCodes.length },
+      { label: 'Payroll bridges', value: simulation.attendancePolicySimulation.payrollBridgeCodes.join(', ') || '-' },
+    ] : []),
+    ...(simulation?.accessPolicySimulation ? [
+      { label: 'Action overrides', value: simulation.accessPolicySimulation.actionOverrideIds.length },
+      { label: 'Field overrides', value: simulation.accessPolicySimulation.fieldOverrideIds.length },
+      { label: 'SoD rules', value: simulation.accessPolicySimulation.sodRuleCodes.length },
+    ] : []),
+    ...(simulation?.compliancePolicySimulation ? [
+      { label: 'Acknowledgement rules', value: simulation.compliancePolicySimulation.acknowledgementRules.length },
+      { label: 'Retention classes', value: simulation.compliancePolicySimulation.retentionClasses.join(', ') || '-' },
+      { label: 'Legal hold rules', value: simulation.compliancePolicySimulation.legalHoldRules.length },
+    ] : []),
+    ...(simulation?.benefitsPolicySimulation ? [
+      { label: 'Payroll bridges', value: simulation.benefitsPolicySimulation.payrollBridgeCodes.join(', ') || '-' },
+      { label: 'Enrollment windows', value: simulation.benefitsPolicySimulation.enrollmentWindows.map((window) => `${window.ruleCode}: ${window.waitingPeriodDays}d`).join(', ') || '-' },
+      { label: 'Carrier export rules', value: simulation.benefitsPolicySimulation.carrierExportRules.length },
+    ] : []),
+  ];
   return (
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-3">
@@ -652,6 +841,73 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
           </CardContent>
         </Card>
       </div>
+      {payrollSimulation ? (
+        <div className="rounded-xl border border-[#c7d2fe] bg-[#eef2ff] p-4">
+          <div className="mb-3 flex flex-col gap-1">
+            <p className="font-semibold text-[#0f172a]">Payroll Component Simulation</p>
+            <p className="text-sm text-[#475569]">Exact earning/deduction component inputs, posting gaps, and retro behavior detected before apply.</p>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-4">
+            <div className="rounded-lg bg-white p-3">
+              <p className="text-xs uppercase tracking-wider text-[#64748b]">Gross delta</p>
+              <p className="text-xl font-bold text-[#0f172a]">{payrollSimulation.estimatedGrossDelta}</p>
+            </div>
+            <div className="rounded-lg bg-white p-3">
+              <p className="text-xs uppercase tracking-wider text-[#64748b]">Deduction delta</p>
+              <p className="text-xl font-bold text-[#0f172a]">{payrollSimulation.estimatedEmployeeDeductionDelta}</p>
+            </div>
+            <div className="rounded-lg bg-white p-3">
+              <p className="text-xs uppercase tracking-wider text-[#64748b]">Net delta</p>
+              <p className="text-xl font-bold text-[#0f172a]">{payrollSimulation.estimatedNetPayDelta}</p>
+            </div>
+            <div className="rounded-lg bg-white p-3">
+              <p className="text-xs uppercase tracking-wider text-[#64748b]">Components</p>
+              <p className="text-xl font-bold text-[#0f172a]">{payrollSimulation.componentCodes.length}</p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 xl:grid-cols-3">
+            <div className="rounded-lg border border-[#cbd5e1] bg-white">
+              <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Calculation Inputs</div>
+              <div className="max-h-56 overflow-y-auto divide-y divide-[#e2e8f0]">
+                {payrollSimulation.calculationInputs.map((input, index) => (
+                  <div key={`${input.componentCode}-${input.ledgerRuleCode ?? index}`} className="p-3 text-xs text-[#475569]">
+                    <p className="font-semibold text-[#0f172a]">{input.componentCode}</p>
+                    <p>{input.source} / {input.base} / {input.method}</p>
+                    <p>Amount {input.amount ?? 0} · Rate {input.ratePercent ?? 0}% · Cap {input.monthlyCap ?? 0}</p>
+                    {input.minimumNetPay !== undefined ? <p>Minimum net protection: {input.minimumNetPay}</p> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#cbd5e1] bg-white">
+              <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">GL Posting Preview</div>
+              <div className="max-h-56 overflow-y-auto divide-y divide-[#e2e8f0]">
+                {payrollSimulation.glPostingPreview.map((posting, index) => (
+                  <div key={`${posting.componentCode}-${posting.glAccount ?? index}`} className={cn('p-3 text-xs', posting.missingPosting ? 'text-[#b45309]' : 'text-[#475569]')}>
+                    <p className="font-semibold text-[#0f172a]">{posting.componentCode}</p>
+                    <p>{posting.payslipLineType ?? 'No payslip type'} · {posting.glAccount ?? 'Missing GL account'}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-lg border border-[#cbd5e1] bg-white">
+              <div className="border-b border-[#e2e8f0] px-3 py-2 text-sm font-semibold text-[#0f172a]">Retro And Blockers</div>
+              <div className="max-h-56 overflow-y-auto divide-y divide-[#e2e8f0]">
+                {payrollSimulation.retroAdjustments.map((adjustment, index) => (
+                  <div key={`${adjustment.componentCode}-${index}`} className="p-3 text-xs text-[#475569]">
+                    <p className="font-semibold text-[#0f172a]">{adjustment.componentCode}</p>
+                    <p>{formatEnum(adjustment.behavior ?? 'REVIEW')}</p>
+                    <p>{adjustment.action}</p>
+                  </div>
+                ))}
+                {payrollSimulation.blockedPayrollCycleIds.map((id) => <p key={id} className="p-3 text-xs text-[#b45309]">{id}</p>)}
+                {payrollSimulation.retroAdjustments.length === 0 && payrollSimulation.blockedPayrollCycleIds.length === 0 ? <p className="p-3 text-xs text-[#64748b]">No retro adjustments or payroll blockers detected.</p> : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      <DomainSimulationCard title={domainSimulationTitle} simulation={domainSimulation} highlights={domainHighlights} />
       <div className="grid gap-4 xl:grid-cols-2">
         <ImpactRecordList title="Impacted Employees" records={impactedRecords?.workers ?? []} empty="Run simulation to see exact employees." />
         <ImpactRecordList title="Open Leave And Payroll Records" records={[...(impactedRecords?.leaveRequests ?? []), ...(impactedRecords?.payrollCycles ?? [])]} empty="No open leave or payroll records flagged." />
@@ -919,11 +1175,25 @@ function RuntimeSnapshotSummary({ area, setup }: { area: PolicyArea; setup?: Rec
     facts.push(['Country', stringField(runtime, 'countryCode', 'Not set')], ['Pack version', stringField(runtime, 'packVersion', 'Not set')]);
     facts.push(['Effective from', stringField(runtime, 'effectiveFrom', 'Not set')]);
     highlights.push(`${booleanField(runtime, 'blocksPayrollIfStale', true) ? 'Blocks payroll if stale' : 'Does not block payroll when stale'}`);
-  } else {
+  } else if (area === 'COMPLIANCE') {
     const runtime = asRecord(snapshot.compliancePolicyRuntime);
     facts.push(['Policy family', stringField(runtime, 'policyFamily', 'Not set')], ['Retention', stringField(runtime, 'retentionClass', 'Not set')]);
     facts.push(['Acknowledgement due', `${numberField(runtime, 'acknowledgementDueDays', 0)} days`]);
     highlights.push(`${booleanField(runtime, 'acknowledgementRequired', true) ? 'Employee acknowledgement required' : 'No employee acknowledgement required'}`);
+  } else if (area === 'BENEFITS') {
+    const runtime = asRecord(snapshot.benefitsPolicyRuntime);
+    const eligibility = asRecords(runtime.eligibilityRules);
+    const enrollment = asRecords(runtime.enrollmentWindowRules);
+    const contributions = asRecords(runtime.contributionRules);
+    const carriers = asRecords(runtime.carrierExportRules);
+    facts.push(['Eligibility rules', eligibility.length], ['Enrollment windows', enrollment.length]);
+    facts.push(['Contribution rules', contributions.length], ['Carrier exports', carriers.length]);
+    highlights.push(
+      ...eligibility.slice(0, 3).map((item) => `${recordLabel(item)} eligibility`),
+      ...enrollment.slice(0, 3).map((item) => `${recordLabel(item)} enrollment window`),
+      ...contributions.slice(0, 2).map((item) => `${recordLabel(item)} payroll bridge`),
+      ...carriers.slice(0, 2).map((item) => `${recordLabel(item)} carrier export`),
+    );
   }
 
   return (
@@ -1063,6 +1333,13 @@ function PolicyBusinessControls({
     const selected = policies.find((policy) => recordCode(policy) === selectedLeaveCode) ?? policies[0];
     const activeCode = selectedLeaveCode || recordCode(selected) || 'VACATION';
     const update = (changes: Record<string, unknown>) => commit({ type: 'LEAVE_RULE', code: activeCode, changes });
+    const accrualRule = firstLedgerRecord(selected?.accrualRules, 'MONTHLY_ACCRUAL', 'Monthly accrual');
+    const carryoverRule = firstLedgerRecord(selected?.carryoverRules, 'CARRYOVER_EXPIRY', 'Carryover expiry');
+    const blackoutRule = firstLedgerRecord(selected?.blackoutRules, 'BLACKOUT_WINDOW', 'Blackout window');
+    const documentRule = firstLedgerRecord(selected?.documentRules, 'DOCUMENT_THRESHOLD', 'Document threshold');
+    const updateLeaveLedger = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => (
+      update({ [key]: upsertFirstLedgerRecord(selected?.[key], fallbackCode, fallbackLabel, changes) })
+    );
     return (
       <Card>
         <CardHeader>
@@ -1099,6 +1376,16 @@ function PolicyBusinessControls({
             <GuidedToggle label="Deducts balance" checked={booleanField(selected, 'deductFromBalance', true)} onChange={(checked) => update({ deductFromBalance: checked })} />
             <GuidedToggle label="Paid" checked={booleanField(selected, 'paid', true)} onChange={(checked) => update({ paid: checked })} />
           </div>
+          <div className="lg:col-span-4 grid gap-3 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4 md:grid-cols-4">
+            <GuidedInput label="Accrual rule code" value={recordCode(accrualRule) || 'MONTHLY_ACCRUAL'} onChange={(value) => updateLeaveLedger('accrualRules', 'MONTHLY_ACCRUAL', 'Monthly accrual', { code: value })} />
+            <GuidedInput label="Accrual days/month" type="number" value={numberField(accrualRule, 'accrualDaysPerMonth', 1.75)} onChange={(value) => updateLeaveLedger('accrualRules', 'MONTHLY_ACCRUAL', 'Monthly accrual', { accrualDaysPerMonth: optionalNumber(value), retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Carryover max days" type="number" value={numberField(carryoverRule, 'carryoverMaxDays', 5)} onChange={(value) => updateLeaveLedger('carryoverRules', 'CARRYOVER_EXPIRY', 'Carryover expiry', { carryoverMaxDays: optionalNumber(value), retroBehavior: 'FUTURE_ONLY' })} />
+            <GuidedInput label="Carryover expiry months" type="number" value={numberField(carryoverRule, 'expiresAfterMonths', 3)} onChange={(value) => updateLeaveLedger('carryoverRules', 'CARRYOVER_EXPIRY', 'Carryover expiry', { expiresAfterMonths: optionalNumber(value) })} />
+            <GuidedInput label="Blackout dates CSV" value={stringArrayField(blackoutRule, 'dates').join(', ')} onChange={(value) => updateLeaveLedger('blackoutRules', 'BLACKOUT_WINDOW', 'Blackout window', { dates: splitCsv(value), retroBehavior: 'BLOCK_RETROACTIVE' })} />
+            <GuidedInput label="Document rule code" value={recordCode(documentRule) || 'DOCUMENT_THRESHOLD'} onChange={(value) => updateLeaveLedger('documentRules', 'DOCUMENT_THRESHOLD', 'Document threshold', { code: value })} />
+            <GuidedInput label="Document after days" type="number" value={numberField(documentRule, 'thresholdDays', numberField(selected, 'requiresDocumentAfter'))} onChange={(value) => updateLeaveLedger('documentRules', 'DOCUMENT_THRESHOLD', 'Document threshold', { thresholdDays: optionalNumber(value), retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Retro behavior" value={stringField(accrualRule, 'retroBehavior', 'REVALIDATE_PENDING')} onChange={(value) => updateLeaveLedger('accrualRules', 'MONTHLY_ACCRUAL', 'Monthly accrual', { retroBehavior: value })} />
+          </div>
         </BusinessControlBody>
       </Card>
     );
@@ -1108,6 +1395,15 @@ function PolicyBusinessControls({
     const attendance = asRecord(draft.attendancePolicy);
     const hasLegacyRadiusOnly = typeof attendance.geofenceRadiusMeters === 'number' && typeof attendance.allowedRadiusMeters !== 'number';
     const update = (changes: Record<string, unknown>) => commit({ type: 'ATTENDANCE_RULE', changes });
+    const geofenceLedger = firstLedgerRecord(attendance.ruleLedger, 'MOBILE_GEOFENCE_REQUIRED', 'Mobile geofence required');
+    const scheduleRule = firstLedgerRecord(attendance.scheduleRules, 'STANDARD_SCHEDULE', 'Standard schedule rule');
+    const exceptionRule = firstLedgerRecord(attendance.exceptionRules, 'MISSED_PUNCH_EXCEPTION', 'Missed punch exception');
+    const correctionRule = firstLedgerRecord(attendance.correctionRules, 'MANAGER_CORRECTION_APPROVAL', 'Manager correction approval');
+    const coverageRule = firstLedgerRecord(attendance.rosterCoverageRules, 'MINIMUM_COVERAGE', 'Minimum roster coverage');
+    const payrollBridgeRule = firstLedgerRecord(attendance.payrollBridgeRules, 'LATE_TO_PAYROLL', 'Late minutes payroll bridge');
+    const updateAttendanceLedger = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => (
+      update({ [key]: upsertFirstLedgerRecord(attendance[key], fallbackCode, fallbackLabel, changes) })
+    );
     return (
       <Card>
         <CardHeader>
@@ -1137,6 +1433,16 @@ function PolicyBusinessControls({
               </Button>
             </div>
           ) : null}
+          <div className="lg:col-span-4 grid gap-3 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4 md:grid-cols-4">
+            <GuidedInput label="Geofence ledger code" value={recordCode(geofenceLedger) || 'MOBILE_GEOFENCE_REQUIRED'} onChange={(value) => updateAttendanceLedger('ruleLedger', 'MOBILE_GEOFENCE_REQUIRED', 'Mobile geofence required', { code: value })} />
+            <GuidedInput label="Device trust action" value={stringField(geofenceLedger, 'deviceTrustAction', 'BLOCK_LOW_TRUST')} onChange={(value) => updateAttendanceLedger('ruleLedger', 'MOBILE_GEOFENCE_REQUIRED', 'Mobile geofence required', { deviceTrustAction: value, retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Schedule rule code" value={recordCode(scheduleRule) || 'STANDARD_SCHEDULE'} onChange={(value) => updateAttendanceLedger('scheduleRules', 'STANDARD_SCHEDULE', 'Standard schedule rule', { code: value })} />
+            <GuidedInput label="Fatigue max hours" type="number" value={numberField(scheduleRule, 'maxHoursPerDay', 12)} onChange={(value) => updateAttendanceLedger('scheduleRules', 'STANDARD_SCHEDULE', 'Standard schedule rule', { maxHoursPerDay: optionalNumber(value), retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Exception rule code" value={recordCode(exceptionRule) || 'MISSED_PUNCH_EXCEPTION'} onChange={(value) => updateAttendanceLedger('exceptionRules', 'MISSED_PUNCH_EXCEPTION', 'Missed punch exception', { code: value })} />
+            <GuidedInput label="Correction workflow" value={stringField(correctionRule, 'approvalWorkflow', 'MANAGER_THEN_HR')} onChange={(value) => updateAttendanceLedger('correctionRules', 'MANAGER_CORRECTION_APPROVAL', 'Manager correction approval', { approvalWorkflow: value, retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Minimum coverage" type="number" value={numberField(coverageRule, 'minimumPeople', 2)} onChange={(value) => updateAttendanceLedger('rosterCoverageRules', 'MINIMUM_COVERAGE', 'Minimum roster coverage', { minimumPeople: optionalNumber(value), retroBehavior: 'FUTURE_ONLY' })} />
+            <GuidedInput label="Payroll bridge deduction" value={stringField(payrollBridgeRule, 'deductionCode', 'LATE_DEDUCTION_LEDGER')} onChange={(value) => updateAttendanceLedger('payrollBridgeRules', 'LATE_TO_PAYROLL', 'Late minutes payroll bridge', { deductionCode: value, retroBehavior: 'ADJUSTMENT_QUEUE' })} />
+          </div>
         </BusinessControlBody>
       </Card>
     );
@@ -1165,6 +1471,44 @@ function PolicyBusinessControls({
     const updateEarning = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_EARNING_POLICY', code: earningCode, changes });
     const updateDeduction = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_DEDUCTION_POLICY', code: deductionCode, changes });
     const updateBlocker = (changes: Record<string, unknown>) => commit({ type: 'PAYROLL_BLOCKER', code: blockerCode, changes });
+    const earningType = stringField(earning, 'type', 'FIXED_AMOUNT');
+    const deductionType = stringField(deduction, 'type', 'PER_MINUTE');
+    const earningLedger = asRecord(earning?.logicLedger);
+    const deductionLedger = asRecord(deduction?.logicLedger);
+    const earningPosting = asRecord(earningLedger.posting);
+    const deductionPosting = asRecord(deductionLedger.posting);
+    const earningScope = asRecord(earning?.scope);
+    const deductionScope = asRecord(deduction?.scope);
+    const logicSources = ['ATTENDANCE_LEDGER', 'LEAVE_LEDGER', 'PAYROLL_LEDGER', 'BENEFITS_LEDGER', 'LOAN_LEDGER', 'MANUAL_INPUT'];
+    const logicBases = ['FIXED_AMOUNT', 'BASE_GROSS', 'GROSS_SALARY', 'TAXABLE_BASE', 'NET_BEFORE_DEDUCTION', 'HOURLY_RATE', 'ATTENDANCE_LATE_MINUTES', 'ATTENDANCE_UNDERTIME_MINUTES', 'ATTENDANCE_OVERTIME_MINUTES', 'ATTENDANCE_OVERTIME_HOURS', 'ATTENDANCE_ABSENCE_DAYS', 'ATTENDANCE_PAYABLE_MINUTES', 'ATTENDANCE_WORKED_MINUTES', 'ATTENDANCE_GEOFENCE_VIOLATIONS'];
+    const logicMethods = ['FIXED_AMOUNT', 'PERCENT_OF_BASE', 'PER_UNIT', 'BRACKET'];
+    const retroBehaviors = ['FUTURE_ONLY', 'REVALIDATE_PENDING', 'ADJUSTMENT_QUEUE', 'RECALCULATE_OPEN_PERIODS', 'BLOCK_RETROACTIVE'];
+    const updateEarningLedger = (changes: Record<string, unknown>) => updateEarning({
+      type: 'LOGIC_LEDGER',
+      logicLedger: {
+        code: stringField(earningLedger, 'code', `${earningCode}_LEDGER`),
+        source: stringField(earningLedger, 'source', 'ATTENDANCE_LEDGER'),
+        base: stringField(earningLedger, 'base', 'ATTENDANCE_OVERTIME_HOURS'),
+        method: stringField(earningLedger, 'method', 'PER_UNIT'),
+        ...earningLedger,
+        ...changes,
+      },
+    });
+    const updateDeductionLedger = (changes: Record<string, unknown>) => updateDeduction({
+      type: 'LOGIC_LEDGER',
+      logicLedger: {
+        code: stringField(deductionLedger, 'code', `${deductionCode}_LEDGER`),
+        source: stringField(deductionLedger, 'source', 'ATTENDANCE_LEDGER'),
+        base: stringField(deductionLedger, 'base', 'ATTENDANCE_LATE_MINUTES'),
+        method: stringField(deductionLedger, 'method', 'PER_UNIT'),
+        ...deductionLedger,
+        ...changes,
+      },
+    });
+    const updateEarningPosting = (changes: Record<string, unknown>) => updateEarningLedger({ posting: { ...earningPosting, ...changes } });
+    const updateDeductionPosting = (changes: Record<string, unknown>) => updateDeductionLedger({ posting: { ...deductionPosting, ...changes } });
+    const updateEarningScope = (changes: Record<string, unknown>) => updateEarning({ scope: { ...earningScope, ...changes } });
+    const updateDeductionScope = (changes: Record<string, unknown>) => updateDeduction({ scope: { ...deductionScope, ...changes } });
     return (
       <Card>
         <CardHeader>
@@ -1246,16 +1590,58 @@ function PolicyBusinessControls({
                 <GuidedInput label="Label" value={stringField(earning, 'label', 'Transport allowance')} onChange={(value) => updateEarning({ label: value })} />
                 <div className="space-y-1.5">
                   <Label>Type</Label>
-                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(earning, 'type', 'FIXED_AMOUNT')} onChange={(event) => updateEarning({ type: event.target.value })}>
-                    {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_BASE'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={earningType} onChange={(event) => updateEarning({ type: event.target.value })}>
+                    {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_BASE', 'LOGIC_LEDGER'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
                   </select>
                 </div>
-                <GuidedInput label="Amount / rate" type="number" value={numberField(earning, 'amount')} onChange={(value) => updateEarning({ amount: optionalNumber(value) })} />
+                {earningType === 'PERCENT_OF_BASE'
+                  ? <GuidedInput label="Rate %" type="number" value={numberField(earning, 'ratePercent')} onChange={(value) => updateEarning({ ratePercent: optionalNumber(value) })} />
+                  : <GuidedInput label="Amount" type="number" value={numberField(earning, 'amount')} onChange={(value) => updateEarning({ amount: optionalNumber(value) })} />}
                 <GuidedInput label="Attendance event" value={stringField(earning, 'attendanceEvent')} onChange={(value) => updateEarning({ attendanceEvent: value })} />
                 <GuidedToggle label="Active" checked={booleanField(earning, 'active', true)} onChange={(checked) => updateEarning({ active: checked })} />
                 <GuidedToggle label="Taxable" checked={booleanField(earning, 'taxable', true)} onChange={(checked) => updateEarning({ taxable: checked })} />
                 <GuidedToggle label="Insurable" checked={booleanField(earning, 'insurable', true)} onChange={(checked) => updateEarning({ insurable: checked })} />
                 <GuidedToggle label="Recurring" checked={booleanField(earning, 'recurring', true)} onChange={(checked) => updateEarning({ recurring: checked })} />
+                <div className="md:col-span-2 rounded-lg border border-[#dbeafe] bg-[#eff6ff] p-3">
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold text-[#0f172a]">Logic Ledger</p>
+                    <p className="text-xs text-[#475569]">Use this for entity/country scoped calculations driven by attendance, leave, payroll, benefit, loan, or manual ledgers.</p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <GuidedInput label="Ledger rule code" value={stringField(earningLedger, 'code', `${earningCode}_LEDGER`)} onChange={(value) => updateEarningLedger({ code: value })} />
+                    <div className="space-y-1.5">
+                      <Label>Ledger source</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(earningLedger, 'source', 'ATTENDANCE_LEDGER')} onChange={(event) => updateEarningLedger({ source: event.target.value })}>
+                        {logicSources.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Calculation base</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(earningLedger, 'base', 'ATTENDANCE_OVERTIME_HOURS')} onChange={(event) => updateEarningLedger({ base: event.target.value })}>
+                        {logicBases.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Method</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(earningLedger, 'method', 'PER_UNIT')} onChange={(event) => updateEarningLedger({ method: event.target.value })}>
+                        {logicMethods.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <GuidedInput label="Amount per unit" type="number" value={numberField(earningLedger, 'amount')} onChange={(value) => updateEarningLedger({ amount: optionalNumber(value) })} />
+                    <GuidedInput label="Rate %" type="number" value={numberField(earningLedger, 'ratePercent')} onChange={(value) => updateEarningLedger({ ratePercent: optionalNumber(value) })} />
+                    <GuidedInput label="Monthly cap" type="number" value={numberField(earningLedger, 'monthlyCap')} onChange={(value) => updateEarningLedger({ monthlyCap: optionalNumber(value) })} />
+                    <GuidedInput label="GL account" value={stringField(earningPosting, 'glAccount')} onChange={(value) => updateEarningPosting({ glAccount: value })} />
+                    <GuidedInput label="Payslip line type" value={stringField(earningPosting, 'payslipLineType', 'EARNING')} onChange={(value) => updateEarningPosting({ payslipLineType: value })} />
+                    <div className="space-y-1.5">
+                      <Label>Retro behavior</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(earningLedger, 'retroBehavior', 'FUTURE_ONLY')} onChange={(event) => updateEarningLedger({ retroBehavior: event.target.value })}>
+                        {retroBehaviors.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <GuidedInput label="Entity scope" value={stringArrayField(earningScope, 'legalEntityIds').join(', ')} onChange={(value) => updateEarningScope({ legalEntityIds: splitCsv(value) })} />
+                    <GuidedInput label="Country scope" value={stringArrayField(earningScope, 'countryCodes').join(', ')} onChange={(value) => updateEarningScope({ countryCodes: splitCsv(value) })} />
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1275,11 +1661,13 @@ function PolicyBusinessControls({
                 <GuidedInput label="Label" value={stringField(deduction, 'label', 'Late arrival deduction')} onChange={(value) => updateDeduction({ label: value })} />
                 <div className="space-y-1.5">
                   <Label>Type</Label>
-                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={stringField(deduction, 'type', 'PER_MINUTE')} onChange={(event) => updateDeduction({ type: event.target.value })}>
-                    {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_BASE'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                  <select className="h-10 w-full rounded-lg border border-[#e2e8f0] bg-white px-3 text-sm" value={deductionType} onChange={(event) => updateDeduction({ type: event.target.value })}>
+                    {['FIXED_AMOUNT', 'PER_MINUTE', 'PERCENT_OF_GROSS', 'LOGIC_LEDGER'].map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
                   </select>
                 </div>
-                <GuidedInput label="Amount / rate" type="number" value={numberField(deduction, 'amount')} onChange={(value) => updateDeduction({ amount: optionalNumber(value) })} />
+                {deductionType === 'PERCENT_OF_GROSS'
+                  ? <GuidedInput label="Rate %" type="number" value={numberField(deduction, 'ratePercent')} onChange={(value) => updateDeduction({ ratePercent: optionalNumber(value) })} />
+                  : <GuidedInput label="Amount" type="number" value={numberField(deduction, 'amount')} onChange={(value) => updateDeduction({ amount: optionalNumber(value) })} />}
                 <GuidedInput label="Attendance event" value={stringField(deduction, 'attendanceEvent')} onChange={(value) => updateDeduction({ attendanceEvent: value })} />
                 <div className="space-y-1.5">
                   <Label>Timing</Label>
@@ -1288,6 +1676,49 @@ function PolicyBusinessControls({
                   </select>
                 </div>
                 <GuidedToggle label="Active" checked={booleanField(deduction, 'active', true)} onChange={(checked) => updateDeduction({ active: checked })} />
+                <div className="md:col-span-2 rounded-lg border border-[#fee2e2] bg-[#fff7ed] p-3">
+                  <div className="mb-3">
+                    <p className="text-sm font-semibold text-[#0f172a]">Deduction Logic Ledger</p>
+                    <p className="text-xs text-[#475569]">Control late, absence, geofence, loan, statutory, and custom deductions with caps, minimum-net protection, GL posting, and retro behavior.</p>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <GuidedInput label="Ledger rule code" value={stringField(deductionLedger, 'code', `${deductionCode}_LEDGER`)} onChange={(value) => updateDeductionLedger({ code: value })} />
+                    <div className="space-y-1.5">
+                      <Label>Ledger source</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(deductionLedger, 'source', 'ATTENDANCE_LEDGER')} onChange={(event) => updateDeductionLedger({ source: event.target.value })}>
+                        {logicSources.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Calculation base</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(deductionLedger, 'base', 'ATTENDANCE_LATE_MINUTES')} onChange={(event) => updateDeductionLedger({ base: event.target.value })}>
+                        {logicBases.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Method</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(deductionLedger, 'method', 'PER_UNIT')} onChange={(event) => updateDeductionLedger({ method: event.target.value })}>
+                        {logicMethods.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <GuidedInput label="Amount per unit" type="number" value={numberField(deductionLedger, 'amount')} onChange={(value) => updateDeductionLedger({ amount: optionalNumber(value) })} />
+                    <GuidedInput label="Rate %" type="number" value={numberField(deductionLedger, 'ratePercent')} onChange={(value) => updateDeductionLedger({ ratePercent: optionalNumber(value) })} />
+                    <GuidedInput label="Monthly cap" type="number" value={numberField(deductionLedger, 'monthlyCap')} onChange={(value) => updateDeductionLedger({ monthlyCap: optionalNumber(value) })} />
+                    <GuidedInput label="Minimum net pay" type="number" value={numberField(deductionLedger, 'minimumNetPay')} onChange={(value) => updateDeductionLedger({ minimumNetPay: optionalNumber(value) })} />
+                    <GuidedInput label="GL account" value={stringField(deductionPosting, 'glAccount')} onChange={(value) => updateDeductionPosting({ glAccount: value })} />
+                    <GuidedInput label="Payslip line type" value={stringField(deductionPosting, 'payslipLineType', 'DEDUCTION')} onChange={(value) => updateDeductionPosting({ payslipLineType: value })} />
+                    <div className="space-y-1.5">
+                      <Label>Retro behavior</Label>
+                      <select className="h-10 w-full rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm" value={stringField(deductionLedger, 'retroBehavior', 'ADJUSTMENT_QUEUE')} onChange={(event) => updateDeductionLedger({ retroBehavior: event.target.value })}>
+                        {retroBehaviors.map((value) => <option key={value} value={value}>{formatEnum(value)}</option>)}
+                      </select>
+                    </div>
+                    <GuidedInput label="Entity scope" value={stringArrayField(deductionScope, 'legalEntityIds').join(', ')} onChange={(value) => updateDeductionScope({ legalEntityIds: splitCsv(value) })} />
+                    <GuidedInput label="Country scope" value={stringArrayField(deductionScope, 'countryCodes').join(', ')} onChange={(value) => updateDeductionScope({ countryCodes: splitCsv(value) })} />
+                    <GuidedInput label="Department scope" value={stringArrayField(deductionScope, 'departmentIds').join(', ')} onChange={(value) => updateDeductionScope({ departmentIds: splitCsv(value) })} />
+                    <GuidedInput label="Worker scope" value={stringArrayField(deductionScope, 'workerIds').join(', ')} onChange={(value) => updateDeductionScope({ workerIds: splitCsv(value) })} />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1328,8 +1759,18 @@ function PolicyBusinessControls({
     const fieldOverrides = asRecords(governance.fieldAccessOverrides);
     const actionOverride = actionOverrides.find((item) => stringField(item, 'id') === selectedActionOverride) ?? actionOverrides[0];
     const fieldOverride = fieldOverrides.find((item) => stringField(item, 'id') === selectedFieldOverride) ?? fieldOverrides[0];
+    const actionLedger = firstLedgerRecord(governance.actionRuleLedgers, 'SELF_SERVICE_ACTIONS', 'Self-service action governance');
+    const sodRule = firstLedgerRecord(governance.sodRules, 'NO_CREATE_AND_APPROVE_POLICY', 'Separate maker and checker');
+    const serviceAccountRule = firstLedgerRecord(governance.serviceAccountRules, 'SERVICE_ACCOUNT_SCOPE_REVIEW', 'Service account scope review');
+    const certificationRule = firstLedgerRecord(governance.certificationRules, 'QUARTERLY_ACCESS_CERTIFICATION', 'Quarterly access certification');
     const actionId = selectedActionOverride || stringField(actionOverride, 'id') || 'leave-submit-blackout';
     const fieldId = selectedFieldOverride || stringField(fieldOverride, 'id') || 'salary-mask-employee';
+    const updateGovernanceLedger = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => commit({
+      type: 'ACCESS_GOVERNANCE_RUNTIME',
+      changes: {
+        [key]: upsertFirstLedgerRecord(governance[key], fallbackCode, fallbackLabel, changes),
+      },
+    });
     const updateAction = (changes: Record<string, unknown>) => commit({
       type: 'ACCESS_ACTION_OVERRIDE',
       override: {
@@ -1396,6 +1837,160 @@ function PolicyBusinessControls({
             </div>
             <GuidedInput label="Roles CSV" value={Array.isArray(fieldOverride?.roles) ? fieldOverride.roles.join(', ') : ''} onChange={(value) => updateField({ roles: splitCsv(value) })} />
             <div className="md:col-span-2"><GuidedToggle label="Field override active" checked={booleanField(fieldOverride, 'active', true)} onChange={(checked) => updateField({ active: checked })} /></div>
+          </div>
+          <div className="grid gap-3 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4 md:grid-cols-2 xl:col-span-2 xl:grid-cols-4">
+            <GuidedInput label="Action ledger code" value={recordCode(actionLedger) || 'SELF_SERVICE_ACTIONS'} onChange={(value) => updateGovernanceLedger('actionRuleLedgers', 'SELF_SERVICE_ACTIONS', 'Self-service action governance', { code: value })} />
+            <GuidedInput label="Command action" value={stringField(actionLedger, 'commandAction', 'ALLOW_SCOPED_SELF_SERVICE')} onChange={(value) => updateGovernanceLedger('actionRuleLedgers', 'SELF_SERVICE_ACTIONS', 'Self-service action governance', { commandAction: value, retroBehavior: 'FUTURE_ONLY' })} />
+            <GuidedInput label="SoD rule code" value={recordCode(sodRule) || 'NO_CREATE_AND_APPROVE_POLICY'} onChange={(value) => updateGovernanceLedger('sodRules', 'NO_CREATE_AND_APPROVE_POLICY', 'Separate maker and checker', { code: value })} />
+            <GuidedInput label="SoD decision" value={stringField(sodRule, 'decision', 'BLOCK')} onChange={(value) => updateGovernanceLedger('sodRules', 'NO_CREATE_AND_APPROVE_POLICY', 'Separate maker and checker', { decision: value, retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Service account max days" type="number" value={numberField(serviceAccountRule, 'credentialMaxAgeDays', 90)} onChange={(value) => updateGovernanceLedger('serviceAccountRules', 'SERVICE_ACCOUNT_SCOPE_REVIEW', 'Service account scope review', { credentialMaxAgeDays: optionalNumber(value), retroBehavior: 'REVALIDATE_PENDING' })} />
+            <GuidedInput label="Credential scope review" value={stringField(serviceAccountRule, 'scopeReviewFrequency', 'QUARTERLY')} onChange={(value) => updateGovernanceLedger('serviceAccountRules', 'SERVICE_ACCOUNT_SCOPE_REVIEW', 'Service account scope review', { scopeReviewFrequency: value })} />
+            <GuidedInput label="Certification frequency" value={stringField(certificationRule, 'frequency', 'QUARTERLY')} onChange={(value) => updateGovernanceLedger('certificationRules', 'QUARTERLY_ACCESS_CERTIFICATION', 'Quarterly access certification', { frequency: value })} />
+            <GuidedInput label="Escalation days" type="number" value={numberField(certificationRule, 'escalateAfterDays', 7)} onChange={(value) => updateGovernanceLedger('certificationRules', 'QUARTERLY_ACCESS_CERTIFICATION', 'Quarterly access certification', { escalateAfterDays: optionalNumber(value) })} />
+          </div>
+        </BusinessControlBody>
+      </Card>
+    );
+  }
+
+  if (revision.area === 'BENEFITS') {
+    const runtime = asRecord(draft.benefitsPolicyRuntime);
+    const updateRuntime = (changes: Record<string, unknown>) => commit({ type: 'BENEFITS_RUNTIME', changes });
+    const updateRule = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => {
+      const rows = asRecords(runtime[key]);
+      const selected = rows[0] ?? { code: fallbackCode, label: fallbackLabel, active: true, outcomes: [] };
+      const next = rows.length > 0
+        ? rows.map((row, index) => index === 0 ? { ...selected, ...changes } : row)
+        : [{ ...selected, ...changes }];
+      updateRuntime({ [key]: next });
+    };
+    const firstRule = (key: string, fallbackCode: string, fallbackLabel: string) => (
+      asRecords(runtime[key])[0] ?? { code: fallbackCode, label: fallbackLabel, active: true, outcomes: [] }
+    );
+    const eligibility = firstRule('eligibilityRules', 'MEDICAL_FULL_TIME', 'Medical plan full-time eligibility');
+    const enrollment = firstRule('enrollmentWindowRules', 'NEW_HIRE_30_DAYS', 'New hire enrollment window');
+    const lifeEvent = firstRule('lifeEventRules', 'LIFE_EVENT_31_DAYS', 'Life event change window');
+    const dependent = firstRule('dependentRules', 'DEPENDENT_EVIDENCE_REQUIRED', 'Dependent evidence requirement');
+    const contribution = firstRule('contributionRules', 'MEDICAL_CONTRIBUTION_SPLIT', 'Medical contribution split');
+    const carrierExport = firstRule('carrierExportRules', 'CARRIER_EXPORT_APPROVED_ONLY', 'Carrier export approved enrollments');
+    const evidence = firstRule('evidenceRules', 'BENEFITS_EVIDENCE_REQUIRED', 'Benefits evidence rule');
+    const contributionLedger = asRecord(contribution.logicLedger);
+    const enrollmentLedger = asRecord(enrollment.logicLedger);
+    const lifeEventLedger = asRecord(lifeEvent.logicLedger);
+    const updateEligibility = (changes: Record<string, unknown>) => updateRule('eligibilityRules', 'MEDICAL_FULL_TIME', 'Medical plan full-time eligibility', changes);
+    const updateEnrollment = (changes: Record<string, unknown>) => updateRule('enrollmentWindowRules', 'NEW_HIRE_30_DAYS', 'New hire enrollment window', changes);
+    const updateLifeEvent = (changes: Record<string, unknown>) => updateRule('lifeEventRules', 'LIFE_EVENT_31_DAYS', 'Life event change window', changes);
+    const updateDependent = (changes: Record<string, unknown>) => updateRule('dependentRules', 'DEPENDENT_EVIDENCE_REQUIRED', 'Dependent evidence requirement', changes);
+    const updateContribution = (changes: Record<string, unknown>) => updateRule('contributionRules', 'MEDICAL_CONTRIBUTION_SPLIT', 'Medical contribution split', changes);
+    const updateCarrierExport = (changes: Record<string, unknown>) => updateRule('carrierExportRules', 'CARRIER_EXPORT_APPROVED_ONLY', 'Carrier export approved enrollments', changes);
+    const updateEvidence = (changes: Record<string, unknown>) => updateRule('evidenceRules', 'BENEFITS_EVIDENCE_REQUIRED', 'Benefits evidence rule', changes);
+    const updateContributionLedger = (changes: Record<string, unknown>) => updateContribution({
+      logicLedger: {
+        code: stringField(contributionLedger, 'code', 'MEDICAL_CONTRIBUTION_LEDGER'),
+        source: stringField(contributionLedger, 'source', 'BENEFITS_LEDGER'),
+        condition: stringField(contributionLedger, 'condition', 'APPROVED_ENROLLMENT'),
+        outcome: stringField(contributionLedger, 'outcome', 'CREATE_PAYROLL_BRIDGE'),
+        ...contributionLedger,
+        ...changes,
+      },
+    });
+    const updateEnrollmentLedger = (changes: Record<string, unknown>) => updateEnrollment({
+      logicLedger: {
+        code: stringField(enrollmentLedger, 'code', 'NEW_HIRE_WAITING_PERIOD_LEDGER'),
+        source: stringField(enrollmentLedger, 'source', 'BENEFITS_LEDGER'),
+        condition: stringField(enrollmentLedger, 'condition', 'NEW_HIRE'),
+        outcome: stringField(enrollmentLedger, 'outcome', 'ALLOW_ENROLLMENT'),
+        ...enrollmentLedger,
+        ...changes,
+      },
+    });
+    const updateLifeEventLedger = (changes: Record<string, unknown>) => updateLifeEvent({
+      logicLedger: {
+        code: stringField(lifeEventLedger, 'code', 'LIFE_EVENT_WINDOW_LEDGER'),
+        source: stringField(lifeEventLedger, 'source', 'BENEFITS_LEDGER'),
+        condition: stringField(lifeEventLedger, 'condition', 'QUALIFYING_LIFE_EVENT'),
+        outcome: stringField(lifeEventLedger, 'outcome', 'ALLOW_COVERAGE_CHANGE'),
+        ...lifeEventLedger,
+        ...changes,
+      },
+    });
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Benefits Policy Controls</CardTitle>
+          <CardDescription>Eligibility, enrollment windows, life events, dependent evidence, carrier export, contribution split, and payroll deduction bridge.</CardDescription>
+        </CardHeader>
+        <BusinessControlBody editable={editable} className="space-y-5">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+              <div className="mb-3 flex flex-col gap-1">
+                <p className="font-semibold text-[#0f172a]">Eligibility And Enrollment Window</p>
+                <p className="text-sm text-[#475569]">Controls who can enroll, waiting periods, enrollment close dates, and revalidation behavior.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <GuidedInput label="Eligibility rule code" value={recordCode(eligibility) || 'MEDICAL_FULL_TIME'} onChange={(value) => updateEligibility({ code: value })} />
+                <GuidedInput label="Eligibility label" value={recordLabel(eligibility) || 'Medical plan full-time eligibility'} onChange={(value) => updateEligibility({ label: value })} />
+                <GuidedInput label="Employee types CSV" value={stringArrayField(eligibility, 'employeeTypes').join(', ')} onChange={(value) => updateEligibility({ employeeTypes: splitCsv(value) })} />
+                <GuidedInput label="Plan codes CSV" value={stringArrayField(eligibility, 'planCodes').join(', ')} onChange={(value) => updateEligibility({ planCodes: splitCsv(value) })} />
+                <GuidedInput label="Waiting period days" type="number" value={numberField(enrollmentLedger, 'waitingPeriodDays', numberField(enrollment, 'waitingPeriodDays', 30))} onChange={(value) => updateEnrollmentLedger({ waitingPeriodDays: optionalNumber(value) })} />
+                <GuidedInput label="Enrollment window days" type="number" value={numberField(enrollment, 'enrollmentWindowDays', 30)} onChange={(value) => updateEnrollment({ enrollmentWindowDays: optionalNumber(value) })} />
+                <GuidedToggle label="Eligibility active" checked={booleanField(eligibility, 'active', true)} onChange={(checked) => updateEligibility({ active: checked })} />
+                <GuidedToggle label="Enrollment active" checked={booleanField(enrollment, 'active', true)} onChange={(checked) => updateEnrollment({ active: checked })} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+              <div className="mb-3 flex flex-col gap-1">
+                <p className="font-semibold text-[#0f172a]">Life Events And Dependents</p>
+                <p className="text-sm text-[#475569]">Controls qualifying life events, dependent eligibility, evidence requirements, and approval routing.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <GuidedInput label="Life event code" value={recordCode(lifeEvent) || 'LIFE_EVENT_31_DAYS'} onChange={(value) => updateLifeEvent({ code: value })} />
+                <GuidedInput label="Life event window days" type="number" value={numberField(lifeEventLedger, 'windowDays', numberField(lifeEvent, 'windowDays', 31))} onChange={(value) => updateLifeEventLedger({ windowDays: optionalNumber(value) })} />
+                <GuidedInput label="Allowed event types CSV" value={stringArrayField(lifeEvent, 'eventTypes').join(', ')} onChange={(value) => updateLifeEvent({ eventTypes: splitCsv(value) })} />
+                <GuidedInput label="Dependent relationship CSV" value={stringArrayField(dependent, 'relationshipTypes').join(', ')} onChange={(value) => updateDependent({ relationshipTypes: splitCsv(value) })} />
+                <GuidedInput label="Evidence codes CSV" value={stringArrayField(evidence, 'documentCodes').join(', ')} onChange={(value) => updateEvidence({ documentCodes: splitCsv(value) })} />
+                <GuidedInput label="Approval workflow" value={stringField(lifeEvent, 'approvalWorkflow', 'BENEFITS_ADMIN')} onChange={(value) => updateLifeEvent({ approvalWorkflow: value })} />
+                <GuidedToggle label="Dependent evidence required" checked={booleanField(dependent, 'evidenceRequired', true)} onChange={(checked) => updateDependent({ evidenceRequired: checked })} />
+                <GuidedToggle label="Life event active" checked={booleanField(lifeEvent, 'active', true)} onChange={(checked) => updateLifeEvent({ active: checked })} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+              <div className="mb-3 flex flex-col gap-1">
+                <p className="font-semibold text-[#0f172a]">Contribution And Payroll Bridge</p>
+                <p className="text-sm text-[#475569]">Creates payroll deductions only from approved benefits enrollment and contribution rules.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <GuidedInput label="Contribution rule code" value={recordCode(contribution) || 'MEDICAL_CONTRIBUTION_SPLIT'} onChange={(value) => updateContribution({ code: value })} />
+                <GuidedInput label="Employee contribution %" type="number" value={numberField(contributionLedger, 'employeeContributionPercent', 20)} onChange={(value) => updateContributionLedger({ employeeContributionPercent: optionalNumber(value) })} />
+                <GuidedInput label="Employer contribution %" type="number" value={numberField(contributionLedger, 'employerContributionPercent', 80)} onChange={(value) => updateContributionLedger({ employerContributionPercent: optionalNumber(value) })} />
+                <GuidedInput label="Payroll deduction code" value={stringField(contributionLedger, 'payrollDeductionCode', 'MEDICAL_EMPLOYEE_SHARE')} onChange={(value) => updateContributionLedger({ payrollDeductionCode: value })} />
+                <GuidedInput label="Cost center source" value={stringField(contributionLedger, 'costCenterSource', 'WORKER_ASSIGNMENT')} onChange={(value) => updateContributionLedger({ costCenterSource: value })} />
+                <GuidedInput label="Retro behavior" value={stringField(contribution, 'retroBehavior', 'ADJUSTMENT_QUEUE')} onChange={(value) => updateContribution({ retroBehavior: value })} />
+                <GuidedToggle label="Contribution active" checked={booleanField(contribution, 'active', true)} onChange={(checked) => updateContribution({ active: checked })} />
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+              <div className="mb-3 flex flex-col gap-1">
+                <p className="font-semibold text-[#0f172a]">Carrier Export And Evidence</p>
+                <p className="text-sm text-[#475569]">Controls carrier file eligibility, reconciliation, privacy level, and export evidence.</p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <GuidedInput label="Carrier export code" value={recordCode(carrierExport) || 'CARRIER_EXPORT_APPROVED_ONLY'} onChange={(value) => updateCarrierExport({ code: value })} />
+                <GuidedInput label="Carrier ID" value={stringField(carrierExport, 'carrierId', 'DEFAULT_CARRIER')} onChange={(value) => updateCarrierExport({ carrierId: value })} />
+                <GuidedInput label="File format" value={stringField(carrierExport, 'fileFormat', 'CSV')} onChange={(value) => updateCarrierExport({ fileFormat: value })} />
+                <GuidedInput label="Privacy level" value={stringField(carrierExport, 'privacyLevel', 'CONFIDENTIAL')} onChange={(value) => updateCarrierExport({ privacyLevel: value })} />
+                <GuidedInput label="Reconcile within days" type="number" value={numberField(carrierExport, 'reconcileWithinDays', 3)} onChange={(value) => updateCarrierExport({ reconcileWithinDays: optionalNumber(value) })} />
+                <GuidedInput label="Evidence retention class" value={stringField(evidence, 'retentionClass', 'BENEFITS_EVIDENCE')} onChange={(value) => updateEvidence({ retentionClass: value })} />
+                <GuidedToggle label="Carrier export active" checked={booleanField(carrierExport, 'active', true)} onChange={(checked) => updateCarrierExport({ active: checked })} />
+                <GuidedToggle label="Evidence active" checked={booleanField(evidence, 'active', true)} onChange={(checked) => updateEvidence({ active: checked })} />
+              </div>
+            </div>
           </div>
         </BusinessControlBody>
       </Card>
@@ -1468,6 +2063,17 @@ function PolicyBusinessControls({
   }
 
   const complianceRuntime = asRecord(draft.compliancePolicyRuntime);
+  const acknowledgementRule = firstLedgerRecord(complianceRuntime.acknowledgementRules, 'EMPLOYEE_ACK_REQUIRED', 'Employee acknowledgement required');
+  const escalationRule = firstLedgerRecord(complianceRuntime.escalationRules, 'OVERDUE_ACK_ESCALATION', 'Overdue acknowledgement escalation');
+  const retentionRule = firstLedgerRecord(complianceRuntime.retentionRules, 'RETENTION_CLASS_RULE', 'Retention class rule');
+  const legalHoldRule = firstLedgerRecord(complianceRuntime.legalHoldRules, 'LEGAL_HOLD_PROTECTS_EXPORT', 'Legal hold export protection');
+  const evidenceExportRule = firstLedgerRecord(complianceRuntime.evidenceExportRules, 'EVIDENCE_EXPORT_PACK', 'Evidence export pack');
+  const updateComplianceRule = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => commit({
+    type: 'COMPLIANCE_RUNTIME',
+    changes: {
+      [key]: upsertFirstLedgerRecord(complianceRuntime[key], fallbackCode, fallbackLabel, changes),
+    },
+  });
   return (
     <Card>
       <CardHeader>
@@ -1479,6 +2085,16 @@ function PolicyBusinessControls({
         <GuidedInput label="Retention class" value={stringField(complianceRuntime, 'retentionClass', 'EXTENDED')} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { retentionClass: value } })} />
         <GuidedInput label="Acknowledgement due days" type="number" value={numberField(complianceRuntime, 'acknowledgementDueDays', 7)} onChange={(value) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementDueDays: optionalNumber(value) } })} />
         <GuidedToggle label="Employee acknowledgement required" checked={booleanField(complianceRuntime, 'acknowledgementRequired', true)} onChange={(checked) => commit({ type: 'COMPLIANCE_RUNTIME', changes: { acknowledgementRequired: checked } })} />
+        <div className="lg:col-span-4 grid gap-3 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4 md:grid-cols-4">
+          <GuidedInput label="Acknowledgement rule" value={recordCode(acknowledgementRule) || 'EMPLOYEE_ACK_REQUIRED'} onChange={(value) => updateComplianceRule('acknowledgementRules', 'EMPLOYEE_ACK_REQUIRED', 'Employee acknowledgement required', { code: value })} />
+          <GuidedInput label="Audience" value={stringField(acknowledgementRule, 'audience', 'ALL_EMPLOYEES')} onChange={(value) => updateComplianceRule('acknowledgementRules', 'EMPLOYEE_ACK_REQUIRED', 'Employee acknowledgement required', { audience: value, retroBehavior: 'REVALIDATE_PENDING' })} />
+          <GuidedInput label="Escalate after days" type="number" value={numberField(escalationRule, 'escalateAfterDays', 7)} onChange={(value) => updateComplianceRule('escalationRules', 'OVERDUE_ACK_ESCALATION', 'Overdue acknowledgement escalation', { escalateAfterDays: optionalNumber(value), retroBehavior: 'REVALIDATE_PENDING' })} />
+          <GuidedInput label="Escalation target" value={stringField(escalationRule, 'targetRole', 'MANAGER')} onChange={(value) => updateComplianceRule('escalationRules', 'OVERDUE_ACK_ESCALATION', 'Overdue acknowledgement escalation', { targetRole: value })} />
+          <GuidedInput label="Retention rule" value={recordCode(retentionRule) || 'RETENTION_CLASS_RULE'} onChange={(value) => updateComplianceRule('retentionRules', 'RETENTION_CLASS_RULE', 'Retention class rule', { code: value })} />
+          <GuidedInput label="Retention years" type="number" value={numberField(retentionRule, 'retentionYears', 7)} onChange={(value) => updateComplianceRule('retentionRules', 'RETENTION_CLASS_RULE', 'Retention class rule', { retentionYears: optionalNumber(value), retroBehavior: 'FUTURE_ONLY' })} />
+          <GuidedInput label="Legal hold decision" value={stringField(legalHoldRule, 'decision', 'BLOCK_DELETE')} onChange={(value) => updateComplianceRule('legalHoldRules', 'LEGAL_HOLD_PROTECTS_EXPORT', 'Legal hold export protection', { decision: value, retroBehavior: 'BLOCK_RETROACTIVE' })} />
+          <GuidedInput label="Evidence export format" value={stringField(evidenceExportRule, 'format', 'ZIP_WITH_MANIFEST')} onChange={(value) => updateComplianceRule('evidenceExportRules', 'EVIDENCE_EXPORT_PACK', 'Evidence export pack', { format: value })} />
+        </div>
       </BusinessControlBody>
     </Card>
   );
@@ -1874,6 +2490,7 @@ export function AdminPolicies() {
             <TabsTrigger value="access">Access Governance</TabsTrigger>
             <TabsTrigger value="country">Country Policy</TabsTrigger>
             <TabsTrigger value="compliance">Compliance Policies</TabsTrigger>
+            <TabsTrigger value="benefits">Benefits</TabsTrigger>
             <TabsTrigger value="impact">Impact & Runs</TabsTrigger>
             <TabsTrigger value="audit">Audit Trail</TabsTrigger>
           </TabsList>
@@ -2003,6 +2620,9 @@ export function AdminPolicies() {
           </TabsContent>
           <TabsContent value="compliance">
             <AreaWorkspace area="COMPLIANCE" revisions={byArea.COMPLIANCE ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'COMPLIANCE' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+          </TabsContent>
+          <TabsContent value="benefits">
+            <AreaWorkspace area="BENEFITS" revisions={byArea.BENEFITS ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'BENEFITS' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
 
           <TabsContent value="impact" className="space-y-4">

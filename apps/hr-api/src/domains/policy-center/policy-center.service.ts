@@ -64,6 +64,7 @@ const AREA_NOTIFICATION_TITLES: Record<PolicyArea, string> = {
   ACCESS_GOVERNANCE: 'Access policy changed',
   COUNTRY_POLICY: 'Country policy changed',
   COMPLIANCE: 'Compliance policy changed',
+  BENEFITS: 'Benefits policy changed',
 };
 
 const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
@@ -91,6 +92,43 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
     },
   },
   {
+    area: 'LEAVE',
+    code: 'LEAVE-ACCRUAL-LEDGER',
+    title: 'Leave accrual, carryover, and approval ledger',
+    description: 'Controls leave accrual, carryover expiry, blackout windows, document thresholds, approval routing, payroll impact, and retro revalidation.',
+    recommendedScope: { employeeTypes: ['FULL_TIME'] },
+    draftConfig: {
+      leavePolicies: [{
+        code: 'ANNUAL_LEDGER',
+        label: 'Annual Leave Ledger',
+        active: true,
+        unit: 'DAYS',
+        paid: true,
+        deductFromBalance: true,
+        requestableByEmployee: true,
+        payrollImpact: 'PAID_LEAVE',
+        approvalWorkflow: 'MANAGER',
+        annualEntitlement: 21,
+        maxPerRequest: 15,
+        minNoticeDays: 2,
+        accrualRules: [{
+          code: 'MONTHLY_ACCRUAL',
+          label: 'Monthly accrual',
+          active: true,
+          outcomes: [{ action: 'CREATE_REVALIDATION', value: { accrualDaysPerMonth: 1.75 }, reason: 'Accrue annual leave monthly.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+        carryoverRules: [{
+          code: 'CARRYOVER_EXPIRY',
+          label: 'Carryover expiry',
+          active: true,
+          outcomes: [{ action: 'CREATE_NOTIFICATION', value: { carryoverMaxDays: 5, expiresAfterMonths: 3 }, reason: 'Carryover expires after the grace period.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
+      }],
+    },
+  },
+  {
     area: 'ATTENDANCE',
     code: 'ATTENDANCE-GEOFENCE-MOBILE',
     title: 'Mobile geofence attendance',
@@ -108,6 +146,37 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
     },
   },
   {
+    area: 'ATTENDANCE',
+    code: 'ATTENDANCE-RULE-LEDGER',
+    title: 'Attendance geofence, schedule, and exception ledger',
+    description: 'Controls shifts, geofence, device trust, rounding, late/early penalties, fatigue, exception correction, roster coverage, and payroll bridge rules.',
+    recommendedScope: { locationCodes: ['HQ'] },
+    draftConfig: {
+      attendancePolicy: {
+        standardDailyMinutes: 480,
+        flexibleHoursEnabled: true,
+        lateGraceMinutes: 10,
+        overtimeAfterMinutes: 480,
+        geofenceEnabled: true,
+        allowedRadiusMeters: 150,
+        ruleLedger: [{
+          code: 'MOBILE_GEOFENCE_REQUIRED',
+          label: 'Mobile geofence required',
+          active: true,
+          outcomes: [{ action: 'BLOCK', reason: 'Check-in must include valid geolocation evidence.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+        payrollBridgeRules: [{
+          code: 'LATE_TO_PAYROLL',
+          label: 'Late minutes payroll bridge',
+          active: true,
+          outcomes: [{ action: 'CREATE_PAYROLL_BRIDGE', value: { deductionCode: 'LATE_DEDUCTION_LEDGER' }, reason: 'Late minutes flow into payroll deductions.' }],
+          retroBehavior: 'ADJUSTMENT_QUEUE',
+        }],
+      },
+    },
+  },
+  {
     area: 'PAYROLL',
     code: 'PAYROLL-STATUTORY-CLOSE',
     title: 'Statutory payroll close controls',
@@ -115,22 +184,95 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
     recommendedScope: { countryCodes: ['EG'] },
     draftConfig: {
       payrollCalculationPolicy: {
-        taxMode: 'PROGRESSIVE',
-        defaultCurrency: 'EGP',
+        taxMode: 'PROGRESSIVE_BRACKETS',
         makerCheckerRequired: true,
+        taxRatePercent: 0,
+        employeeInsuranceRatePercent: 7,
+        employerInsuranceRatePercent: 12,
       },
       statutoryPayrollPacks: [{
         code: 'EG-DEFAULT',
         label: 'Egypt statutory default',
         countryCode: 'EG',
         active: true,
-        calculationPolicy: { taxMode: 'PROGRESSIVE' },
+        calculationPolicy: {
+          taxMode: 'PROGRESSIVE_BRACKETS',
+          taxRatePercent: 0,
+          employeeInsuranceRatePercent: 7,
+          employerInsuranceRatePercent: 12,
+        },
       }],
       payrollBlockingRules: [{
         code: 'BLOCK-UNRESOLVED-ATTENDANCE',
         label: 'Block unresolved attendance',
         active: true,
-        severity: 'BLOCKER',
+        condition: 'ATTENDANCE_BLOCKER',
+        severity: 'ERROR',
+        blocking: true,
+      }],
+    },
+  },
+  {
+    area: 'PAYROLL',
+    code: 'PAYROLL-DEDUCTION-LOGIC-LEDGER',
+    title: 'Scoped deduction logic ledger',
+    description: 'Tenant/entity/country scoped deduction rules with attendance ledger sources, caps, minimum-net protection, GL posting, and retro behavior.',
+    recommendedScope: { countryCodes: ['EG'], legalEntityIds: ['entity-eg'] },
+    draftConfig: {
+      deductionPolicies: [{
+        code: 'LATE_DEDUCTION_LEDGER',
+        label: 'Late arrival deduction ledger',
+        active: true,
+        type: 'LOGIC_LEDGER',
+        timing: 'POST_TAX',
+        taxable: false,
+        priority: 100,
+        logicLedger: {
+          code: 'LATE_MINUTES',
+          source: 'ATTENDANCE_LEDGER',
+          base: 'ATTENDANCE_LATE_MINUTES',
+          method: 'PER_UNIT',
+          amount: 25,
+          monthlyCap: 1500,
+          minimumNetPay: 0,
+          posting: {
+            payslipLineType: 'LATE_DEDUCTION',
+            glAccount: '2200',
+          },
+          retroBehavior: 'ADJUSTMENT_QUEUE',
+        },
+      }],
+    },
+  },
+  {
+    area: 'PAYROLL',
+    code: 'PAYROLL-EARNING-LOGIC-LEDGER',
+    title: 'Scoped earning and allowance logic ledger',
+    description: 'Tenant/entity/country scoped earning rules driven by overtime, attendance, payroll bases, taxable/insurable flags, caps, and GL posting.',
+    recommendedScope: { countryCodes: ['EG'], legalEntityIds: ['entity-eg'] },
+    draftConfig: {
+      earningPolicies: [{
+        code: 'OVERTIME_EARNING_LEDGER',
+        label: 'Overtime earning ledger',
+        active: true,
+        type: 'LOGIC_LEDGER',
+        taxable: true,
+        insurable: true,
+        recurring: false,
+        priority: 100,
+        logicLedger: {
+          code: 'OVERTIME_HOURS',
+          source: 'ATTENDANCE_LEDGER',
+          base: 'ATTENDANCE_OVERTIME_HOURS',
+          method: 'PER_UNIT',
+          amount: 125,
+          monthlyCap: 5000,
+          posting: {
+            payslipLineType: 'OVERTIME_EARNING',
+            glAccount: '6100',
+          },
+          retroBehavior: 'RECALCULATE_OPEN_PERIODS',
+        },
       }],
     },
   },
@@ -149,6 +291,33 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
     },
   },
   {
+    area: 'ACCESS_GOVERNANCE',
+    code: 'ACCESS-GOVERNANCE-LEDGER',
+    title: 'Access governance rule ledger',
+    description: 'Controls action visibility, field masking, SoD, break-glass, service accounts, certifications, and revoke fulfillment.',
+    recommendedScope: {},
+    draftConfig: {
+      policyGovernance: {
+        allowedActionOverrides: [],
+        fieldAccessOverrides: [],
+        actionRuleLedgers: [{
+          code: 'SELF_SERVICE_ACTIONS',
+          label: 'Self-service action governance',
+          active: true,
+          outcomes: [{ action: 'ALLOW', reason: 'Allow scoped employee self-service actions.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
+        sodRules: [{
+          code: 'NO_CREATE_AND_APPROVE_POLICY',
+          label: 'Separate maker and checker',
+          active: true,
+          outcomes: [{ action: 'BLOCK', reason: 'Creator cannot approve the same high-risk policy.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+      },
+    },
+  },
+  {
     area: 'COMPLIANCE',
     code: 'COMPLIANCE-ACKNOWLEDGEMENT',
     title: 'Policy acknowledgement controls',
@@ -158,6 +327,74 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
       compliancePolicyRuntime: {
         acknowledgementRequired: true,
         acknowledgementDueDays: 14,
+      },
+    },
+  },
+  {
+    area: 'COMPLIANCE',
+    code: 'COMPLIANCE-RULE-LEDGER',
+    title: 'Compliance acknowledgement and retention ledger',
+    description: 'Controls policy documents, acknowledgements, reminders, escalations, retention, legal holds, evidence export, and country packs.',
+    recommendedScope: {},
+    draftConfig: {
+      compliancePolicyRuntime: {
+        policyFamily: 'CODE_OF_CONDUCT',
+        acknowledgementRequired: true,
+        acknowledgementDueDays: 14,
+        retentionClass: 'EXTENDED',
+        acknowledgementRules: [{
+          code: 'EMPLOYEE_ACK_REQUIRED',
+          label: 'Employee acknowledgement required',
+          active: true,
+          outcomes: [{ action: 'CREATE_ACKNOWLEDGEMENT', reason: 'Employees must acknowledge published policy documents.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+        legalHoldRules: [{
+          code: 'LEGAL_HOLD_PROTECTS_EXPORT',
+          label: 'Legal hold export protection',
+          active: true,
+          outcomes: [{ action: 'BLOCK', reason: 'Records under legal hold cannot be deleted or silently changed.' }],
+          retroBehavior: 'BLOCK_RETROACTIVE',
+        }],
+      },
+    },
+  },
+  {
+    area: 'BENEFITS',
+    code: 'BENEFITS-ELIGIBILITY-LEDGER',
+    title: 'Benefits eligibility and payroll bridge ledger',
+    description: 'Controls eligibility, enrollment windows, life events, dependents, contributions, carrier export, evidence, and payroll deduction bridge.',
+    recommendedScope: { employeeTypes: ['FULL_TIME'] },
+    draftConfig: {
+      benefitsPolicyRuntime: {
+        eligibilityRules: [{
+          code: 'MEDICAL_FULL_TIME',
+          label: 'Medical plan full-time eligibility',
+          active: true,
+          outcomes: [{ action: 'ALLOW', reason: 'Full-time employees are eligible for medical coverage.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+        enrollmentWindowRules: [{
+          code: 'NEW_HIRE_30_DAYS',
+          label: 'New hire enrollment window',
+          active: true,
+          outcomes: [{ action: 'REQUIRE_APPROVAL', value: { waitingPeriodDays: 30 }, reason: 'New hires enroll after waiting period.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
+        payrollBridgeRules: [{
+          code: 'MEDICAL_EMPLOYEE_SHARE',
+          label: 'Medical employee contribution bridge',
+          active: true,
+          outcomes: [{ action: 'CREATE_PAYROLL_BRIDGE', value: { deductionCode: 'MEDICAL_EMPLOYEE_SHARE' }, reason: 'Approved medical coverage creates payroll deduction.' }],
+          retroBehavior: 'ADJUSTMENT_QUEUE',
+        }],
+        carrierExportRules: [{
+          code: 'CARRIER_EXPORT_APPROVED_ONLY',
+          label: 'Carrier export approved enrollments',
+          active: true,
+          outcomes: [{ action: 'CREATE_CARRIER_EXPORT', reason: 'Only approved enrollments are exported to carriers.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
       },
     },
   },
@@ -290,6 +527,7 @@ function extractBaselineConfig(area: PolicyArea, setup: HcmSetupConfig): Partial
     };
   }
   if (area === 'ACCESS_GOVERNANCE') return { policyGovernance: setup.policyGovernance ?? { allowedActionOverrides: [], fieldAccessOverrides: [] } };
+  if (area === 'BENEFITS') return { benefitsPolicyRuntime: setup.benefitsPolicyRuntime ?? {} };
   if (area === 'EMPLOYEE_SETUP') {
     return {
       genderOptions: setup.genderOptions,
@@ -329,6 +567,269 @@ function duplicateValues(values: string[]): string[] {
     seen.add(value);
   }
   return [...duplicates];
+}
+
+function policyRecords(value: unknown, key: string): Record<string, unknown>[] {
+  const records = asObject(value)[key];
+  return Array.isArray(records) ? records.map((record) => asObject(record)) : [];
+}
+
+function componentLedgerRules(component: Record<string, unknown>): Record<string, unknown>[] {
+  const calculationLedger = component.calculationLedger;
+  if (Array.isArray(calculationLedger)) return calculationLedger.map((rule) => asObject(rule));
+  const logicLedger = component.logicLedger;
+  return Object.keys(asObject(logicLedger)).length > 0 ? [asObject(logicLedger)] : [];
+}
+
+function validatePayrollLogicLedgerComponents(
+  draftConfig: unknown,
+  errors: string[],
+  warnings: string[],
+): void {
+  const components = [
+    ...policyRecords(draftConfig, 'earningPolicies').map((component) => ({ kind: 'earning', component })),
+    ...policyRecords(draftConfig, 'deductionPolicies').map((component) => ({ kind: 'deduction', component })),
+  ];
+
+  for (const { kind, component } of components) {
+    const code = typeof component.code === 'string' ? component.code : `${kind.toUpperCase()}_POLICY`;
+    const active = component.active !== false;
+    const type = component.type;
+    const rules = componentLedgerRules(component);
+    if (type === 'LOGIC_LEDGER' && rules.length === 0) {
+      errors.push(`${code} uses logic ledger calculation but has no ledger rule.`);
+    }
+
+    for (const rule of rules) {
+      const ruleCode = typeof rule.code === 'string' ? rule.code : `${code}_LEDGER`;
+      for (const key of ['source', 'base', 'method']) {
+        if (typeof rule[key] !== 'string' || String(rule[key]).trim().length === 0) {
+          errors.push(`${code}.${ruleCode} is missing ${key}.`);
+        }
+      }
+      const floor = typeof rule.floorAmount === 'number' ? rule.floorAmount : undefined;
+      const cap = typeof rule.monthlyCap === 'number' ? rule.monthlyCap : undefined;
+      if (floor !== undefined && cap !== undefined && cap < floor) {
+        errors.push(`${code}.${ruleCode} has a monthly cap below its floor amount.`);
+      }
+      const posting = asObject(rule.posting);
+      if (active && type === 'LOGIC_LEDGER' && typeof posting.glAccount !== 'string') {
+        warnings.push(`${code}.${ruleCode} has no GL account; payroll GL export may be blocked before close.`);
+      }
+      const retroBehavior = rule.retroBehavior;
+      if (retroBehavior === 'RECALCULATE_OPEN_PERIODS' || retroBehavior === 'ADJUSTMENT_QUEUE') {
+        warnings.push(`${code}.${ruleCode} can affect open or retroactive payroll periods and requires simulation review before apply.`);
+      }
+    }
+  }
+}
+
+function buildPayrollComponentSimulation(draftConfig: unknown): PolicyImpactSimulationResult['payrollComponentSimulation'] | undefined {
+  const earnings = policyRecords(draftConfig, 'earningPolicies').map((component) => ({ kind: 'earning', component }));
+  const deductions = policyRecords(draftConfig, 'deductionPolicies').map((component) => ({ kind: 'deduction', component }));
+  const components = [...earnings, ...deductions].filter(({ component }) => component.active !== false);
+  if (components.length === 0) return undefined;
+
+  const calculationInputs: NonNullable<PolicyImpactSimulationResult['payrollComponentSimulation']>['calculationInputs'] = [];
+  const glPostingPreview: NonNullable<PolicyImpactSimulationResult['payrollComponentSimulation']>['glPostingPreview'] = [];
+  const retroAdjustments: NonNullable<PolicyImpactSimulationResult['payrollComponentSimulation']>['retroAdjustments'] = [];
+  let estimatedGrossDelta = 0;
+  let estimatedTaxableDelta = 0;
+  let estimatedInsurableDelta = 0;
+  let estimatedEmployeeDeductionDelta = 0;
+
+  for (const { kind, component } of components) {
+    const componentCode = typeof component.code === 'string' ? component.code : `${kind.toUpperCase()}_POLICY`;
+    const rules = componentLedgerRules(component);
+    if (rules.length === 0) {
+      calculationInputs.push({
+        componentCode,
+        source: 'POLICY',
+        base: String(component.type ?? 'FIXED_AMOUNT'),
+        method: String(component.type ?? 'FIXED_AMOUNT'),
+        amount: typeof component.amount === 'number' ? component.amount : undefined,
+        ratePercent: typeof component.ratePercent === 'number' ? component.ratePercent : undefined,
+        monthlyCap: typeof component.maxAmount === 'number' ? component.maxAmount : undefined,
+      });
+      continue;
+    }
+    for (const rule of rules) {
+      const amount = typeof rule.amount === 'number' ? rule.amount : undefined;
+      const ratePercent = typeof rule.ratePercent === 'number' ? rule.ratePercent : undefined;
+      const monthlyCap = typeof rule.monthlyCap === 'number' ? rule.monthlyCap : undefined;
+      const posting = asObject(rule.posting);
+      calculationInputs.push({
+        componentCode,
+        ledgerRuleCode: typeof rule.code === 'string' ? rule.code : undefined,
+        source: typeof rule.source === 'string' ? rule.source : undefined,
+        base: typeof rule.base === 'string' ? rule.base : undefined,
+        method: typeof rule.method === 'string' ? rule.method : undefined,
+        amount,
+        ratePercent,
+        monthlyCap,
+        minimumNetPay: typeof rule.minimumNetPay === 'number' ? rule.minimumNetPay : undefined,
+      });
+      glPostingPreview.push({
+        componentCode,
+        payslipLineType: typeof posting.payslipLineType === 'string' ? posting.payslipLineType : undefined,
+        glAccount: typeof posting.glAccount === 'string' ? posting.glAccount : undefined,
+        missingPosting: typeof posting.glAccount !== 'string',
+      });
+      const retroBehavior = typeof rule.retroBehavior === 'string' ? rule.retroBehavior : undefined;
+      if (retroBehavior && retroBehavior !== 'FUTURE_ONLY') {
+        retroAdjustments.push({
+          componentCode,
+          behavior: retroBehavior,
+          action: retroBehavior === 'ADJUSTMENT_QUEUE' ? 'Create payroll adjustment queue records.' : 'Recalculate only open payroll periods after admin confirmation.',
+        });
+      }
+      const sampleDelta = monthlyCap ?? amount ?? 0;
+      if (kind === 'earning') {
+        estimatedGrossDelta += sampleDelta;
+        if (component.taxable !== false) estimatedTaxableDelta += sampleDelta;
+        if (component.insurable !== false) estimatedInsurableDelta += sampleDelta;
+      } else {
+        estimatedEmployeeDeductionDelta += sampleDelta;
+      }
+    }
+  }
+
+  return {
+    componentCodes: components.map(({ component }) => String(component.code ?? 'UNKNOWN')),
+    calculationInputs,
+    glPostingPreview,
+    retroAdjustments,
+    estimatedGrossDelta,
+    estimatedTaxableDelta,
+    estimatedInsurableDelta,
+    estimatedEmployeeDeductionDelta,
+    estimatedEmployerCostDelta: 0,
+    estimatedNetPayDelta: estimatedGrossDelta - estimatedEmployeeDeductionDelta,
+    blockedPayrollCycleIds: glPostingPreview.some((posting) => posting.missingPosting) ? ['OPEN_PAYROLL_REQUIRES_GL_REVIEW'] : [],
+  };
+}
+
+function ruleLedgersFromRecord(record: Record<string, unknown>, keys: string[]): Record<string, unknown>[] {
+  return keys.flatMap((key) => policyRecords(record, key));
+}
+
+function ruleCodes(records: Record<string, unknown>[]): string[] {
+  return records
+    .map((record) => record.code)
+    .filter((code): code is string => typeof code === 'string' && code.length > 0);
+}
+
+function outcomeValues(records: Record<string, unknown>[], action: string, field: string): string[] {
+  const values = records.flatMap((record) => {
+    const outcomes = record.outcomes;
+    if (!Array.isArray(outcomes)) return [];
+    return outcomes.map((outcome) => asObject(outcome))
+      .filter((outcome) => outcome.action === action)
+      .map((outcome) => asObject(outcome.value)[field])
+      .filter((value): value is string => typeof value === 'string' && value.length > 0);
+  });
+  return [...new Set(values)];
+}
+
+function buildWorkflowImpacts(records: Record<string, unknown>[], action: string): NonNullable<PolicyImpactSimulationResult['leavePolicySimulation']>['workflowImpacts'] {
+  return records.map((record) => ({
+    ruleCode: String(record.code ?? 'UNKNOWN_RULE'),
+    action,
+    risk: record.retroBehavior === 'BLOCK_RETROACTIVE' ? 'BLOCKED' : record.retroBehavior === 'ADJUSTMENT_QUEUE' ? 'RETROACTIVE_ADJUSTMENT_REQUIRED' : 'SAFE',
+  }));
+}
+
+function buildLeavePolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['leavePolicySimulation'] | undefined {
+  const leavePolicies = policyRecords(draftConfig, 'leavePolicies');
+  if (leavePolicies.length === 0) return undefined;
+  const ledgers = leavePolicies.flatMap((policy) => ruleLedgersFromRecord(policy, ['accrualRules', 'carryoverRules', 'blackoutRules', 'approvalRules', 'documentRules', 'encashmentRules']));
+  return {
+    ruleCodes: [...ruleCodes(leavePolicies), ...ruleCodes(ledgers)],
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'location', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Revalidate pending leave and balances.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior === 'REVALIDATE_PENDING') ? ['leave_requests', 'absence_accrual_balances'] : [],
+    accrualRuleCodes: ruleCodes(leavePolicies.flatMap((policy) => policyRecords(policy, 'accrualRules'))),
+    approvalWorkflows: [...new Set(leavePolicies.map((policy) => String(policy.approvalWorkflow ?? 'MANAGER')))],
+    payrollImpactCodes: [...new Set(leavePolicies.map((policy) => String(policy.payrollImpact ?? 'NO_PAYROLL_IMPACT')))],
+  };
+}
+
+function buildAttendancePolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['attendancePolicySimulation'] | undefined {
+  const attendance = asObject(asObject(draftConfig).attendancePolicy);
+  if (Object.keys(attendance).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(attendance, ['ruleLedger', 'scheduleRules', 'exceptionRules', 'correctionRules', 'rosterCoverageRules', 'payrollBridgeRules']);
+  return {
+    ruleCodes: ruleCodes(ledgers),
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'location', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Revalidate open attendance days and exceptions.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior !== 'FUTURE_ONLY') ? ['attendance_daily_ledgers', 'attendance_exceptions'] : [],
+    geofenceRuleCodes: attendance.geofenceEnabled ? ['GEOFENCE_RUNTIME'] : [],
+    ledgerRuleCodes: ruleCodes(ledgers),
+    payrollBridgeCodes: outcomeValues(ledgers, 'CREATE_PAYROLL_BRIDGE', 'deductionCode'),
+  };
+}
+
+function buildAccessPolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['accessPolicySimulation'] | undefined {
+  const governance = asObject(asObject(draftConfig).policyGovernance);
+  if (Object.keys(governance).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(governance, ['actionRuleLedgers', 'fieldRuleLedgers', 'roleGrantRules', 'sodRules', 'breakGlassRules', 'serviceAccountRules', 'certificationRules']);
+  return {
+    ruleCodes: ruleCodes(ledgers),
+    scopeDimensions: ['tenant', 'role', 'permission', 'serviceAccount', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Re-evaluate command authorization and access reviews.'),
+    revalidationQueues: ['access_reviews', 'service_accounts'],
+    actionOverrideIds: policyRecords(governance, 'allowedActionOverrides').map((record) => String(record.id ?? record.code ?? 'UNKNOWN')),
+    fieldOverrideIds: policyRecords(governance, 'fieldAccessOverrides').map((record) => String(record.id ?? record.code ?? 'UNKNOWN')),
+    sodRuleCodes: ruleCodes(policyRecords(governance, 'sodRules')),
+  };
+}
+
+function buildCompliancePolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['compliancePolicySimulation'] | undefined {
+  const runtime = asObject(asObject(draftConfig).compliancePolicyRuntime ?? draftConfig);
+  if (Object.keys(runtime).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(runtime, ['acknowledgementRules', 'escalationRules', 'retentionRules', 'legalHoldRules', 'evidenceExportRules', 'countryPackRules']);
+  return {
+    ruleCodes: ruleCodes(ledgers),
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Create acknowledgements, retention evidence, or legal hold queues.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior !== 'FUTURE_ONLY') ? ['policy_acknowledgements', 'legal_holds'] : [],
+    acknowledgementRules: ruleCodes(policyRecords(runtime, 'acknowledgementRules')),
+    retentionClasses: [String(runtime.retentionClass ?? 'STANDARD')],
+    legalHoldRules: ruleCodes(policyRecords(runtime, 'legalHoldRules')),
+  };
+}
+
+function benefitsWaitingPeriodDays(rule: Record<string, unknown>): number {
+  const ledger = asObject(rule.logicLedger);
+  const outcome = asObject(ledger.outcome);
+  const outcomeValue = asObject(outcome.value);
+  const value = ledger.waitingPeriodDays ?? rule.waitingPeriodDays ?? outcomeValue.waitingPeriodDays;
+  return typeof value === 'number' && Number.isFinite(value) ? value : Number(value ?? 0);
+}
+
+function buildBenefitsPolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['benefitsPolicySimulation'] | undefined {
+  const runtime = asObject(asObject(draftConfig).benefitsPolicyRuntime ?? draftConfig);
+  if (Object.keys(runtime).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(runtime, ['eligibilityRules', 'enrollmentWindowRules', 'lifeEventRules', 'dependentRules', 'contributionRules', 'carrierExportRules', 'payrollBridgeRules', 'evidenceRules']);
+  const eligibilityRules = policyRecords(runtime, 'eligibilityRules');
+  const enrollmentRules = policyRecords(runtime, 'enrollmentWindowRules');
+  const payrollBridgeRules = policyRecords(runtime, 'payrollBridgeRules');
+  const carrierRules = policyRecords(runtime, 'carrierExportRules');
+  const directPayrollBridgeCodes = ledgers
+    .map((rule) => asObject(rule.logicLedger).payrollDeductionCode)
+    .filter((code): code is string => typeof code === 'string' && code.length > 0);
+  return {
+    ruleCodes: [...ruleCodes(eligibilityRules), ...ruleCodes(enrollmentRules), ...ruleCodes(payrollBridgeRules), ...ruleCodes(carrierRules)],
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Re-evaluate benefits enrollment, life events, carrier export, and payroll contribution bridge.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior !== 'FUTURE_ONLY') ? ['benefits_enrollments', 'benefits_life_events'] : [],
+    payrollBridgeCodes: [...new Set([...ruleCodes(payrollBridgeRules), ...outcomeValues(ledgers, 'CREATE_PAYROLL_BRIDGE', 'deductionCode'), ...directPayrollBridgeCodes])],
+    enrollmentWindows: [...eligibilityRules, ...enrollmentRules].map((rule) => ({
+      ruleCode: String(rule.code ?? 'UNKNOWN_RULE'),
+      waitingPeriodDays: benefitsWaitingPeriodDays(rule),
+    })),
+    carrierExportRules: ruleCodes(carrierRules),
+  };
 }
 
 function replacementRevisionId(revision: PolicyRevisionRecord): string | undefined {
@@ -457,7 +958,10 @@ function withScope<T extends ScopedPolicy>(policy: T, scope: PolicyScope): T {
 }
 
 function withPayrollScope<T extends StatutoryPayrollPack | EarningPolicy | DeductionPolicy | PayrollBlockingRule>(policy: T, scope: PolicyScope): T {
-  const scoped = withScope(policy as ScopedPolicy, scope) as T;
+  const scoped = {
+    ...(withScope(policy as ScopedPolicy, scope) as T),
+    scope,
+  } as T;
   if ('countryCode' in scoped && nonEmpty(scope.countryCodes).length === 1) {
     return { ...scoped, countryCode: scope.countryCodes?.[0] } as T;
   }
@@ -991,8 +1495,16 @@ export class PolicyCenterService {
       }
     }
 
+    if (revision.area === 'PAYROLL') {
+      validatePayrollLogicLedgerComponents(revision.draftConfig, errors, warnings);
+    }
+
     if (revision.area === 'ACCESS_GOVERNANCE' && !asObject(revision.draftConfig).policyGovernance) {
       warnings.push('Access governance policy has no allowed-action or field-access override payload.');
+    }
+
+    if (revision.area === 'BENEFITS' && Object.keys(asObject(asObject(revision.draftConfig).benefitsPolicyRuntime ?? revision.draftConfig)).length === 0) {
+      errors.push('Benefits policy revision must include benefits eligibility, enrollment, contribution, carrier, or payroll bridge rules.');
     }
 
     return {
@@ -1019,6 +1531,14 @@ export class PolicyCenterService {
     }
     const riskSummary = impactRiskSummary(impactedRecords);
     const notificationPreview = this.buildNotificationPreview(revision, impactedRecords, impacted.workerIds);
+    const payrollComponentSimulation = revision.area === 'PAYROLL'
+      ? buildPayrollComponentSimulation(revision.draftConfig)
+      : undefined;
+    const leavePolicySimulation = revision.area === 'LEAVE' ? buildLeavePolicySimulation(revision.draftConfig) : undefined;
+    const attendancePolicySimulation = revision.area === 'ATTENDANCE' ? buildAttendancePolicySimulation(revision.draftConfig) : undefined;
+    const accessPolicySimulation = revision.area === 'ACCESS_GOVERNANCE' ? buildAccessPolicySimulation(revision.draftConfig) : undefined;
+    const compliancePolicySimulation = revision.area === 'COMPLIANCE' ? buildCompliancePolicySimulation(revision.draftConfig) : undefined;
+    const benefitsPolicySimulation = revision.area === 'BENEFITS' ? buildBenefitsPolicySimulation(revision.draftConfig) : undefined;
     const warnings: string[] = [];
     if (revision.scope.effectiveFrom && new Date(`${revision.scope.effectiveFrom}T00:00:00.000Z`).getTime() < Date.now()) {
       warnings.push('Policy is retroactive; final historical records will not be rewritten automatically.');
@@ -1037,6 +1557,12 @@ export class PolicyCenterService {
       oldDataRule: 'Approved, locked, and finalized historical records are not silently rewritten.',
       newDataRule: 'New transactions use the applied policy active on the transaction date.',
       retroactiveRule: 'Retroactive policy effects create adjustment records or exception queues through explicit admin action.',
+      payrollComponentSimulation,
+      leavePolicySimulation,
+      attendancePolicySimulation,
+      accessPolicySimulation,
+      compliancePolicySimulation,
+      benefitsPolicySimulation,
       warnings,
       engineName: 'PolicyImpactSimulationEngine',
       engineVersion: ENGINE_VERSION,
@@ -1094,7 +1620,7 @@ export class PolicyCenterService {
     if (asObject(draft.policyControls).makerCheckerRequired === true) return true;
     if (asObject(draft.policyGovernance).makerCheckerRequired === true) return true;
     if (asObject(draft.payrollCalculationPolicy).makerCheckerRequired === true) return true;
-    return ['PAYROLL', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'COMPLIANCE'].includes(revision.area);
+    return ['PAYROLL', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'COMPLIANCE', 'BENEFITS'].includes(revision.area);
   }
 
   private assertMakerChecker(revision: PolicyRevisionRecord, toStatus: PolicyRevisionStatus, actor: PolicyActor): void {
@@ -1163,6 +1689,11 @@ export class PolicyCenterService {
     if (revision.area === 'COMPLIANCE') {
       const draftObject = asObject(revision.draftConfig);
       return this.withRuntimePolicyEvidence(revision, { compliancePolicyRuntime: asObject(draftObject.compliancePolicyRuntime ?? draftObject) });
+    }
+
+    if (revision.area === 'BENEFITS') {
+      const draftObject = asObject(revision.draftConfig);
+      return this.withRuntimePolicyEvidence(revision, { benefitsPolicyRuntime: asObject(draftObject.benefitsPolicyRuntime ?? draftObject) });
     }
 
     return this.withRuntimePolicyEvidence(revision, draft);

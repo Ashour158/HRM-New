@@ -735,4 +735,61 @@ describe('PolicyCenterService', () => {
       approvedBy: approverActor.actorId,
     }));
   });
+
+  it('exposes max-depth policy templates for leave, attendance, access, compliance, and benefits', () => {
+    const { service } = buildService();
+
+    const templates = service.getTemplates();
+
+    expect(templates.map((template) => template.code)).toEqual(expect.arrayContaining([
+      'LEAVE-ACCRUAL-LEDGER',
+      'ATTENDANCE-RULE-LEDGER',
+      'ACCESS-GOVERNANCE-LEDGER',
+      'COMPLIANCE-RULE-LEDGER',
+      'BENEFITS-ELIGIBILITY-LEDGER',
+    ]));
+    expect(templates.find((template) => template.area === 'BENEFITS')).toEqual(expect.objectContaining({
+      area: 'BENEFITS',
+      title: expect.stringContaining('Benefits'),
+    }));
+  });
+
+  it('returns domain-specific simulation sections for governed non-payroll policy ledgers', async () => {
+    const benefitsDraft = revision({
+      area: 'BENEFITS',
+      title: 'Benefits eligibility policy',
+      draftConfig: {
+        benefitsPolicyRuntime: {
+          eligibilityRules: [{
+            code: 'MEDICAL_FULL_TIME',
+            label: 'Medical plan full-time eligibility',
+            active: true,
+            logicLedger: {
+              code: 'FULL_TIME_WAITING_PERIOD',
+              source: 'BENEFITS_LEDGER',
+              condition: 'EMPLOYEE_TYPE_IN_SCOPE',
+              outcome: 'ALLOW_ENROLLMENT',
+              waitingPeriodDays: 30,
+              employeeContributionPercent: 20,
+              employerContributionPercent: 80,
+              payrollDeductionCode: 'MEDICAL_EMPLOYEE_SHARE',
+            },
+          }],
+        },
+      },
+    });
+    const { service } = buildService([benefitsDraft]);
+
+    const simulation = await service.simulateRevision(tenantId, benefitsDraft.id, actor);
+
+    expect(simulation.benefitsPolicySimulation).toEqual(expect.objectContaining({
+      ruleCodes: ['MEDICAL_FULL_TIME'],
+      payrollBridgeCodes: ['MEDICAL_EMPLOYEE_SHARE'],
+      enrollmentWindows: expect.arrayContaining([expect.objectContaining({
+        ruleCode: 'MEDICAL_FULL_TIME',
+        waitingPeriodDays: 30,
+      })]),
+    }));
+    expect(simulation.compliancePolicySimulation).toBeUndefined();
+  });
 });

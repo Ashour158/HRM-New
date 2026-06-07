@@ -8,6 +8,7 @@ export const POLICY_AREAS = [
   'ACCESS_GOVERNANCE',
   'COUNTRY_POLICY',
   'COMPLIANCE',
+  'BENEFITS',
 ] as const;
 
 export type PolicyArea = typeof POLICY_AREAS[number];
@@ -68,6 +69,83 @@ export interface PolicyImpactRecords {
   accessGrants: PolicyImpactedDomainRecord[];
 }
 
+export interface PayrollComponentPolicySimulation {
+  componentCodes: string[];
+  calculationInputs: Array<{
+    componentCode: string;
+    ledgerRuleCode?: string;
+    source?: string;
+    base?: string;
+    method?: string;
+    amount?: number;
+    ratePercent?: number;
+    monthlyCap?: number;
+    minimumNetPay?: number;
+  }>;
+  glPostingPreview: Array<{
+    componentCode: string;
+    payslipLineType?: string;
+    glAccount?: string;
+    missingPosting: boolean;
+  }>;
+  retroAdjustments: Array<{
+    componentCode: string;
+    behavior?: string;
+    action: string;
+  }>;
+  estimatedGrossDelta: number;
+  estimatedTaxableDelta: number;
+  estimatedInsurableDelta: number;
+  estimatedEmployeeDeductionDelta: number;
+  estimatedEmployerCostDelta: number;
+  estimatedNetPayDelta: number;
+  blockedPayrollCycleIds: string[];
+}
+
+export interface DomainPolicySimulation {
+  ruleCodes: string[];
+  scopeDimensions: string[];
+  workflowImpacts: Array<{
+    ruleCode: string;
+    action: string;
+    risk: PolicyImpactRisk;
+  }>;
+  revalidationQueues: string[];
+}
+
+export interface LeavePolicySimulation extends DomainPolicySimulation {
+  accrualRuleCodes: string[];
+  approvalWorkflows: string[];
+  payrollImpactCodes: string[];
+}
+
+export interface AttendancePolicySimulation extends DomainPolicySimulation {
+  geofenceRuleCodes: string[];
+  ledgerRuleCodes: string[];
+  payrollBridgeCodes: string[];
+}
+
+export interface AccessPolicySimulation extends DomainPolicySimulation {
+  actionOverrideIds: string[];
+  fieldOverrideIds: string[];
+  sodRuleCodes: string[];
+}
+
+export interface CompliancePolicySimulation extends DomainPolicySimulation {
+  acknowledgementRules: string[];
+  retentionClasses: string[];
+  legalHoldRules: string[];
+}
+
+export interface BenefitsPolicySimulation extends DomainPolicySimulation {
+  payrollBridgeCodes: string[];
+  enrollmentWindows: Array<{
+    ruleCode: string;
+    waitingPeriodDays: number;
+  }>;
+  carrierExportRules: string[];
+}
+
 export interface PolicyNotificationPreviewRecipient {
   audience: 'HR_OPERATIONS' | 'EMPLOYEE' | 'MANAGER' | 'POLICY_REVIEWER' | 'SERVICE_OWNER';
   workerId?: string;
@@ -118,6 +196,12 @@ export interface PolicyImpactSimulationResult {
   oldDataRule: string;
   newDataRule: string;
   retroactiveRule: string;
+  payrollComponentSimulation?: PayrollComponentPolicySimulation;
+  leavePolicySimulation?: LeavePolicySimulation;
+  attendancePolicySimulation?: AttendancePolicySimulation;
+  accessPolicySimulation?: AccessPolicySimulation;
+  compliancePolicySimulation?: CompliancePolicySimulation;
+  benefitsPolicySimulation?: BenefitsPolicySimulation;
   warnings: string[];
   engineName: 'PolicyImpactSimulationEngine';
   engineVersion: string;
