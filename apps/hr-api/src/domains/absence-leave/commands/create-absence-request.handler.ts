@@ -49,6 +49,10 @@ export class CreateAbsenceRequestHandler {
     if (overlapping.length > 0) {
       throw new ValidationError('Employee already has an overlapping pending or approved leave request');
     }
+    const existingRequests = (await this.repo.findByWorker(payload.workerId)).filter((request) => (
+      request.tenantId.value === command.tenantId.value
+    ));
+    this.leavePolicyService.assertPeriodLimits(duration, existingRequests, payload.startDate);
     const ar = AbsenceRequest.create(
       {
         id: Uuid.generate(),

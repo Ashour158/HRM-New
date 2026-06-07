@@ -40,7 +40,9 @@ function makeController(overrides: {
   attendanceLedgerBuilder?: { buildDailyLedger: ReturnType<typeof vi.fn> };
   timeClockEventRepo?: {
     findByWorker?: ReturnType<typeof vi.fn>;
+    findByWorkerForTenant?: ReturnType<typeof vi.fn>;
     findByWorkersBetween?: ReturnType<typeof vi.fn>;
+    findByWorkersBetweenForTenant?: ReturnType<typeof vi.fn>;
   };
   shiftScheduleRepo?: { findByTenantScoped: ReturnType<typeof vi.fn> };
   openShiftRepo?: { findByTenantScoped: ReturnType<typeof vi.fn> };
@@ -51,7 +53,9 @@ function makeController(overrides: {
   const hcmSetupService = overrides.hcmSetupService ?? { getSetup: vi.fn(async () => DEFAULT_HCM_SETUP) };
   const timeClockEventRepo = overrides.timeClockEventRepo ?? {
     findByWorker: vi.fn(async () => []),
+    findByWorkerForTenant: vi.fn(async () => []),
     findByWorkersBetween: vi.fn(async () => []),
+    findByWorkersBetweenForTenant: vi.fn(async () => []),
   };
   const attendanceLedgerBuilder = overrides.attendanceLedgerBuilder ?? {
     buildDailyLedger: vi.fn(async () => ({ workDate: '2026-05-25', rows: [] })),
@@ -180,7 +184,7 @@ describe('TimeAttendanceController geolocation evidence', () => {
 
   it('forbids non-privileged users from exporting geolocation evidence', async () => {
     const attendanceLedgerBuilder = { buildDailyLedger: vi.fn() };
-    const timeClockEventRepo = { findByWorkersBetween: vi.fn() };
+    const timeClockEventRepo = { findByWorkersBetweenForTenant: vi.fn() };
     const controller = makeController({ attendanceLedgerBuilder, timeClockEventRepo });
 
     await expect(controller.exportGeolocationEvidenceCsv(
@@ -191,7 +195,7 @@ describe('TimeAttendanceController geolocation evidence', () => {
     )).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(attendanceLedgerBuilder.buildDailyLedger).not.toHaveBeenCalled();
-    expect(timeClockEventRepo.findByWorkersBetween).not.toHaveBeenCalled();
+    expect(timeClockEventRepo.findByWorkersBetweenForTenant).not.toHaveBeenCalled();
   });
 
   it('allows HR administrators to export geolocation evidence with privacy headers', async () => {
@@ -229,14 +233,15 @@ describe('TimeAttendanceController geolocation evidence', () => {
         ],
       })),
     };
-    const timeClockEventRepo = { findByWorkersBetween: vi.fn(async () => [event]) };
+    const timeClockEventRepo = { findByWorkersBetweenForTenant: vi.fn(async () => [event]) };
     const controller = makeController({ attendanceLedgerBuilder, timeClockEventRepo });
     const response = makeResponse();
 
     await controller.exportGeolocationEvidenceCsv('2026-05-25', 'CAIRO_HQ', requestWithRoles(['HR_ADMIN']), response);
 
     expect(attendanceLedgerBuilder.buildDailyLedger).toHaveBeenCalledWith(tenantId, { date: '2026-05-25', workplaceCode: 'CAIRO_HQ' });
-    expect(timeClockEventRepo.findByWorkersBetween).toHaveBeenCalledWith(
+    expect(timeClockEventRepo.findByWorkersBetweenForTenant).toHaveBeenCalledWith(
+      tenantId,
       [workerId],
       new Date('2026-05-24T21:00:00.000Z'),
       new Date('2026-05-25T21:00:00.000Z'),

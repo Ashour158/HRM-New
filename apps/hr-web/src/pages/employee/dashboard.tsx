@@ -137,6 +137,11 @@ interface ClockPayload {
   accuracyMeters?: number;
   deviceId?: string;
   timestamp?: string;
+  captureMethod?: 'API_IMPORT' | 'BIOMETRIC_DEVICE' | 'FACIAL_RECOGNITION' | 'MANUAL_CORRECTION' | 'MOBILE_GEOFENCE' | 'QR_CODE' | 'RFID_CARD' | 'WEB_KIOSK';
+  captureDeviceKind?: string;
+  captureReference?: string;
+  verificationStatus?: 'FAILED' | 'NOT_REQUIRED' | 'PENDING' | 'VERIFIED';
+  captureEvidence?: Record<string, unknown>;
 }
 
 interface AttendanceCorrectionRequest {
@@ -290,10 +295,6 @@ function captureBrowserPosition(): Promise<GeolocationCapture> {
   });
 }
 
-async function getBrowserPosition(): Promise<Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>> {
-  return (await captureBrowserPosition()).evidence;
-}
-
 function formatDuration(totalSeconds: number) {
   const safeSeconds = Math.max(Math.floor(totalSeconds), 0);
   const hours = Math.floor(safeSeconds / 3600);
@@ -364,6 +365,8 @@ export function EmployeeDashboard() {
   const [clockMessage, setClockMessage] = React.useState('');
   const [clockError, setClockError] = React.useState('');
   const [clockPendingDirection, setClockPendingDirection] = React.useState<'in' | 'out' | null>(null);
+  const [manualPunchDirection, setManualPunchDirection] = React.useState<'in' | 'out' | null>(null);
+  const [manualPunchReason, setManualPunchReason] = React.useState('');
   const [pendingClockCommand, setPendingClockCommand] = React.useState<'in' | 'out' | null>(() => {
     const stored = window.localStorage.getItem('pending-attendance-clock');
     return stored === 'in' || stored === 'out' ? stored : null;
@@ -397,6 +400,8 @@ export function EmployeeDashboard() {
 
   const activeWorkerName = activeWorker ? `${activeWorker.firstName} ${activeWorker.lastName}` : `${user?.firstName ?? 'Employee'} ${user?.lastName ?? ''}`.trim();
   const workplace = setup.locations.find((location) => location.code === workplaceCode);
+  const geofenceProfile = setup.attendancePolicy.geofenceProfiles?.find((item) => item.active && item.locationCode === workplaceCode);
+  const requiresGeolocation = Boolean(setup.attendancePolicy.geofenceEnabled && geofenceProfile?.requireGeolocation);
 
   const attendanceStateKey = ['employee-attendance-state', selectedWorkerId];
   const { data: todayState, isLoading: attendanceLoading } = useApiQuery<AttendanceTodayState>(
@@ -470,30 +475,56 @@ export function EmployeeDashboard() {
 
   const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
 
-  const buildClockPayload = async (): Promise<ClockPayload | null> => {
+  const buildClockPayload = async (): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
     if (!selectedWorkerId) return null;
+    const capture = await captureBrowserPosition();
+    const hasLocation = hasCoordinateEvidence(capture.evidence);
     return {
-      workerId: selectedWorkerId,
-      workplaceCode,
-      deviceId: 'browser',
-      timestamp: new Date().toISOString(),
-      ...(await getBrowserPosition()),
+      payload: {
+        workerId: selectedWorkerId,
+        workplaceCode,
+        deviceId: 'browser',
+        timestamp: new Date().toISOString(),
+        captureMethod: hasLocation ? 'MOBILE_GEOFENCE' : 'WEB_KIOSK',
+        captureDeviceKind: 'BROWSER',
+        captureReference: `browser-${Date.now()}`,
+        verificationStatus: hasLocation ? 'VERIFIED' : 'PENDING',
+        captureEvidence: {
+          geolocationCapture: {
+            captured: hasLocation,
+            failureReason: capture.failureReason,
+            policyRequiresGeolocation: requiresGeolocation,
+          },
+        },
+        ...capture.evidence,
+      },
+      failureReason: capture.failureReason,
     };
   };
 
   const recordClock = async (direction: 'in' | 'out') => {
     setClockError('');
     setClockMessage('Capturing attendance evidence...');
+    setManualPunchDirection(null);
+    setManualPunchReason('');
     setClockPendingDirection(direction);
     try {
-      const payload = await buildClockPayload();
-      if (!payload) {
+      const capture = await buildClockPayload();
+      if (!capture) {
         setClockMessage('');
         setClockError('No linked employee profile was found for attendance capture.');
         return;
       }
+      if (requiresGeolocation && !hasCoordinateEvidence(capture.payload)) {
+        const reason = geolocationFailureMessage(capture.failureReason ?? 'unknown');
+        setClockMessage('');
+        setClockError(`${reason} You can route this punch to manager review instead.`);
+        setManualPunchDirection(direction);
+        setManualPunchReason(reason);
+        return;
+      }
       if (direction === 'in') {
-        await checkInMutation.mutateAsync(payload);
+        await checkInMutation.mutateAsync(capture.payload);
         setClockMessage('Check-in recorded with timestamp and location evidence.');
         addNotification({
           title: 'Check-in recorded',
@@ -502,7 +533,7 @@ export function EmployeeDashboard() {
           read: false,
         });
       } else {
-        await checkOutMutation.mutateAsync(payload);
+        await checkOutMutation.mutateAsync(capture.payload);
         setClockMessage('Check-out recorded with timestamp and location evidence.');
         addNotification({
           title: 'Check-out recorded',
@@ -512,16 +543,48 @@ export function EmployeeDashboard() {
         });
       }
     } catch (error) {
+      const message = apiErrorMessage(error, 'Attendance action failed.');
       setClockMessage('');
-      setClockError(apiErrorMessage(error, 'Attendance action failed.'));
+      setClockError(message);
+      if (requiresGeolocation && /geo|location|geofence/i.test(message)) {
+        setManualPunchDirection(direction);
+        setManualPunchReason(message);
+      }
       addNotification({
         title: 'Attendance action failed',
-        message: apiErrorMessage(error, 'Attendance action failed.'),
+        message,
         type: 'error',
         read: false,
       });
     } finally {
       setClockPendingDirection(null);
+    }
+  };
+
+  const requestManualPunchReview = async () => {
+    if (!selectedWorkerId || !manualPunchDirection) return;
+    const now = new Date();
+    setClockError('');
+    try {
+      await correctionMutation.mutateAsync({
+        workerId: selectedWorkerId,
+        workDate: now.toISOString().slice(0, 10),
+        correctionType: 'ADD_CLOCK_EVENT',
+        requestedEventType: manualPunchDirection === 'out' ? 'CLOCK_OUT' : 'CLOCK_IN',
+        requestedTimestamp: now.toISOString(),
+        reason: `${manualPunchDirection === 'out' ? 'Check-out' : 'Check-in'} requires manual review. ${manualPunchReason || 'Browser location evidence was not available.'}`,
+      });
+      setManualPunchDirection(null);
+      setManualPunchReason('');
+      setClockMessage('Manual punch review sent to your manager. Payroll updates only after approval.');
+      addNotification({
+        title: 'Manual punch review sent',
+        message: 'Your attendance punch was routed for manager approval.',
+        type: 'success',
+        read: false,
+      });
+    } catch (error) {
+      setClockError(apiErrorMessage(error, 'Could not submit manual punch review.'));
     }
   };
 
@@ -1007,6 +1070,17 @@ export function EmployeeDashboard() {
                       </div>
                       {clockMessage ? <p className="mt-3 rounded bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{clockMessage}</p> : null}
                       {clockError ? <p className="mt-3 rounded bg-red-50 px-3 py-2 text-xs text-red-700">{clockError}</p> : null}
+                      {manualPunchDirection ? (
+                        <Button
+                          className="mt-3 w-full"
+                          type="button"
+                          variant="outline"
+                          onClick={requestManualPunchReview}
+                          disabled={correctionMutation.isPending}
+                        >
+                          {correctionMutation.isPending ? 'Sending review...' : 'Request manual punch review'}
+                        </Button>
+                      ) : null}
                     </div>
 
                     <div className="fusion-glass rounded-2xl p-4">

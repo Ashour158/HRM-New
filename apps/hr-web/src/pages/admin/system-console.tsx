@@ -444,11 +444,21 @@ export function AdminSystemConsole() {
     locations: setupQuery.data?.locations?.filter((item) => item.active).length ?? 0,
   };
   const readinessDown = readinessQuery.data?.checks?.filter((check) => check.status === 'down').length ?? 0;
+  const integrationAdapterNames = Array.isArray(integrationQuery.data?.adapters)
+    ? integrationQuery.data.adapters
+      .map((adapter) => typeof adapter === 'object' && adapter !== null && 'adapterName' in adapter
+        ? String((adapter as { adapterName?: unknown }).adapterName ?? '')
+        : String(adapter ?? ''))
+      .filter(Boolean)
+    : integrationQuery.data?.adapters && typeof integrationQuery.data.adapters === 'object'
+      ? Object.keys(integrationQuery.data.adapters)
+      : [];
   const integrationAdapterCount = Array.isArray(integrationQuery.data?.adapters)
     ? integrationQuery.data.adapters.length
     : integrationQuery.data?.adapters && typeof integrationQuery.data.adapters === 'object'
       ? Object.keys(integrationQuery.data.adapters).length
       : 0;
+  const mailAdapterConfigured = integrationAdapterNames.some((name) => /mail|email|smtp|notification/i.test(name));
   const usageTotals = serviceUsageQuery.data?.totals;
   const usageQueueHealth = serviceUsageQuery.data?.queueHealth;
   const adminDisplayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || 'System Administrator';
@@ -778,6 +788,7 @@ export function AdminSystemConsole() {
   const integrationGapLabels = [
     integrationQuery.isError ? 'integration status unavailable' : null,
     integrationQuery.isSuccess && integrationAdapterCount === 0 ? 'no adapters registered' : null,
+    integrationQuery.isSuccess && !mailAdapterConfigured ? 'email delivery adapter missing' : null,
     mapsConfigured ? null : 'Google Maps key missing',
   ].filter(Boolean) as string[];
   const pendingAdminWork: PendingAdminWorkItem[] = [
@@ -833,7 +844,7 @@ export function AdminSystemConsole() {
       title: 'Integration Readiness',
       helper: integrationGapLabels.length > 0
         ? integrationGapLabels.join(', ')
-        : `${integrationAdapterCount} adapters registered and attendance map key configured.`,
+        : `${integrationAdapterCount} adapters registered, email delivery available, and attendance map key configured.`,
       count: integrationGapLabels.length,
       status: integrationGapLabels.length > 0 ? 'attention' : integrationQuery.isSuccess ? 'live' : 'partial',
       statusLabel: integrationGapLabels.length > 0 ? 'Configure' : integrationQuery.isSuccess ? 'Ready' : 'Loading',

@@ -344,6 +344,7 @@ export function AdminPayroll() {
   const { data: setupConfig, isLoading: setupLoading, isError: setupError } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const previewUrl = `/payroll/monthly-cycle-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
   const paymentBatchUrl = `/payroll/payment-batch-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
+  const glPreviewUrl = `/payroll/monthly-cycle-gl-preview?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${encodeURIComponent(workLocationCode)}` : ''}`;
   const { data: preview, isLoading: previewLoading, isError: previewError, error: previewErrorObj, refetch } = useApiQuery<PayrollCyclePreview>(
     ['payroll-monthly-preview', year, month, workLocationCode],
     previewUrl,
@@ -351,6 +352,10 @@ export function AdminPayroll() {
   const { data: paymentBatch } = useApiQuery<PayrollPaymentBatch>(
     ['payroll-payment-batch', year, month, workLocationCode],
     paymentBatchUrl,
+  );
+  const { data: glPreview } = useApiQuery<PayrollGlPosting>(
+    ['payroll-gl-preview', year, month, workLocationCode],
+    glPreviewUrl,
   );
 
   React.useEffect(() => {
@@ -418,7 +423,7 @@ export function AdminPayroll() {
   }>(
     '/payroll/monthly-cycle/close-to-pay',
     'post',
-    [['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode], ['employee-payslips']],
+    [['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode], ['payroll-gl-preview', year, month, workLocationCode], ['employee-payslips']],
     {
       onError: (error) => addNotification({ title: 'Close to pay failed', message: mutationError(error), type: 'error', read: false }),
     },
@@ -427,7 +432,7 @@ export function AdminPayroll() {
   const saveSetupMutation = useApiMutation<HcmSetupConfig, PayrollSetupUpdate>(
     '/admin/hcm-setup',
     'patch',
-    [['hcm-setup'], ['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode]],
+    [['hcm-setup'], ['payroll-monthly-preview', year, month, workLocationCode], ['payroll-payment-batch', year, month, workLocationCode], ['payroll-gl-preview', year, month, workLocationCode]],
     {
       onSuccess: () => addNotification({ title: 'Payroll rules saved', message: 'Payroll setup changes are now available for calculation previews.', type: 'success', read: false }),
       onError: (error) => addNotification({ title: 'Could not save payroll rules', message: mutationError(error), type: 'error', read: false }),
@@ -1061,6 +1066,31 @@ export function AdminPayroll() {
                   <div>
                     <p className="text-xs text-muted-foreground">Net Payroll</p>
                     <p className="font-semibold">{formatCurrency(paymentBatch.totalNet, paymentBatch.currency)}</p>
+                  </div>
+                </div>
+              ) : null}
+              {glPreview && !closeResult?.paymentBatchId ? (
+                <div className="space-y-3 rounded-md border bg-slate-50 p-3">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-semibold">GL Preview</p>
+                      <p className="text-xs text-muted-foreground">Balanced journal preview for the selected payroll period.</p>
+                    </div>
+                    <Badge variant={glPreview.totalDebits === glPreview.totalCredits ? 'default' : 'destructive'}>
+                      {glPreview.totalDebits === glPreview.totalCredits ? 'Balanced' : 'Out of balance'}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {glPreview.lines.map((line) => (
+                      <div key={`${line.accountCode}-${line.description}`} className="rounded-md border bg-white p-2 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-medium">{line.accountCode}</span>
+                          <span>{formatCurrency(line.debit || line.credit, line.currency)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{line.description}</p>
+                        <p className="text-xs text-muted-foreground">{line.debit > 0 ? 'Debit' : 'Credit'}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : null}

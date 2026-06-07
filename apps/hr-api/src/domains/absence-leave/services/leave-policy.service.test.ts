@@ -120,6 +120,76 @@ describe('LeavePolicyService', () => {
     })).toThrow(/exceeds max per request of 4 hours/);
   });
 
+  it('enforces monthly leave period amount limits', () => {
+    const setup = {
+      ...DEFAULT_HCM_SETUP,
+      leavePolicies: DEFAULT_HCM_SETUP.leavePolicies.map((policy) => (
+        policy.code === 'VACATION'
+          ? {
+              ...policy,
+              maxPerRequest: 10,
+              periodLimits: [{
+                code: 'VACATION_MONTHLY_DAYS',
+                label: 'Monthly annual leave limit',
+                active: true,
+                window: 'CALENDAR_MONTH' as const,
+                maxAmount: 3,
+              }],
+            }
+          : policy
+      )),
+    };
+    const duration = service.calculateDuration(setup, {
+      absenceType: 'VACATION',
+      startDate: new Date('2026-06-10T00:00:00.000Z'),
+      endDate: new Date('2026-06-11T00:00:00.000Z'),
+    });
+
+    expect(() => service.assertPeriodLimits(duration, [{
+      absenceType: 'VACATION',
+      policyCode: 'VACATION',
+      startDate: new Date('2026-06-02T00:00:00.000Z'),
+      endDate: new Date('2026-06-03T00:00:00.000Z'),
+      durationUnit: 'DAYS',
+      durationAmount: 2,
+      payrollImpact: 'PAID_LEAVE',
+      status: 'APPROVED',
+    }], new Date('2026-06-10T00:00:00.000Z'))).toThrow(/Monthly annual leave limit/);
+  });
+
+  it('enforces weekly permission request limits', () => {
+    const duration = service.calculateDuration(DEFAULT_HCM_SETUP, {
+      absenceType: 'PERMISSION',
+      startDate: new Date('2026-06-03T00:00:00.000Z'),
+      endDate: new Date('2026-06-03T00:00:00.000Z'),
+      startTime: '09:00',
+      endTime: '10:00',
+    });
+
+    expect(() => service.assertPeriodLimits(duration, [
+      {
+        absenceType: 'PERMISSION',
+        policyCode: 'PERMISSION',
+        startDate: new Date('2026-06-01T00:00:00.000Z'),
+        endDate: new Date('2026-06-01T00:00:00.000Z'),
+        durationUnit: 'HOURS',
+        durationAmount: 1,
+        payrollImpact: 'PERMISSION',
+        status: 'APPROVED',
+      },
+      {
+        absenceType: 'PERMISSION',
+        policyCode: 'PERMISSION',
+        startDate: new Date('2026-06-02T00:00:00.000Z'),
+        endDate: new Date('2026-06-02T00:00:00.000Z'),
+        durationUnit: 'HOURS',
+        durationAmount: 1,
+        payrollImpact: 'PERMISSION',
+        status: 'PENDING_APPROVAL',
+      },
+    ], new Date('2026-06-03T00:00:00.000Z'))).toThrow(/Weekly permission request limit/);
+  });
+
   it('rejects hourly leave without time range', () => {
     expect(() => service.calculateDuration(DEFAULT_HCM_SETUP, {
       absenceType: 'PERMISSION',

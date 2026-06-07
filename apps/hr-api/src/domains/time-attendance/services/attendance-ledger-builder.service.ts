@@ -58,7 +58,7 @@ export class AttendanceLedgerBuilderService {
     const workDate = filters?.date ?? localDateKey(new Date(), setup.attendancePolicy.timezoneOffsetMinutes ?? 0);
     const defaultWorkplaceCode = setup.locations.find((location) => location.active)?.code;
     const departmentLabels = new Map(setup.departments.map((department) => [department.code, department.label]));
-    const activeWorkers = await this.workerRepo.findActive();
+    const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 5000 });
 
     const workersWithSchedules = await Promise.all(activeWorkers.map(async (worker): Promise<AttendanceLedgerWorker> => {
       const departmentId = worker.departmentId?.value;
@@ -136,8 +136,8 @@ export class AttendanceLedgerBuilderService {
 
     const pairs = await Promise.all(workersWithLeave.map(async (worker) => ({
       workerId: worker.workerId,
-      events: await this.timeClockEventRepo.findByWorker(new Uuid(worker.workerId)),
-      exceptions: await this.attendanceExceptionRepo.findByWorker(new Uuid(worker.workerId)),
+      events: await this.timeClockEventRepo.findByWorkerForTenant(tenantId, new Uuid(worker.workerId)),
+      exceptions: await this.attendanceExceptionRepo.findByWorkerForTenant(tenantId, new Uuid(worker.workerId)),
     })));
 
     return this.attendanceLedger.buildDailyLedger({

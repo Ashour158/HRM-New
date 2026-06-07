@@ -9,6 +9,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import type { HcmSetupConfig, PayrollGlAccountMapping } from '../../hcm-setup/hcm-setup.types.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
 import { AttendanceCalculationService, type AttendanceSession } from '../../time-attendance/services/attendance-calculation.service.js';
@@ -647,6 +648,26 @@ export class PayrollController {
     };
   }
 
+  private resolvePayrollGlAccountMapping(
+    setup: HcmSetupConfig,
+    preview: PayrollCyclePreview,
+    workLocationCode?: string,
+  ): PayrollGlAccountMapping | undefined {
+    const locationCodes = new Set([
+      workLocationCode,
+      ...preview.rows.map((row) => row.workLocationCode),
+    ].filter((value): value is string => typeof value === 'string' && value.length > 0));
+    const countryCodes = new Set(setup.locations
+      .filter((location) => locationCodes.size === 0 || locationCodes.has(location.code))
+      .map((location) => location.countryCode)
+      .filter((value): value is string => typeof value === 'string' && value.length > 0));
+    const activePacks = (setup.statutoryPayrollPacks ?? []).filter((pack) => pack.active);
+    const locationPack = activePacks.find((pack) => (pack.locationCodes ?? []).some((code) => locationCodes.has(code)));
+    if (locationPack?.glAccountMapping) return locationPack.glAccountMapping;
+    const countryPack = activePacks.find((pack) => countryCodes.size === 0 || countryCodes.has(pack.countryCode));
+    return countryPack?.glAccountMapping;
+  }
+
   private async buildPersistedCyclePreview(req: Request, payrollCycleId: string): Promise<PayrollCyclePreview> {
     const cycle = await this.payrollCycleRepo.findById(new Uuid(payrollCycleId));
     if (!cycle) throw new BadRequestException('Payroll cycle not found');
@@ -903,6 +924,34 @@ export class PayrollController {
       preview,
       this.payrollCalculation.buildBankTransferRows(preview.rows),
     );
+  }
+
+  @Get('monthly-cycle-gl-preview')
+  async monthlyCycleGlPreview(
+    @Query('year') year: string | undefined,
+    @Query('month') month: string | undefined,
+    @Query('workLocationCode') workLocationCode: string | undefined,
+    @Req() req: Request,
+  ) {
+    this.assertCanExportPayroll(req);
+    const now = new Date();
+    const preview = await this.buildMonthlyPreview(
+      req,
+      year ? Number(year) : now.getUTCFullYear(),
+      month ? Number(month) : now.getUTCMonth() + 1,
+      workLocationCode,
+    );
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    return {
+      ...this.payrollGlPosting.buildPosting({
+        tenantId: this.getTenantId(req).value,
+        payrollCycleId: preview.id,
+        preview,
+        createdBy: this.getActorUuidString(req),
+        accountMapping: this.resolvePayrollGlAccountMapping(setup, preview, workLocationCode),
+      }),
+      events: ['PayrollGlPreviewBuilt'],
+    };
   }
 
   @Get('export-jobs')
@@ -1351,14 +1400,12 @@ export class PayrollController {
     this.assertCanExportPayroll(req);
     const preview = await this.buildPersistedCyclePreview(req, id);
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
-    const location = setup.locations.find((item) => item.code === preview.rows[0]?.workLocationCode);
-    const pack = (setup.statutoryPayrollPacks ?? []).find((item) => item.active && (!location || item.countryCode === location.countryCode));
     const posting = this.payrollGlPosting.buildPosting({
       tenantId: this.getTenantId(req).value,
       payrollCycleId: id,
       preview,
       createdBy: this.getActorUuidString(req),
-      accountMapping: pack?.glAccountMapping,
+      accountMapping: this.resolvePayrollGlAccountMapping(setup, preview),
     });
     await this.glPostingRepo.save(posting);
     return {

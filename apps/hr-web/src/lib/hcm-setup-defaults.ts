@@ -116,6 +116,16 @@ export const DEFAULT_HCM_SETUP: HcmSetupConfig = {
       maxPerRequest: 15,
       allowHalfDay: true,
       minNoticeDays: 2,
+      periodLimits: [
+        {
+          code: 'VACATION_MONTHLY_DAYS',
+          label: 'Monthly annual leave limit',
+          active: true,
+          window: 'CALENDAR_MONTH',
+          maxAmount: 10,
+          includeStatuses: ['PENDING_APPROVAL', 'APPROVED'],
+        },
+      ],
     },
     {
       code: 'SICK',
@@ -170,6 +180,24 @@ export const DEFAULT_HCM_SETUP: HcmSetupConfig = {
       approvalWorkflow: 'MANAGER',
       annualEntitlement: 24,
       maxPerRequest: 4,
+      periodLimits: [
+        {
+          code: 'PERMISSION_WEEKLY_REQUESTS',
+          label: 'Weekly permission request limit',
+          active: true,
+          window: 'CALENDAR_WEEK',
+          maxRequests: 2,
+          includeStatuses: ['PENDING_APPROVAL', 'APPROVED'],
+        },
+        {
+          code: 'PERMISSION_MONTHLY_HOURS',
+          label: 'Monthly permission hours limit',
+          active: true,
+          window: 'CALENDAR_MONTH',
+          maxAmount: 8,
+          includeStatuses: ['PENDING_APPROVAL', 'APPROVED'],
+        },
+      ],
     },
     {
       code: 'PUBLIC_HOLIDAY',

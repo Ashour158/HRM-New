@@ -23,6 +23,16 @@ export class AttendanceExceptionRepository extends BaseRepository<'attendance_ex
     return rows.map((r) => this.toAggregate(r as unknown as Database['attendance_exceptions']));
   }
 
+  async findByWorkerForTenant(tenantId: Uuid, workerId: Uuid): Promise<AttendanceException[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('worker_id', '=', workerId.value)
+      .execute();
+    return rows.map((r) => this.toAggregate(r as unknown as Database['attendance_exceptions']));
+  }
+
   async save(entity: AttendanceException): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

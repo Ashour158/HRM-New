@@ -275,6 +275,34 @@ export function AdminWorkers() {
         </div>
       </div>
 
+      <section className="rounded-2xl border border-slate-200 bg-white p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h3 className="font-semibold text-slate-900">Employee Data Migration</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Upload CSV files using the downloadable template. Validation checks employee IDs, email uniqueness, salary, and currency before changes are accepted.
+            </p>
+          </div>
+          <Badge variant={uploadPreview?.accepted ? 'default' : uploadPreview ? 'destructive' : 'secondary'}>
+            {uploadPreview?.accepted ? 'Validated' : uploadPreview ? 'Needs correction' : 'Template ready'}
+          </Badge>
+        </div>
+        <div className="mt-4 grid gap-2 text-sm text-slate-600 md:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="font-medium text-slate-900">Accepted file</p>
+            <p className="mt-1">CSV only, comma separated, UTF-8 text.</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="font-medium text-slate-900">Required fields</p>
+            <p className="mt-1">employeeId plus at least one editable employee field.</p>
+          </div>
+          <div className="rounded-xl bg-slate-50 p-3">
+            <p className="font-medium text-slate-900">Template columns</p>
+            <p className="mt-1">name, email, phone, department, job title, work location, salary, currency.</p>
+          </div>
+        </div>
+      </section>
+
       <section className="fusion-glass rounded-[2rem] p-6">
         {uploadPreview ? (
           <div className="mb-4 fusion-glass rounded-2xl p-4 text-sm">

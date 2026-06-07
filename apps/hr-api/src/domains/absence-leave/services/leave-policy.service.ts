@@ -31,6 +31,17 @@ export interface LeaveBalancePolicyResult {
   reason?: string;
 }
 
+export interface LeavePeriodUsageRequest {
+  absenceType: string;
+  policyCode?: string;
+  startDate: Date;
+  endDate: Date;
+  durationUnit: LeavePolicy['unit'];
+  durationAmount: number;
+  payrollImpact?: LeavePolicy['payrollImpact'];
+  status: string;
+}
+
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function normalizeCode(value: string): string {
@@ -55,6 +66,26 @@ function calendarDaysInclusive(startDate: Date, endDate: Date): number {
   const start = asUtcDate(dateKey(startDate)).getTime();
   const end = asUtcDate(dateKey(endDate)).getTime();
   return Math.floor((end - start) / 86400000) + 1;
+}
+
+function startOfCalendarWeek(value: Date): Date {
+  const date = asUtcDate(dateKey(value));
+  const day = date.getUTCDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  return addDays(date, mondayOffset);
+}
+
+function startOfCalendarMonth(value: Date): Date {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), 1));
+}
+
+function endOfCalendarMonth(value: Date): Date {
+  return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth() + 1, 0));
+}
+
+function overlaps(leftStart: Date, leftEnd: Date, rightStart: Date, rightEnd: Date): boolean {
+  return asUtcDate(dateKey(leftStart)).getTime() <= asUtcDate(dateKey(rightEnd)).getTime()
+    && asUtcDate(dateKey(leftEnd)).getTime() >= asUtcDate(dateKey(rightStart)).getTime();
 }
 
 function parseTimeToMinutes(value: string): number {
@@ -201,6 +232,40 @@ export class LeavePolicyService {
     }
   }
 
+  assertPeriodLimits(
+    duration: LeaveDurationResult,
+    existingRequests: LeavePeriodUsageRequest[],
+    requestedStartDate: Date,
+  ): void {
+    const limits = (duration.policy.periodLimits ?? []).filter((limit) => (
+      limit.active
+      && (!limit.appliesToUnits?.length || limit.appliesToUnits.includes(duration.durationUnit))
+      && (!limit.appliesToPayrollImpacts?.length || limit.appliesToPayrollImpacts.includes(duration.payrollImpact))
+    ));
+    if (limits.length === 0) return;
+
+    for (const limit of limits) {
+      const window = this.resolveLimitWindow(limit.window, requestedStartDate, limit.rollingDays);
+      const statuses = limit.includeStatuses ?? ['PENDING_APPROVAL', 'APPROVED'];
+      const matching = existingRequests.filter((request) => (
+        statuses.includes(request.status as 'PENDING_APPROVAL' | 'APPROVED')
+        && request.durationUnit === duration.durationUnit
+        && (request.policyCode === duration.policy.code || normalizeCode(request.absenceType) === normalizeCode(duration.policy.code))
+        && overlaps(request.startDate, request.endDate, window.startDate, window.endDate)
+      ));
+      const amountUsed = matching.reduce((total, request) => total + request.durationAmount, 0);
+      const nextRequestCount = matching.length + 1;
+      const nextAmount = Math.round((amountUsed + duration.durationAmount) * 100) / 100;
+
+      if (limit.maxRequests !== undefined && nextRequestCount > limit.maxRequests) {
+        throw new ValidationError(`${duration.policy.label} exceeds ${limit.label} of ${limit.maxRequests} requests`);
+      }
+      if (limit.maxAmount !== undefined && nextAmount > limit.maxAmount) {
+        throw new ValidationError(`${duration.policy.label} exceeds ${limit.label} of ${limit.maxAmount} ${duration.durationUnit.toLowerCase()}`);
+      }
+    }
+  }
+
   private countWorkingDays(
     setup: HcmSetupConfig,
     input: LeaveDurationInput,
@@ -240,5 +305,21 @@ export class LeavePolicyService {
       const earliestStartDate = dateKey(addDays(today, policy.minNoticeDays));
       throw new ValidationError(`${policy.label} requires at least ${policy.minNoticeDays} days notice. Earliest start date is ${earliestStartDate}`);
     }
+  }
+
+  private resolveLimitWindow(
+    window: NonNullable<LeavePolicy['periodLimits']>[number]['window'],
+    requestedStartDate: Date,
+    rollingDays?: number,
+  ): { startDate: Date; endDate: Date } {
+    if (window === 'CALENDAR_WEEK') {
+      const startDate = startOfCalendarWeek(requestedStartDate);
+      return { startDate, endDate: addDays(startDate, 6) };
+    }
+    if (window === 'CALENDAR_MONTH') {
+      return { startDate: startOfCalendarMonth(requestedStartDate), endDate: endOfCalendarMonth(requestedStartDate) };
+    }
+    const days = Math.max(rollingDays ?? 30, 1);
+    return { startDate: addDays(asUtcDate(dateKey(requestedStartDate)), -(days - 1)), endDate: asUtcDate(dateKey(requestedStartDate)) };
   }
 }

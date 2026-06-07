@@ -336,7 +336,7 @@ export class TimeAttendanceController {
 
   private async buildTodayState(workerId: string, req: Request, now = new Date()) {
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
-    const events = await this.timeClockEventRepo.findByWorker(new Uuid(workerId));
+    const events = await this.timeClockEventRepo.findByWorkerForTenant(this.getTenantId(req), new Uuid(workerId));
     return this.attendanceState.buildTodayState({
       workerId,
       events,
@@ -524,7 +524,7 @@ export class TimeAttendanceController {
     const timezoneOffsetMinutes = setup.attendancePolicy.timezoneOffsetMinutes ?? 0;
     const range = this.dayUtcRange(ledger.workDate, timezoneOffsetMinutes);
     const workerIds = ledger.rows.map((row) => new Uuid(row.worker.workerId));
-    const events = await this.timeClockEventRepo.findByWorkersBetween(workerIds, range.startAt, range.endAt);
+    const events = await this.timeClockEventRepo.findByWorkersBetweenForTenant(tenantId, workerIds, range.startAt, range.endAt);
     const csv = this.geolocationExport.buildCsv({
       workDate: ledger.workDate,
       timezoneOffsetMinutes,
@@ -1009,7 +1009,7 @@ export class TimeAttendanceController {
     const targetYear = year ? Number(year) : new Date().getUTCFullYear();
     const targetMonth = month ? Number(month) : new Date().getUTCMonth() + 1;
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
-    const events = await this.timeClockEventRepo.findByWorker(new Uuid(workerId));
+    const events = await this.timeClockEventRepo.findByWorkerForTenant(this.getTenantId(req), new Uuid(workerId));
     const days = new Map<string, typeof events>();
 
     for (const event of events) {
@@ -1249,7 +1249,7 @@ export class TimeAttendanceController {
   @Get('time-clock-events/worker/:workerId')
   async getTimeClockEventsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     await this.assertCanAccessWorker(req, workerId, { managerAllowed: true });
-    return this.timeClockEventRepo.findByWorker(new Uuid(workerId));
+    return this.timeClockEventRepo.findByWorkerForTenant(this.getTenantId(req), new Uuid(workerId));
   }
 
   /* Attendance Exceptions */
@@ -1285,7 +1285,7 @@ export class TimeAttendanceController {
   @Get('attendance-exceptions/worker/:workerId')
   async getAttendanceExceptionsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     await this.assertCanAccessWorker(req, workerId, { managerAllowed: true });
-    return this.attendanceExceptionRepo.findByWorker(new Uuid(workerId));
+    return this.attendanceExceptionRepo.findByWorkerForTenant(this.getTenantId(req), new Uuid(workerId));
   }
 
   /* Overtime Approvals */

@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import { PayrollController } from './payroll.controller.js';
+import { PayrollGlPostingService } from '../services/payroll-gl-posting.service.js';
 
 function buildController(overrides: { payrollCycleRepo?: unknown } = {}) {
   const payrollCalculation = {
@@ -330,5 +331,146 @@ describe('PayrollController salary governance', () => {
         countryCode: 'EG',
       })],
     }));
+  });
+
+  it('builds monthly GL preview with location statutory account mapping', async () => {
+    const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440401');
+    const setup = {
+      locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+      attendancePolicy: {},
+      payrollBlockingRules: [],
+      statutoryPayrollPacks: [{
+        code: 'EG_STAT',
+        label: 'Egypt statutory pack',
+        active: true,
+        countryCode: 'EG',
+        locationCodes: ['CAIRO_HQ'],
+        calculationPolicy: {
+          taxRatePercent: 10,
+          employeeInsuranceRatePercent: 5,
+        },
+        glAccountMapping: {
+          salaryExpenseAccount: '6100',
+          employerInsuranceExpenseAccount: '6110',
+          taxPayableAccount: '2150',
+          insurancePayableAccount: '2160',
+          deductionPayableAccount: '2250',
+          bankClearingAccount: '1050',
+        },
+      }],
+    };
+    const payrollCalculation = {
+      buildMonthlyCycle: vi.fn(({ employees }) => ({
+        id: '2026-06',
+        name: 'June 2026 Payroll',
+        year: 2026,
+        month: 6,
+        calendarDays: 30,
+        periodStart: '2026-06-01',
+        periodEnd: '2026-06-30',
+        payDate: '2026-06-30',
+        employeeCount: employees.length,
+        totalGross: 10000,
+        totalTax: 1000,
+        totalEmployeeInsurance: 500,
+        totalEmployerInsurance: 700,
+        totalPolicyDeductions: 250,
+        totalNet: 8250,
+        currency: 'EGP',
+        rows: employees.map((employee: Record<string, unknown>) => ({
+          ...employee,
+          baseGrossSalary: 10000,
+          earningAmount: 0,
+          taxableEarningAmount: 0,
+          nonTaxableEarningAmount: 0,
+          grossSalary: 10000,
+          taxAmount: 1000,
+          employeeInsuranceAmount: 500,
+          employerInsuranceAmount: 700,
+          policyDeductionAmount: 250,
+          netSalary: 8250,
+          explainability: [],
+        })),
+      })),
+      buildBankTransferRows: vi.fn(() => []),
+      maskRowForActor: (row: unknown) => row,
+      summarizeLockedAttendanceSnapshots: vi.fn(() => ({ payableMinutes: 0 })),
+    };
+    const controller = new PayrollController(
+      {} as never,
+      { getSetup: async () => setup } as never,
+      {
+        findActive: async () => [],
+        search: async () => [],
+        findByStatusForTenant: async () => [{
+          id: workerId,
+          tenantId: new Uuid('00000000-0000-0000-0000-000000000001'),
+          employeeNumber: 'EMP-GL-001',
+          firstName: 'Ledger',
+          lastName: 'Worker',
+          email: { toString: () => 'ledger.worker@example.com' },
+          employmentType: 'FULL_TIME',
+        }],
+        searchForTenant: async () => [],
+      } as never,
+      {
+        findByWorker: async () => [
+          {
+            dataCategory: 'CONTACT',
+            payload: {
+              departmentName: 'Finance',
+              workLocation: { code: 'CAIRO_HQ' },
+            },
+          },
+          {
+            dataCategory: 'COMPENSATION',
+            payload: { grossSalaryAmount: 10000, salaryCurrency: 'EGP' },
+          },
+          {
+            dataCategory: 'BASIC',
+            payload: { workEmail: 'ledger.worker@example.com' },
+          },
+        ],
+      } as never,
+      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [] } as never,
+      { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
+      payrollCalculation as never,
+      { evaluateCloseToPayReadiness: vi.fn(() => ({ canClose: true, blockingIssueCount: 0, warningIssueCount: 0, issues: [] })) } as never,
+      { findByTenant: async () => [] } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      new PayrollGlPostingService() as never,
+    );
+    const req = {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    await expect(controller.monthlyCycleGlPreview('2026', '6', 'CAIRO_HQ', req)).resolves.toMatchObject({
+      payrollCycleId: '2026-06',
+      lines: expect.arrayContaining([
+        expect.objectContaining({ accountCode: '6100', debit: 10000 }),
+        expect.objectContaining({ accountCode: '2150', credit: 1000 }),
+        expect.objectContaining({ accountCode: '1050', credit: 8250 }),
+      ]),
+      events: ['PayrollGlPreviewBuilt'],
+    });
   });
 });

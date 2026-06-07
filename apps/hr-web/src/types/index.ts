@@ -210,6 +210,10 @@ export type LeavePayrollImpact = 'PAID_LEAVE' | 'UNPAID_LEAVE' | 'PERMISSION' | 
 
 export type LeaveApprovalWorkflow = 'MANAGER' | 'MANAGER_THEN_HR' | 'HR_ONLY' | 'AUTO_APPROVE';
 
+export type LeavePeriodLimitWindow = 'CALENDAR_WEEK' | 'CALENDAR_MONTH' | 'ROLLING_DAYS';
+
+export type LeavePeriodLimitStatus = 'PENDING_APPROVAL' | 'APPROVED';
+
 export type PolicyRuleCondition = {
   field?: string;
   operator?: 'EQUALS' | 'NOT_EQUALS' | 'IN' | 'NOT_IN' | 'GT' | 'GTE' | 'LT' | 'LTE' | 'EXISTS';
@@ -277,6 +281,15 @@ export interface LeavePolicy extends SetupOption {
   approvalRules?: PolicyRuleLedger[];
   documentRules?: PolicyRuleLedger[];
   encashmentRules?: PolicyRuleLedger[];
+  periodLimits?: Array<SetupOption & {
+    window: LeavePeriodLimitWindow;
+    maxAmount?: number;
+    maxRequests?: number;
+    rollingDays?: number;
+    includeStatuses?: LeavePeriodLimitStatus[];
+    appliesToUnits?: LeaveDurationUnit[];
+    appliesToPayrollImpacts?: LeavePayrollImpact[];
+  }>;
 }
 
 export interface PayrollCalculationPolicy {
