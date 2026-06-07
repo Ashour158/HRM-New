@@ -1,9 +1,11 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const srcRoot = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
-const scanRoots = ['pages', 'layouts', 'components'].map((segment) => join(srcRoot, segment));
+const scanRoots = ['pages', 'layouts', 'components']
+  .map((segment) => join(srcRoot, segment))
+  .filter((dir) => existsSync(dir) && statSync(dir).isDirectory());
 const extensions = new Set(['.ts', '.tsx']);
 const forbiddenVisibleCopy = [
   /Payroll engine live/i,

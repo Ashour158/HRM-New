@@ -447,7 +447,7 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
         SELECT count(*)::int AS count
         FROM hr_benefits.benefits_enrollments
         WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED')
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -461,7 +461,7 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
         SELECT count(*)::int AS count
         FROM hr_benefits.benefits_life_events
         WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED')
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -614,7 +614,7 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
         SELECT id, worker_id, status
         FROM hr_benefits.benefits_enrollments
         WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED')
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
           AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
         ORDER BY updated_at DESC
         LIMIT 100
@@ -638,7 +638,7 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
         SELECT id, worker_id, status
         FROM hr_benefits.benefits_life_events
         WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL', 'APPROVED')
+          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
           AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
         ORDER BY updated_at DESC
         LIMIT 100

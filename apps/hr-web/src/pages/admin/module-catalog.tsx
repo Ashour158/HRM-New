@@ -38,7 +38,7 @@ const maturityLabels: Record<CommercialModuleMaturity, { label: string; tone: st
     description: 'Has a dedicated product page or employee/admin experience.',
   },
   workbench: {
-    label: 'Workspace',
+    label: 'Operations',
     tone: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
     description: 'Has a native operations workspace and shared module workbench.',
   },
@@ -119,7 +119,7 @@ function ModuleCard({ module }: { module: CommercialModule }) {
             </Button>
           {module.nativePath ? (
             <Button asChild size="sm" variant="outline">
-              <Link to={module.nativePath}>Open Workspace</Link>
+              <Link to={module.nativePath}>Open Operations</Link>
             </Button>
           ) : null}
         </div>
