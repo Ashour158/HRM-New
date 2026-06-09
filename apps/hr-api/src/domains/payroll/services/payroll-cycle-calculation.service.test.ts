@@ -336,6 +336,209 @@ describe('PayrollCycleCalculationService', () => {
     ]));
   });
 
+  it('uses admin salary composition plans as payslip gross components', () => {
+    const compositionSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 0,
+        employeeInsuranceRatePercent: 0,
+        employerInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [],
+      salaryCompositionPlans: [
+        {
+          code: 'EG_MONTHLY_STANDARD',
+          label: 'Egypt monthly salary structure',
+          active: true,
+          countryCode: 'EG',
+          currency: 'EGP',
+          locationCodes: ['CAIRO_HQ'],
+          employeeTypes: ['FULL_TIME'],
+          components: [
+            {
+              code: 'BASIC_SALARY',
+              label: 'Basic salary',
+              active: true,
+              componentType: 'BASIC',
+              valueType: 'PERCENT_OF_GROSS',
+              ratePercent: 50,
+              taxable: true,
+              insurable: true,
+              includedInGross: true,
+              displayOnPayslip: true,
+              priority: 10,
+              payslipLineType: 'GROSS',
+              glAccount: '6000',
+            },
+            {
+              code: 'TRANSPORT_ALLOWANCE',
+              label: 'Transport allowance',
+              active: true,
+              componentType: 'ALLOWANCE',
+              valueType: 'FIXED_AMOUNT',
+              amount: 1000,
+              taxable: false,
+              insurable: false,
+              includedInGross: true,
+              displayOnPayslip: true,
+              priority: 20,
+              payslipLineType: 'GROSS',
+              glAccount: '6000',
+            },
+            {
+              code: 'FLEXIBLE_ALLOWANCE',
+              label: 'Flexible allowance',
+              active: true,
+              componentType: 'ALLOWANCE',
+              valueType: 'REMAINDER_OF_GROSS',
+              taxable: true,
+              insurable: false,
+              includedInGross: true,
+              displayOnPayslip: true,
+              priority: 30,
+              payslipLineType: 'GROSS',
+              glAccount: '6000',
+            },
+          ],
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const [row] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [{ ...employee, countryCode: 'EG', employmentType: 'FULL_TIME' }],
+      setup: compositionSetup,
+    }).rows;
+    const drafts = service.buildResultLineDrafts(row, {
+      payrollCycleId: 'cycle-1',
+      calculationRunId: 'run-1',
+    });
+    const resultLines = drafts.map((draft, index) => ({
+      id: `line-${index}`,
+      workerId: draft.workerId,
+      lineType: draft.lineType,
+      description: draft.description,
+      amount: draft.amount,
+      currency: draft.currency,
+      ruleSetId: draft.ruleSetId,
+      explanation: draft.explanation,
+      status: 'LOCKED',
+    }));
+    const [payslip] = service.buildPayslipsFromResultLines({
+      payrollCycle: {
+        id: 'cycle-1',
+        periodStart: '2026-05-01',
+        periodEnd: '2026-05-31',
+        payDate: '2026-05-31',
+      },
+      employees: [employee],
+      resultLines,
+    });
+
+    expect(row.explainability.find((line) => line.code === 'GROSS')).toBeUndefined();
+    expect(row.explainability.find((line) => line.code === 'BASIC_SALARY')).toEqual(expect.objectContaining({
+      amount: 5000,
+      ledgerRuleCode: 'BASIC_SALARY',
+      glAccount: '6000',
+      payslipLineType: 'GROSS',
+    }));
+    expect(row.explainability.find((line) => line.code === 'TRANSPORT_ALLOWANCE')?.amount).toBe(1000);
+    expect(row.explainability.find((line) => line.code === 'FLEXIBLE_ALLOWANCE')?.amount).toBe(4000);
+    expect(drafts.find((draft) => draft.lineType === 'BASIC_SALARY')).toEqual(expect.objectContaining({
+      ruleSetId: 'EARNING',
+      ruleId: 'BASIC_SALARY',
+      amount: 5000,
+    }));
+    expect(payslip.grossPay).toBe(10000);
+    expect(payslip.lines.map((line) => line.lineType)).toEqual(expect.arrayContaining([
+      'BASIC_SALARY',
+      'TRANSPORT_ALLOWANCE',
+      'FLEXIBLE_ALLOWANCE',
+      'NET_PAY',
+    ]));
+  });
+
+  it('uses salary composition tax and insurance flags in gross-to-net calculation', () => {
+    const compositionSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 10,
+        employeeInsuranceRatePercent: 5,
+        employerInsuranceRatePercent: 0,
+      },
+      deductionPolicies: [],
+      salaryCompositionPlans: [
+        {
+          code: 'EG_TAXABLE_SPLIT',
+          label: 'Taxable split',
+          active: true,
+          countryCode: 'EG',
+          currency: 'EGP',
+          components: [
+            {
+              code: 'BASIC_SALARY',
+              label: 'Basic salary',
+              active: true,
+              componentType: 'BASIC',
+              valueType: 'PERCENT_OF_GROSS',
+              ratePercent: 50,
+              taxable: true,
+              insurable: true,
+              includedInGross: true,
+              displayOnPayslip: true,
+              priority: 10,
+              payslipLineType: 'GROSS',
+            },
+            {
+              code: 'HOUSING_ALLOWANCE',
+              label: 'Housing allowance',
+              active: true,
+              componentType: 'ALLOWANCE',
+              valueType: 'PERCENT_OF_GROSS',
+              ratePercent: 30,
+              taxable: true,
+              insurable: false,
+              includedInGross: true,
+              displayOnPayslip: true,
+              priority: 20,
+              payslipLineType: 'GROSS',
+            },
+            {
+              code: 'TRANSPORT_ALLOWANCE',
+              label: 'Transport allowance',
+              active: true,
+              componentType: 'ALLOWANCE',
+              valueType: 'REMAINDER_OF_GROSS',
+              taxable: false,
+              insurable: false,
+              includedInGross: true,
+              displayOnPayslip: true,
+              priority: 30,
+              payslipLineType: 'GROSS',
+            },
+          ],
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const [row] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [{ ...employee, countryCode: 'EG' }],
+      setup: compositionSetup,
+    }).rows;
+
+    expect(row.grossSalary).toBe(10000);
+    expect(row.taxAmount).toBe(800);
+    expect(row.employeeInsuranceAmount).toBe(250);
+    expect(row.netSalary).toBe(8950);
+    expect(row.explainability.find((line) => line.code === 'TRANSPORT_ALLOWANCE')).toEqual(expect.objectContaining({
+      taxable: false,
+      insurable: false,
+    }));
+  });
+
   it('calculates progressive tax brackets instead of flat tax when configured', () => {
     const bracketSetup = {
       ...setup,

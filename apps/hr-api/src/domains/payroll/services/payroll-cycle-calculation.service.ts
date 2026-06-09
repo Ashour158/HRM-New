@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
-import type { HcmPolicyScope, HcmSetupConfig, PayrollCalculationPolicy, PayrollPolicyLogicLedgerRule } from '../../hcm-setup/hcm-setup.types.js';
+import type { HcmPolicyScope, HcmSetupConfig, PayrollCalculationPolicy, PayrollPolicyLogicLedgerRule, SalaryCompositionPlan } from '../../hcm-setup/hcm-setup.types.js';
 import type { AttendanceMonthlySummary } from '../../time-attendance/services/attendance-calculation.service.js';
 import { PayrollStatutoryPolicyService } from './payroll-statutory-policy.service.js';
 
@@ -50,6 +50,8 @@ export interface PayrollExplainabilityLine {
   payslipLineType?: string;
   retroBehavior?: string;
   scopeMatch?: HcmPolicyScope;
+  taxable?: boolean;
+  insurable?: boolean;
 }
 
 type CalculationPeriod = {
@@ -321,6 +323,33 @@ function earningApplies(
   return assignedPolicyApplies(earning, employee, period);
 }
 
+function salaryCompositionPlanApplies(
+  plan: SalaryCompositionPlan,
+  employee: PayrollCycleEmployeeInput,
+  period: CalculationPeriod,
+): boolean {
+  if (!plan.active) return false;
+  if (!overlapsPeriod(period, plan.effectiveFrom, plan.effectiveUntil)) return false;
+  if (!scopeApplies(plan.scope, employee, period)) return false;
+  const employeeType = employee.employmentType ?? employee.salaryBasis;
+  return matchesOptionalList(plan.workerIds, employee.workerId)
+    && matchesOptionalList(plan.employeeTypes, employeeType)
+    && matchesAnyOptionalList(plan.departmentCodes, [employee.department, employee.departmentId])
+    && matchesOptionalList(plan.locationCodes, employee.workLocationCode)
+    && matchesOptionalList(plan.countryCode ? [plan.countryCode] : undefined, employee.countryCode)
+    && matchesOptionalList(plan.currency ? [plan.currency] : undefined, employee.currency);
+}
+
+function resolveSalaryCompositionPlan(
+  setup: HcmSetupConfig,
+  employee: PayrollCycleEmployeeInput,
+  period: CalculationPeriod,
+): SalaryCompositionPlan | undefined {
+  return (setup.salaryCompositionPlans ?? [])
+    .filter((plan) => salaryCompositionPlanApplies(plan, employee, period))
+    .sort((left, right) => (right.workerIds?.length ?? 0) - (left.workerIds?.length ?? 0))[0];
+}
+
 function canSeeSalary(actor: PayrollActorVisibility, workerId: string): boolean {
   return actor.workerId === workerId || actor.roles.some((role) => ['HR_ADMIN', 'PAYROLL_ADMIN', 'SUPER_ADMIN'].includes(role));
 }
@@ -492,6 +521,105 @@ function explainabilityLabel(item: EvaluatedPolicyComponent<PayrollPolicyWithLed
   return item.ledgerRuleLabel || item.policy.label;
 }
 
+function salaryCompositionFormula(component: SalaryCompositionPlan['components'][number], baseGrossSalary: number, normalized: boolean): string {
+  const suffix = normalized ? '; normalized to employee gross salary' : '';
+  if (component.valueType === 'PERCENT_OF_GROSS') return `base gross ${baseGrossSalary} * ${component.ratePercent ?? 0}%${suffix}`;
+  if (component.valueType === 'FIXED_AMOUNT') return `${component.amount ?? 0}${suffix}`;
+  return `remaining gross salary after configured components${suffix}`;
+}
+
+function buildSalaryComposition(
+  plan: SalaryCompositionPlan | undefined,
+  baseGrossSalary: number,
+): { lines: PayrollExplainabilityLine[]; taxableBaseGross: number; insurableBaseGross: number } {
+  const components = (plan?.components ?? [])
+    .filter((component) => component.active && component.includedInGross !== false)
+    .sort((left, right) => (left.priority ?? 1000) - (right.priority ?? 1000));
+  if (!plan || components.length === 0) {
+    return { lines: [{
+      code: 'GROSS',
+      label: 'Base gross salary',
+      amount: baseGrossSalary,
+      source: 'COMPENSATION',
+      formula: 'Employee compensation gross salary',
+      payslipLineType: 'GROSS',
+      taxable: true,
+      insurable: true,
+    }], taxableBaseGross: baseGrossSalary, insurableBaseGross: baseGrossSalary };
+  }
+
+  const fixedLines = components
+    .filter((component) => component.valueType !== 'REMAINDER_OF_GROSS')
+    .map((component) => {
+      const amount = component.valueType === 'PERCENT_OF_GROSS'
+        ? baseGrossSalary * ((component.ratePercent ?? 0) / 100)
+        : (component.amount ?? 0);
+      return { component, amount };
+    });
+  const fixedTotal = fixedLines.reduce((total, line) => total + line.amount, 0);
+  const remainderComponents = components.filter((component) => component.valueType === 'REMAINDER_OF_GROSS');
+  const remaining = Math.max(baseGrossSalary - fixedTotal, 0);
+  const remainderAmount = remainderComponents.length > 0 ? remaining / remainderComponents.length : 0;
+  const rawLines = [
+    ...fixedLines,
+    ...remainderComponents.map((component) => ({ component, amount: remainderAmount })),
+  ].filter((line) => line.amount > 0);
+
+  const rawTotal = rawLines.reduce((total, line) => total + line.amount, 0);
+  const normalizationFactor = rawTotal > baseGrossSalary && rawTotal > 0 ? baseGrossSalary / rawTotal : 1;
+  const allLines = rawLines.map(({ component, amount }) => {
+    const normalized = normalizationFactor !== 1;
+    const finalAmount = roundMoney(amount * normalizationFactor);
+    return {
+      code: component.code,
+      label: component.label,
+      amount: finalAmount,
+      source: 'COMPENSATION' as const,
+      formula: salaryCompositionFormula(component, baseGrossSalary, normalized),
+      ledgerRuleCode: component.code,
+      calculationBase: 'BASE_GROSS',
+      calculationMethod: component.valueType,
+      glAccount: component.glAccount,
+      payslipLineType: component.payslipLineType ?? 'GROSS',
+      scopeMatch: plan.scope,
+      taxable: component.taxable ?? true,
+      insurable: component.insurable ?? component.taxable ?? true,
+      displayOnPayslip: component.displayOnPayslip !== false,
+    };
+  });
+
+  const reconciled = roundMoney(allLines.reduce((total, line) => total + line.amount, 0));
+  const balance = roundMoney(baseGrossSalary - reconciled);
+  if (balance > 0) {
+    allLines.push({
+      code: 'BASE_GROSS_BALANCE',
+      label: 'Other gross pay',
+      amount: balance,
+      source: 'COMPENSATION',
+      formula: 'remaining employee gross salary',
+      ledgerRuleCode: 'BASE_GROSS_BALANCE',
+      calculationBase: 'BASE_GROSS',
+      calculationMethod: 'REMAINDER_OF_GROSS',
+      glAccount: undefined,
+      payslipLineType: 'GROSS',
+      scopeMatch: plan.scope,
+      taxable: true,
+      insurable: true,
+      displayOnPayslip: true,
+    });
+  }
+
+  return {
+    lines: allLines.filter((line) => line.displayOnPayslip).map(({ displayOnPayslip: _displayOnPayslip, ...line }) => line),
+    taxableBaseGross: roundMoney(allLines
+      .filter((line) => line.taxable)
+      .reduce((total, line) => total + line.amount, 0)),
+    insurableBaseGross: roundMoney(allLines
+      .filter((line) => line.insurable)
+      .reduce((total, line) => total + line.amount, 0)),
+  };
+}
+
 function calculateTax(policy: PayrollCalculationPolicy, taxableBase: number): { amount: number; lines: PayrollExplainabilityLine[] } {
   if (policy.taxMode === 'PROGRESSIVE_BRACKETS' && policy.taxBrackets?.length) {
     let amount = 0;
@@ -592,17 +720,12 @@ export class PayrollCycleCalculationService {
       : employee.grossSalary);
     const statutoryResolution = this.statutoryPolicy.resolveCalculationPolicy(setup, employee);
     const policy = statutoryResolution.policy;
-    const explainability: PayrollExplainabilityLine[] = [
-      {
-        code: 'GROSS',
-        label: 'Base gross salary',
-        amount: baseGrossSalary,
-        source: 'COMPENSATION',
-        formula: isHourly && employee.hourlyRate !== undefined
-          ? `${employee.hourlyRate} hourly rate * ${payableHours} payable hours`
-          : 'Employee compensation gross salary',
-      },
-    ];
+    const salaryCompositionPlan = resolveSalaryCompositionPlan(setup, employee, calculationPeriod);
+    const salaryComposition = buildSalaryComposition(salaryCompositionPlan, baseGrossSalary);
+    const explainability = salaryComposition.lines;
+    if (!salaryCompositionPlan && isHourly && employee.hourlyRate !== undefined && explainability[0]) {
+      explainability[0].formula = `${employee.hourlyRate} hourly rate * ${payableHours} payable hours`;
+    }
     if (statutoryResolution.pack) {
       explainability.push({
         code: statutoryResolution.pack.code,
@@ -719,7 +842,7 @@ export class PayrollCycleCalculationService {
         }];
       });
 
-    const insuranceBase = roundMoney(baseGrossSalary + insurableEarningAmount);
+    const insuranceBase = roundMoney(salaryComposition.insurableBaseGross + insurableEarningAmount);
     const employeeInsuranceRaw = insuranceBase * (policy.employeeInsuranceRatePercent / 100);
     const employerInsuranceRaw = insuranceBase * ((policy.employerInsuranceRatePercent ?? 0) / 100);
     const employeeInsuranceAmount = roundMoney(minOptional(employeeInsuranceRaw, policy.employeeInsuranceCap));
@@ -756,7 +879,7 @@ export class PayrollCycleCalculationService {
       const preTaxDeductionAmount = roundMoney(evaluatedDeductions
         .filter((item) => item.policy.timing === 'PRE_TAX')
         .reduce((total, item) => total + item.amount, 0));
-      const taxableBase = roundMoney(Math.max(baseGrossSalary + taxableEarningAmount - preTaxDeductionAmount, 0));
+      const taxableBase = roundMoney(Math.max(salaryComposition.taxableBaseGross + taxableEarningAmount - preTaxDeductionAmount, 0));
       const tax = calculateTax(policy, taxableBase);
       const before = evaluatedDeductions.map((item) => item.amount).join('|');
       evaluatedDeductions = protectMinimumNetPay(evaluatedDeductions, tax.amount);
@@ -906,7 +1029,7 @@ export class PayrollCycleCalculationService {
       description: line.label,
       amount: line.amount,
       currency: row.currency,
-      ruleSetId: line.payslipLineType === 'TAX' ? 'TAX' : line.source,
+      ruleSetId: line.payslipLineType === 'TAX' ? 'TAX' : line.payslipLineType === 'GROSS' ? 'EARNING' : line.source,
       ruleId: line.code,
       calculationStep: line.source,
       inputSnapshotHash: snapshotHash,

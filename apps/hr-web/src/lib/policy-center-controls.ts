@@ -44,6 +44,7 @@ export type GuidedPolicyChange =
   | { type: 'ATTENDANCE_RULE'; changes: Record<string, unknown> }
   | { type: 'PAYROLL_CALCULATION'; changes: Record<string, unknown> }
   | { type: 'PAYROLL_STATUTORY_PACK'; code: string; changes: Record<string, unknown> }
+  | { type: 'PAYROLL_SALARY_COMPOSITION'; code: string; changes: Record<string, unknown> }
   | { type: 'PAYROLL_EARNING_POLICY'; code: string; changes: Record<string, unknown> }
   | { type: 'PAYROLL_DEDUCTION_POLICY'; code: string; changes: Record<string, unknown> }
   | { type: 'PAYROLL_BLOCKER'; code: string; changes: Record<string, unknown> }
@@ -102,8 +103,8 @@ export const POLICY_CONTROL_LENSES = {
     brain: 'PayrollPolicyBrain',
     description: 'Controls statutory packs, tax, insurance, scoped earning/deduction logic ledgers, blockers, GL preview, and bank file readiness.',
     engines: ['PayrollStatutoryPolicyService', 'PayrollCalculationEngine', 'PayrollLogicLedgerEngine', 'PayrollBlockingEngine', 'PayrollCloseWorkflow'],
-    controls: ['Tax mode/rates', 'Insurance rates/caps', 'Scoped earning logic ledgers', 'Scoped deduction logic ledgers', 'Minimum-net protection', 'Close blockers', 'GL accounts and bank file formats'],
-    runtimeKeys: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'earningPolicies', 'deductionPolicies', 'payrollBlockingRules'],
+    controls: ['Salary composition', 'Tax mode/rates', 'Insurance rates/caps', 'Scoped earning logic ledgers', 'Scoped deduction logic ledgers', 'Minimum-net protection', 'Close blockers', 'GL accounts and bank file formats'],
+    runtimeKeys: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'salaryCompositionPlans', 'earningPolicies', 'deductionPolicies', 'payrollBlockingRules'],
     serviceConsumers: ['Payroll preview', 'Payroll close', 'Payslip generation', 'GL posting preview', 'Bank batch preview'],
     evidenceFields: ['policyRevisionId', 'statutoryPackCode', 'ledgerRuleCode', 'scopeMatch', 'calculationBase', 'glAccount', 'decision', 'reason'],
     notificationEvents: ['PolicyRevisionApplied', 'PayrollPolicyChanged', 'PayrollCycleRevalidationRequired'],
@@ -230,10 +231,10 @@ export const SYSTEM_POLICY_SURFACES: SystemPolicySurface[] = [
   {
     module: 'Payroll',
     policyArea: 'PAYROLL',
-    governedBy: 'Statutory packs, scoped earning/deduction logic ledgers, tax, insurance, close blockers, GL and bank policies',
+    governedBy: 'Salary composition, statutory packs, scoped earning/deduction logic ledgers, tax, insurance, close blockers, GL and bank policies',
     commandEnforcement: ['PreviewPayrollCycle', 'CalculatePayrollResultLine', 'ApplyPayrollLogicLedger', 'ClosePayrollCycle', 'GeneratePayslip'],
     notificationEvents: ['PayrollPolicyChanged', 'PayrollCycleRevalidationRequired'],
-    runtimeEvidence: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'earningPolicies.logicLedger', 'deductionPolicies.logicLedger', 'payrollBlockingRules'],
+    runtimeEvidence: ['payrollCalculationPolicy', 'statutoryPayrollPacks', 'salaryCompositionPlans', 'earningPolicies.logicLedger', 'deductionPolicies.logicLedger', 'payrollBlockingRules'],
   },
   {
     module: 'Benefits',
@@ -418,6 +419,10 @@ export function applyGuidedPolicyChange(area: PolicyArea, draft: Record<string, 
 
   if (area === 'PAYROLL' && change.type === 'PAYROLL_STATUTORY_PACK') {
     return { ...current, statutoryPayrollPacks: upsertByKey(current.statutoryPayrollPacks, 'code', change.code, change.changes) };
+  }
+
+  if (area === 'PAYROLL' && change.type === 'PAYROLL_SALARY_COMPOSITION') {
+    return { ...current, salaryCompositionPlans: upsertByKey(current.salaryCompositionPlans, 'code', change.code, change.changes) };
   }
 
   if (area === 'PAYROLL' && change.type === 'PAYROLL_EARNING_POLICY') {

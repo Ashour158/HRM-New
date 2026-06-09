@@ -18,6 +18,7 @@ import type {
   HcmSetupUpdate,
   LeavePolicy,
   PayrollBlockingRule,
+  SalaryCompositionPlan,
   StatutoryPayrollPack,
 } from '../hcm-setup/hcm-setup.types.js';
 import { PolicyCenterRepository } from './policy-center.repository.js';
@@ -530,6 +531,7 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
 type ScopedPolicy =
   | LeavePolicy
   | StatutoryPayrollPack
+  | SalaryCompositionPlan
   | EarningPolicy
   | DeductionPolicy
   | PayrollBlockingRule
@@ -620,6 +622,7 @@ function extractBaselineConfig(area: PolicyArea, setup: HcmSetupConfig): Partial
     return {
       payrollCalculationPolicy: setup.payrollCalculationPolicy,
       statutoryPayrollPacks: setup.statutoryPayrollPacks,
+      salaryCompositionPlans: setup.salaryCompositionPlans,
       earningPolicies: setup.earningPolicies,
       deductionPolicies: setup.deductionPolicies,
       payrollBlockingRules: setup.payrollBlockingRules,
@@ -1215,7 +1218,7 @@ function mergePayrollScope(revisionScope: PolicyScope, policyScope?: Partial<Pol
   };
 }
 
-function withPayrollScope<T extends StatutoryPayrollPack | EarningPolicy | DeductionPolicy | PayrollBlockingRule>(policy: T, scope: PolicyScope): T {
+function withPayrollScope<T extends StatutoryPayrollPack | SalaryCompositionPlan | EarningPolicy | DeductionPolicy | PayrollBlockingRule>(policy: T, scope: PolicyScope): T {
   const mergedScope = mergePayrollScope(scope, (policy as { scope?: Partial<PolicyScope> }).scope);
   const scoped = {
     ...(withScope(policy as ScopedPolicy, mergedScope) as T),
@@ -1730,7 +1733,7 @@ export class PolicyCenterService {
       if (from > until) errors.push('Policy effective start date must be before effective end date.');
     }
 
-    const codeKeys = ['leavePolicies', 'statutoryPayrollPacks', 'earningPolicies', 'deductionPolicies', 'payrollBlockingRules'];
+    const codeKeys = ['leavePolicies', 'statutoryPayrollPacks', 'salaryCompositionPlans', 'earningPolicies', 'deductionPolicies', 'payrollBlockingRules'];
     for (const key of codeKeys) {
       const duplicates = duplicateValues(collectPolicyCodes(revision.draftConfig, key));
       if (duplicates.length > 0) {
@@ -1965,6 +1968,7 @@ export class PolicyCenterService {
       return this.withRuntimePolicyEvidence(revision, {
         payrollCalculationPolicy: draft.payrollCalculationPolicy,
         statutoryPayrollPacks: draft.statutoryPayrollPacks?.map((policy) => withPayrollScope(policy, scope)),
+        salaryCompositionPlans: draft.salaryCompositionPlans?.map((policy) => withPayrollScope(policy, scope)),
         earningPolicies: draft.earningPolicies?.map((policy) => withPayrollScope(policy, scope)),
         deductionPolicies: draft.deductionPolicies?.map((policy) => withPayrollScope(policy, scope)),
         payrollBlockingRules: draft.payrollBlockingRules?.map((policy) => withPayrollScope(policy, scope)),

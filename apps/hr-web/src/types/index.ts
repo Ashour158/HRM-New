@@ -317,6 +317,43 @@ export interface PayrollGlAccountMapping {
   bankClearingAccount?: string;
 }
 
+export type SalaryCompositionValueType =
+  | 'PERCENT_OF_GROSS'
+  | 'FIXED_AMOUNT'
+  | 'REMAINDER_OF_GROSS';
+
+export type SalaryCompositionComponentType =
+  | 'BASIC'
+  | 'ALLOWANCE'
+  | 'BENEFIT';
+
+export interface SalaryCompositionComponent extends SetupOption {
+  componentType: SalaryCompositionComponentType;
+  valueType: SalaryCompositionValueType;
+  amount?: number;
+  ratePercent?: number;
+  taxable?: boolean;
+  insurable?: boolean;
+  includedInGross?: boolean;
+  displayOnPayslip?: boolean;
+  priority?: number;
+  payslipLineType?: string;
+  glAccount?: string;
+}
+
+export interface SalaryCompositionPlan extends SetupOption {
+  countryCode?: string;
+  currency?: string;
+  employeeTypes?: string[];
+  departmentCodes?: string[];
+  locationCodes?: string[];
+  workerIds?: string[];
+  effectiveFrom?: string;
+  effectiveUntil?: string;
+  scope?: HcmPolicyScope;
+  components: SalaryCompositionComponent[];
+}
+
 export type PayrollBankFileFormat = 'CSV' | 'CBE_EGYPT_CSV' | 'SEPA_XML' | 'NACHA';
 
 export interface StatutoryPayrollPack extends SetupOption {
@@ -694,6 +731,7 @@ export interface HcmSetupConfig {
   leavePolicies: LeavePolicy[];
   payrollCalculationPolicy: PayrollCalculationPolicy;
   statutoryPayrollPacks: StatutoryPayrollPack[];
+  salaryCompositionPlans: SalaryCompositionPlan[];
   attendancePolicy: AttendancePolicy;
   earningPolicies: EarningPolicy[];
   deductionPolicies: DeductionPolicy[];

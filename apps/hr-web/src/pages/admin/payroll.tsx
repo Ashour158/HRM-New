@@ -213,6 +213,7 @@ function cloneSetup(setup: Partial<HcmSetupConfig>): HcmSetupConfig {
       ...(incoming.payrollCalculationPolicy ?? {}),
     },
     statutoryPayrollPacks: incoming.statutoryPayrollPacks ?? defaults.statutoryPayrollPacks,
+    salaryCompositionPlans: incoming.salaryCompositionPlans ?? defaults.salaryCompositionPlans,
     attendancePolicy: {
       ...defaults.attendancePolicy,
       ...(incoming.attendancePolicy ?? {}),
@@ -233,6 +234,7 @@ function buildPayrollSetupUpdate(setup: HcmSetupConfig): PayrollSetupUpdate {
     attendancePolicy: setup.attendancePolicy,
     payrollCalculationPolicy: setup.payrollCalculationPolicy,
     statutoryPayrollPacks: setup.statutoryPayrollPacks,
+    salaryCompositionPlans: setup.salaryCompositionPlans,
     earningPolicies: setup.earningPolicies,
     deductionPolicies: setup.deductionPolicies,
     payrollBlockingRules: setup.payrollBlockingRules,
@@ -297,12 +299,13 @@ const weekdayOptions = [
   { value: 6, label: 'Sat' },
 ];
 
-type PayrollTab = 'cycle' | 'register' | 'exports' | 'policies' | 'attendance' | 'earnings' | 'deductions';
+type PayrollTab = 'cycle' | 'register' | 'exports' | 'policies' | 'composition' | 'attendance' | 'earnings' | 'deductions';
 type PayrollSetupUpdate = Pick<
   HcmSetupConfig,
   'attendancePolicy'
   | 'payrollCalculationPolicy'
   | 'statutoryPayrollPacks'
+  | 'salaryCompositionPlans'
   | 'earningPolicies'
   | 'deductionPolicies'
   | 'payrollBlockingRules'
@@ -313,6 +316,7 @@ const payrollTabs: Array<{ value: PayrollTab; label: string }> = [
   { value: 'register', label: 'Register' },
   { value: 'exports', label: 'Payments & Reports' },
   { value: 'policies', label: 'Payroll Rules' },
+  { value: 'composition', label: 'Salary Composition' },
   { value: 'attendance', label: 'Attendance Rules' },
   { value: 'earnings', label: 'Earnings' },
   { value: 'deductions', label: 'Deductions' },
@@ -517,6 +521,33 @@ export function AdminPayroll() {
     }));
   };
 
+  const updateSalaryCompositionPlan = (index: number, patch: Partial<HcmSetupConfig['salaryCompositionPlans'][number]>) => {
+    setSetup((current) => ({
+      ...current,
+      salaryCompositionPlans: current.salaryCompositionPlans.map((plan, rowIndex) => rowIndex === index ? { ...plan, ...patch } : plan),
+    }));
+  };
+
+  const updateSalaryComponent = (
+    planIndex: number,
+    componentIndex: number,
+    patch: Partial<HcmSetupConfig['salaryCompositionPlans'][number]['components'][number]>,
+  ) => {
+    setSetup((current) => ({
+      ...current,
+      salaryCompositionPlans: current.salaryCompositionPlans.map((plan, rowIndex) => (
+        rowIndex === planIndex
+          ? {
+            ...plan,
+            components: plan.components.map((component, nestedIndex) => (
+              nestedIndex === componentIndex ? { ...component, ...patch } : component
+            )),
+          }
+          : plan
+      )),
+    }));
+  };
+
   const updateDeduction = (index: number, patch: Partial<DeductionPolicy>) => {
     setSetup((current) => ({
       ...current,
@@ -657,6 +688,7 @@ export function AdminPayroll() {
   const selectedPayrollRow = rows.find((row) => row.workerId === selectedWorkerId) ?? rows[0];
   const tabClass = (tab: PayrollTab, className: string) => activePayrollTab === tab ? className : 'hidden';
   const isRuleTab = activePayrollTab === 'policies'
+    || activePayrollTab === 'composition'
     || activePayrollTab === 'attendance'
     || activePayrollTab === 'earnings'
     || activePayrollTab === 'deductions';
@@ -1218,6 +1250,201 @@ export function AdminPayroll() {
         </section>
 
         <aside className="space-y-6">
+          <Card id="payroll-composition" className={tabClass('composition', '')}>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <CardTitle className="text-lg">Salary Composition</CardTitle>
+                  <CardDescription>Define the salary items employees see on payslips.</CardDescription>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSetup((current) => ({
+                    ...current,
+                    salaryCompositionPlans: [...current.salaryCompositionPlans, {
+                      code: `SALARY_PLAN_${Date.now().toString().slice(-5)}`,
+                      label: 'New salary structure',
+                      active: true,
+                      countryCode: 'EG',
+                      currency,
+                      locationCodes: locations[0]?.code ? [locations[0].code] : [],
+                      employeeTypes: ['FULL_TIME'],
+                      components: [
+                        {
+                          code: 'BASIC_SALARY',
+                          label: 'Basic salary',
+                          active: true,
+                          componentType: 'BASIC',
+                          valueType: 'REMAINDER_OF_GROSS',
+                          taxable: true,
+                          insurable: true,
+                          includedInGross: true,
+                          displayOnPayslip: true,
+                          priority: 10,
+                          payslipLineType: 'GROSS',
+                        },
+                      ],
+                    }],
+                  }))}
+                >
+                  Add Plan
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {setup.salaryCompositionPlans.length === 0 ? (
+                <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                  Add a salary structure to split gross pay into payslip items such as basic salary, housing, transport, or flexible allowance.
+                </div>
+              ) : null}
+              {setup.salaryCompositionPlans.map((plan, planIndex) => (
+                <div key={`${plan.code}-${planIndex}`} className="space-y-4 rounded-lg border p-4">
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <div className="grid gap-2">
+                      <Label>Plan Name</Label>
+                      <Input value={plan.label} onChange={(event) => updateSalaryCompositionPlan(planIndex, { label: event.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Code</Label>
+                      <Input value={plan.code} onChange={(event) => updateSalaryCompositionPlan(planIndex, { code: event.target.value.toUpperCase() })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Status</Label>
+                      <Select value={plan.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updateSalaryCompositionPlan(planIndex, { active: value === 'ACTIVE' })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Country</Label>
+                      <Input value={plan.countryCode ?? ''} onChange={(event) => updateSalaryCompositionPlan(planIndex, { countryCode: event.target.value.toUpperCase() || undefined })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Currency</Label>
+                      <Input value={plan.currency ?? ''} onChange={(event) => updateSalaryCompositionPlan(planIndex, { currency: event.target.value.toUpperCase() || undefined })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Workplaces</Label>
+                      <Input value={(plan.locationCodes ?? []).join(',')} onChange={(event) => updateSalaryCompositionPlan(planIndex, { locationCodes: splitCsv(event.target.value) })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Employee Types</Label>
+                      <Input value={(plan.employeeTypes ?? []).join(',')} onChange={(event) => updateSalaryCompositionPlan(planIndex, { employeeTypes: splitCsv(event.target.value) })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Departments</Label>
+                      <Input value={(plan.departmentCodes ?? []).join(',')} onChange={(event) => updateSalaryCompositionPlan(planIndex, { departmentCodes: splitCsv(event.target.value) })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Workers</Label>
+                      <Input value={(plan.workerIds ?? []).join(',')} onChange={(event) => updateSalaryCompositionPlan(planIndex, { workerIds: splitCsv(event.target.value) })} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>Components</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateSalaryCompositionPlan(planIndex, {
+                          components: [...plan.components, {
+                            code: `COMPONENT_${Date.now().toString().slice(-5)}`,
+                            label: 'New component',
+                            active: true,
+                            componentType: 'ALLOWANCE',
+                            valueType: 'PERCENT_OF_GROSS',
+                            ratePercent: 0,
+                            taxable: true,
+                            insurable: false,
+                            includedInGross: true,
+                            displayOnPayslip: true,
+                            priority: (plan.components.length + 1) * 10,
+                            payslipLineType: 'GROSS',
+                          }],
+                        })}
+                      >
+                        Add Component
+                      </Button>
+                    </div>
+                    {plan.components.map((component, componentIndex) => (
+                      <div key={`${component.code}-${componentIndex}`} className="grid gap-2 rounded-md border-t pt-3 first:border-t-0 first:pt-0 md:grid-cols-4">
+                        <Input value={component.label} placeholder="Component name" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { label: event.target.value })} />
+                        <Input value={component.code} placeholder="Code" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { code: event.target.value.toUpperCase() })} />
+                        <Select value={component.componentType} onValueChange={(value) => updateSalaryComponent(planIndex, componentIndex, { componentType: value as HcmSetupConfig['salaryCompositionPlans'][number]['components'][number]['componentType'] })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="BASIC">Basic</SelectItem>
+                            <SelectItem value="ALLOWANCE">Allowance</SelectItem>
+                            <SelectItem value="BENEFIT">Benefit</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select value={component.valueType} onValueChange={(value) => updateSalaryComponent(planIndex, componentIndex, { valueType: value as HcmSetupConfig['salaryCompositionPlans'][number]['components'][number]['valueType'] })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="PERCENT_OF_GROSS">% of gross</SelectItem>
+                            <SelectItem value="FIXED_AMOUNT">Fixed amount</SelectItem>
+                            <SelectItem value="REMAINDER_OF_GROSS">Remainder</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {component.valueType === 'PERCENT_OF_GROSS' ? (
+                          <Input type="number" value={component.ratePercent ?? ''} placeholder="Rate %" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { ratePercent: Number(event.target.value || 0) })} />
+                        ) : component.valueType === 'FIXED_AMOUNT' ? (
+                          <Input type="number" value={component.amount ?? ''} placeholder="Amount" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { amount: Number(event.target.value || 0) })} />
+                        ) : (
+                          <div className="rounded-md bg-slate-50 px-3 py-2 text-sm text-muted-foreground">Uses remaining gross pay</div>
+                        )}
+                        <Input type="number" value={component.priority ?? ''} placeholder="Sort order" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { priority: event.target.value ? Number(event.target.value) : undefined })} />
+                        <Input value={component.glAccount ?? ''} placeholder="GL account" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { glAccount: event.target.value || undefined })} />
+                        <Input value={component.payslipLineType ?? 'GROSS'} placeholder="Payslip group" onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { payslipLineType: event.target.value.toUpperCase() || 'GROSS' })} />
+                        <div className="flex flex-wrap items-center gap-3 text-sm md:col-span-3">
+                          <label className="flex items-center gap-2">
+                            <Input type="checkbox" className="h-4 w-4" checked={component.active} onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { active: event.target.checked })} />
+                            Active
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <Input type="checkbox" className="h-4 w-4" checked={component.taxable ?? false} onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { taxable: event.target.checked })} />
+                            Taxable
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <Input type="checkbox" className="h-4 w-4" checked={component.insurable ?? false} onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { insurable: event.target.checked })} />
+                            Insurance base
+                          </label>
+                          <label className="flex items-center gap-2">
+                            <Input type="checkbox" className="h-4 w-4" checked={component.displayOnPayslip !== false} onChange={(event) => updateSalaryComponent(planIndex, componentIndex, { displayOnPayslip: event.target.checked })} />
+                            Show on payslip
+                          </label>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => updateSalaryCompositionPlan(planIndex, { components: plan.components.filter((_, rowIndex) => rowIndex !== componentIndex) })}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remove
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setSetup((current) => ({ ...current, salaryCompositionPlans: current.salaryCompositionPlans.filter((_, rowIndex) => rowIndex !== planIndex) }))}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Remove Plan
+                  </Button>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
           <Card id="payroll-policies" className={tabClass('policies', '')}>
             <CardHeader>
               <CardTitle className="text-lg">Gross-to-Net Policy</CardTitle>
