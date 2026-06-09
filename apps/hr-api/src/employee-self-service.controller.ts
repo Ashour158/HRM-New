@@ -1,8 +1,12 @@
-import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { randomUUID } from 'crypto';
+import { computeRequestHash } from '@hcm/platform-core';
+import type { CommandOutcome, CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from './guards/auth.guard.js';
+import { CommandBus } from './platform/command-bus/command-bus.js';
 import { WorkerRepository } from './domains/hr-core/repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from './domains/hr-core/repositories/personal-data-record.repository.js';
 import { BenefitsEnrollmentRepository } from './domains/benefits/repositories/benefits-enrollment.repository.js';
@@ -13,6 +17,27 @@ import { HcmSetupService } from './domains/hcm-setup/hcm-setup.service.js';
 import type { WorkerProfile } from './domains/hr-core/aggregates/worker-profile.aggregate.js';
 
 type PayloadMap = Record<string, Record<string, unknown>>;
+
+type EmployeeBenefitsDependentBody = {
+  dependentId?: string;
+  firstName?: string;
+  lastName?: string;
+  relationship?: string;
+  dateOfBirth?: Date | string;
+};
+
+type EmployeeBenefitsEnrollmentBody = {
+  programId?: string;
+  coverageLevel?: string;
+  dependents?: EmployeeBenefitsDependentBody[];
+  effectiveDate?: Date | string;
+};
+
+type EmployeeBenefitsLifeEventBody = {
+  eventType?: string;
+  eventDate?: Date | string;
+  description?: string;
+};
 
 function dateOnly(value: Date | string | undefined | null): string | undefined {
   if (!value) return undefined;
@@ -68,6 +93,7 @@ export class EmployeeSelfServiceController {
     private readonly spendingAccountRepo: SpendingAccountRepository,
     private readonly benefitsProgramRepo: BenefitsProgramRepository,
     private readonly hcmSetupService: HcmSetupService,
+    private readonly commandBus?: CommandBus,
   ) {}
 
   @Get('profile')
@@ -150,6 +176,14 @@ export class EmployeeSelfServiceController {
           status: enrollmentStatusForUi(enrollment.status),
         };
       }),
+      activePrograms: activePrograms.map((program) => ({
+        id: program.id.value,
+        programName: program.programName,
+        programType: program.programType,
+        status: program.status,
+        effectiveFrom: dateOnly(program.effectiveFrom),
+        effectiveUntil: dateOnly(program.effectiveUntil),
+      })),
       openEnrollmentActive: activePrograms.some((program) => program.status === 'ACTIVE'),
       lifeEvents: lifeEvents.map((event) => ({
         id: event.id.value,
@@ -171,6 +205,47 @@ export class EmployeeSelfServiceController {
     };
   }
 
+  @Post('benefits/enrollments')
+  async createBenefitsEnrollment(@Body() body: EmployeeBenefitsEnrollmentBody, @Req() req: Request) {
+    const worker = await this.resolveSelfWorker(req);
+    this.assertActiveSelfServiceWorker(worker);
+    const payload = {
+      enrollmentId: Uuid.generate(),
+      workerId: worker.id,
+      programId: this.requiredUuid(body.programId, 'programId'),
+      coverageLevel: this.requiredString(body.coverageLevel, 'coverageLevel'),
+      dependents: this.normalizeDependents(body.dependents ?? []),
+      effectiveDate: this.requiredDate(body.effectiveDate ?? new Date(), 'effectiveDate'),
+    };
+    return this.assertCommandSucceeded(await this.getCommandBus().execute(this.buildCommand(
+      'CreateBenefitsEnrollment',
+      'BenefitsEnrollment',
+      payload,
+      req,
+      { subjectWorkerId: worker.id },
+    )));
+  }
+
+  @Post('benefits/life-events')
+  async createBenefitsLifeEvent(@Body() body: EmployeeBenefitsLifeEventBody, @Req() req: Request) {
+    const worker = await this.resolveSelfWorker(req);
+    this.assertActiveSelfServiceWorker(worker);
+    const payload = {
+      lifeEventId: Uuid.generate(),
+      workerId: worker.id,
+      eventType: this.requiredString(body.eventType, 'eventType'),
+      eventDate: this.requiredDate(body.eventDate ?? new Date(), 'eventDate'),
+      description: stringValue(body.description),
+    };
+    return this.assertCommandSucceeded(await this.getCommandBus().execute(this.buildCommand(
+      'CreateBenefitsLifeEvent',
+      'BenefitsLifeEvent',
+      payload,
+      req,
+      { subjectWorkerId: worker.id },
+    )));
+  }
+
   @Get('attendance-setup')
   async getAttendanceSetup(@Req() req: Request) {
     const worker = await this.resolveSelfWorker(req);
@@ -185,6 +260,80 @@ export class EmployeeSelfServiceController {
   private async payloadByCategory(workerId: Uuid): Promise<PayloadMap> {
     const records = await this.personalDataRepo.findByWorker(workerId);
     return Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as PayloadMap;
+  }
+
+  private buildCommand<TPayload>(
+    commandName: string,
+    aggregateType: string,
+    payload: TPayload,
+    req: Request,
+    options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
+  ): HrCommandEnvelope<TPayload> {
+    if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
+    return {
+      commandId: Uuid.generate(),
+      commandName,
+      commandSchemaVersion: 1,
+      tenantId: this.getTenantId(req),
+      actor: req.actor,
+      aggregateType,
+      aggregateId: options?.aggregateId,
+      expectedState: options?.expectedState,
+      expectedVersion: options?.expectedVersion,
+      subjectWorkerId: options?.subjectWorkerId,
+      idempotencyKey: randomUUID(),
+      correlationId: Uuid.generate(),
+      reason: 'Employee benefits self-service request',
+      payload,
+      metadata: { requestHash: computeRequestHash(payload), clientType: 'EMPLOYEE_PORTAL' },
+    };
+  }
+
+  private assertCommandSucceeded<TData>(outcome: CommandOutcome<TData>): CommandResult<TData> {
+    if (outcome.success) return outcome;
+    throw new BadRequestException({
+      errorCode: outcome.errorCode,
+      errorMessage: outcome.errorMessage,
+      errorDetails: outcome.errorDetails,
+      stepFailed: outcome.stepFailed,
+      retryable: outcome.retryable,
+    });
+  }
+
+  private getCommandBus(): CommandBus {
+    if (!this.commandBus) {
+      throw new BadRequestException('Benefits self-service commands are not configured');
+    }
+    return this.commandBus;
+  }
+
+  private normalizeDependents(dependents: EmployeeBenefitsDependentBody[]) {
+    return dependents.map((dependent) => ({
+      dependentId: stringValue(dependent.dependentId) ?? Uuid.generate().value,
+      firstName: this.requiredString(dependent.firstName, 'dependent.firstName'),
+      lastName: this.requiredString(dependent.lastName, 'dependent.lastName'),
+      relationship: this.requiredString(dependent.relationship, 'dependent.relationship'),
+      dateOfBirth: this.requiredDate(dependent.dateOfBirth, 'dependent.dateOfBirth'),
+    }));
+  }
+
+  private requiredString(value: unknown, fieldName: string): string {
+    const parsed = stringValue(value);
+    if (!parsed) throw new BadRequestException(`${fieldName} is required`);
+    return parsed;
+  }
+
+  private requiredUuid(value: unknown, fieldName: string): Uuid {
+    const parsed = this.requiredString(value, fieldName);
+    if (!Uuid.isValid(parsed)) throw new BadRequestException(`${fieldName} must be a valid UUID`);
+    return new Uuid(parsed);
+  }
+
+  private requiredDate(value: unknown, fieldName: string): Date {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    const parsed = typeof value === 'string' ? new Date(value) : undefined;
+    if (!parsed || Number.isNaN(parsed.getTime())) throw new BadRequestException(`${fieldName} must be a valid date`);
+    return parsed;
   }
 
   private async resolveSelfWorker(req: Request): Promise<WorkerProfile> {

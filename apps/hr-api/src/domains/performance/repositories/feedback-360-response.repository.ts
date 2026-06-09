@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { Feedback360Response, type Feedback360ResponseStatus } from '../aggregates/feedback-360-response.aggregate.js';
+import { parseJsonRecord } from '../utils/feedback-360-records.js';
 
 @Injectable()
 export class Feedback360ResponseRepository extends BaseRepository<'performance_feedback_360_responses', Feedback360Response> {
@@ -50,13 +51,13 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
       reviewerId: new Uuid(row.reviewer_id),
       relationshipType: row.relationship_type,
       status: (row.status as Feedback360ResponseStatus) ?? 'PENDING',
-      competencyScores: row.competency_scores ?? undefined,
+      competencyScores: parseJsonRecord<number>(row.competency_scores, 'number'),
       overallRating: row.overall_rating ?? undefined,
       strengths: row.strengths ?? undefined,
       improvements: row.improvements ?? undefined,
       comments: row.comments ?? undefined,
-      dimensionScores: row.dimension_scores ?? undefined,
-      areaComments: row.area_comments ?? undefined,
+      dimensionScores: parseJsonRecord<number>(row.dimension_scores, 'number'),
+      areaComments: parseJsonRecord<string>(row.area_comments, 'string'),
       visibility: row.visibility ?? undefined,
       isAnonymous: row.is_anonymous ?? true,
       submittedAt: row.submitted_at ?? undefined,

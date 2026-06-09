@@ -42,6 +42,7 @@ import { DevelopmentPlanRepository } from '../repositories/development-plan.repo
 import { PerformanceNotificationRepository } from '../repositories/performance-notification.repository.js';
 import { PerformanceAnalyticsService } from '../services/performance-analytics.service.js';
 import { PerformanceNotificationService } from '../services/performance-notification.service.js';
+import { parseJsonRecord } from '../utils/feedback-360-records.js';
 
 import type * as dtos from './dtos.js';
 import {
@@ -296,13 +297,13 @@ export class PerformanceController {
       reviewerId: response.isAnonymous && !canSeeReviewer ? null : response.reviewerId.value,
       relationshipType: response.relationshipType,
       status: response.status,
-      competencyScores: response.competencyScores,
+      competencyScores: parseJsonRecord<number>(response.competencyScores, 'number'),
       overallRating: response.overallRating,
       strengths: response.strengths,
       improvements: response.improvements,
       comments: response.comments,
-      dimensionScores: response.dimensionScores,
-      areaComments: response.areaComments,
+      dimensionScores: parseJsonRecord<number>(response.dimensionScores, 'number'),
+      areaComments: parseJsonRecord<string>(response.areaComments, 'string'),
       visibility: response.visibility,
       isAnonymous: response.isAnonymous,
       submittedAt: response.submittedAt,
@@ -1066,6 +1067,30 @@ export class PerformanceController {
     }));
 
     return this.mergeCommandResult(submitResult, { feedback360ResponseId, revieweeId: dto.revieweeId, reviewerId: reviewer.id.value });
+  }
+
+  @Get('feedback-360-reviewees/eligible')
+  async getEligibleFeedback360Reviewees(@Req() req: Request) {
+    const reviewer = await this.currentWorkerForRequest(req);
+    const workers = (await this.workerRepo.findActive())
+      .filter((worker) => worker.tenantId.value === reviewer.tenantId.value && worker.id.value !== reviewer.id.value);
+
+    return workers
+      .map((worker) => ({
+        worker,
+        relationshipType: this.feedbackRelationshipType(worker, reviewer),
+      }))
+      .filter((item): item is { worker: typeof workers[number]; relationshipType: 'PEER' | 'MANAGER' | 'DIRECT_REPORT' } => Boolean(item.relationshipType))
+      .map(({ worker, relationshipType }) => ({
+        id: worker.id.value,
+        employeeId: (worker as { employeeId?: string }).employeeId,
+        firstName: (worker as { firstName?: string }).firstName,
+        lastName: (worker as { lastName?: string }).lastName,
+        email: this.getWorkerEmail(worker),
+        departmentId: worker.departmentId?.value,
+        managerId: worker.managerId?.value,
+        relationshipType,
+      }));
   }
 
   @Post('feedback-360-responses/:id/commands/submit')

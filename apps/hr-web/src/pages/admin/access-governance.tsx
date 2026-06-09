@@ -714,15 +714,15 @@ export function AdminAccessGovernance() {
     onError: notifyError,
   });
 
-  const roles = data?.roles ?? [];
-  const permissions = data?.permissions ?? [];
-  const assignments = data?.rolePermissions ?? [];
-  const userRoles = data?.userRoles ?? [];
-  const serviceAccounts = data?.serviceAccounts ?? [];
-  const serviceAccountCredentials = data?.serviceAccountCredentials ?? [];
-  const accessReviewCampaigns = data?.accessReviewCampaigns ?? [];
-  const accessReviewItems = data?.accessReviewItems ?? [];
-  const accessReviewWorkflowEvents = data?.accessReviewWorkflowEvents ?? [];
+  const roles = React.useMemo(() => data?.roles ?? [], [data?.roles]);
+  const permissions = React.useMemo(() => data?.permissions ?? [], [data?.permissions]);
+  const assignments = React.useMemo(() => data?.rolePermissions ?? [], [data?.rolePermissions]);
+  const userRoles = React.useMemo(() => data?.userRoles ?? [], [data?.userRoles]);
+  const serviceAccounts = React.useMemo(() => data?.serviceAccounts ?? [], [data?.serviceAccounts]);
+  const serviceAccountCredentials = React.useMemo(() => data?.serviceAccountCredentials ?? [], [data?.serviceAccountCredentials]);
+  const accessReviewCampaigns = React.useMemo(() => data?.accessReviewCampaigns ?? [], [data?.accessReviewCampaigns]);
+  const accessReviewItems = React.useMemo(() => data?.accessReviewItems ?? [], [data?.accessReviewItems]);
+  const accessReviewWorkflowEvents = React.useMemo(() => data?.accessReviewWorkflowEvents ?? [], [data?.accessReviewWorkflowEvents]);
 
   React.useEffect(() => {
     if (!selectedRoleId && roles[0]) setSelectedRoleId(roles[0].id);

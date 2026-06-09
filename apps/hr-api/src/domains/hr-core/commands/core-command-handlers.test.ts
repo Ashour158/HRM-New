@@ -16,6 +16,7 @@ import { EndEmploymentRelationshipHandler } from './end-employment-relationship.
 import { CreateEmploymentContractHandler } from './create-employment-contract.handler.js';
 import { SignEmploymentContractHandler } from './sign-employment-contract.handler.js';
 import { UpsertWorkerProfileSectionHandler } from './upsert-worker-profile-section.handler.js';
+import { ApplyWorkerMassUpdateHandler } from './apply-worker-mass-update.handler.js';
 
 const tenantId = new Uuid('550e8400-e29b-41d4-a716-446655440001');
 const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440002');
@@ -301,6 +302,89 @@ describe('Core HR command handlers', () => {
     expect(updated).toMatchObject({
       success: true,
       eventsEmitted: ['PersonalDataRecordUpdated'],
+    });
+  });
+
+  it('applies worker mass updates as one aggregate/profile unit of work', async () => {
+    const existingBasicRecord = new PersonalDataRecord({
+      id: new Uuid('550e8400-e29b-41d4-a716-446655440010'),
+      tenantId,
+      workerId,
+      dataCategory: 'BASIC',
+      dataClassification: 'CONFIDENTIAL',
+      payload: { workEmail: 'old@example.com' },
+      consentStatus: 'GRANTED',
+      state: 'ACTIVE',
+    });
+    const savedWorkers: WorkerProfile[] = [];
+    const savedRecords: PersonalDataRecord[] = [];
+    const workerRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(worker('ACTIVE')),
+      save: vi.fn(async (record: WorkerProfile) => {
+        savedWorkers.push(record);
+      }),
+    };
+    const personalDataRepo = {
+      findByWorkerAndCategoryForTenant: vi.fn()
+        .mockResolvedValueOnce(existingBasicRecord)
+        .mockResolvedValueOnce(undefined),
+      save: vi.fn(async (record: PersonalDataRecord) => {
+        savedRecords.push(record);
+      }),
+    };
+
+    const result = await new ApplyWorkerMassUpdateHandler(
+      workerRepo as never,
+      personalDataRepo as never,
+      fsm as never,
+    ).handle(command('ApplyWorkerMassUpdate', 'WorkerProfile', {
+      workerId,
+      personalData: {
+        firstName: 'Amina Updated',
+        email: 'amina.updated@example.com',
+      },
+      profileSections: [
+        {
+          dataCategory: 'BASIC',
+          fields: { workEmail: 'amina.updated@example.com', workPhoneNumber: '+202000000000' },
+        },
+        {
+          dataCategory: 'CONTACT',
+          fields: { departmentName: 'FINANCE' },
+        },
+      ],
+      organizationAssignment: { jobTitle: 'People Partner' },
+      updatedFields: ['firstName', 'email', 'workEmail', 'workPhoneNumber', 'departmentName', 'jobTitle'],
+    }, { aggregateId: workerId }));
+
+    expect(workerRepo.save).toHaveBeenCalledTimes(1);
+    expect(savedWorkers[0]).toMatchObject({
+      firstName: 'Amina Updated',
+      jobTitle: 'People Partner',
+    });
+    expect(personalDataRepo.save).toHaveBeenCalledTimes(2);
+    expect(savedRecords[0].payload).toMatchObject({
+      workEmail: 'amina.updated@example.com',
+      workPhoneNumber: '+202000000000',
+    });
+    expect(savedRecords[1]).toMatchObject({
+      dataCategory: 'CONTACT',
+      state: 'ACTIVE',
+      payload: { departmentName: 'FINANCE' },
+    });
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        workerId: workerId.value,
+        updatedFields: ['firstName', 'email', 'workEmail', 'workPhoneNumber', 'departmentName', 'jobTitle'],
+      },
+      eventsEmitted: expect.arrayContaining([
+        'PersonalDataUpdated',
+        'JobInfoUpdated',
+        'PersonalDataRecordUpdated',
+        'PersonalDataRecordCreated',
+        'PersonalDataRecordActivated',
+      ]),
     });
   });
 });

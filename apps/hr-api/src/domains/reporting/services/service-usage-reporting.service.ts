@@ -155,6 +155,7 @@ const HR_REPORT_GROUPS: Array<{
   { code: 'PERFORMANCE', title: 'Performance Report', category: 'Talent', services: ['PERFORMANCE', 'LEARNING', 'TALENT'] },
   { code: 'ENGAGEMENT', title: 'Engagement Report', category: 'People Experience', services: ['ENGAGEMENT'] },
   { code: 'EMPLOYEE', title: 'Employee Master Report', category: 'Core HR', services: ['HR_CORE', 'ORGANIZATION', 'ONBOARDING', 'SERVICE_DELIVERY'] },
+  { code: 'SERVICE_USAGE', title: 'Service Usage Report', category: 'Operations', services: ['REPORTING', 'SYSTEM_GOVERNANCE'] },
   { code: 'GOVERNANCE', title: 'Governance Report', category: 'Governance', services: ['COMPLIANCE', 'POLICY_CENTER', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'DEI_ANALYTICS', 'REPORTING', 'SYSTEM_GOVERNANCE'] },
 ];
 

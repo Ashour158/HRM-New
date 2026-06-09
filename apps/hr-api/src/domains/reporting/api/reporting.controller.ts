@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Param, Query, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Req, Res, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
@@ -17,6 +17,10 @@ import {
   FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 import { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
+import {
+  buildEmployeeImportTemplateCsv,
+  buildHrDashboardExportCsv,
+} from '../services/employee-import-export-template.service.js';
 
 const REPORTING_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP', 'REPORTING_ADMIN', 'HR_ANALYST']);
 
@@ -211,6 +215,31 @@ export class ReportingController {
       from: this.parseOptionalDate('from', from),
       to: this.parseOptionalDate('to', to),
     });
+  }
+
+  @Get('employee-import-template.csv')
+  async getEmployeeImportTemplate(@Req() req: Request, @Res() res: Response) {
+    this.assertReportingAdmin(req);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="employee-import-template.csv"');
+    return res.send(buildEmployeeImportTemplateCsv());
+  }
+
+  @Get('hr-dashboard/export.csv')
+  async exportHrDashboardCsv(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    this.assertReportingAdmin(req);
+    const dashboard = await this.serviceUsageReporting.getHrDashboard(this.getTenantId(req), {
+      from: this.parseOptionalDate('from', from),
+      to: this.parseOptionalDate('to', to),
+    });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="hr-reporting-dashboard.csv"');
+    return res.send(buildHrDashboardExportCsv(dashboard));
   }
 
   private getTenantId(req: Request): Uuid {

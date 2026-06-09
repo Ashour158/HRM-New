@@ -57,8 +57,28 @@ type ClockLocationPayload = {
   trustReasons?: string[];
 };
 
+type ClockIdempotencyEvidence = {
+  key: string;
+  source: 'BODY' | 'HEADER';
+};
+
 type AttendancePeriodViewRange = 'DAILY' | 'MONTHLY' | 'NINETY_DAYS' | 'WEEKLY';
 type AttendancePeriodViewScope = 'SELF' | 'TEAM' | 'TENANT';
+
+function nonBlank(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function requestHeader(req: Request, headerName: string): string | undefined {
+  const getHeader = typeof req.get === 'function' ? req.get.bind(req) : undefined;
+  const fromGetter = nonBlank(getHeader?.(headerName));
+  if (fromGetter) return fromGetter;
+
+  const rawValue = req.headers?.[headerName.toLowerCase()];
+  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
+  return typeof value === 'string' ? nonBlank(value) : undefined;
+}
 
 function parseClockLocation(value?: string): ClockLocationPayload {
   if (!value) return {};
@@ -157,7 +177,13 @@ export class TimeAttendanceController {
     aggregateType: string,
     payload: TPayload,
     req: Request,
-    options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
+    options?: {
+      aggregateId?: Uuid;
+      expectedState?: string;
+      expectedVersion?: number;
+      subjectWorkerId?: Uuid;
+      idempotencyKey?: string;
+    },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
     if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
@@ -172,12 +198,20 @@ export class TimeAttendanceController {
       expectedState: options?.expectedState,
       expectedVersion: options?.expectedVersion,
       subjectWorkerId: options?.subjectWorkerId,
-      idempotencyKey: randomUUID(),
+      idempotencyKey: options?.idempotencyKey ?? randomUUID(),
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
       metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
     };
+  }
+
+  private clockIdempotency(dto: dtos.CheckInOutDto, req: Request): ClockIdempotencyEvidence | undefined {
+    const bodyKey = nonBlank(dto.idempotencyKey) ?? nonBlank(dto.clientRequestId);
+    if (bodyKey) return { key: bodyKey, source: 'BODY' };
+
+    const headerKey = requestHeader(req, 'x-idempotency-key') ?? requestHeader(req, 'idempotency-key');
+    return headerKey ? { key: headerKey, source: 'HEADER' } : undefined;
   }
 
   private getTenantId(req: Request): Uuid {
@@ -307,6 +341,8 @@ export class TimeAttendanceController {
 
     const locationEvidence = await this.buildClockLocation(dto, req);
     const captureMethod = inferCaptureMethod(dto);
+    const idempotency = this.clockIdempotency(dto, req);
+    const captureReference = dto.captureReference ?? idempotency?.key ?? dto.deviceId;
     const payload = {
       workerId: new Uuid(dto.workerId),
       eventType,
@@ -328,10 +364,11 @@ export class TimeAttendanceController {
       deviceId: dto.deviceId,
       captureMethod,
       captureDeviceKind: dto.captureDeviceKind ?? (captureMethod === 'MOBILE_GEOFENCE' ? 'MOBILE_BROWSER' : undefined),
-      captureReference: dto.captureReference ?? dto.deviceId,
+      captureReference,
       verificationStatus: dto.verificationStatus ?? (locationEvidence.trustRequiresApproval ? 'PENDING' : 'VERIFIED'),
       captureEvidence: {
         ...(dto.captureEvidence ?? {}),
+        ...(idempotency ? { idempotency } : {}),
         geolocation: {
           workplaceCode: locationEvidence.workplaceCode,
           locationStatus: locationEvidence.locationStatus,
@@ -348,6 +385,7 @@ export class TimeAttendanceController {
     };
     return this.commandBus.execute(this.buildCommand('RecordTimeClockEvent', 'TimeClockEvent', payload, req, {
       subjectWorkerId: new Uuid(dto.workerId),
+      idempotencyKey: idempotency?.key,
     }));
   }
 

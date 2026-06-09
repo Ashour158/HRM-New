@@ -247,7 +247,10 @@ export function AdminDeadLetterEvents() {
     },
   });
 
-  const activeRows = queue === 'inbox' ? inboxQuery.data ?? [] : outboxQuery.data ?? [];
+  const activeRows = React.useMemo(
+    () => (queue === 'inbox' ? inboxQuery.data ?? [] : outboxQuery.data ?? []),
+    [inboxQuery.data, outboxQuery.data, queue],
+  );
   const activeLoading = queue === 'inbox' ? inboxQuery.isLoading : outboxQuery.isLoading;
   const activeError = queue === 'inbox' ? inboxQuery.isError : outboxQuery.isError;
   const activeErrorValue = queue === 'inbox' ? inboxQuery.error : outboxQuery.error;

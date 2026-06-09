@@ -329,6 +329,10 @@ function hashSnapshot(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+function isPayslipTaxLine(line: PayrollPayslipLine): boolean {
+  return line.ruleSetId === 'TAX' || line.lineType === 'TAX';
+}
+
 type PayrollPolicyWithLedger = {
   code: string;
   label: string;
@@ -504,6 +508,7 @@ function calculateTax(policy: PayrollCalculationPolicy, taxableBase: number): { 
         amount: bracketTax,
         source: 'POLICY',
         formula: `${taxableSlice} taxable base slice * ${bracket.ratePercent}%`,
+        payslipLineType: 'TAX',
       });
     }
     return { amount: roundMoney(amount), lines };
@@ -518,6 +523,7 @@ function calculateTax(policy: PayrollCalculationPolicy, taxableBase: number): { 
       amount,
       source: 'POLICY',
       formula: `taxable base ${taxableBase} * ${policy.taxRatePercent}%`,
+      payslipLineType: 'TAX',
     }],
   };
 }
@@ -900,7 +906,7 @@ export class PayrollCycleCalculationService {
       description: line.label,
       amount: line.amount,
       currency: row.currency,
-      ruleSetId: line.source,
+      ruleSetId: line.payslipLineType === 'TAX' ? 'TAX' : line.source,
       ruleId: line.code,
       calculationStep: line.source,
       inputSnapshotHash: snapshotHash,
@@ -943,10 +949,12 @@ export class PayrollCycleCalculationService {
       const grossPay = roundMoney(lines
         .filter((line) => line.lineType === 'GROSS' || line.ruleSetId === 'EARNING')
         .reduce((total, line) => total + line.amount, 0));
-      const taxes = this.sumLineTypes(lines, ['TAX']);
+      const taxes = roundMoney(lines
+        .filter((line) => isPayslipTaxLine(line))
+        .reduce((total, line) => total + line.amount, 0));
       const employerOnly = new Set(['EMPLOYER_INSURANCE', 'GROSS', 'TAX', 'NET_PAY']);
       const deductions = roundMoney(lines
-        .filter((line) => !employerOnly.has(line.lineType) && line.ruleSetId !== 'EARNING')
+        .filter((line) => !employerOnly.has(line.lineType) && line.ruleSetId !== 'EARNING' && !isPayslipTaxLine(line))
         .reduce((total, line) => total + line.amount, 0));
       const explicitNet = lines.find((line) => line.lineType === 'NET_PAY')?.amount;
       const netPay = explicitNet ?? roundMoney(Math.max(grossPay - taxes - deductions, 0));
@@ -988,10 +996,4 @@ export class PayrollCycleCalculationService {
     };
   }
 
-  private sumLineTypes(lines: PayrollPayslipLine[], lineTypes: string[]): number {
-    const allowed = new Set(lineTypes);
-    return roundMoney(lines
-      .filter((line) => allowed.has(line.lineType))
-      .reduce((total, line) => total + line.amount, 0));
-  }
 }

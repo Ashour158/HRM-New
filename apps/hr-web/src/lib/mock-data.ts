@@ -217,6 +217,90 @@ const WORKERS = makeWorkers();
 
 const ok = <T>(data: T) => ({ success: true, correlationId: 'demo', data });
 
+function mockAttendanceToday() {
+  const now = new Date();
+  return {
+    workerId: DEMO_WORKER_ME.id,
+    workDate: now.toISOString().slice(0, 10),
+    status: 'YET_TO_CHECK_IN',
+    canCheckIn: true,
+    canCheckOut: false,
+    elapsedMinutes: 0,
+    totalWorkedMinutes: 0,
+    locationStatus: 'NO_GEOLOCATION',
+    events: [],
+  };
+}
+
+function mockAttendancePeriodView() {
+  const today = new Date();
+  const iso = (daysAgo: number) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - daysAgo);
+    return date.toISOString().slice(0, 10);
+  };
+  const series = [
+    { workDate: iso(6), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(5), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8.5, deductionHours: 0, overtimeHours: 0.5, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(4), employeeDays: 1, present: 0, absent: 0, onLeave: 1, exceptions: 0, payableHours: 0, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(3), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 1, payableHours: 7.75, deductionHours: 0.25, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 15, missingCheckout: 0, payrollReady: 0, undertimeMinutes: 15 },
+    { workDate: iso(2), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(1), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8.25, deductionHours: 0, overtimeHours: 0.25, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(0), employeeDays: 1, present: 0, absent: 0, onLeave: 0, exceptions: 0, payableHours: 0, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 0, undertimeMinutes: 0 },
+  ];
+  const totals = series.reduce((acc, day) => ({
+    employeeDays: acc.employeeDays + day.employeeDays,
+    present: acc.present + day.present,
+    absent: acc.absent + day.absent,
+    onLeave: acc.onLeave + day.onLeave,
+    exceptions: acc.exceptions + day.exceptions,
+    payableHours: acc.payableHours + day.payableHours,
+    deductionHours: acc.deductionHours + day.deductionHours,
+    overtimeHours: acc.overtimeHours + day.overtimeHours,
+    geofenceViolations: acc.geofenceViolations + day.geofenceViolations,
+    lateMinutes: acc.lateMinutes + day.lateMinutes,
+    missingCheckout: acc.missingCheckout + day.missingCheckout,
+    payrollReady: acc.payrollReady + day.payrollReady,
+    undertimeMinutes: acc.undertimeMinutes + day.undertimeMinutes,
+  }), {
+    employeeDays: 0,
+    present: 0,
+    absent: 0,
+    onLeave: 0,
+    exceptions: 0,
+    payableHours: 0,
+    deductionHours: 0,
+    overtimeHours: 0,
+    geofenceViolations: 0,
+    lateMinutes: 0,
+    missingCheckout: 0,
+    payrollReady: 0,
+    undertimeMinutes: 0,
+  });
+
+  return {
+    periodStart: iso(6),
+    periodEnd: iso(0),
+    range: 'WEEKLY',
+    scope: 'SELF',
+    totals,
+    series,
+    workers: [{
+      workerId: DEMO_WORKER_ME.id,
+      employeeId: DEMO_WORKER_ME.employeeId,
+      name: `${DEMO_WORKER_ME.firstName} ${DEMO_WORKER_ME.lastName}`,
+      departmentName: DEMO_WORKER_ME.departmentName,
+      managerId: DEMO_WORKER_ME.managerId,
+      ...totals,
+    }],
+    policyEvidence: {
+      flexibleRuleCodes: ['FLEX-CORE-09-15'],
+      leavePolicyTypes: ['ANNUAL'],
+      scheduleSources: ['ROTATING_SHIFT_A'],
+    },
+  };
+}
+
 const PLANNING_GROUPS_BY_DEPT = [
   { id: 'dept-eng', name: 'Engineering', headcount: 65, positionCount: 72, vacancies: 7, annualCost: 11200000, employees: [
     { id: 'wkr-mgr-001', name: 'James Harrington', jobTitle: 'Engineering Manager', status: 'ACTIVE' },
@@ -331,12 +415,29 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     { id: 'pay-002', workerId: 'wkr-001', payPeriodStart: '2026-04-01', payPeriodEnd: '2026-04-30', payDate: '2026-04-30', grossPay: 8500, netPay: 6120, deductions: 850, taxes: 1530, currency: 'USD' },
     { id: 'pay-003', workerId: 'wkr-001', payPeriodStart: '2026-03-01', payPeriodEnd: '2026-03-31', payDate: '2026-03-31', grossPay: 8500, netPay: 6120, deductions: 850, taxes: 1530, currency: 'USD' },
   ]),
-  'GET /employee/benefits': () => ok([
-    { id: 'ben-001', workerId: 'wkr-001', benefitType: 'HEALTH', planName: 'Premium Health Plan', coverageLevel: 'EMPLOYEE_PLUS_SPOUSE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
-    { id: 'ben-002', workerId: 'wkr-001', benefitType: 'DENTAL', planName: 'Dental Plus', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
-    { id: 'ben-003', workerId: 'wkr-001', benefitType: 'VISION', planName: 'Vision Care', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
-    { id: 'ben-004', workerId: 'wkr-001', benefitType: '401K', planName: '401(k) Retirement Plan', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-09-15', status: 'ACTIVE' },
-  ]),
+  'GET /employee/benefits': () => ok({
+    enrollments: [
+      { id: 'ben-001', workerId: 'wkr-001', benefitType: 'HEALTH', planName: 'Premium Health Plan', coverageLevel: 'EMPLOYEE_PLUS_SPOUSE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
+      { id: 'ben-002', workerId: 'wkr-001', benefitType: 'DENTAL', planName: 'Dental Plus', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
+      { id: 'ben-003', workerId: 'wkr-001', benefitType: 'VISION', planName: 'Vision Care', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
+      { id: 'ben-004', workerId: 'wkr-001', benefitType: '401K', planName: '401(k) Retirement Plan', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-09-15', status: 'ACTIVE' },
+    ],
+    activePrograms: [
+      { id: '00000000-0000-0000-0000-000000000321', programName: 'Premium Health Plan', programType: 'HEALTH', status: 'ACTIVE' },
+      { id: '00000000-0000-0000-0000-000000000322', programName: 'Dental Plus', programType: 'DENTAL', status: 'ACTIVE' },
+    ],
+    openEnrollmentActive: true,
+    openEnrollmentDeadline: '2026-06-30',
+    lifeEvents: [
+      { id: 'life-001', type: 'MARRIAGE', date: '2026-02-14', status: 'PROCESSED' },
+    ],
+    dependents: [
+      { id: 'dep-001', name: 'Alex Employee', relationship: 'Spouse', dateOfBirth: '1991-05-20' },
+    ],
+    spendingAccounts: [],
+  }),
+  'POST /employee/benefits/enrollments': () => ok({ enrollmentId: 'ben-new', status: 'DRAFT' }),
+  'POST /employee/benefits/life-events': () => ok({ lifeEventId: 'life-new', status: 'RECORDED' }),
   'GET /employee/onboarding': () => ok({
     status: 'COMPLETED', completedAt: '2021-04-05',
     tasks: [
@@ -356,17 +457,8 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   }),
 
   // ── Attendance ────────────────────────────────────────────────────────────
-  'GET /time/attendance/today': () => ok({
-    workerId: 'wkr-001',
-    workDate: new Date().toISOString().slice(0, 10),
-    status: 'YET_TO_CHECK_IN',
-    canCheckIn: true,
-    canCheckOut: false,
-    elapsedMinutes: 0,
-    totalWorkedMinutes: 0,
-    locationStatus: 'NO_GEOLOCATION',
-    events: [],
-  }),
+  'GET /time/attendance/today': () => ok(mockAttendanceToday()),
+  'GET /time/attendance/workers/': () => ok(mockAttendanceToday()),
   'GET /time/attendance/summary': () => ok({
     workerId: 'wkr-001',
     summary: { payableMinutes: 9480, lateMinutes: 15, undertimeMinutes: 0, overtimeMinutes: 120, geofenceViolations: 0 },
@@ -374,6 +466,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   'GET /time/attendance/daily-ledger': () => ok({ entries: [], totals: { payableMinutes: 0, lateMinutes: 0, overtimeMinutes: 0 } }),
   'GET /time/attendance/correction-requests': () => ok([]),
   'GET /time/attendance/reminders': () => ok({ reminders: [], missedCheckouts: [] }),
+  'GET /time/attendance/reports/period-view': () => ok(mockAttendancePeriodView()),
   'GET /time/attendance/reports/summary': () => ok({ entries: [], periodSummary: { totalPayableMinutes: 0, totalLateMinutes: 0, totalOvertimeMinutes: 0 } }),
   'GET /time/attendance/scheduling-command-center': () => ok({ shifts: [], unscheduled: 0 }),
   'GET /time/attendance/period-close/readiness': () => ok({ ready: true, blockers: [], warnings: [], workerCount: 8, processedCount: 8 }),
@@ -603,7 +696,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     { id: 'ci3', title: 'Report IT Equipment Issue', category: 'IT Support', sla: '4 hours' },
     { id: 'ci4', title: 'Request Salary Certificate', category: 'Payroll', sla: '3 business days' },
   ]),
-  'POST /hr-service-delivery/cases': () => ok({ id: 'case-new' }),
+  'POST /hr-service-delivery/cases': () => ok({ id: 'case-new', caseNumber: 'HR-20260609-ABCD1234' }),
 
   // ── Compliance ────────────────────────────────────────────────────────────
   'GET /compliance/summary': () => ok({

@@ -635,19 +635,15 @@ export class HrCoreController {
       if (!worker) continue;
 
       const updatedFields: string[] = [];
-      const personalPayload: Record<string, unknown> = { workerId: worker.id };
-      if (this.hasMassUpdateValue(row.firstName)) personalPayload.firstName = row.firstName;
-      if (this.hasMassUpdateValue(row.lastName)) personalPayload.lastName = row.lastName;
-      if (this.hasMassUpdateValue(row.workEmail)) personalPayload.email = row.workEmail;
-      if (this.hasMassUpdateValue(row.phoneNumber)) personalPayload.phoneNumber = row.phoneNumber;
-      if (Object.keys(personalPayload).length > 1) {
-        await this.executeCommand(this.buildCommand('UpdateWorkerPersonalData', 'WorkerProfile', personalPayload, req, {
-          aggregateId: worker.id,
-          expectedState: worker.status,
-          subjectWorkerId: worker.id,
-        }));
-        updatedFields.push(...Object.keys(personalPayload).filter((field) => field !== 'workerId'));
-      }
+      const personalData: Record<string, unknown> = {};
+      const profileSections: Array<{ dataCategory: ProfileSectionCategory; fields: Record<string, unknown> }> = [];
+      const organizationAssignment: Record<string, unknown> = {};
+
+      if (this.hasMassUpdateValue(row.firstName)) personalData.firstName = row.firstName;
+      if (this.hasMassUpdateValue(row.lastName)) personalData.lastName = row.lastName;
+      if (this.hasMassUpdateValue(row.workEmail)) personalData.email = row.workEmail;
+      if (this.hasMassUpdateValue(row.phoneNumber)) personalData.phoneNumber = row.phoneNumber;
+      updatedFields.push(...Object.keys(personalData));
 
       const basicFields = this.definedMassUpdateFields({
         workEmail: row.workEmail,
@@ -656,15 +652,7 @@ export class HrCoreController {
         workPhoneNumber: row.workPhoneNumber,
       });
       if (Object.keys(basicFields).length > 0) {
-        await this.executeCommand(this.buildCommand('UpsertWorkerProfileSection', 'WorkerProfile', {
-          workerId: worker.id,
-          dataCategory: 'BASIC',
-          fields: basicFields,
-        }, req, {
-          aggregateId: worker.id,
-          expectedState: worker.status,
-          subjectWorkerId: worker.id,
-        }));
+        profileSections.push({ dataCategory: 'BASIC', fields: basicFields });
         updatedFields.push(...Object.keys(basicFields));
       }
 
@@ -673,15 +661,7 @@ export class HrCoreController {
         workLocation: this.hasMassUpdateValue(row.workLocationCode) ? { code: row.workLocationCode } : undefined,
       });
       if (Object.keys(contactFields).length > 0) {
-        await this.executeCommand(this.buildCommand('UpsertWorkerProfileSection', 'WorkerProfile', {
-          workerId: worker.id,
-          dataCategory: 'CONTACT',
-          fields: contactFields,
-        }, req, {
-          aggregateId: worker.id,
-          expectedState: worker.status,
-          subjectWorkerId: worker.id,
-        }));
+        profileSections.push({ dataCategory: 'CONTACT', fields: contactFields });
         updatedFields.push(...Object.keys(contactFields));
       }
 
@@ -691,31 +671,30 @@ export class HrCoreController {
         salaryCurrency: row.currency?.toUpperCase(),
       });
       if (Object.keys(compensationFields).length > 0) {
-        await this.executeCommand(this.buildCommand('UpsertWorkerProfileSection', 'WorkerProfile', {
-          workerId: worker.id,
-          dataCategory: 'COMPENSATION',
-          fields: compensationFields,
-        }, req, {
-          aggregateId: worker.id,
-          expectedState: worker.status,
-          subjectWorkerId: worker.id,
-        }));
+        profileSections.push({ dataCategory: 'COMPENSATION', fields: compensationFields });
         updatedFields.push(...Object.keys(compensationFields));
       }
 
       if (this.hasMassUpdateValue(row.jobTitle)) {
-        await this.executeCommand(this.buildCommand('UpdateWorkerOrganizationAssignment', 'WorkerProfile', {
-          workerId: worker.id,
-          jobTitle: row.jobTitle,
-        }, req, {
-          aggregateId: worker.id,
-          expectedState: worker.status,
-          subjectWorkerId: worker.id,
-        }));
+        organizationAssignment.jobTitle = row.jobTitle;
         updatedFields.push('jobTitle');
       }
 
-      applied.push({ employeeId, workerId: worker.id.value, updatedFields: Array.from(new Set(updatedFields)) });
+      const uniqueUpdatedFields = Array.from(new Set(updatedFields));
+      await this.executeCommand(this.buildCommand('ApplyWorkerMassUpdate', 'WorkerProfile', {
+        workerId: worker.id,
+        personalData: Object.keys(personalData).length > 0 ? personalData : undefined,
+        profileSections,
+        organizationAssignment: Object.keys(organizationAssignment).length > 0 ? organizationAssignment : undefined,
+        updatedFields: uniqueUpdatedFields,
+      }, req, {
+          aggregateId: worker.id,
+          expectedState: worker.status,
+          expectedVersion: worker.aggregateVersion,
+          subjectWorkerId: worker.id,
+        }));
+
+      applied.push({ employeeId, workerId: worker.id.value, updatedFields: uniqueUpdatedFields });
     }
 
     return {

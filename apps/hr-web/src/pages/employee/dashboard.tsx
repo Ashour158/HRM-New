@@ -42,15 +42,6 @@ import {
   UserCircle,
   UserRoundCheck,
 } from 'lucide-react';
-import {
-  Area,
-  AreaChart as ReAreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as ReTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import type { HcmSetupConfig, Worker } from '@/types';
 
 const dailyQuotes = [
@@ -166,6 +157,8 @@ interface ClockPayload {
   accuracyMeters?: number;
   deviceId?: string;
   timestamp?: string;
+  idempotencyKey?: string;
+  clientRequestId?: string;
   captureMethod?: 'API_IMPORT' | 'BIOMETRIC_DEVICE' | 'FACIAL_RECOGNITION' | 'MANUAL_CORRECTION' | 'MOBILE_GEOFENCE' | 'QR_CODE' | 'RFID_CARD' | 'WEB_KIOSK';
   captureDeviceKind?: string;
   captureReference?: string;
@@ -304,6 +297,7 @@ function captureBrowserPosition(): Promise<GeolocationCapture> {
   if (!navigator.geolocation) return Promise.resolve({ evidence: {}, failureReason: 'unsupported' });
   return new Promise((resolve) => {
     let settled = false;
+    // eslint-disable-next-line prefer-const
     let timeoutId: number | undefined;
 
     const finish = (capture: GeolocationCapture) => {
@@ -356,6 +350,10 @@ function formatDate(value: Date) {
 
 function formatDateLabel(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit' }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function formatLedgerDateLabel(value: string) {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
 function dateKey(value = new Date()) {
@@ -509,6 +507,10 @@ export function EmployeeDashboard() {
       lateMinutes: day.lateMinutes,
     }));
   }, [attendancePeriodView?.series, today, todayState?.totalWorkedMinutes]);
+  const attendanceChartMaxHours = React.useMemo(
+    () => Math.max(1, ...attendanceSeries.map((point) => point.hours || 0)),
+    [attendanceSeries],
+  );
   const attendanceSummary = React.useMemo(() => ({
     summary: {
       payableMinutes: Math.round((attendancePeriodView?.totals.payableHours ?? 0) * 60),
@@ -518,6 +520,15 @@ export function EmployeeDashboard() {
       geofenceViolations: attendancePeriodView?.totals.geofenceViolations ?? 0,
     },
   }), [attendancePeriodView?.totals]);
+  const attendanceLedgerRows = React.useMemo(() => (attendancePeriodView?.series ?? [])
+    .slice()
+    .sort((left, right) => right.workDate.localeCompare(left.workDate))
+    .slice(0, attendanceRange === 'DAILY' ? 1 : 6), [attendancePeriodView?.series, attendanceRange]);
+  const attendancePolicySignals = React.useMemo(() => [
+    { label: 'Schedules', values: attendancePeriodView?.policyEvidence.scheduleSources ?? [] },
+    { label: 'Flex rules', values: attendancePeriodView?.policyEvidence.flexibleRuleCodes ?? [] },
+    { label: 'Leave bridge', values: attendancePeriodView?.policyEvidence.leavePolicyTypes ?? [] },
+  ].filter((signal) => signal.values.length > 0), [attendancePeriodView?.policyEvidence]);
 
   const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
   const journeyItems = React.useMemo(() => buildEmployeeJourneyItems({
@@ -542,19 +553,23 @@ export function EmployeeDashboard() {
     todayState?.totalWorkedMinutes,
   ]);
 
-  const buildClockPayload = async (): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
+  const buildClockPayload = React.useCallback(async (direction: 'in' | 'out'): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
     if (!selectedWorkerId) return null;
     const capture = await captureBrowserPosition();
     const hasLocation = hasCoordinateEvidence(capture.evidence);
+    const timestamp = new Date().toISOString();
+    const clockRequestId = `clock-${direction}-${selectedWorkerId}-${timestamp.replace(/[:.]/g, '')}`;
     return {
       payload: {
         workerId: selectedWorkerId,
         workplaceCode,
         deviceId: 'browser',
-        timestamp: new Date().toISOString(),
+        timestamp,
+        idempotencyKey: clockRequestId,
+        clientRequestId: clockRequestId,
         captureMethod: hasLocation ? 'MOBILE_GEOFENCE' : 'WEB_KIOSK',
         captureDeviceKind: 'BROWSER',
-        captureReference: `browser-${Date.now()}`,
+        captureReference: clockRequestId,
         verificationStatus: hasLocation ? 'VERIFIED' : 'PENDING',
         captureEvidence: {
           geolocationCapture: {
@@ -567,16 +582,16 @@ export function EmployeeDashboard() {
       },
       failureReason: capture.failureReason,
     };
-  };
+  }, [requiresGeolocation, selectedWorkerId, workplaceCode]);
 
-  const recordClock = async (direction: 'in' | 'out') => {
+  const recordClock = React.useCallback(async (direction: 'in' | 'out') => {
     setClockError('');
     setClockMessage('Capturing attendance evidence...');
     setManualPunchDirection(null);
     setManualPunchReason('');
     setClockPendingDirection(direction);
     try {
-      const capture = await buildClockPayload();
+      const capture = await buildClockPayload(direction);
       if (!capture) {
         setClockMessage('');
         setClockError('No linked employee profile was found for attendance capture.');
@@ -626,7 +641,7 @@ export function EmployeeDashboard() {
     } finally {
       setClockPendingDirection(null);
     }
-  };
+  }, [addNotification, buildClockPayload, checkInMutation, checkOutMutation, requiresGeolocation]);
 
   const requestManualPunchReview = async () => {
     if (!selectedWorkerId || !manualPunchDirection) return;
@@ -689,7 +704,7 @@ export function EmployeeDashboard() {
     window.localStorage.removeItem('pending-attendance-clock');
     setPendingClockCommand(null);
     void recordClock(action);
-  }, [clockPendingDirection, pendingClockCommand, selectedWorkerId, todayState, todayState?.canCheckIn, todayState?.canCheckOut]);
+  }, [clockPendingDirection, pendingClockCommand, recordClock, selectedWorkerId, todayState]);
 
   const submitOnDuty = async () => {
     if (!selectedWorkerId || !onDutyReason.trim()) return;
@@ -754,7 +769,7 @@ export function EmployeeDashboard() {
     }
   };
 
-  const timeline = todayState?.events ?? [];
+  const timeline = React.useMemo(() => todayState?.events ?? [], [todayState?.events]);
   const latestMappedEvent = React.useMemo(
     () => [...timeline].reverse().find((event) => hasCoordinateEvidence(event.location)),
     [timeline],
@@ -866,22 +881,22 @@ export function EmployeeDashboard() {
             </Select>
           </div>
         </div>
-        <div className="-ml-2 h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ReAreaChart data={attendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="fusionAttendance" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
-              <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
-              <Area type="monotone" dataKey="hours" stroke="#818cf8" strokeWidth={3} fill="url(#fusionAttendance)" />
-            </ReAreaChart>
-          </ResponsiveContainer>
+        <div className="h-64 min-h-[256px] min-w-0 overflow-hidden rounded-2xl bg-white/55 p-4">
+          <div className="flex h-full items-end gap-2" role="img" aria-label={`${rangeLabel(attendanceRange)} attendance hours trend`}>
+            {attendanceSeries.map((point) => {
+              const height = Math.max(8, Math.round(((point.hours || 0) / attendanceChartMaxHours) * 100));
+              return (
+                <div key={point.day} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2 text-center">
+                  <div
+                    className="mx-auto w-full max-w-12 rounded-t-2xl bg-gradient-to-t from-indigo-500 to-violet-300 shadow-sm shadow-indigo-500/20"
+                    style={{ height: `${height}%` }}
+                    title={`${point.day}: ${point.hours.toFixed(1)} hours`}
+                  />
+                  <span className="truncate text-[11px] font-semibold text-slate-500">{point.day}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -1252,6 +1267,60 @@ export function EmployeeDashboard() {
                         <EvidenceMetric label="Undertime" value={`${attendanceSummary?.summary.undertimeMinutes ?? 0} min`} />
                         <EvidenceMetric label="Overtime" value={`${attendanceSummary?.summary.overtimeMinutes ?? 0} min`} />
                         <EvidenceMetric label="Geofence flags" value={`${attendanceSummary?.summary.geofenceViolations ?? 0}`} />
+                      </div>
+                    </div>
+
+                    <div className="fusion-glass rounded-2xl p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">Attendance ledger detail</h3>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Payable time, exceptions, and payroll readiness for the selected period.
+                          </p>
+                        </div>
+                        <Badge variant="secondary">{rangeLabel(attendanceRange)}</Badge>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {attendanceLedgerRows.map((day) => (
+                          <div key={day.workDate} className="grid gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs md:grid-cols-[72px_1fr_1fr]">
+                            <p className="font-semibold text-slate-900">{formatLedgerDateLabel(day.workDate)}</p>
+                            <div className="grid grid-cols-2 gap-2 text-slate-600">
+                              <span>Payable {formatMinutes(Math.round(day.payableHours * 60))}</span>
+                              <span>Overtime {formatMinutes(Math.round(day.overtimeHours * 60))}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-slate-600">
+                              <span>Late {day.lateMinutes}m</span>
+                              <span>{day.payrollReady > 0 ? 'Payroll ready' : `${day.exceptions} exceptions`}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {attendanceLedgerRows.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
+                            No ledger rows were generated for this period yet.
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="mt-4 border-t border-slate-200 pt-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Policy signals</h4>
+                        <div className="mt-3 space-y-3">
+                          {attendancePolicySignals.map((signal) => (
+                            <div key={signal.label}>
+                              <p className="text-xs font-semibold text-slate-600">{signal.label}</p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {signal.values.map((value) => (
+                                  <Badge key={`${signal.label}-${value}`} variant="outline" className="bg-white/70">
+                                    {value}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          {attendancePolicySignals.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
+                              Policy evidence will appear when schedule, leave, or flexible-hour rules affect the ledger.
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </aside>

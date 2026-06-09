@@ -4,6 +4,7 @@ import {
   BellRing,
   Clock3,
   Download,
+  FileSpreadsheet,
   FileText,
   RefreshCcw,
   ShieldAlert,
@@ -28,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState } from '@/components/common/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { useUIStore } from '@/stores/ui-store';
 
 type HrReportReadiness = 'Live' | 'Attention' | 'No Data';
 
@@ -73,11 +75,30 @@ function readinessTone(readiness: HrReportReadiness) {
 
 const chartColors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899'];
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export function AdminReporting() {
+  const addNotification = useUIStore((state) => state.addNotification);
   const dashboardQuery = useQuery({
     queryKey: ['hr-reports-dashboard'],
     queryFn: async () => unwrapApiData<HrReportsDashboard>((await apiClient.get('/reporting/hr-dashboard')).data),
   });
+
+  const downloadCsv = async (path: string, filename: string) => {
+    try {
+      const response = await apiClient.get(path, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, filename);
+    } catch (err) {
+      addNotification({ title: 'Download failed', message: err instanceof Error ? err.message : 'Could not download reporting file.', type: 'error', read: false });
+    }
+  };
 
   const dashboard = dashboardQuery.data;
   const topReports = [...(dashboard?.reports ?? [])].sort((a, b) => b.activity - a.activity).slice(0, 5);
@@ -96,7 +117,11 @@ export function AdminReporting() {
               <RefreshCcw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
-            <Button variant="outline" disabled>
+            <Button variant="outline" onClick={() => downloadCsv('/reporting/employee-import-template.csv', 'employee-import-template.csv')}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Employee Template
+            </Button>
+            <Button variant="outline" onClick={() => downloadCsv('/reporting/hr-dashboard/export.csv', 'hr-reporting-dashboard.csv')}>
               <Download className="mr-2 h-4 w-4" />
               Export Pack
             </Button>

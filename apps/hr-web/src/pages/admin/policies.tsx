@@ -2267,7 +2267,7 @@ export function AdminPolicies() {
     queryFn: async () => unwrap<PolicyTemplate[]>(await apiClient.get('/admin/policies/templates')),
   });
 
-  const revisions = revisionsQuery.data ?? [];
+  const revisions = React.useMemo(() => revisionsQuery.data ?? [], [revisionsQuery.data]);
   const summary = summaryQuery.data;
   const byArea = React.useMemo(() => {
     return policyAreas.reduce<Record<PolicyArea, PolicyRevision[]>>((groups, item) => {
@@ -2311,7 +2311,7 @@ export function AdminPolicies() {
     setEditorJson(safeJson(visibleSelectedRevision.draftConfig));
     setEditorScope(scopeToForm(visibleSelectedRevision.scope));
     setEditorError('');
-  }, [visibleSelectedRevision?.id, visibleSelectedRevision?.updatedAt]);
+  }, [visibleSelectedRevision]);
 
   const invalidatePolicies = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-policy-summary'] });

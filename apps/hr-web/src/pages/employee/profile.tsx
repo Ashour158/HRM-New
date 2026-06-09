@@ -1,7 +1,10 @@
 
-import { useApiQuery } from '@/hooks/use-api';
+import * as React from 'react';
+import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FieldMask } from '@/components/common/field-mask';
@@ -9,6 +12,7 @@ import { AllowedActions } from '@/components/common/allowed-actions';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { useFieldAccess } from '@/hooks/use-field-access';
+import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
 import { User, MapPin, Building, FileText, MessageSquare, Star, Target, TrendingUp } from 'lucide-react';
 
@@ -69,6 +73,33 @@ interface EmployeeProfilePerformance {
   };
 }
 
+interface OpenProfileChangeCasePayload {
+  caseType: string;
+  priority: string;
+  description: string;
+}
+
+interface OpenProfileChangeCaseResponse {
+  caseNumber?: string;
+}
+
+const profileChangeOptions = [
+  { value: 'PHONE', label: 'Phone' },
+  { value: 'ADDRESS', label: 'Address' },
+  { value: 'PERSONAL_DATA', label: 'Personal data' },
+  { value: 'DOCUMENT', label: 'Document' },
+  { value: 'EMERGENCY_CONTACT', label: 'Emergency contact' },
+];
+
+const documentRequestOptions = [
+  { value: 'PASSPORT', label: 'Passport' },
+  { value: 'WORK_PERMIT', label: 'Work permit' },
+  { value: 'CERTIFICATE', label: 'Certificate' },
+  { value: 'MEDICAL_FITNESS', label: 'Medical fitness' },
+  { value: 'INSURANCE_CARD', label: 'Insurance card' },
+  { value: 'OTHER', label: 'Other document' },
+];
+
 function formatScore(value: number | null | undefined, suffix = '') {
   return value === null || value === undefined || Number.isNaN(value) ? '-' : `${Math.round(value * 10) / 10}${suffix}`;
 }
@@ -116,6 +147,11 @@ function ProfileField({
 }
 
 export function EmployeeProfile() {
+  const addNotification = useUIStore((s) => s.addNotification);
+  const [profileChangeType, setProfileChangeType] = React.useState(profileChangeOptions[0].value);
+  const [profileChangeDetails, setProfileChangeDetails] = React.useState('');
+  const [documentRequestType, setDocumentRequestType] = React.useState(documentRequestOptions[0].value);
+  const [documentRequestDetails, setDocumentRequestDetails] = React.useState('');
   const { data: profile, isLoading, error, refetch } = useApiQuery<EmployeeProfileData>(
     ['employee-profile'],
     '/employee/profile'
@@ -133,6 +169,75 @@ export function EmployeeProfile() {
   );
 
   const displayProfile = profile;
+  const profileChangeMutation = useApiMutation<OpenProfileChangeCaseResponse, OpenProfileChangeCasePayload>(
+    '/hr-service-delivery/cases',
+    'post',
+    [['employee-services-cases']],
+  );
+  const selectedChangeLabel = profileChangeOptions.find((option) => option.value === profileChangeType)?.label ?? 'Profile';
+  const selectedDocumentLabel = documentRequestOptions.find((option) => option.value === documentRequestType)?.label ?? 'Document';
+  const canSubmitProfileChange = profileChangeDetails.trim().length > 0 && !profileChangeMutation.isPending;
+  const canSubmitDocumentRequest = documentRequestDetails.trim().length > 0 && !profileChangeMutation.isPending;
+
+  const submitProfileChangeRequest = async () => {
+    if (!displayProfile || !canSubmitProfileChange) return;
+    const description = [
+      `Profile change requested: ${selectedChangeLabel}`,
+      `Employee: ${displayProfile.employeeId} - ${displayProfile.firstName} ${displayProfile.lastName}`,
+      `Details: ${profileChangeDetails.trim()}`,
+    ].join('\n');
+    try {
+      const result = await profileChangeMutation.mutateAsync({
+        caseType: 'PROFILE_DATA_CHANGE',
+        priority: 'MEDIUM',
+        description,
+      });
+      setProfileChangeDetails('');
+      addNotification({
+        title: 'Profile change requested',
+        message: result.caseNumber ? `Case ${result.caseNumber} was opened for HR review.` : 'Your request was sent to HR for review.',
+        type: 'success',
+        read: false,
+      });
+    } catch {
+      addNotification({
+        title: 'Could not request profile change',
+        message: 'Please review the details and try again.',
+        type: 'error',
+        read: false,
+      });
+    }
+  };
+
+  const submitDocumentRequest = async () => {
+    if (!displayProfile || !canSubmitDocumentRequest) return;
+    const description = [
+      `Document request: ${selectedDocumentLabel}`,
+      `Employee: ${displayProfile.employeeId} - ${displayProfile.firstName} ${displayProfile.lastName}`,
+      `Details: ${documentRequestDetails.trim()}`,
+    ].join('\n');
+    try {
+      const result = await profileChangeMutation.mutateAsync({
+        caseType: 'EMPLOYEE_DOCUMENT_UPDATE',
+        priority: 'MEDIUM',
+        description,
+      });
+      setDocumentRequestDetails('');
+      addNotification({
+        title: 'Document request submitted',
+        message: result.caseNumber ? `Case ${result.caseNumber} was opened for HR review.` : 'Your document request was sent to HR.',
+        type: 'success',
+        read: false,
+      });
+    } catch {
+      addNotification({
+        title: 'Could not submit document request',
+        message: 'Please review the details and try again.',
+        type: 'error',
+        read: false,
+      });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -238,6 +343,38 @@ export function EmployeeProfile() {
                   <p className="text-sm">{displayProfile.address}</p>
                 </div>
               )}
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="profile-change-type">What needs changing</Label>
+                    <select
+                      id="profile-change-type"
+                      value={profileChangeType}
+                      onChange={(event) => setProfileChangeType(event.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                    >
+                      {profileChangeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="profile-change-details">Details</Label>
+                    <textarea
+                      id="profile-change-details"
+                      value={profileChangeDetails}
+                      onChange={(event) => setProfileChangeDetails(event.target.value)}
+                      rows={3}
+                      placeholder="Tell HR what should be corrected or updated"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                    />
+                  </div>
+                  <Button type="button" disabled={!canSubmitProfileChange} onClick={submitProfileChangeRequest}>
+                    {profileChangeMutation.isPending ? 'Submitting...' : 'Submit change request'}
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -408,7 +545,38 @@ export function EmployeeProfile() {
               </CardTitle>
               <CardDescription>Your uploaded documents and files</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-5">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-end">
+                  <div className="space-y-2">
+                    <Label htmlFor="document-request-type">Document type</Label>
+                    <select
+                      id="document-request-type"
+                      value={documentRequestType}
+                      onChange={(event) => setDocumentRequestType(event.target.value)}
+                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                    >
+                      {documentRequestOptions.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="document-request-details">Document details</Label>
+                    <textarea
+                      id="document-request-details"
+                      value={documentRequestDetails}
+                      onChange={(event) => setDocumentRequestDetails(event.target.value)}
+                      rows={3}
+                      placeholder="Tell HR what document should be added, renewed, or replaced"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                    />
+                  </div>
+                  <Button type="button" disabled={!canSubmitDocumentRequest} onClick={submitDocumentRequest}>
+                    {profileChangeMutation.isPending ? 'Submitting...' : 'Submit document request'}
+                  </Button>
+                </div>
+              </div>
               {displayProfile.documents && displayProfile.documents.length > 0 ? (
                 <div className="space-y-3">
                   {displayProfile.documents.map((doc) => (

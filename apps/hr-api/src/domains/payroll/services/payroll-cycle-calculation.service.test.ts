@@ -256,6 +256,86 @@ describe('PayrollCycleCalculationService', () => {
     expect(payslip.lines.map((line) => line.lineType)).toContain('NET_PAY');
   });
 
+  it('composes payslip totals from configured earnings, tax components, and deductions', () => {
+    const configuredSetup = {
+      ...setup,
+      payrollCalculationPolicy: {
+        taxRatePercent: 0,
+        taxMode: 'PROGRESSIVE_BRACKETS',
+        taxBrackets: [
+          { code: 'TAX_FREE', label: 'Tax free allowance', thresholdFrom: 0, thresholdTo: 10000, ratePercent: 0 },
+          { code: 'BASIC_TAX', label: 'Basic tax', thresholdFrom: 10000, ratePercent: 10 },
+        ],
+        employeeInsuranceRatePercent: 0,
+        employerInsuranceRatePercent: 0,
+      },
+      earningPolicies: [
+        {
+          code: 'HOUSING_ALLOWANCE',
+          label: 'Housing allowance',
+          active: true,
+          type: 'FIXED_AMOUNT',
+          amount: 1200,
+          taxable: true,
+        },
+      ],
+      deductionPolicies: [
+        {
+          code: 'STAFF_LOAN',
+          label: 'Staff loan',
+          active: true,
+          type: 'FIXED_AMOUNT',
+          amount: 500,
+          timing: 'POST_TAX',
+        },
+      ],
+    } as HcmSetupConfig;
+    const [row] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [employee],
+      setup: configuredSetup,
+    }).rows;
+    const resultLines = service.buildResultLineDrafts(row, {
+      payrollCycleId: 'cycle-1',
+      calculationRunId: 'run-1',
+    }).map((draft, index) => ({
+      id: `line-${index}`,
+      workerId: draft.workerId,
+      lineType: draft.lineType,
+      description: draft.description,
+      amount: draft.amount,
+      currency: draft.currency,
+      ruleSetId: draft.ruleSetId,
+      explanation: draft.explanation,
+      status: 'LOCKED',
+    }));
+
+    const [payslip] = service.buildPayslipsFromResultLines({
+      payrollCycle: {
+        id: 'cycle-1',
+        periodStart: '2026-05-01',
+        periodEnd: '2026-05-31',
+        payDate: '2026-05-31',
+      },
+      employees: [employee],
+      resultLines,
+    });
+
+    expect(payslip).toEqual(expect.objectContaining({
+      grossPay: 11200,
+      taxes: 120,
+      deductions: 500,
+      netPay: 10580,
+    }));
+    expect(payslip.lines.map((line) => line.lineType)).toEqual(expect.arrayContaining([
+      'HOUSING_ALLOWANCE',
+      'BASIC_TAX',
+      'STAFF_LOAN',
+      'NET_PAY',
+    ]));
+  });
+
   it('calculates progressive tax brackets instead of flat tax when configured', () => {
     const bracketSetup = {
       ...setup,

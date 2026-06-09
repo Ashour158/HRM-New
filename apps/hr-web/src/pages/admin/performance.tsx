@@ -358,15 +358,15 @@ export function AdminPerformance() {
   const [message, setMessage] = React.useState<string | null>(null);
   const addNotification = useUIStore((state) => state.addNotification);
 
-  const notifySuccess = (title: string, msg: string) =>
-    addNotification({ title, message: msg, type: 'success', read: false });
-  const notifyFailure = (title: string, err: unknown) =>
+  const notifySuccess = React.useCallback((title: string, msg: string) =>
+    addNotification({ title, message: msg, type: 'success', read: false }), [addNotification]);
+  const notifyFailure = React.useCallback((title: string, err: unknown) =>
     addNotification({
       title,
       message: err instanceof Error ? err.message : 'The request could not be completed.',
       type: 'error',
       read: false,
-    });
+    }), [addNotification]);
 
   const {
     data: cycles = [],
@@ -648,7 +648,7 @@ export function AdminPerformance() {
     }
   };
 
-  const runWorkflowCommand = async (id: string, path: string, refetch: () => void) => {
+  const runWorkflowCommand = React.useCallback(async (id: string, path: string, refetch: () => void) => {
     const commandKey = `${id}:${path}`;
     setBusyCommand(commandKey);
     try {
@@ -663,7 +663,7 @@ export function AdminPerformance() {
     } finally {
       setBusyCommand(null);
     }
-  };
+  }, [notifyFailure, notifySuccess]);
 
   const cycleColumns = React.useMemo<DataTableColumn<PerformanceReviewCycle>[]>(() => [
     {
@@ -714,7 +714,7 @@ export function AdminPerformance() {
         );
       },
     },
-  ], [busyCommand, refetchCycles, templateById]);
+  ], [busyCommand, refetchCycles, runWorkflowCommand, templateById]);
 
   const templateColumns = React.useMemo<DataTableColumn<ReviewTemplate>[]>(() => [
     {
@@ -757,7 +757,7 @@ export function AdminPerformance() {
         );
       },
     },
-  ], [busyCommand, refetchTemplates]);
+  ], [busyCommand, refetchTemplates, runWorkflowCommand]);
 
   const competencyColumns = React.useMemo<DataTableColumn<Competency>[]>(() => [
     {
@@ -801,7 +801,7 @@ export function AdminPerformance() {
         );
       },
     },
-  ], [busyCommand, refetchCompetencies]);
+  ], [busyCommand, refetchCompetencies, runWorkflowCommand]);
 
   const goalColumns = React.useMemo<DataTableColumn<PerformanceGoal>[]>(() => [
     {
@@ -852,7 +852,7 @@ export function AdminPerformance() {
         </Button>
       ) : <span className="text-sm text-muted-foreground">No action</span>,
     },
-  ], [busyCommand, refetchGoals]);
+  ], [busyCommand, refetchGoals, runWorkflowCommand]);
 
   return (
     <div className="space-y-6">

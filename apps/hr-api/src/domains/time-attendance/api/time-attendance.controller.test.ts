@@ -7,6 +7,7 @@ import { TimeClockEvent } from '../aggregates/time-clock-event.aggregate.js';
 import { AttendanceGeolocationExportService } from '../services/attendance-geolocation-export.service.js';
 import { AttendanceReportingService } from '../services/attendance-reporting.service.js';
 import { AttendanceSchedulingCommandCenterService } from '../services/attendance-scheduling-command-center.service.js';
+import { AttendanceStateService } from '../services/attendance-state.service.js';
 import { AttendanceTrustService } from '../services/attendance-trust.service.js';
 import { TimeAttendanceController } from './time-attendance.controller.js';
 
@@ -80,7 +81,7 @@ function makeController(overrides: {
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
+    new AttendanceStateService(),
     new AttendanceTrustService(),
     new AttendanceGeolocationExportService(),
     {} as never,
@@ -182,6 +183,83 @@ describe('TimeAttendanceController geolocation evidence', () => {
       'Geolocation is required by the active attendance policy for this workplace',
     );
     expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('uses client idempotency evidence for employee check-in commands', async () => {
+    const commandBus = { execute: vi.fn(async (command) => ({ success: true, data: command.payload })) };
+    const controller = makeController({ commandBus });
+    const idempotencyKey = 'clock-in-11111111-20260525T063000';
+    const dto = {
+      workerId: workerId.value,
+      timestamp: new Date('2026-05-25T06:30:00.000Z'),
+      workplaceCode: 'CAIRO_HQ',
+      latitude: 30.0444,
+      longitude: 31.2357,
+      accuracyMeters: 25,
+      deviceId: 'browser',
+      idempotencyKey,
+    } as Parameters<TimeAttendanceController['checkIn']>[0] & { idempotencyKey: string };
+
+    await controller.checkIn(dto, requestWithRoles(['HR_ADMIN']));
+
+    const command = commandBus.execute.mock.calls[0]?.[0];
+    expect(command).toBeDefined();
+    expect(command.idempotencyKey).toBe(idempotencyKey);
+    expect(command.payload.captureReference).toBe(idempotencyKey);
+    expect(command.payload.captureEvidence).toMatchObject({
+      idempotency: {
+        key: idempotencyKey,
+        source: 'BODY',
+      },
+    });
+  });
+
+  it('uses header idempotency evidence for employee check-out commands', async () => {
+    const commandBus = { execute: vi.fn(async (command) => ({ success: true, data: command.payload })) };
+    const idempotencyKey = 'clock-out-11111111-20260525T153000';
+    const previousCheckIn = new TimeClockEvent({
+      id: Uuid.generate(),
+      tenantId,
+      workerId,
+      eventType: 'CLOCK_IN',
+      timestamp: new Date('2026-05-25T06:30:00.000Z'),
+      location: JSON.stringify({ workplaceCode: 'CAIRO_HQ', locationStatus: 'INSIDE_GEOFENCE' }),
+      deviceId: 'browser',
+      status: 'VALIDATED',
+    });
+    const timeClockEventRepo = {
+      findByWorker: vi.fn(async () => [previousCheckIn]),
+      findByWorkerForTenant: vi.fn(async () => [previousCheckIn]),
+      findByWorkersBetween: vi.fn(async () => []),
+      findByWorkersBetweenForTenant: vi.fn(async () => []),
+    };
+    const controller = makeController({ commandBus, timeClockEventRepo });
+    const req = {
+      ...requestWithRoles(['HR_ADMIN']),
+      headers: { 'x-idempotency-key': idempotencyKey },
+    } as unknown as Request;
+    const dto = {
+      workerId: workerId.value,
+      timestamp: new Date('2026-05-25T15:30:00.000Z'),
+      workplaceCode: 'CAIRO_HQ',
+      latitude: 30.0444,
+      longitude: 31.2357,
+      accuracyMeters: 25,
+      deviceId: 'browser',
+    };
+
+    await controller.checkOut(dto, req);
+
+    const command = commandBus.execute.mock.calls[0]?.[0];
+    expect(command).toBeDefined();
+    expect(command.idempotencyKey).toBe(idempotencyKey);
+    expect(command.payload.captureReference).toBe(idempotencyKey);
+    expect(command.payload.captureEvidence).toMatchObject({
+      idempotency: {
+        key: idempotencyKey,
+        source: 'HEADER',
+      },
+    });
   });
 
   it('forbids non-privileged users from exporting geolocation evidence', async () => {
