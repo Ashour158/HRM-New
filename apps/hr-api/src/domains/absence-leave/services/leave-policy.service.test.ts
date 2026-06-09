@@ -226,6 +226,61 @@ describe('LeavePolicyService', () => {
     expect(decision.reasons).toContain('Five or more days require HR review.');
   });
 
+  it('applies higher-priority approval rule ledgers before lower-priority rules', () => {
+    const setup = {
+      ...DEFAULT_HCM_SETUP,
+      leavePolicies: DEFAULT_HCM_SETUP.leavePolicies.map((policy) => (
+        policy.code === 'VACATION'
+          ? {
+              ...policy,
+              maxPerRequest: 10,
+              approvalWorkflow: 'MANAGER',
+              approvalRules: [
+                {
+                  code: 'LOW_PRIORITY_MANAGER',
+                  label: 'Low priority manager review',
+                  active: true,
+                  priority: 10,
+                  conditions: [{ field: 'durationAmount', operator: 'GTE' as const, value: 5 }],
+                  outcomes: [{
+                    action: 'REQUIRE_APPROVAL' as const,
+                    value: { workflow: 'MANAGER' },
+                    reason: 'Manager review applies.',
+                  }],
+                },
+                {
+                  code: 'HIGH_PRIORITY_HR',
+                  label: 'High priority HR review',
+                  active: true,
+                  priority: 100,
+                  conditions: [{ field: 'durationAmount', operator: 'GTE' as const, value: 5 }],
+                  outcomes: [{
+                    action: 'REQUIRE_APPROVAL' as const,
+                    value: { workflow: 'MANAGER_THEN_HR' },
+                    reason: 'HR review overrides manager-only routing.',
+                  }],
+                },
+              ],
+            }
+          : policy
+      )),
+    };
+    const duration = service.calculateDuration(setup, {
+      absenceType: 'VACATION',
+      startDate: new Date('2026-06-07T00:00:00.000Z'),
+      endDate: new Date('2026-06-11T00:00:00.000Z'),
+    });
+
+    const decision = service.resolveApprovalDecision(duration, { startDate: new Date('2026-06-07T00:00:00.000Z') });
+
+    expect(decision.approvalWorkflow).toBe('MANAGER_THEN_HR');
+    expect(decision.matchedRuleCodes).toEqual(expect.arrayContaining(['HIGH_PRIORITY_HR', 'LOW_PRIORITY_MANAGER']));
+    expect(decision.reasons).toEqual(expect.arrayContaining([
+      'HR review overrides manager-only routing.',
+      'Manager review applies.',
+    ]));
+  });
+
   it('resolves document rule ledgers into required evidence for sick leave', () => {
     const setup = {
       ...DEFAULT_HCM_SETUP,

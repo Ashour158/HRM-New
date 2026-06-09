@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool, type Database } from '@hcm/database';
+import { createKyselyInstance, getCurrentTenantId, getPool, type Database } from '@hcm/database';
 import { sql, type Insertable, type Kysely, type Selectable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 
@@ -147,7 +147,7 @@ export class AdminModuleOperationsRepository {
   }
 
   async createRecord(input: CreateOperationRecordInput): Promise<AdminModuleOperationRecord> {
-    const now = new Date();
+    const now = new Date().toISOString();
     const row: Insertable<Database['admin_module_operation_records']> = {
       id: Uuid.generate().value,
       tenant_id: input.tenantId.value,
@@ -166,8 +166,8 @@ export class AdminModuleOperationsRepository {
       created_by: input.actorId ?? null,
       updated_by: input.actorId ?? null,
       aggregate_version: 0,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString(),
+      created_at: now,
+      updated_at: now,
     };
 
     return this.db
@@ -175,6 +175,40 @@ export class AdminModuleOperationsRepository {
       .values(row)
       .returningAll()
       .executeTakeFirstOrThrow();
+  }
+
+  async createRecords(inputs: CreateOperationRecordInput[]): Promise<AdminModuleOperationRecord[]> {
+    if (inputs.length === 0) return [];
+    const now = new Date().toISOString();
+    return this.db.transaction().execute(async (trx) => {
+      const rows: Array<Insertable<Database['admin_module_operation_records']>> = inputs.map((input) => ({
+        id: Uuid.generate().value,
+        tenant_id: input.tenantId.value,
+        module_id: input.moduleId,
+        object_type: input.objectType,
+        owner_role: input.ownerRole,
+        workflow_name: input.workflowName,
+        status: input.status,
+        risk: input.risk,
+        last_event: input.lastEvent,
+        source: input.source ?? 'operations',
+        native_source: input.nativeSource ?? null,
+        native_record_id: input.nativeRecordId ?? null,
+        native_route: input.nativeRoute ?? null,
+        payload: input.payload ?? {},
+        created_by: input.actorId ?? null,
+        updated_by: input.actorId ?? null,
+        aggregate_version: 0,
+        created_at: now,
+        updated_at: now,
+      }));
+
+      return trx
+        .insertInto('admin_module_operation_records')
+        .values(rows)
+        .returningAll()
+        .execute();
+    });
   }
 
   async updateRecord(
@@ -332,10 +366,14 @@ export class AdminModuleOperationsRepository {
   }
 
   async createControl(input: CreateOperationControlInput): Promise<AdminModuleOperationControl> {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context is required to create module operation controls');
+    }
     const now = new Date();
     const row: Insertable<Database['admin_module_operation_controls']> = {
       id: Uuid.generate().value,
-      tenant_id: input.tenantId.value,
+      tenant_id: tenantId.value,
       module_id: input.moduleId,
       control_name: input.controlName,
       control_type: input.controlType,
@@ -393,6 +431,36 @@ export class AdminModuleOperationsRepository {
       .where('tenant_id', '=', tenantId.value)
       .where('module_id', '=', moduleId)
       .where('id', '=', controlId.value)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
+  async updateControlIfStatus(
+    tenantId: Uuid,
+    moduleId: string,
+    controlId: Uuid,
+    expectedStatus: OperationControlStatus,
+    input: UpdateOperationControlInput,
+  ): Promise<AdminModuleOperationControl | undefined> {
+    const row = {
+      ...(input.controlName !== undefined ? { control_name: input.controlName } : {}),
+      ...(input.controlType !== undefined ? { control_type: input.controlType } : {}),
+      ...(input.ownerRole !== undefined ? { owner_role: input.ownerRole } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.lastEvent !== undefined ? { last_event: input.lastEvent } : {}),
+      ...(input.payload !== undefined ? { payload: input.payload } : {}),
+      ...(input.actorId !== undefined ? { updated_by: input.actorId } : {}),
+      updated_at: new Date().toISOString(),
+      aggregate_version: sql<number>`aggregate_version + 1`,
+    };
+
+    return this.db
+      .updateTable('admin_module_operation_controls')
+      .set(row as never)
+      .where('tenant_id', '=', tenantId.value)
+      .where('module_id', '=', moduleId)
+      .where('id', '=', controlId.value)
+      .where('status', '=', expectedStatus)
       .returningAll()
       .executeTakeFirst();
   }

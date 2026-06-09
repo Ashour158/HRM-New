@@ -362,25 +362,65 @@ function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-function parseOperationsCsv(text: string): OperationImportRow[] {
-  const [headerLine, ...lines] = text.trim().split(/\r?\n/);
-  if (!headerLine) return [];
-  const headers = headerLine.split(',').map((item) => item.trim());
-  return lines.filter(Boolean).map((line) => {
-    const values = line.split(',').map((item) => item.trim());
-    return headers.reduce<OperationImportRow>((row, header, index) => {
-      const value = values[index];
-      if (!value) return row;
-      if (header === 'payload') {
-        try {
-          return { ...row, payload: JSON.parse(value) as unknown };
-        } catch {
-          return { ...row, payload: value };
-        }
+function parseCsvTable(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    const next = text.charAt(index + 1);
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
       }
-      return { ...row, [header]: value };
-    }, {});
-  });
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(cell);
+      cell = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      row.push(cell);
+      if (row.some((value) => value.trim().length > 0)) rows.push(row);
+      row = [];
+      cell = '';
+      if (char === '\r' && next === '\n') index += 1;
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some((value) => value.trim().length > 0)) rows.push(row);
+  return rows;
+}
+
+function parseOperationsCsv(text: string): OperationImportRow[] {
+  const [headers = [], ...rows] = parseCsvTable(text);
+  const normalizedHeaders = headers.map((item) => item.trim());
+  if (normalizedHeaders.length === 0) return [];
+  return rows.map((values) => normalizedHeaders.reduce<OperationImportRow>((row, header, index) => {
+    const value = values[index]?.trim();
+    if (!value) return row;
+    if (header === 'payload') {
+      try {
+        return { ...row, payload: JSON.parse(value) as unknown };
+      } catch {
+        return { ...row, payload: value };
+      }
+    }
+    return { ...row, [header]: value };
+  }, {}));
 }
 
 function mutationErrorMessage(error: unknown): string {

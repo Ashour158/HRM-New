@@ -70,7 +70,7 @@ function attendanceJourney(signals: EmployeeJourneySignals): EmployeeJourneyItem
 }
 
 export function buildEmployeeJourneyItems(signals: EmployeeJourneySignals): EmployeeJourneyItem[] {
-  const annualLeave = signals.leaveBalances?.find((balance) => /annual|paid|pto/i.test(balance.type)) ?? signals.leaveBalances?.[0];
+  const annualLeave = signals.leaveBalances?.find((balance) => /\b(?:annual|paid|pto)\b/i.test(balance.type)) ?? signals.leaveBalances?.[0];
   const pendingTaskCount = signals.pendingTaskCount ?? 0;
 
   return [

@@ -31,6 +31,13 @@ function employeeRequest(): Request {
   } as unknown as Request;
 }
 
+function response() {
+  return {
+    setHeader: vi.fn(),
+    send: vi.fn(),
+  };
+}
+
 function recordRow(overrides: Record<string, unknown> = {}) {
   return {
     id: '00000000-0000-0000-0000-000000000201',
@@ -161,12 +168,9 @@ describe('AdminModuleOperationsController', () => {
   it('creates, edits, approves, and applies governance controls through explicit lifecycle commands', async () => {
     const repository = {
       createControl: vi.fn().mockResolvedValue(controlRow()),
-      findControl: vi.fn()
-        .mockResolvedValueOnce(controlRow())
-        .mockResolvedValueOnce(controlRow({ status: 'In Review' }))
-        .mockResolvedValueOnce(controlRow({ status: 'Approved' })),
       updateControl: vi.fn()
-        .mockResolvedValueOnce(controlRow({ owner_role: 'HR Admin', aggregate_version: 1 }))
+        .mockResolvedValueOnce(controlRow({ owner_role: 'HR Admin', aggregate_version: 1 })),
+      updateControlIfStatus: vi.fn()
         .mockResolvedValueOnce(controlRow({ status: 'In Review', last_event: 'Control submitted for review', aggregate_version: 2 }))
         .mockResolvedValueOnce(controlRow({ status: 'Approved', last_event: 'Control approved', aggregate_version: 3 }))
         .mockResolvedValueOnce(controlRow({ status: 'Applied', last_event: 'Control applied', aggregate_version: 4 })),
@@ -192,6 +196,13 @@ describe('AdminModuleOperationsController', () => {
       actorId,
     }));
     expect(edited).toMatchObject({ ownerRole: 'HR Admin', aggregateVersion: 1 });
+    expect(repository.updateControlIfStatus).toHaveBeenCalledWith(
+      new Uuid(tenantId),
+      'compensation',
+      new Uuid(created.id),
+      'Draft',
+      expect.objectContaining({ status: 'In Review', actorId }),
+    );
     expect(submitted).toMatchObject({ status: 'In Review', lastEvent: 'Control submitted for review' });
     expect(approved).toMatchObject({ status: 'Approved', lastEvent: 'Control approved' });
     expect(applied).toMatchObject({ status: 'Applied', lastEvent: 'Control applied' });
@@ -311,7 +322,7 @@ describe('AdminModuleOperationsController', () => {
 
   it('applies module operation import rows as governed records', async () => {
     const repository = {
-      createRecord: vi.fn().mockResolvedValue(recordRow({
+      createRecords: vi.fn().mockResolvedValue([recordRow({
         source: 'operations',
         object_type: 'Salary review',
         owner_role: 'Compensation Admin',
@@ -319,7 +330,7 @@ describe('AdminModuleOperationsController', () => {
         status: 'In Review',
         risk: 'High',
         last_event: 'Imported from CSV',
-      })),
+      })]),
     } as unknown as AdminModuleOperationsRepository;
     const controller = new AdminModuleOperationsController(repository, nativeAdapter());
 
@@ -334,18 +345,20 @@ describe('AdminModuleOperationsController', () => {
       }],
     }, adminRequest());
 
-    expect(repository.createRecord).toHaveBeenCalledWith(expect.objectContaining({
-      tenantId: new Uuid(tenantId),
-      moduleId: 'compensation',
-      objectType: 'Salary review',
-      ownerRole: 'Compensation Admin',
-      workflowName: 'Compensation cycle',
-      status: 'In Review',
-      risk: 'High',
-      lastEvent: 'Imported from CSV',
-      actorId,
-      payload: expect.objectContaining({ source: 'module-operation-import' }),
-    }));
+    expect(repository.createRecords).toHaveBeenCalledWith([
+      expect.objectContaining({
+        tenantId: new Uuid(tenantId),
+        moduleId: 'compensation',
+        objectType: 'Salary review',
+        ownerRole: 'Compensation Admin',
+        workflowName: 'Compensation cycle',
+        status: 'In Review',
+        risk: 'High',
+        lastEvent: 'Imported from CSV',
+        actorId,
+        payload: expect.objectContaining({ source: 'module-operation-import' }),
+      }),
+    ]);
     expect(result).toMatchObject({
       accepted: true,
       rowCount: 1,
@@ -357,7 +370,7 @@ describe('AdminModuleOperationsController', () => {
 
   it('does not apply module operation import rows when validation fails', async () => {
     const repository = {
-      createRecord: vi.fn(),
+      createRecords: vi.fn(),
     } as unknown as AdminModuleOperationsRepository;
     const controller = new AdminModuleOperationsController(repository, nativeAdapter());
 
@@ -365,7 +378,7 @@ describe('AdminModuleOperationsController', () => {
       rows: [{ objectType: 'Salary review', ownerRole: '', status: 'Ready' }],
     }, adminRequest());
 
-    expect(repository.createRecord).not.toHaveBeenCalled();
+    expect(repository.createRecords).not.toHaveBeenCalled();
     expect(result).toMatchObject({
       accepted: false,
       rowCount: 1,
@@ -378,6 +391,60 @@ describe('AdminModuleOperationsController', () => {
       expect.objectContaining({ row: 1, field: 'status' }),
       expect.objectContaining({ row: 1, field: 'lastEvent' }),
     ]));
+  });
+
+  it('exports operation records as CSV for admin users', async () => {
+    const repository = {
+      findRecords: vi.fn().mockResolvedValue([recordRow()]),
+    } as unknown as AdminModuleOperationsRepository;
+    const adapter = nativeAdapter();
+    const res = response();
+    const controller = new AdminModuleOperationsController(repository, adapter);
+
+    await controller.exportRecordsCsv('compensation', adminRequest(), res as any);
+
+    expect(adapter.syncNativeRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation', actorId);
+    expect(repository.findRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('objectType,ownerRole,workflowName'));
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('Comp plan'));
+  });
+
+  it('returns an import template CSV for admin users', async () => {
+    const controller = new AdminModuleOperationsController({} as AdminModuleOperationsRepository, nativeAdapter());
+    const res = response();
+
+    await controller.importRecordsTemplate('compensation', adminRequest(), res as any);
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('objectType,ownerRole,workflowName'));
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('Operational item'));
+  });
+
+  it('previews operation imports without writing records', async () => {
+    const repository = {
+      createRecords: vi.fn(),
+    } as unknown as AdminModuleOperationsRepository;
+    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+
+    const result = await controller.importRecordsPreview('compensation', {
+      rows: [{
+        objectType: 'Salary review',
+        ownerRole: 'Compensation Admin',
+        workflowName: 'Compensation cycle',
+        status: 'In Review',
+        risk: 'Medium',
+        lastEvent: 'Imported from CSV',
+      }],
+    }, adminRequest());
+
+    expect(repository.createRecords).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      accepted: true,
+      rowCount: 1,
+      errors: [],
+      events: ['ModuleOperationImportValidated'],
+    });
   });
 
   it('rejects non-admin module operation access', async () => {

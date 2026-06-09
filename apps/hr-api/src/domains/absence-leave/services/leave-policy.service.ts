@@ -327,6 +327,7 @@ export class LeavePolicyService {
     context: { startDate?: Date; absenceType?: string } = {},
   ): LeaveApprovalDecision {
     let approvalWorkflow = duration.policy.approvalWorkflow;
+    let approvalWorkflowResolvedByRule = false;
     const requiredDocumentCodes: string[] = [];
     const matchedRuleCodes: string[] = [];
     const reasons: string[] = [];
@@ -347,8 +348,16 @@ export class LeavePolicyService {
       reasons.push(`${duration.policy.label} requires supporting evidence after ${duration.policy.requiresDocumentAfter} ${duration.durationUnit.toLowerCase()}.`);
     }
 
-    for (const rule of [...(duration.policy.approvalRules ?? []), ...(duration.policy.documentRules ?? [])]) {
-      if (!ruleMatches(rule, decisionContext, context.startDate)) continue;
+    const matchingRules = [...(duration.policy.approvalRules ?? []), ...(duration.policy.documentRules ?? [])]
+      .map((rule, index) => ({ rule, index }))
+      .filter(({ rule }) => ruleMatches(rule, decisionContext, context.startDate))
+      .sort((left, right) => {
+        const priorityDifference = (right.rule.priority ?? 0) - (left.rule.priority ?? 0);
+        return priorityDifference === 0 ? left.index - right.index : priorityDifference;
+      })
+      .map(({ rule }) => rule);
+
+    for (const rule of matchingRules) {
       matchedRuleCodes.push(rule.code);
 
       for (const outcome of rule.outcomes ?? []) {
@@ -356,7 +365,11 @@ export class LeavePolicyService {
           throw new ValidationError(outcome.reason ?? `${rule.label} blocks this leave request`);
         }
         if (outcome.action === 'REQUIRE_APPROVAL') {
-          approvalWorkflow = workflowFromOutcome(outcome) ?? approvalWorkflow;
+          const workflow = workflowFromOutcome(outcome);
+          if (workflow && !approvalWorkflowResolvedByRule) {
+            approvalWorkflow = workflow;
+            approvalWorkflowResolvedByRule = true;
+          }
         }
         if (outcome.action === 'REQUIRE_DOCUMENT') {
           requiredDocumentCodes.push(documentCodeFromOutcome(outcome));

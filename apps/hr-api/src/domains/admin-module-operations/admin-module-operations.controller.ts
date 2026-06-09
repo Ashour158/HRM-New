@@ -10,6 +10,7 @@ import {
   Post,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
@@ -331,26 +332,22 @@ export class AdminModuleOperationsController {
       };
     }
 
-    const created: SerializedOperationRecord[] = [];
-    for (const row of validation.rows) {
-      const record = await this.repository.createRecord({
-        tenantId,
-        moduleId,
-        objectType: row.objectType!,
-        ownerRole: row.ownerRole!,
-        workflowName: row.workflowName!,
-        status: row.status!,
-        risk: row.risk!,
-        lastEvent: row.lastEvent!,
-        payload: {
-          source: 'module-operation-import',
-          importedAt: new Date().toISOString(),
-          ...this.normalizeImportPayload(row.payload),
-        },
-        actorId: actorIdValue(req),
-      });
-      created.push(this.serializeRecord(record));
-    }
+    const created = await this.repository.createRecords(validation.rows.map((row) => ({
+      tenantId,
+      moduleId,
+      objectType: row.objectType!,
+      ownerRole: row.ownerRole!,
+      workflowName: row.workflowName!,
+      status: row.status!,
+      risk: row.risk!,
+      lastEvent: row.lastEvent!,
+      payload: {
+        source: 'module-operation-import',
+        importedAt: new Date().toISOString(),
+        ...this.normalizeImportPayload(row.payload),
+      },
+      actorId: actorIdValue(req),
+    })));
 
     return {
       accepted: true,
@@ -358,7 +355,7 @@ export class AdminModuleOperationsController {
       createdCount: created.length,
       errors: [],
       events: ['ModuleOperationImportApplied'],
-      created,
+      created: created.map((record) => this.serializeRecord(record)),
     };
   }
 
@@ -563,7 +560,11 @@ export class AdminModuleOperationsController {
   }
 
   private getTenantId(req: Request): Uuid {
-    return new Uuid((req.tenantId as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = req.tenantId as string | undefined;
+    if (!tenantId) {
+      throw new UnauthorizedException('Tenant context is required for admin module operations');
+    }
+    return new Uuid(tenantId);
   }
 
   private assertAdminScope(req: Request): void {
@@ -713,17 +714,16 @@ export class AdminModuleOperationsController {
     const controlId = this.normalizeUuid(controlIdParam, 'controlId');
     this.assertAdminScope(req);
     const tenantId = this.getTenantId(req);
-    const existingControl = await this.repository.findControl(tenantId, moduleId, controlId);
-    if (!existingControl) throw new NotFoundException('Module governance control not found');
-    if (existingControl.status !== transition.expectedStatus) {
-      throw new BadRequestException(`Control must be ${transition.expectedStatus} before it can move to ${transition.nextStatus}`);
-    }
-    const control = await this.repository.updateControl(tenantId, moduleId, controlId, {
+    const control = await this.repository.updateControlIfStatus(tenantId, moduleId, controlId, transition.expectedStatus, {
       status: transition.nextStatus,
       lastEvent: transition.lastEvent,
       actorId: actorIdValue(req),
     });
-    if (!control) throw new NotFoundException('Module governance control not found');
+    if (!control) {
+      const existingControl = await this.repository.findControl(tenantId, moduleId, controlId);
+      if (!existingControl) throw new NotFoundException('Module governance control not found');
+      throw new BadRequestException(`Control must be ${transition.expectedStatus} before it can move to ${transition.nextStatus}`);
+    }
     return this.serializeControl(control);
   }
 

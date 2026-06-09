@@ -99,4 +99,58 @@ describe('EmployeeProfile', () => {
     expect(screen.getByText('4 peer responses')).toBeInTheDocument();
     expect(screen.getByText('Trusted partner with strong collaboration.')).toBeInTheDocument();
   });
+
+  it('shows a loading state while performance impact is loading', async () => {
+    useApiQueryMock.mockImplementation((queryKey: unknown) => {
+      const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
+      if (key === 'employee-profile') {
+        return { data: profile, isLoading: false, error: null, refetch: vi.fn() };
+      }
+      if (key === 'employee-profile-performance') {
+        return { data: undefined, isLoading: true, error: null, refetch: vi.fn() };
+      }
+      return { data: undefined, isLoading: false, error: null, refetch: vi.fn() };
+    });
+    const { container } = render(<EmployeeProfile />);
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Performance' }));
+
+    expect(container.querySelectorAll('.animate-pulse').length).toBeGreaterThan(0);
+  });
+
+  it('shows an empty state when no performance signal exists', async () => {
+    useApiQueryMock.mockImplementation((queryKey: unknown) => {
+      const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
+      if (key === 'employee-profile') {
+        return { data: profile, isLoading: false, error: null, refetch: vi.fn() };
+      }
+      if (key === 'employee-profile-performance') {
+        return { data: undefined, isLoading: false, error: null, refetch: vi.fn() };
+      }
+      return { data: undefined, isLoading: false, error: null, refetch: vi.fn() };
+    });
+    render(<EmployeeProfile />);
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Performance' }));
+
+    expect(screen.getByText('No performance signal yet')).toBeInTheDocument();
+  });
+
+  it('shows an error state when performance impact cannot load', async () => {
+    useApiQueryMock.mockImplementation((queryKey: unknown) => {
+      const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
+      if (key === 'employee-profile') {
+        return { data: profile, isLoading: false, error: null, refetch: vi.fn() };
+      }
+      if (key === 'employee-profile-performance') {
+        return { data: undefined, isLoading: false, error: new Error('Performance unavailable'), refetch: vi.fn() };
+      }
+      return { data: undefined, isLoading: false, error: null, refetch: vi.fn() };
+    });
+    render(<EmployeeProfile />);
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Performance' }));
+
+    expect(screen.getByText('Performance data could not be loaded')).toBeInTheDocument();
+  });
 });

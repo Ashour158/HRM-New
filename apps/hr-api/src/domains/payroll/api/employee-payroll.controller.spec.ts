@@ -94,6 +94,7 @@ function publishedArtifact() {
           status: 'LOCKED',
         },
       ],
+      internalOnly: 'do-not-return',
     },
     publishedBy: 'payroll-admin',
     publishedAt: new Date('2026-06-02T10:00:00.000Z'),
@@ -201,6 +202,7 @@ describe('EmployeePayrollController payslip ownership', () => {
       }),
     ]);
     expect(resultLineRepo.findByWorker).not.toHaveBeenCalled();
+    expect(payslips[0]).not.toHaveProperty('internalOnly');
     expect(payrollCalculation.buildPayslipsFromResultLines).not.toHaveBeenCalled();
     expect(auditLedger.writeAuditOnAccess).toHaveBeenCalledWith(
       request().actor,

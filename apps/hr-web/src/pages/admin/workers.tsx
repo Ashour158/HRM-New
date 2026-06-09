@@ -167,10 +167,12 @@ export function AdminWorkers() {
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const rows = parseSimpleCsv(await file.text());
-      setUploadedRows(rows);
+      setUploadedRows([]);
+      setUploadPreview(null);
       setUploadApplyResult(null);
+      const rows = parseSimpleCsv(await file.text());
       const result = await massPreviewMutation.mutateAsync({ rows });
+      setUploadedRows(rows);
       setUploadPreview(result);
       addNotification({
         title: result.accepted ? 'Upload validated' : 'Validation issues found',
@@ -356,7 +358,7 @@ export function AdminWorkers() {
                     : `${uploadPreview.errors.length} validation errors`}
               </Badge>
               {uploadPreview.accepted && !uploadApplyResult?.accepted ? (
-                <Button size="sm" onClick={handleApplyUpload} disabled={massApplyMutation.isPending || uploadedRows.length === 0}>
+                <Button size="sm" onClick={handleApplyUpload} disabled={massPreviewMutation.isPending || massApplyMutation.isPending || uploadedRows.length === 0}>
                   {massApplyMutation.isPending ? 'Applying...' : 'Apply Updates'}
                 </Button>
               ) : null}

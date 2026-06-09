@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -9,12 +9,37 @@ import type { PayrollPayslip } from '../services/payroll-cycle-calculation.servi
 function toPayslipPayload(value: unknown): PayrollPayslip | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const candidate = value as Partial<PayrollPayslip>;
+  const validDate = (date?: string): date is string => (
+    typeof date === 'string'
+    && date.trim().length > 0
+    && Number.isFinite(Date.parse(date))
+  );
+  const validNumber = (amount?: number): amount is number => typeof amount === 'number' && Number.isFinite(amount);
+  const linesValid = Array.isArray(candidate.lines)
+    && candidate.lines.every((line) => (
+      line
+      && typeof line === 'object'
+      && typeof (line as PayrollPayslip['lines'][number]).id === 'string'
+      && typeof (line as PayrollPayslip['lines'][number]).workerId === 'string'
+      && typeof (line as PayrollPayslip['lines'][number]).lineType === 'string'
+      && typeof (line as PayrollPayslip['lines'][number]).description === 'string'
+      && validNumber((line as PayrollPayslip['lines'][number]).amount)
+      && typeof (line as PayrollPayslip['lines'][number]).currency === 'string'
+    ));
   if (
-    typeof candidate.workerId === 'string'
+    typeof candidate.id === 'string'
+    && typeof candidate.workerId === 'string'
     && typeof candidate.employeeId === 'string'
-    && typeof candidate.payPeriodStart === 'string'
-    && typeof candidate.payPeriodEnd === 'string'
-    && Array.isArray(candidate.lines)
+    && typeof candidate.employeeName === 'string'
+    && validDate(candidate.payPeriodStart)
+    && validDate(candidate.payPeriodEnd)
+    && validDate(candidate.payDate)
+    && validNumber(candidate.grossPay)
+    && validNumber(candidate.netPay)
+    && validNumber(candidate.deductions)
+    && validNumber(candidate.taxes)
+    && typeof candidate.currency === 'string'
+    && linesValid
   ) {
     return candidate as PayrollPayslip;
   }
@@ -80,9 +105,13 @@ export class PayrollPayslipArtifactRepository {
   }
 
   private toRow(record: PayrollPayslipArtifactRecord): Insertable<Database['payroll_payslip_artifacts']> {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context is required to save payroll payslip artifacts');
+    }
     return {
       id: record.id,
-      tenant_id: record.tenantId,
+      tenant_id: tenantId.value,
       payroll_cycle_id: record.payrollCycleId,
       worker_id: record.workerId,
       employee_id: record.employeeId,

@@ -18,7 +18,7 @@ function packageNameFromId(id: string) {
   return parts[0];
 }
 
-export function manualChunkForId(id: string) {
+export function manualChunkForId(id: string): string | undefined {
   if (!normalizedPath(id).includes('/node_modules/')) return undefined;
 
   const packageName = packageNameFromId(id);

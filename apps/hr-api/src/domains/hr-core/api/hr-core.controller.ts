@@ -750,11 +750,19 @@ export class HrCoreController {
         if (!existing) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee does not exist for mass update' });
         if (existing) workersByEmployeeId.set(row.employeeId, existing);
       }
-      const email = row.workEmail ?? row.personalEmail;
-      if (email && seenEmails.has(email.toLowerCase())) errors.push({ row: index + 1, field: 'email', message: 'Duplicate email in upload' });
-      if (email) seenEmails.add(email.toLowerCase());
+      for (const [field, email] of [
+        ['workEmail', row.workEmail],
+        ['personalEmail', row.personalEmail],
+      ] as const) {
+        if (!email) continue;
+        const normalizedEmail = email.toLowerCase();
+        if (seenEmails.has(normalizedEmail)) {
+          errors.push({ row: index + 1, field, message: 'Duplicate email in upload' });
+        }
+        seenEmails.add(normalizedEmail);
+      }
       if (row.grossSalary !== undefined && Number(row.grossSalary) < 0) errors.push({ row: index + 1, field: 'grossSalary', message: 'Gross salary cannot be negative' });
-      if (row.currency && row.currency.length !== 3) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
+      if (row.currency && !/^[A-Z]{3}$/.test(row.currency)) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
     }
 
     return {

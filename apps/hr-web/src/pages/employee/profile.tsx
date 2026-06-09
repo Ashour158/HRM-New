@@ -121,7 +121,12 @@ export function EmployeeProfile() {
     '/employee/profile'
   );
   const profileId = profile?.id ?? '';
-  const { data: performanceImpact, isLoading: isPerformanceLoading } = useApiQuery<EmployeeProfilePerformance>(
+  const {
+    data: performanceImpact,
+    isLoading: isPerformanceLoading,
+    error: performanceError,
+    refetch: refetchPerformance,
+  } = useApiQuery<EmployeeProfilePerformance>(
     ['employee-profile-performance', profileId],
     `/performance/action-plans/worker/${profileId}`,
     { enabled: Boolean(profileId) },
@@ -306,6 +311,13 @@ export function EmployeeProfile() {
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-24 rounded-2xl" />)}
                 </div>
+              ) : performanceError ? (
+                <ErrorState
+                  title="Performance data could not be loaded"
+                  description="Try again in a moment."
+                  error={performanceError}
+                  onRetry={() => refetchPerformance()}
+                />
               ) : performanceImpact ? (
                 <>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
