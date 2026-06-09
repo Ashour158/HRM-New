@@ -5,3 +5,7 @@ export { LearningLmsConsumer } from './learning-lms.consumer.js';
 export { TaxFilingConsumer } from './tax-filing.consumer.js';
 export { VmsSyncConsumer } from './vms-sync.consumer.js';
 export { WarehouseExportConsumer } from './warehouse-export.consumer.js';
+export {
+  EmailNotificationEventConsumer,
+  EmailNotificationRecipientResolver,
+} from './email-notification.consumer.js';

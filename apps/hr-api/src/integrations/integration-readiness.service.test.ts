@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   BenefitsCarrierAdapter,
   EmailNotificationAdapter,
@@ -22,6 +22,12 @@ function registerAdapters(adapters: IntegrationAdapter[]) {
 }
 
 describe('integration provider readiness', () => {
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
   it('publishes governed readiness metadata for SSO, statutory filing, bank files, carriers, and email', () => {
     const adapters = [
       new IamProvisioningAdapter(),
@@ -86,6 +92,35 @@ describe('integration provider readiness', () => {
     })).rejects.toThrow("Adapter 'email-notification' credentials are not configured.");
 
     expect(sendSpy).not.toHaveBeenCalled();
+  });
+
+  it('delivers email notifications through the configured adapter path', async () => {
+    process.env.HR_EMAIL_DELIVERY_MODE = 'LOG';
+    const email = new EmailNotificationAdapter();
+    const { healthService, orchestrator } = registerAdapters([email]);
+
+    expect(healthService.getReadiness(email.name)).toEqual(expect.objectContaining({
+      credentialState: 'CONFIGURED',
+      ready: true,
+    }));
+
+    const result = await orchestrator.send(email.name, {
+      to: 'employee@example.com',
+      subject: 'Leave approved',
+      bodyText: 'Your leave request was approved.',
+      correlationId: 'corr-1',
+    });
+
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      adapterName: 'email-notification',
+      providerMessageId: expect.stringMatching(/^log:/),
+    }));
+    expect(healthService.getMetrics(email.name)).toEqual(expect.objectContaining({
+      totalCalls: 1,
+      successfulCalls: 1,
+      failedCalls: 0,
+    }));
   });
 
   it('tracks incident state and outbound health in readiness snapshots', async () => {

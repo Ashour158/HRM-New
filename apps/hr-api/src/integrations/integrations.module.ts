@@ -44,6 +44,8 @@ import {
   TaxFilingConsumer,
   VmsSyncConsumer,
   WarehouseExportConsumer,
+  EmailNotificationEventConsumer,
+  EmailNotificationRecipientResolver,
 } from './consumers/index.js';
 
 const ADAPTERS = [
@@ -65,6 +67,7 @@ const CONSUMERS = [
   TaxFilingConsumer,
   VmsSyncConsumer,
   WarehouseExportConsumer,
+  EmailNotificationEventConsumer,
 ];
 
 @Module({
@@ -75,6 +78,7 @@ const CONSUMERS = [
     IntegrationHealthService,
     ...ADAPTERS,
     ...CONSUMERS,
+    EmailNotificationRecipientResolver,
   ],
   exports: [IntegrationOrchestrator, IntegrationHealthService, ...ADAPTERS],
 })
