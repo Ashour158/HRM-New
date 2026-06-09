@@ -33,6 +33,14 @@ const EmployeeLeaveRequestDtoSchema = z.object({
 
 type EmployeeLeaveRequestDto = z.infer<typeof EmployeeLeaveRequestDtoSchema>;
 
+type CreateAbsenceRequestCommandData = {
+  absenceRequestId: string;
+  approvalWorkflow?: string;
+  requiresDocument?: boolean;
+  requiredDocumentCodes?: string[];
+  policyDecision?: unknown;
+};
+
 function statusForUi(status: AbsenceRequestStatus): 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' {
   if (status === 'APPROVED') return 'APPROVED';
   if (status === 'REJECTED') return 'REJECTED';
@@ -266,10 +274,11 @@ export class EmployeeLeaveController {
       endTime: dto.endTime,
       reason: dto.reason,
     };
-    const created = this.assertCommandSucceeded(await this.commandBus.execute<typeof payload, { absenceRequestId: string }>(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', payload, req, {
+    const created = this.assertCommandSucceeded(await this.commandBus.execute<typeof payload, CreateAbsenceRequestCommandData>(this.buildCommand('CreateAbsenceRequest', 'AbsenceRequest', payload, req, {
       subjectWorkerId: worker.id,
     })));
-    const absenceRequestId = 'data' in created ? (created.data as { absenceRequestId: string }).absenceRequestId : undefined;
+    const createdData = 'data' in created ? created.data as CreateAbsenceRequestCommandData : undefined;
+    const absenceRequestId = createdData?.absenceRequestId;
     if (!absenceRequestId) return created;
     const request = await this.absenceRequestRepo.findById(new Uuid(absenceRequestId));
     if (!request) return created;
@@ -280,7 +289,13 @@ export class EmployeeLeaveController {
       subjectWorkerId: worker.id,
     })));
     const updated = await this.absenceRequestRepo.findById(request.id);
-    return this.toAbsenceDto(updated ?? request, worker);
+    return {
+      ...this.toAbsenceDto(updated ?? request, worker),
+      ...(createdData.approvalWorkflow ? { approvalWorkflow: createdData.approvalWorkflow } : {}),
+      ...(createdData.requiresDocument !== undefined ? { requiresDocument: createdData.requiresDocument } : {}),
+      ...(createdData.requiredDocumentCodes ? { requiredDocumentCodes: createdData.requiredDocumentCodes } : {}),
+      ...(createdData.policyDecision ? { policyDecision: createdData.policyDecision } : {}),
+    };
   }
 
   @Post('employee/absences/requests')

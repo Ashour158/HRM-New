@@ -190,6 +190,78 @@ describe('LeavePolicyService', () => {
     ], new Date('2026-06-03T00:00:00.000Z'))).toThrow(/Weekly permission request limit/);
   });
 
+  it('resolves approval rule ledgers into the workflow required for long leave', () => {
+    const setup = {
+      ...DEFAULT_HCM_SETUP,
+      leavePolicies: DEFAULT_HCM_SETUP.leavePolicies.map((policy) => (
+        policy.code === 'VACATION'
+          ? {
+              ...policy,
+              maxPerRequest: 10,
+              approvalRules: [{
+                code: 'LONG_LEAVE_HR_REVIEW',
+                label: 'Long leave HR review',
+                active: true,
+                conditions: [{ field: 'durationAmount', operator: 'GTE' as const, value: 5 }],
+                outcomes: [{
+                  action: 'REQUIRE_APPROVAL' as const,
+                  value: { workflow: 'MANAGER_THEN_HR' },
+                  reason: 'Five or more days require HR review.',
+                }],
+              }],
+            }
+          : policy
+      )),
+    };
+    const duration = service.calculateDuration(setup, {
+      absenceType: 'VACATION',
+      startDate: new Date('2026-06-07T00:00:00.000Z'),
+      endDate: new Date('2026-06-11T00:00:00.000Z'),
+    });
+
+    const decision = service.resolveApprovalDecision(duration, { startDate: new Date('2026-06-07T00:00:00.000Z') });
+
+    expect(decision.approvalWorkflow).toBe('MANAGER_THEN_HR');
+    expect(decision.matchedRuleCodes).toContain('LONG_LEAVE_HR_REVIEW');
+    expect(decision.reasons).toContain('Five or more days require HR review.');
+  });
+
+  it('resolves document rule ledgers into required evidence for sick leave', () => {
+    const setup = {
+      ...DEFAULT_HCM_SETUP,
+      leavePolicies: DEFAULT_HCM_SETUP.leavePolicies.map((policy) => (
+        policy.code === 'SICK'
+          ? {
+              ...policy,
+              documentRules: [{
+                code: 'SICK_MEDICAL_CERTIFICATE',
+                label: 'Sick leave medical certificate',
+                active: true,
+                conditions: [{ field: 'durationAmount', operator: 'GTE' as const, value: 2 }],
+                outcomes: [{
+                  action: 'REQUIRE_DOCUMENT' as const,
+                  value: { documentCode: 'MEDICAL_CERTIFICATE' },
+                  reason: 'Medical certificate is required for multi-day sick leave.',
+                }],
+              }],
+            }
+          : policy
+      )),
+    };
+    const duration = service.calculateDuration(setup, {
+      absenceType: 'SICK',
+      startDate: new Date('2026-06-08T00:00:00.000Z'),
+      endDate: new Date('2026-06-09T00:00:00.000Z'),
+    });
+
+    const decision = service.resolveApprovalDecision(duration, { startDate: new Date('2026-06-08T00:00:00.000Z') });
+
+    expect(decision.requiresDocument).toBe(true);
+    expect(decision.requiredDocumentCodes).toEqual(['MEDICAL_CERTIFICATE']);
+    expect(decision.matchedRuleCodes).toContain('SICK_MEDICAL_CERTIFICATE');
+    expect(decision.reasons).toContain('Medical certificate is required for multi-day sick leave.');
+  });
+
   it('rejects hourly leave without time range', () => {
     expect(() => service.calculateDuration(DEFAULT_HCM_SETUP, {
       absenceType: 'PERMISSION',

@@ -19,6 +19,8 @@ import {
   AdminModuleOperationsRepository,
   type AdminModuleOperationRecord,
   type AdminModuleOperationWorkflow,
+  type AdminModuleOperationControl,
+  type OperationControlStatus,
   type OperationRecordStatus,
   type OperationRisk,
   type OperationWorkflowState,
@@ -48,6 +50,82 @@ type CreateWorkflowDto = {
 
 type UpdateWorkflowDto = Partial<CreateWorkflowDto>;
 
+type CreateControlDto = {
+  controlName?: string;
+  controlType?: string;
+  ownerRole?: string;
+  status?: OperationControlStatus;
+  lastEvent?: string;
+  payload?: unknown;
+};
+
+type UpdateControlDto = Partial<CreateControlDto>;
+
+type SerializedOperationRecord = {
+  id: string;
+  moduleId: string;
+  objectType: string;
+  ownerRole: string;
+  workflowName: string;
+  status: OperationRecordStatus;
+  risk: OperationRisk;
+  lastEvent: string;
+  source: string;
+  nativeSource: string | null;
+  nativeId: string | null;
+  nativeRoute: string | null;
+  payload: unknown;
+  aggregateVersion: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SerializedOperationWorkflow = {
+  id: string;
+  moduleId: string;
+  workflowName: string;
+  ownerRole: string;
+  state: OperationWorkflowState;
+  slaTarget: string;
+  lastEvent: string;
+  payload: unknown;
+  aggregateVersion: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type SerializedOperationControl = {
+  id: string;
+  moduleId: string;
+  controlName: string;
+  controlType: string;
+  ownerRole: string;
+  status: OperationControlStatus;
+  lastEvent: string;
+  payload: unknown;
+  aggregateVersion: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ModuleDepthCapabilityStatus = 'Ready' | 'Needs Work' | 'Blocked';
+type ModuleDepthStatus = ModuleDepthCapabilityStatus;
+
+type ModuleDepthCapability = {
+  code: 'records' | 'workflows' | 'nativeWiring' | 'ownership' | 'riskControls' | 'governanceControls';
+  label: string;
+  status: ModuleDepthCapabilityStatus;
+  evidence: string;
+};
+
+type ModuleDepthSummary = {
+  score: number;
+  status: ModuleDepthStatus;
+  capabilities: ModuleDepthCapability[];
+  blockers: string[];
+  nextActions: string[];
+};
+
 const ADMIN_OPERATION_ROLES = new Set([
   'APP_ADMIN',
   'PLATFORM_ADMIN',
@@ -64,6 +142,7 @@ const ADMIN_OPERATION_ROLES = new Set([
 const RECORD_STATUSES: OperationRecordStatus[] = ['Draft', 'Active', 'In Review', 'Blocked', 'Closed'];
 const RISKS: OperationRisk[] = ['Low', 'Medium', 'High'];
 const WORKFLOW_STATES: OperationWorkflowState[] = ['Queued', 'In Progress', 'Needs Approval', 'Ready'];
+const CONTROL_STATUSES: OperationControlStatus[] = ['Draft', 'In Review', 'Approved', 'Applied'];
 
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -102,15 +181,22 @@ export class AdminModuleOperationsController {
     const tenantId = this.getTenantId(req);
     this.assertAdminScope(req);
     await this.nativeAdapter.syncNativeRecords(tenantId, moduleId, actorIdValue(req));
-    const [records, workflows] = await Promise.all([
+    const [records, workflows, controls] = await Promise.all([
       this.repository.findRecords(tenantId, moduleId),
       this.repository.findWorkflows(tenantId, moduleId),
+      this.repository.findControls(tenantId, moduleId),
     ]);
+
+    const serializedRecords = records.map((record) => this.serializeRecord(record));
+    const serializedWorkflows = workflows.map((workflow) => this.serializeWorkflow(workflow));
+    const serializedControls = controls.map((control) => this.serializeControl(control));
 
     return {
       moduleId,
-      records: records.map((record) => this.serializeRecord(record)),
-      workflows: workflows.map((workflow) => this.serializeWorkflow(workflow)),
+      records: serializedRecords,
+      workflows: serializedWorkflows,
+      controls: serializedControls,
+      moduleDepth: this.buildModuleDepth(serializedRecords, serializedWorkflows, serializedControls),
     };
   }
 
@@ -244,6 +330,86 @@ export class AdminModuleOperationsController {
     return this.serializeWorkflow(workflow);
   }
 
+  @Post(':moduleId/controls')
+  async createControl(@Param('moduleId') moduleIdParam: string, @Body() dto: CreateControlDto, @Req() req: Request) {
+    const moduleId = this.normalizeModuleId(moduleIdParam);
+    this.assertAdminScope(req);
+    const control = await this.repository.createControl({
+      tenantId: this.getTenantId(req),
+      moduleId,
+      controlName: requiredString(dto.controlName, 'controlName'),
+      controlType: requiredString(dto.controlType, 'controlType'),
+      ownerRole: requiredString(dto.ownerRole, 'ownerRole'),
+      status: optionalEnum(dto.status, CONTROL_STATUSES, 'status', 'Draft') ?? 'Draft',
+      lastEvent: typeof dto.lastEvent === 'string' && dto.lastEvent.trim() ? dto.lastEvent.trim() : 'Control drafted',
+      payload: dto.payload ?? {},
+      actorId: actorIdValue(req),
+    });
+    return this.serializeControl(control);
+  }
+
+  @Patch(':moduleId/controls/:controlId')
+  async updateControl(
+    @Param('moduleId') moduleIdParam: string,
+    @Param('controlId') controlIdParam: string,
+    @Body() dto: UpdateControlDto,
+    @Req() req: Request,
+  ) {
+    const moduleId = this.normalizeModuleId(moduleIdParam);
+    const controlId = this.normalizeUuid(controlIdParam, 'controlId');
+    this.assertAdminScope(req);
+    const control = await this.repository.updateControl(this.getTenantId(req), moduleId, controlId, {
+      ...(dto.controlName !== undefined ? { controlName: requiredString(dto.controlName, 'controlName') } : {}),
+      ...(dto.controlType !== undefined ? { controlType: requiredString(dto.controlType, 'controlType') } : {}),
+      ...(dto.ownerRole !== undefined ? { ownerRole: requiredString(dto.ownerRole, 'ownerRole') } : {}),
+      ...(dto.status !== undefined ? { status: optionalEnum(dto.status, CONTROL_STATUSES, 'status') } : {}),
+      ...(dto.lastEvent !== undefined ? { lastEvent: requiredString(dto.lastEvent, 'lastEvent') } : {}),
+      ...(dto.payload !== undefined ? { payload: dto.payload } : {}),
+      actorId: actorIdValue(req),
+    });
+    if (!control) throw new NotFoundException('Module governance control not found');
+    return this.serializeControl(control);
+  }
+
+  @Post(':moduleId/controls/:controlId/commands/submit-review')
+  async submitControlForReview(
+    @Param('moduleId') moduleIdParam: string,
+    @Param('controlId') controlIdParam: string,
+    @Req() req: Request,
+  ) {
+    return this.advanceControl(moduleIdParam, controlIdParam, req, {
+      expectedStatus: 'Draft',
+      nextStatus: 'In Review',
+      lastEvent: 'Control submitted for review',
+    });
+  }
+
+  @Post(':moduleId/controls/:controlId/commands/approve')
+  async approveControl(
+    @Param('moduleId') moduleIdParam: string,
+    @Param('controlId') controlIdParam: string,
+    @Req() req: Request,
+  ) {
+    return this.advanceControl(moduleIdParam, controlIdParam, req, {
+      expectedStatus: 'In Review',
+      nextStatus: 'Approved',
+      lastEvent: 'Control approved',
+    });
+  }
+
+  @Post(':moduleId/controls/:controlId/commands/apply')
+  async applyControl(
+    @Param('moduleId') moduleIdParam: string,
+    @Param('controlId') controlIdParam: string,
+    @Req() req: Request,
+  ) {
+    return this.advanceControl(moduleIdParam, controlIdParam, req, {
+      expectedStatus: 'Approved',
+      nextStatus: 'Applied',
+      lastEvent: 'Control applied',
+    });
+  }
+
   private getTenantId(req: Request): Uuid {
     return new Uuid((req.tenantId as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
   }
@@ -272,15 +438,15 @@ export class AdminModuleOperationsController {
     return value.toISOString();
   }
 
-  private serializeRecord(record: AdminModuleOperationRecord) {
+  private serializeRecord(record: AdminModuleOperationRecord): SerializedOperationRecord {
     return {
       id: record.id,
       moduleId: record.module_id,
       objectType: record.object_type,
       ownerRole: record.owner_role,
       workflowName: record.workflow_name,
-      status: record.status,
-      risk: record.risk,
+      status: record.status as OperationRecordStatus,
+      risk: record.risk as OperationRisk,
       lastEvent: record.last_event,
       source: record.source,
       nativeSource: record.native_source,
@@ -293,13 +459,13 @@ export class AdminModuleOperationsController {
     };
   }
 
-  private serializeWorkflow(workflow: AdminModuleOperationWorkflow) {
+  private serializeWorkflow(workflow: AdminModuleOperationWorkflow): SerializedOperationWorkflow {
     return {
       id: workflow.id,
       moduleId: workflow.module_id,
       workflowName: workflow.workflow_name,
       ownerRole: workflow.owner_role,
-      state: workflow.state,
+      state: workflow.state as OperationWorkflowState,
       slaTarget: workflow.sla_target,
       lastEvent: workflow.last_event,
       payload: workflow.payload,
@@ -307,5 +473,266 @@ export class AdminModuleOperationsController {
       createdAt: this.serializeDate(workflow.created_at),
       updatedAt: this.serializeDate(workflow.updated_at),
     };
+  }
+
+  private serializeControl(control: AdminModuleOperationControl): SerializedOperationControl {
+    return {
+      id: control.id,
+      moduleId: control.module_id,
+      controlName: control.control_name,
+      controlType: control.control_type,
+      ownerRole: control.owner_role,
+      status: control.status as OperationControlStatus,
+      lastEvent: control.last_event,
+      payload: control.payload,
+      aggregateVersion: control.aggregate_version,
+      createdAt: this.serializeDate(control.created_at),
+      updatedAt: this.serializeDate(control.updated_at),
+    };
+  }
+
+  private async advanceControl(
+    moduleIdParam: string,
+    controlIdParam: string,
+    req: Request,
+    transition: {
+      expectedStatus: OperationControlStatus;
+      nextStatus: OperationControlStatus;
+      lastEvent: string;
+    },
+  ): Promise<SerializedOperationControl> {
+    const moduleId = this.normalizeModuleId(moduleIdParam);
+    const controlId = this.normalizeUuid(controlIdParam, 'controlId');
+    this.assertAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    const existingControl = await this.repository.findControl(tenantId, moduleId, controlId);
+    if (!existingControl) throw new NotFoundException('Module governance control not found');
+    if (existingControl.status !== transition.expectedStatus) {
+      throw new BadRequestException(`Control must be ${transition.expectedStatus} before it can move to ${transition.nextStatus}`);
+    }
+    const control = await this.repository.updateControl(tenantId, moduleId, controlId, {
+      status: transition.nextStatus,
+      lastEvent: transition.lastEvent,
+      actorId: actorIdValue(req),
+    });
+    if (!control) throw new NotFoundException('Module governance control not found');
+    return this.serializeControl(control);
+  }
+
+  private buildModuleDepth(
+    records: SerializedOperationRecord[],
+    workflows: SerializedOperationWorkflow[],
+    controls: SerializedOperationControl[],
+  ): ModuleDepthSummary {
+    const blockers: string[] = [];
+    const nextActions: string[] = [];
+    const recordsCapability = this.recordsCapability(records, blockers, nextActions);
+    const workflowsCapability = this.workflowsCapability(workflows, blockers, nextActions);
+    const nativeWiringCapability = this.nativeWiringCapability(records, nextActions);
+    const ownershipCapability = this.ownershipCapability(records, workflows, nextActions);
+    const riskControlsCapability = this.riskControlsCapability(records, nextActions);
+    const governanceControlsCapability = this.governanceControlsCapability(controls, blockers, nextActions);
+    const capabilities: ModuleDepthCapability[] = [
+      recordsCapability,
+      workflowsCapability,
+      nativeWiringCapability,
+      ownershipCapability,
+      riskControlsCapability,
+      governanceControlsCapability,
+    ];
+    const score = Math.round(
+      capabilities.reduce((total, capability) => total + this.capabilityScore(capability.status), 0) / capabilities.length,
+    );
+    const status: ModuleDepthStatus = capabilities.some((capability) => capability.status === 'Blocked')
+      ? 'Blocked'
+      : capabilities.some((capability) => capability.status === 'Needs Work')
+        ? 'Needs Work'
+        : 'Ready';
+
+    return {
+      score,
+      status,
+      capabilities,
+      blockers,
+      nextActions: Array.from(new Set(nextActions)),
+    };
+  }
+
+  private recordsCapability(
+    records: SerializedOperationRecord[],
+    blockers: string[],
+    nextActions: string[],
+  ): ModuleDepthCapability {
+    if (records.length === 0) {
+      blockers.push('No operational records are available for this module.');
+      nextActions.push('Create or sync the first operational record for this module.');
+      return {
+        code: 'records',
+        label: 'Operational records',
+        status: 'Blocked',
+        evidence: 'No persisted records were found.',
+      };
+    }
+    return {
+      code: 'records',
+      label: 'Operational records',
+      status: 'Ready',
+      evidence: `${records.length} persisted record${records.length === 1 ? '' : 's'} available.`,
+    };
+  }
+
+  private workflowsCapability(
+    workflows: SerializedOperationWorkflow[],
+    blockers: string[],
+    nextActions: string[],
+  ): ModuleDepthCapability {
+    if (workflows.length === 0) {
+      blockers.push('No operational workflows are configured for this module.');
+      nextActions.push('Sync the workflow blueprint or create the first workflow owner queue.');
+      return {
+        code: 'workflows',
+        label: 'Workflow coverage',
+        status: 'Blocked',
+        evidence: 'No persisted workflows were found.',
+      };
+    }
+    return {
+      code: 'workflows',
+      label: 'Workflow coverage',
+      status: 'Ready',
+      evidence: `${workflows.length} workflow${workflows.length === 1 ? '' : 's'} configured.`,
+    };
+  }
+
+  private nativeWiringCapability(
+    records: SerializedOperationRecord[],
+    nextActions: string[],
+  ): ModuleDepthCapability {
+    if (records.length === 0) {
+      return {
+        code: 'nativeWiring',
+        label: 'Native module wiring',
+        status: 'Blocked',
+        evidence: 'No records exist to verify native module wiring.',
+      };
+    }
+    const nativeRecords = records.filter((record) => record.source === 'native' && record.nativeSource && record.nativeId);
+    if (nativeRecords.length === 0) {
+      nextActions.push('Link operational records to their native module objects before marking the module as fully wired.');
+      return {
+        code: 'nativeWiring',
+        label: 'Native module wiring',
+        status: 'Needs Work',
+        evidence: 'Records exist, but no native module linkage was found.',
+      };
+    }
+    return {
+      code: 'nativeWiring',
+      label: 'Native module wiring',
+      status: 'Ready',
+      evidence: `${nativeRecords.length} native module link${nativeRecords.length === 1 ? '' : 's'} verified.`,
+    };
+  }
+
+  private ownershipCapability(
+    records: SerializedOperationRecord[],
+    workflows: SerializedOperationWorkflow[],
+    nextActions: string[],
+  ): ModuleDepthCapability {
+    const missingRecordOwners = records.filter((record) => record.ownerRole.trim().length === 0).length;
+    const missingWorkflowOwners = workflows.filter((workflow) => workflow.ownerRole.trim().length === 0).length;
+    const missingOwners = missingRecordOwners + missingWorkflowOwners;
+    if (missingOwners > 0) {
+      nextActions.push('Assign owners to every operation record and workflow before production use.');
+      return {
+        code: 'ownership',
+        label: 'Ownership',
+        status: 'Needs Work',
+        evidence: `${missingOwners} item${missingOwners === 1 ? '' : 's'} missing an owner.`,
+      };
+    }
+    if (records.length === 0 && workflows.length === 0) {
+      return {
+        code: 'ownership',
+        label: 'Ownership',
+        status: 'Blocked',
+        evidence: 'No records or workflows exist to verify ownership.',
+      };
+    }
+    return {
+      code: 'ownership',
+      label: 'Ownership',
+      status: 'Ready',
+      evidence: 'All records and workflows have accountable owners.',
+    };
+  }
+
+  private riskControlsCapability(
+    records: SerializedOperationRecord[],
+    nextActions: string[],
+  ): ModuleDepthCapability {
+    const highRiskCount = records.filter((record) => record.risk === 'High' || record.status === 'Blocked').length;
+    if (highRiskCount > 0) {
+      nextActions.push('Resolve blocked or high-risk operation records before closing the module readiness review.');
+      return {
+        code: 'riskControls',
+        label: 'Risk controls',
+        status: 'Needs Work',
+        evidence: `${highRiskCount} blocked or high-risk item${highRiskCount === 1 ? '' : 's'} need review.`,
+      };
+    }
+    if (records.length === 0) {
+      return {
+        code: 'riskControls',
+        label: 'Risk controls',
+        status: 'Blocked',
+        evidence: 'No records exist to verify risk controls.',
+      };
+    }
+    return {
+      code: 'riskControls',
+      label: 'Risk controls',
+      status: 'Ready',
+      evidence: 'No blocked or high-risk operation records are open.',
+    };
+  }
+
+  private governanceControlsCapability(
+    controls: SerializedOperationControl[],
+    blockers: string[],
+    nextActions: string[],
+  ): ModuleDepthCapability {
+    if (controls.length === 0) {
+      blockers.push('No governance controls are configured for this module.');
+      nextActions.push('Create and apply the governance controls that protect this module.');
+      return {
+        code: 'governanceControls',
+        label: 'Governance controls',
+        status: 'Blocked',
+        evidence: 'No governed controls were found.',
+      };
+    }
+    const unappliedControls = controls.filter((control) => control.status !== 'Applied').length;
+    if (unappliedControls > 0) {
+      nextActions.push('Review, approve, and apply every governance control before production use.');
+      return {
+        code: 'governanceControls',
+        label: 'Governance controls',
+        status: 'Needs Work',
+        evidence: `${unappliedControls} control${unappliedControls === 1 ? '' : 's'} not applied yet.`,
+      };
+    }
+    return {
+      code: 'governanceControls',
+      label: 'Governance controls',
+      status: 'Ready',
+      evidence: `${controls.length} applied control${controls.length === 1 ? '' : 's'} protecting this module.`,
+    };
+  }
+
+  private capabilityScore(status: ModuleDepthCapabilityStatus): number {
+    if (status === 'Ready') return 100;
+    if (status === 'Needs Work') return 60;
+    return 0;
   }
 }

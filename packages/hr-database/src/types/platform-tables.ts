@@ -388,6 +388,23 @@ export interface AdminModuleOperationWorkflowsTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface AdminModuleOperationControlsTable {
+  id: string;
+  tenant_id: string;
+  module_id: string;
+  control_name: string;
+  control_type: string;
+  owner_role: string;
+  status: string;
+  last_event: string;
+  payload: unknown;
+  created_by: string | null;
+  updated_by: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface GeneratedWorkflowTable {
   id: string;
   tenant_id: string;
@@ -1395,6 +1412,7 @@ export interface PayrollPayslipArtifactsTable {
   currency: string;
   content_hash: string;
   html_content: string;
+  payslip_payload: unknown;
   data_classification: string;
   published_by: string | null;
   published_at: Date | null;
@@ -2012,6 +2030,7 @@ export interface Database {
   admin_policy_decision_evidence: AdminPolicyDecisionEvidenceTable;
   admin_module_operation_records: AdminModuleOperationRecordsTable;
   admin_module_operation_workflows: AdminModuleOperationWorkflowsTable;
+  admin_module_operation_controls: AdminModuleOperationControlsTable;
   workers: WorkersTable;
   employment_relationships: EmploymentRelationshipsTable;
   job_assignments: JobAssignmentsTable;

@@ -139,6 +139,26 @@ export class EmployeePayrollController {
     cycle: { id: Uuid; payPeriodStart: Date; payPeriodEnd: Date; payDate?: Date },
     employeeName: string,
   ) {
+    const payload = artifact.payslipPayload;
+    if (payload) {
+      return {
+        ...payload,
+        id: artifact.id,
+        payrollCycleId: cycle.id.value,
+        workerId: artifact.workerId,
+        employeeId: payload.employeeId || artifact.employeeId,
+        employeeName: payload.employeeName || employeeName,
+        payPeriodStart: datePart(cycle.payPeriodStart),
+        payPeriodEnd: datePart(cycle.payPeriodEnd),
+        payDate: datePart(cycle.payDate ?? cycle.payPeriodEnd),
+        contentHash: artifact.contentHash,
+        artifactStatus: artifact.status,
+        dataClassification: artifact.dataClassification,
+        generatedAt: artifact.createdAt,
+        publishedAt: artifact.publishedAt,
+      };
+    }
+
     return {
       id: artifact.id,
       payrollCycleId: cycle.id.value,

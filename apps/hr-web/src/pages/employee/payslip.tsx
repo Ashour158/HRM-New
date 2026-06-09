@@ -97,24 +97,23 @@ export function EmployeePayslip() {
         <div>
           <h2 className="fusion-gradient-text text-2xl font-bold flex items-center gap-2">
             <FileText className="h-6 w-6 text-indigo-500" />
-            Payroll
+            Payslips
           </h2>
-          <p className="text-slate-500">View and download your payslips</p>
+          <p className="text-slate-500">Review pay, deductions, taxes, and payment history</p>
         </div>
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="text-xs text-slate-500">Sensitive data - access logged</span>
+          <span className="text-xs text-slate-500">Private payroll records</span>
         </div>
       </div>
 
-      {/* Sensitivity Warning */}
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:bg-amber-950/30 dark:border-amber-900">
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">High Sensitivity Data</p>
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-200">Private payroll information</p>
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              All payslip access is audited and logged for compliance purposes.
+              Payslips include compensation, taxes, insurance, and other payroll deductions.
             </p>
           </div>
         </div>
@@ -170,7 +169,6 @@ export function EmployeePayslip() {
                   <div key={line.id} className="flex justify-between gap-4 py-2 border-b">
                     <div>
                       <span className="text-sm font-medium">{line.description}</span>
-                      {line.explanation ? <p className="text-xs text-muted-foreground">{line.explanation}</p> : null}
                     </div>
                     <span className="text-sm font-medium">{formatCurrency(line.amount, line.currency)}</span>
                   </div>

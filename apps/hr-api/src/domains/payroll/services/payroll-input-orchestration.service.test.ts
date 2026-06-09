@@ -128,7 +128,7 @@ describe('PayrollInputOrchestrationService', () => {
       taxes: 1120,
       currency: 'EGP',
       lines: [
-        { id: 'line-1', workerId: 'worker-1', lineType: 'GROSS', description: 'Base <gross>', amount: 10000, currency: 'EGP' },
+        { id: 'line-1', workerId: 'worker-1', lineType: 'GROSS', description: 'Base <gross>', amount: 10000, currency: 'EGP', explanation: 'internal gross formula' },
       ],
     };
 
@@ -138,5 +138,7 @@ describe('PayrollInputOrchestrationService', () => {
     expect(html).toContain('EMP-001');
     expect(html).toContain('Base &lt;gross&gt;');
     expect(html).toContain('9660');
+    expect(html).not.toContain('internal gross formula');
+    expect(html).not.toContain('<th>Explanation</th>');
   });
 });

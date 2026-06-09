@@ -334,10 +334,14 @@ export function EmployeeTimeOff() {
       ...(formData.reason.trim() ? { reason: formData.reason.trim() } : {}),
     };
     try {
-      await createMutation.mutateAsync(payload);
+      const created = await createMutation.mutateAsync(payload);
+      const approvalRoute = formatEnum(created.approvalWorkflow ?? selectedPolicy?.approvalWorkflow);
+      const evidenceLabel = created.requiresDocument && created.requiredDocumentCodes?.length
+        ? ` Evidence required: ${created.requiredDocumentCodes.map(formatEnum).join(', ')}.`
+        : '';
       addNotification({
         title: 'Leave request submitted',
-        message: 'Your request was sent for approval.',
+        message: `Your request was sent for ${approvalRoute.toLowerCase()} approval.${evidenceLabel}`,
         type: 'success',
         read: false,
       });

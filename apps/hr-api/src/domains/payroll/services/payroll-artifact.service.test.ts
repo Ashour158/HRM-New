@@ -103,6 +103,14 @@ describe('PayrollArtifactService', () => {
       dataClassification: 'HIGH_SENSITIVITY',
       grossPay: 10000,
       netPay: 8400,
+      payslipPayload: expect.objectContaining({
+        taxes: 1000,
+        deductions: 600,
+        lines: expect.arrayContaining([
+          expect.objectContaining({ lineType: 'GROSS', description: 'Base gross salary', amount: 10000 }),
+          expect.objectContaining({ lineType: 'NET_PAY', description: 'Net pay', amount: 8400 }),
+        ]),
+      }),
     }));
     expect(payslipArtifact.contentHash).toMatch(/^[a-f0-9]{64}$/);
     expect(exportJob).toEqual(expect.objectContaining({

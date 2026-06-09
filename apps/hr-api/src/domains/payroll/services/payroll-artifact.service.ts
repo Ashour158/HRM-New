@@ -43,6 +43,7 @@ export interface PayrollPayslipArtifactRecord {
   currency: string;
   contentHash: string;
   htmlContent: string;
+  payslipPayload?: PayrollPayslip;
   dataClassification: 'HIGH_SENSITIVITY';
   publishedBy?: string;
   publishedAt?: Date;
@@ -127,6 +128,7 @@ export class PayrollArtifactService {
       currency: input.payslip.currency,
       contentHash: hash(input.htmlContent),
       htmlContent: input.htmlContent,
+      payslipPayload: input.payslip,
       dataClassification: 'HIGH_SENSITIVITY',
       createdAt: now,
       updatedAt: now,

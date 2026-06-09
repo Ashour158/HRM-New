@@ -5,6 +5,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { DEFAULT_HCM_SETUP } from '../../hcm-setup/hcm-setup.defaults.js';
 import { TimeClockEvent } from '../aggregates/time-clock-event.aggregate.js';
 import { AttendanceGeolocationExportService } from '../services/attendance-geolocation-export.service.js';
+import { AttendanceReportingService } from '../services/attendance-reporting.service.js';
 import { AttendanceSchedulingCommandCenterService } from '../services/attendance-scheduling-command-center.service.js';
 import { AttendanceTrustService } from '../services/attendance-trust.service.js';
 import { TimeAttendanceController } from './time-attendance.controller.js';
@@ -38,6 +39,7 @@ function makeController(overrides: {
   commandBus?: { execute: ReturnType<typeof vi.fn> };
   hcmSetupService?: { getSetup: ReturnType<typeof vi.fn> };
   attendanceLedgerBuilder?: { buildDailyLedger: ReturnType<typeof vi.fn> };
+  reportingService?: AttendanceReportingService;
   timeClockEventRepo?: {
     findByWorker?: ReturnType<typeof vi.fn>;
     findByWorkerForTenant?: ReturnType<typeof vi.fn>;
@@ -84,7 +86,7 @@ function makeController(overrides: {
     {} as never,
     {} as never,
     {} as never,
-    {} as never,
+    overrides.reportingService ?? new AttendanceReportingService(),
     new AttendanceSchedulingCommandCenterService(),
     shiftScheduleRepo as never,
     openShiftRepo as never,
@@ -279,5 +281,52 @@ describe('TimeAttendanceController geolocation evidence', () => {
     expect(openShiftRepo.findByTenantScoped).toHaveBeenCalledWith(tenantId, 'CAIRO_HQ');
     expect(coverageGapRepo.findByTenantScoped).toHaveBeenCalledWith(tenantId, 'CAIRO_HQ');
     expect(result.workplaceCode).toBe('CAIRO_HQ');
+  });
+
+  it('builds a scoped attendance period view from daily policy-aware ledgers', async () => {
+    const attendanceLedgerBuilder = {
+      buildDailyLedger: vi.fn(async (_tenant: Uuid, filters?: { date?: string }) => ({
+        workDate: filters?.date ?? '2026-05-26',
+        rows: [],
+        summary: {
+          absent: 0,
+          exceptions: 0,
+          geofenceViolations: 0,
+          inProgress: 0,
+          late: 0,
+          missingCheckout: 0,
+          onLeave: 0,
+          payrollReady: 0,
+          present: 0,
+          totalEmployees: 0,
+          undertime: 0,
+        },
+        exceptionQueue: [],
+      })),
+    };
+    const controller = makeController({ attendanceLedgerBuilder });
+
+    const result = await controller.getAttendancePeriodView(
+      'WEEKLY',
+      'TENANT',
+      '2026-05-26',
+      undefined,
+      undefined,
+      'CAIRO_HQ',
+      requestWithRoles(['HR_ADMIN']),
+    );
+
+    expect(result).toMatchObject({
+      periodStart: '2026-05-20',
+      periodEnd: '2026-05-26',
+      range: 'WEEKLY',
+      scope: 'TENANT',
+    });
+    expect(result.series).toHaveLength(7);
+    expect(attendanceLedgerBuilder.buildDailyLedger).toHaveBeenCalledTimes(7);
+    expect(attendanceLedgerBuilder.buildDailyLedger).toHaveBeenCalledWith(
+      tenantId,
+      expect.objectContaining({ date: '2026-05-26', workplaceCode: 'CAIRO_HQ' }),
+    );
   });
 });

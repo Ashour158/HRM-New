@@ -17,13 +17,16 @@ import { useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { DataTable } from '@/components/common/data-table';
 import { cn, formatDate } from '@/lib/utils';
 import {
   Users,
+  CalendarDays,
   CheckCircle2,
+  Clock3,
   Eye,
   TrendingUp,
   AlertCircle,
@@ -51,7 +54,47 @@ interface ManagerDashboardData {
   };
 }
 
+type AttendancePeriodRange = 'DAILY' | 'MONTHLY' | 'NINETY_DAYS' | 'WEEKLY';
+
+interface AttendancePeriodMetrics {
+  employeeDays: number;
+  present: number;
+  absent: number;
+  onLeave: number;
+  exceptions: number;
+  payableHours: number;
+  deductionHours: number;
+  overtimeHours: number;
+  geofenceViolations: number;
+  lateMinutes: number;
+  missingCheckout: number;
+  payrollReady: number;
+  undertimeMinutes: number;
+}
+
+interface AttendancePeriodView {
+  periodStart: string;
+  periodEnd: string;
+  range: AttendancePeriodRange;
+  scope: 'SELF' | 'TEAM' | 'TENANT';
+  totals: AttendancePeriodMetrics;
+  series: Array<AttendancePeriodMetrics & { workDate: string }>;
+  workers: Array<AttendancePeriodMetrics & {
+    workerId: string;
+    employeeId: string;
+    name: string;
+    departmentName?: string;
+    managerId?: string;
+  }>;
+}
+
 const CHART_COLORS = ['#818cf8', '#a78bfa', '#2dd4bf', '#fbbf24'];
+const attendanceRangeOptions: Array<{ value: AttendancePeriodRange; label: string }> = [
+  { value: 'DAILY', label: 'Daily' },
+  { value: 'WEEKLY', label: 'Weekly' },
+  { value: 'MONTHLY', label: 'Monthly' },
+  { value: 'NINETY_DAYS', label: '90 days' },
+];
 
 const teamPerformanceTrend = [
   { month: 'Jan', score: 78 },
@@ -90,6 +133,23 @@ function getGreeting(): string {
   return 'Good evening';
 }
 
+function dateKey(value = new Date()): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function formatAttendanceDate(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit' }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
+function formatHours(value?: number): string {
+  const hours = Math.max(value ?? 0, 0);
+  return `${hours.toFixed(hours % 1 === 0 ? 0 : 1)}h`;
+}
+
+function rangeLabel(range: AttendancePeriodRange): string {
+  return attendanceRangeOptions.find((option) => option.value === range)?.label ?? 'Weekly';
+}
+
 const alertDot: Record<string, string> = {
   high: 'bg-red-500',
   medium: 'bg-orange-500',
@@ -106,9 +166,21 @@ const alertBg: Record<string, string> = {
  */
 export function ManagerDashboard() {
   const { user } = useAuth();
+  const [attendanceRange, setAttendanceRange] = React.useState<AttendancePeriodRange>('WEEKLY');
   const { data, isLoading, isError, error, refetch } = useApiQuery<ManagerDashboardData>(
     ['manager-dashboard'],
     '/manager/dashboard'
+  );
+  const { data: managerProfile } = useApiQuery<Worker>(['manager-dashboard-self-profile'], '/employee/profile');
+  const todayKey = React.useMemo(() => dateKey(), []);
+  const { data: ownAttendance } = useApiQuery<AttendancePeriodView>(
+    ['manager-own-attendance-period-view', managerProfile?.id, attendanceRange, todayKey],
+    `/time/attendance/reports/period-view?scope=SELF&range=${attendanceRange}&date=${todayKey}&workerId=${managerProfile?.id ?? ''}`,
+    { enabled: Boolean(managerProfile?.id) },
+  );
+  const { data: teamAttendance } = useApiQuery<AttendancePeriodView>(
+    ['manager-team-attendance-period-view', attendanceRange, todayKey],
+    `/time/attendance/reports/period-view?scope=TEAM&range=${attendanceRange}&date=${todayKey}`,
   );
 
   const firstName = user?.firstName || 'Manager';
@@ -160,6 +232,14 @@ export function ManagerDashboard() {
         { name: 'Expenses', value: expenseCount },
       ].filter((entry) => entry.value > 0),
     [absenceCount, timesheetCount, expenseCount],
+  );
+  const ownAttendanceSeries = React.useMemo(
+    () => (ownAttendance?.series ?? []).map((day) => ({ day: formatAttendanceDate(day.workDate), hours: day.payableHours })),
+    [ownAttendance?.series],
+  );
+  const teamAttendanceSeries = React.useMemo(
+    () => (teamAttendance?.series ?? []).map((day) => ({ day: formatAttendanceDate(day.workDate), hours: day.payableHours })),
+    [teamAttendance?.series],
   );
 
   const kpiTiles = [
@@ -289,6 +369,81 @@ export function ManagerDashboard() {
               </div>
             );
           })}
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="flex flex-col rounded-[2rem] p-6 fusion-glass lg:p-8">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-xl font-bold">
+                  <Clock3 size={20} className="text-indigo-500" />
+                  My Attendance
+                </h2>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  {ownAttendance?.periodStart ?? todayKey} to {ownAttendance?.periodEnd ?? todayKey}
+                </p>
+              </div>
+              <Select value={attendanceRange} onValueChange={(value) => setAttendanceRange(value as AttendancePeriodRange)}>
+                <SelectTrigger className="h-9 w-[132px] rounded-xl bg-white/70">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {attendanceRangeOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <AttendanceMiniMetric label="Payable" value={formatHours(ownAttendance?.totals.payableHours)} />
+              <AttendanceMiniMetric label="Late" value={`${ownAttendance?.totals.lateMinutes ?? 0}m`} />
+              <AttendanceMiniMetric label="Exceptions" value={`${ownAttendance?.totals.exceptions ?? 0}`} />
+            </div>
+            <div className="mt-5 h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={ownAttendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
+                  <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
+                  <Area type="monotone" dataKey="hours" stroke="#818cf8" strokeWidth={3} fill="#818cf833" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="flex flex-col rounded-[2rem] p-6 fusion-glass lg:p-8">
+            <div className="mb-5 flex items-center justify-between">
+              <div>
+                <h2 className="flex items-center gap-2 text-xl font-bold">
+                  <CalendarDays size={20} className="text-teal-500" />
+                  Team Attendance
+                </h2>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Direct reports - {rangeLabel(attendanceRange)}
+                </p>
+              </div>
+              <span className="rounded-full bg-teal-100 px-3 py-1 text-xs font-bold text-teal-700">
+                {teamAttendance?.workers?.length ?? directReports.length} people
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <AttendanceMiniMetric label="Payable" value={formatHours(teamAttendance?.totals.payableHours)} />
+              <AttendanceMiniMetric label="Absences" value={`${teamAttendance?.totals.absent ?? 0}`} />
+              <AttendanceMiniMetric label="Exceptions" value={`${teamAttendance?.totals.exceptions ?? 0}`} />
+            </div>
+            <div className="mt-5 h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={teamAttendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                  <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
+                  <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
+                  <Area type="monotone" dataKey="hours" stroke="#14b8a6" strokeWidth={3} fill="#14b8a633" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         {/* Analytics */}
@@ -527,6 +682,15 @@ export function ManagerDashboard() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AttendanceMiniMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/60 bg-white/55 px-4 py-3">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-extrabold text-slate-900">{value}</p>
     </div>
   );
 }

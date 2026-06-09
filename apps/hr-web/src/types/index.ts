@@ -836,6 +836,14 @@ export interface AbsenceRequest {
   excludedHolidayDates?: string[];
   startTime?: string;
   endTime?: string;
+  approvalWorkflow?: LeaveApprovalWorkflow;
+  requiresDocument?: boolean;
+  requiredDocumentCodes?: string[];
+  policyDecision?: {
+    policyCode?: string;
+    matchedRuleCodes?: string[];
+    reasons?: string[];
+  };
 }
 
 /** Benefit enrollment. */

@@ -6,9 +6,11 @@ import { Uuid } from '@hcm/shared-kernel';
 export type OperationRecordStatus = 'Draft' | 'Active' | 'In Review' | 'Blocked' | 'Closed';
 export type OperationRisk = 'Low' | 'Medium' | 'High';
 export type OperationWorkflowState = 'Queued' | 'In Progress' | 'Needs Approval' | 'Ready';
+export type OperationControlStatus = 'Draft' | 'In Review' | 'Approved' | 'Applied';
 
 export type AdminModuleOperationRecord = Selectable<Database['admin_module_operation_records']>;
 export type AdminModuleOperationWorkflow = Selectable<Database['admin_module_operation_workflows']>;
+export type AdminModuleOperationControl = Selectable<Database['admin_module_operation_controls']>;
 
 export type CreateOperationRecordInput = {
   tenantId: Uuid;
@@ -64,6 +66,28 @@ export type UpdateOperationWorkflowInput = Partial<{
   actorId: string;
 }>;
 
+export type CreateOperationControlInput = {
+  tenantId: Uuid;
+  moduleId: string;
+  controlName: string;
+  controlType: string;
+  ownerRole: string;
+  status: OperationControlStatus;
+  lastEvent: string;
+  payload?: unknown;
+  actorId?: string;
+};
+
+export type UpdateOperationControlInput = Partial<{
+  controlName: string;
+  controlType: string;
+  ownerRole: string;
+  status: OperationControlStatus;
+  lastEvent: string;
+  payload: unknown;
+  actorId: string;
+}>;
+
 @Injectable()
 export class AdminModuleOperationsRepository {
   private readonly db: Kysely<Database>;
@@ -100,6 +124,26 @@ export class AdminModuleOperationsRepository {
       .where('module_id', '=', moduleId)
       .orderBy('created_at', 'asc')
       .execute();
+  }
+
+  async findControls(tenantId: Uuid, moduleId: string): Promise<AdminModuleOperationControl[]> {
+    return this.db
+      .selectFrom('admin_module_operation_controls')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('module_id', '=', moduleId)
+      .orderBy('created_at', 'asc')
+      .execute();
+  }
+
+  async findControl(tenantId: Uuid, moduleId: string, controlId: Uuid): Promise<AdminModuleOperationControl | undefined> {
+    return this.db
+      .selectFrom('admin_module_operation_controls')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('module_id', '=', moduleId)
+      .where('id', '=', controlId.value)
+      .executeTakeFirst();
   }
 
   async createRecord(input: CreateOperationRecordInput): Promise<AdminModuleOperationRecord> {
@@ -283,6 +327,72 @@ export class AdminModuleOperationsRepository {
       .where('tenant_id', '=', tenantId.value)
       .where('module_id', '=', moduleId)
       .where('id', '=', workflowId.value)
+      .returningAll()
+      .executeTakeFirst();
+  }
+
+  async createControl(input: CreateOperationControlInput): Promise<AdminModuleOperationControl> {
+    const now = new Date();
+    const row: Insertable<Database['admin_module_operation_controls']> = {
+      id: Uuid.generate().value,
+      tenant_id: input.tenantId.value,
+      module_id: input.moduleId,
+      control_name: input.controlName,
+      control_type: input.controlType,
+      owner_role: input.ownerRole,
+      status: input.status,
+      last_event: input.lastEvent,
+      payload: input.payload ?? {},
+      created_by: input.actorId ?? null,
+      updated_by: input.actorId ?? null,
+      aggregate_version: 0,
+      created_at: now.toISOString(),
+      updated_at: now.toISOString(),
+    };
+
+    return this.db
+      .insertInto('admin_module_operation_controls')
+      .values(row)
+      .onConflict((oc) => oc
+        .columns(['tenant_id', 'module_id', 'control_name'])
+        .doUpdateSet({
+          control_type: input.controlType,
+          owner_role: input.ownerRole,
+          status: input.status,
+          last_event: input.lastEvent,
+          payload: input.payload ?? {},
+          updated_by: input.actorId ?? null,
+          updated_at: now.toISOString(),
+          aggregate_version: sql<number>`admin_module_operation_controls.aggregate_version + 1`,
+        }))
+      .returningAll()
+      .executeTakeFirstOrThrow();
+  }
+
+  async updateControl(
+    tenantId: Uuid,
+    moduleId: string,
+    controlId: Uuid,
+    input: UpdateOperationControlInput,
+  ): Promise<AdminModuleOperationControl | undefined> {
+    const row = {
+      ...(input.controlName !== undefined ? { control_name: input.controlName } : {}),
+      ...(input.controlType !== undefined ? { control_type: input.controlType } : {}),
+      ...(input.ownerRole !== undefined ? { owner_role: input.ownerRole } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.lastEvent !== undefined ? { last_event: input.lastEvent } : {}),
+      ...(input.payload !== undefined ? { payload: input.payload } : {}),
+      ...(input.actorId !== undefined ? { updated_by: input.actorId } : {}),
+      updated_at: new Date().toISOString(),
+      aggregate_version: sql<number>`aggregate_version + 1`,
+    };
+
+    return this.db
+      .updateTable('admin_module_operation_controls')
+      .set(row as never)
+      .where('tenant_id', '=', tenantId.value)
+      .where('module_id', '=', moduleId)
+      .where('id', '=', controlId.value)
       .returningAll()
       .executeTakeFirst();
   }

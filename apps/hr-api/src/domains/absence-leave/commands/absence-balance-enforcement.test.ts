@@ -91,6 +91,70 @@ describe('absence balance enforcement', () => {
     expect(repo.save).not.toHaveBeenCalled();
   });
 
+  it('returns leave policy approval and document decisions when creating a request', async () => {
+    const setup = {
+      ...DEFAULT_HCM_SETUP,
+      leavePolicies: DEFAULT_HCM_SETUP.leavePolicies.map((policy) => (
+        policy.code === 'VACATION'
+          ? {
+              ...policy,
+              maxPerRequest: 10,
+              approvalRules: [{
+                code: 'LONG_LEAVE_HR_REVIEW',
+                label: 'Long leave HR review',
+                active: true,
+                conditions: [{ field: 'durationAmount', operator: 'GTE' as const, value: 5 }],
+                outcomes: [{
+                  action: 'REQUIRE_APPROVAL' as const,
+                  value: { workflow: 'MANAGER_THEN_HR' },
+                  reason: 'Five or more days require HR review.',
+                }],
+              }],
+              documentRules: [{
+                code: 'VACATION_HANDOVER_PLAN',
+                label: 'Vacation handover plan',
+                active: true,
+                conditions: [{ field: 'durationAmount', operator: 'GTE' as const, value: 5 }],
+                outcomes: [{
+                  action: 'REQUIRE_DOCUMENT' as const,
+                  value: { documentCode: 'HANDOVER_PLAN' },
+                  reason: 'Long leave requires a handover plan.',
+                }],
+              }],
+            }
+          : policy
+      )),
+    };
+    const handler = new CreateAbsenceRequestHandler(
+      {
+        findOverlappingByWorker: vi.fn().mockResolvedValue([]),
+        findByWorker: vi.fn().mockResolvedValue([]),
+        save: vi.fn(),
+      } as never,
+      { findByWorker: vi.fn().mockResolvedValue([]) } as never,
+      { getAllowedActionsFromState: vi.fn().mockReturnValue(['Approve']) } as never,
+      { publishFromAggregate: vi.fn() } as never,
+      { getSetup: vi.fn().mockResolvedValue(setup) } as never,
+      new LeavePolicyService(),
+    );
+
+    const result = await handler.handle(command({
+      workerId,
+      absenceType: 'VACATION',
+      startDate: new Date('2026-07-05T00:00:00.000Z'),
+      endDate: new Date('2026-07-09T00:00:00.000Z'),
+    }));
+
+    expect(result.data).toMatchObject({
+      approvalWorkflow: 'MANAGER_THEN_HR',
+      requiredDocumentCodes: ['HANDOVER_PLAN'],
+      policyDecision: {
+        policyCode: 'VACATION',
+        matchedRuleCodes: ['LONG_LEAVE_HR_REVIEW', 'VACATION_HANDOVER_PLAN'],
+      },
+    });
+  });
+
   it('blocks approval when current balance no longer covers the pending request', async () => {
     const request = AbsenceRequest.create({
       id: Uuid.generate(),

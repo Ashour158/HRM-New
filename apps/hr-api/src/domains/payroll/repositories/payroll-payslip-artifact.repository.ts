@@ -4,6 +4,22 @@ import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { PayrollPayslipArtifactRecord } from '../services/payroll-artifact.service.js';
+import type { PayrollPayslip } from '../services/payroll-cycle-calculation.service.js';
+
+function toPayslipPayload(value: unknown): PayrollPayslip | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Partial<PayrollPayslip>;
+  if (
+    typeof candidate.workerId === 'string'
+    && typeof candidate.employeeId === 'string'
+    && typeof candidate.payPeriodStart === 'string'
+    && typeof candidate.payPeriodEnd === 'string'
+    && Array.isArray(candidate.lines)
+  ) {
+    return candidate as PayrollPayslip;
+  }
+  return undefined;
+}
 
 @Injectable()
 export class PayrollPayslipArtifactRepository {
@@ -26,6 +42,7 @@ export class PayrollPayslipArtifactRepository {
           currency: row.currency,
           content_hash: row.content_hash,
           html_content: row.html_content,
+          payslip_payload: row.payslip_payload,
           data_classification: row.data_classification,
           published_by: row.published_by,
           published_at: row.published_at,
@@ -76,6 +93,7 @@ export class PayrollPayslipArtifactRepository {
       currency: record.currency,
       content_hash: record.contentHash,
       html_content: record.htmlContent,
+      payslip_payload: record.payslipPayload ?? {},
       data_classification: record.dataClassification,
       published_by: record.publishedBy ?? null,
       published_at: record.publishedAt ?? null,
@@ -98,6 +116,7 @@ export class PayrollPayslipArtifactRepository {
       currency: row.currency,
       contentHash: row.content_hash,
       htmlContent: row.html_content,
+      payslipPayload: toPayslipPayload(row.payslip_payload),
       dataClassification: row.data_classification as PayrollPayslipArtifactRecord['dataClassification'],
       publishedBy: row.published_by ?? undefined,
       publishedAt: row.published_at ?? undefined,
