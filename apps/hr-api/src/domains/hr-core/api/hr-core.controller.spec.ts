@@ -224,7 +224,7 @@ describe('HrCoreController smoke test', () => {
     expect(result).toMatchObject({ success: true, allowedNextActions: ['TerminateWorker'] });
   });
 
-  it('applies validated employee mass updates through command envelopes', async () => {
+  it('applies validated employee mass updates through one composite command envelope per row', async () => {
     const workerId = '550e8400-e29b-41d4-a716-446655440001';
     const worker = new WorkerProfile({
       id: new Uuid(workerId),
@@ -264,51 +264,60 @@ describe('HrCoreController smoke test', () => {
       errors: [],
       events: ['EmployeeMassUpdateApplied'],
     });
-    const sent = (commandBus.execute as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
-    expect(sent.map((command) => command.commandName)).toEqual([
-      'UpdateWorkerPersonalData',
-      'UpsertWorkerProfileSection',
-      'UpsertWorkerProfileSection',
-      'UpsertWorkerProfileSection',
-      'UpdateWorkerOrganizationAssignment',
-    ]);
-    expect(sent[0].payload).toMatchObject({
+    expect(commandBus.execute).toHaveBeenCalledTimes(1);
+    const sent = (commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(sent.commandName).toBe('ApplyWorkerMassUpdate');
+    expect(sent.aggregateType).toBe('WorkerProfile');
+    expect(sent.aggregateId).toBe(worker.id);
+    expect(sent.subjectWorkerId).toBe(worker.id);
+    expect(sent.payload).toMatchObject({
       workerId: worker.id,
-      firstName: 'Mona',
-      lastName: 'Hassan',
-      email: 'mona.hassan@example.com',
-      phoneNumber: '+201000000000',
-    });
-    expect(sent[1].payload).toMatchObject({
-      workerId: worker.id,
-      dataCategory: 'BASIC',
-      fields: {
-        workEmail: 'mona.hassan@example.com',
-        personalEmail: 'mona.personal@example.com',
+      personalData: {
+        firstName: 'Mona',
+        lastName: 'Hassan',
+        email: 'mona.hassan@example.com',
         phoneNumber: '+201000000000',
-        workPhoneNumber: '+202000000000',
       },
-    });
-    expect(sent[2].payload).toMatchObject({
-      workerId: worker.id,
-      dataCategory: 'CONTACT',
-      fields: {
-        departmentName: 'FINANCE',
-        workLocation: { code: 'CAIRO_HQ' },
+      profileSections: [{
+        dataCategory: 'BASIC',
+        fields: {
+          workEmail: 'mona.hassan@example.com',
+          personalEmail: 'mona.personal@example.com',
+          phoneNumber: '+201000000000',
+          workPhoneNumber: '+202000000000',
+        },
+      }, {
+        dataCategory: 'CONTACT',
+        fields: {
+          departmentName: 'FINANCE',
+          workLocation: { code: 'CAIRO_HQ' },
+        },
+      }, {
+        dataCategory: 'COMPENSATION',
+        fields: {
+          grossSalaryAmount: 10000,
+          salaryAmount: 10000,
+          salaryCurrency: 'EGP',
+        },
+      }],
+      organizationAssignment: {
+        jobTitle: 'Payroll Specialist',
       },
-    });
-    expect(sent[3].payload).toMatchObject({
-      workerId: worker.id,
-      dataCategory: 'COMPENSATION',
-      fields: {
-        grossSalaryAmount: 10000,
-        salaryAmount: 10000,
-        salaryCurrency: 'EGP',
-      },
-    });
-    expect(sent[4].payload).toMatchObject({
-      workerId: worker.id,
-      jobTitle: 'Payroll Specialist',
+      updatedFields: expect.arrayContaining([
+        'firstName',
+        'lastName',
+        'email',
+        'phoneNumber',
+        'workEmail',
+        'personalEmail',
+        'workPhoneNumber',
+        'departmentName',
+        'workLocation',
+        'grossSalaryAmount',
+        'salaryAmount',
+        'salaryCurrency',
+        'jobTitle',
+      ]),
     });
   });
 

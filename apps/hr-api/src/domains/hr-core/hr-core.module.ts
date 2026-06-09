@@ -16,6 +16,7 @@ import { SuspendWorkerHandler } from './commands/suspend-worker.handler.js';
 import { ReinstateWorkerHandler } from './commands/reinstate-worker.handler.js';
 import { RehireWorkerHandler } from './commands/rehire-worker.handler.js';
 import { UpsertWorkerProfileSectionHandler } from './commands/upsert-worker-profile-section.handler.js';
+import { ApplyWorkerMassUpdateHandler } from './commands/apply-worker-mass-update.handler.js';
 import { CreateJobAssignmentHandler } from './commands/create-job-assignment.handler.js';
 import { ActivateJobAssignmentHandler } from './commands/activate-job-assignment.handler.js';
 import { EndJobAssignmentHandler } from './commands/end-job-assignment.handler.js';
@@ -48,6 +49,7 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     ReinstateWorkerHandler,
     RehireWorkerHandler,
     UpsertWorkerProfileSectionHandler,
+    ApplyWorkerMassUpdateHandler,
     CreateJobAssignmentHandler,
     ActivateJobAssignmentHandler,
     EndJobAssignmentHandler,

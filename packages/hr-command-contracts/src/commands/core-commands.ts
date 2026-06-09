@@ -262,6 +262,66 @@ export const UpsertWorkerProfileSectionPayloadSchema = z.object({
   fields: z.record(z.unknown()),
 });
 
+export const ApplyWorkerMassUpdateCommandName = 'ApplyWorkerMassUpdate' as const;
+
+export interface ApplyWorkerMassUpdatePayload {
+  workerId: Uuid;
+  personalData?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phoneNumber?: string;
+  };
+  profileSections?: Array<{
+    dataCategory: WorkerProfileSectionCategory;
+    fields: Record<string, unknown>;
+  }>;
+  organizationAssignment?: {
+    legalEntityId?: Uuid | null;
+    departmentId?: Uuid | null;
+    managerId?: Uuid | null;
+    jobTitle?: string | null;
+  };
+  updatedFields?: string[];
+}
+
+export const ApplyWorkerMassUpdatePayloadSchema = z.object({
+  workerId: z.string().uuid(),
+  personalData: z.object({
+    firstName: z.string().min(1).optional(),
+    lastName: z.string().min(1).optional(),
+    email: z.string().email().optional(),
+    phoneNumber: z.string().optional(),
+  }).optional(),
+  profileSections: z.array(z.object({
+    dataCategory: z.enum([
+      'BASIC',
+      'CONTACT',
+      'BANKING',
+      'TAX',
+      'MEDICAL',
+      'EMERGENCY_CONTACT',
+      'DEPENDENT',
+      'BACKGROUND',
+      'COMPENSATION',
+      'DOCUMENT',
+      'WORK_AUTHORIZATION',
+      'ASSET_ACCESS',
+      'SKILLS',
+      'CONSENT',
+      'CUSTOM',
+    ]),
+    fields: z.record(z.unknown()),
+  })).optional(),
+  organizationAssignment: z.object({
+    legalEntityId: z.string().uuid().nullable().optional(),
+    departmentId: z.string().uuid().nullable().optional(),
+    managerId: z.string().uuid().nullable().optional(),
+    jobTitle: z.string().min(1).nullable().optional(),
+  }).optional(),
+  updatedFields: z.array(z.string().min(1)).optional(),
+});
+
 export const TerminateWorkerCommandName = 'TerminateWorker' as const;
 
 export interface TerminateWorkerPayload {
