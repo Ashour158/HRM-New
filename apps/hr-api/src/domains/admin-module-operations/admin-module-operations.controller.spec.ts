@@ -309,6 +309,77 @@ describe('AdminModuleOperationsController', () => {
     );
   });
 
+  it('applies module operation import rows as governed records', async () => {
+    const repository = {
+      createRecord: vi.fn().mockResolvedValue(recordRow({
+        source: 'operations',
+        object_type: 'Salary review',
+        owner_role: 'Compensation Admin',
+        workflow_name: 'Compensation cycle',
+        status: 'In Review',
+        risk: 'High',
+        last_event: 'Imported from CSV',
+      })),
+    } as unknown as AdminModuleOperationsRepository;
+    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+
+    const result = await controller.importRecordsApply('compensation', {
+      rows: [{
+        objectType: 'Salary review',
+        ownerRole: 'Compensation Admin',
+        workflowName: 'Compensation cycle',
+        status: 'In Review',
+        risk: 'High',
+        lastEvent: 'Imported from CSV',
+      }],
+    }, adminRequest());
+
+    expect(repository.createRecord).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId: new Uuid(tenantId),
+      moduleId: 'compensation',
+      objectType: 'Salary review',
+      ownerRole: 'Compensation Admin',
+      workflowName: 'Compensation cycle',
+      status: 'In Review',
+      risk: 'High',
+      lastEvent: 'Imported from CSV',
+      actorId,
+      payload: expect.objectContaining({ source: 'module-operation-import' }),
+    }));
+    expect(result).toMatchObject({
+      accepted: true,
+      rowCount: 1,
+      createdCount: 1,
+      events: ['ModuleOperationImportApplied'],
+      errors: [],
+    });
+  });
+
+  it('does not apply module operation import rows when validation fails', async () => {
+    const repository = {
+      createRecord: vi.fn(),
+    } as unknown as AdminModuleOperationsRepository;
+    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+
+    const result = await controller.importRecordsApply('compensation', {
+      rows: [{ objectType: 'Salary review', ownerRole: '', status: 'Ready' }],
+    }, adminRequest());
+
+    expect(repository.createRecord).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      accepted: false,
+      rowCount: 1,
+      createdCount: 0,
+      events: ['ModuleOperationImportRejected'],
+    });
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({ row: 1, field: 'ownerRole' }),
+      expect.objectContaining({ row: 1, field: 'workflowName' }),
+      expect.objectContaining({ row: 1, field: 'status' }),
+      expect.objectContaining({ row: 1, field: 'lastEvent' }),
+    ]));
+  });
+
   it('rejects non-admin module operation access', async () => {
     const repository = {
       findRecords: vi.fn(),

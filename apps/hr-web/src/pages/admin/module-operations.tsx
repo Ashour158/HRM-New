@@ -6,7 +6,9 @@ import {
   BellRing,
   CheckCircle2,
   Database,
+  Download,
   ExternalLink,
+  FileSpreadsheet,
   GitBranch,
   LockKeyhole,
   PlayCircle,
@@ -14,6 +16,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Upload,
   Users,
   Workflow,
 } from 'lucide-react';
@@ -128,6 +131,28 @@ type OperationWorkspaceApi = {
   workflows: OperationWorkflowApi[];
   controls?: OperationControlApi[];
   moduleDepth?: ModuleDepthApi;
+};
+
+type OperationImportRow = {
+  objectType?: string;
+  ownerRole?: string;
+  workflowName?: string;
+  status?: OperationalRecord['status'];
+  risk?: OperationalRecord['risk'];
+  lastEvent?: string;
+  payload?: unknown;
+};
+
+type OperationImportPreview = {
+  accepted: boolean;
+  rowCount: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+  events?: string[];
+};
+
+type OperationImportApplyResult = OperationImportPreview & {
+  createdCount: number;
+  created: OperationRecordApi[];
 };
 
 type CreateRecordVariables = {
@@ -328,6 +353,36 @@ function unwrap<T>(response: { data: unknown }) {
   return apiData<T>(response.data);
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseOperationsCsv(text: string): OperationImportRow[] {
+  const [headerLine, ...lines] = text.trim().split(/\r?\n/);
+  if (!headerLine) return [];
+  const headers = headerLine.split(',').map((item) => item.trim());
+  return lines.filter(Boolean).map((line) => {
+    const values = line.split(',').map((item) => item.trim());
+    return headers.reduce<OperationImportRow>((row, header, index) => {
+      const value = values[index];
+      if (!value) return row;
+      if (header === 'payload') {
+        try {
+          return { ...row, payload: JSON.parse(value) as unknown };
+        } catch {
+          return { ...row, payload: value };
+        }
+      }
+      return { ...row, [header]: value };
+    }, {});
+  });
+}
+
 function mutationErrorMessage(error: unknown): string {
   const responseData = (error as { response?: { data?: unknown } }).response?.data;
   if (typeof responseData === 'object' && responseData !== null) {
@@ -479,12 +534,18 @@ export function AdminModuleOperations() {
   const [recordStatus, setRecordStatus] = React.useState('all');
   const [search, setSearch] = React.useState('');
   const [activityLog, setActivityLog] = React.useState<string[]>([]);
+  const [importRows, setImportRows] = React.useState<OperationImportRow[]>([]);
+  const [importPreview, setImportPreview] = React.useState<OperationImportPreview | null>(null);
+  const [importApplyResult, setImportApplyResult] = React.useState<OperationImportApplyResult | null>(null);
 
   React.useEffect(() => {
     if (module) {
       setActivityLog([]);
       setRecordStatus('all');
       setSearch('');
+      setImportRows([]);
+      setImportPreview(null);
+      setImportApplyResult(null);
     }
   }, [module]);
 
@@ -522,6 +583,28 @@ export function AdminModuleOperations() {
     setActivityLog((current) => [`${timestamp} - ${message}`, ...current].slice(0, 5));
   };
 
+  const downloadModuleCsv = async (path: string, filename: string) => {
+    try {
+      const response = await apiClient.get(path, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, filename);
+    } catch (error) {
+      addNotification({ title: 'Download failed', message: mutationErrorMessage(error), type: 'error', read: false });
+    }
+  };
+
+  const handleImportUpload = async (file: File | undefined) => {
+    if (!file) return;
+    const rows = parseOperationsCsv(await file.text());
+    setImportRows(rows);
+    setImportApplyResult(null);
+    importPreviewMutation.mutate(rows);
+  };
+
+  const applyImportedRecords = () => {
+    if (!importPreview?.accepted || importRows.length === 0) return;
+    importApplyMutation.mutate(importRows);
+  };
+
   const createRecord = useMutation({
     mutationFn: async (variables: CreateRecordVariables) => {
       if (!module) throw new Error('Module is required');
@@ -554,6 +637,50 @@ export function AdminModuleOperations() {
     onError: (error, variables) => {
       pushActivity(`${variables.action} failed: ${mutationErrorMessage(error)}`);
       addNotification({ title: 'Something went wrong', message: `${variables.action} failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
+    },
+  });
+
+  const importPreviewMutation = useMutation({
+    mutationFn: async (rows: OperationImportRow[]) => {
+      if (!module) throw new Error('Module is required');
+      return unwrap<OperationImportPreview>(await apiClient.post(`/admin/module-operations/${module.id}/records/import-preview`, { rows }));
+    },
+    onSuccess: (result) => {
+      setImportPreview(result);
+      setImportApplyResult(null);
+      addNotification({
+        title: result.accepted ? 'Import file validated' : 'Import needs correction',
+        message: result.accepted ? `${result.rowCount} records are ready to apply.` : `${result.errors.length} issue(s) need correction.`,
+        type: result.accepted ? 'success' : 'warning',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Import validation failed', message: mutationErrorMessage(error), type: 'error', read: false });
+    },
+  });
+
+  const importApplyMutation = useMutation({
+    mutationFn: async (rows: OperationImportRow[]) => {
+      if (!module) throw new Error('Module is required');
+      return unwrap<OperationImportApplyResult>(await apiClient.post(`/admin/module-operations/${module.id}/records/import-apply`, { rows }));
+    },
+    onSuccess: (result) => {
+      setImportApplyResult(result);
+      setImportPreview({ accepted: result.accepted, rowCount: result.rowCount, errors: result.errors, events: result.events });
+      if (module) {
+        queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
+      }
+      pushActivity(result.accepted ? `${result.createdCount} records imported` : 'Import apply rejected');
+      addNotification({
+        title: result.accepted ? 'Imported records applied' : 'Import not applied',
+        message: result.accepted ? `${result.createdCount} operational records created.` : `${result.errors.length} issue(s) need correction.`,
+        type: result.accepted ? 'success' : 'warning',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Import apply failed', message: mutationErrorMessage(error), type: 'error', read: false });
     },
   });
 
@@ -889,6 +1016,27 @@ export function AdminModuleOperations() {
                       <SelectItem value="Closed">Closed</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadModuleCsv(`/admin/module-operations/${module.id}/records/export.csv`, `${module.id}-records.csv`)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadModuleCsv(`/admin/module-operations/${module.id}/records/import-template.csv`, `${module.id}-import-template.csv`)}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Template
+                  </Button>
+                  <label className="inline-flex cursor-pointer items-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload CSV
+                    <Input className="hidden" type="file" accept=".csv,text/csv" aria-label="Upload module operation CSV" onChange={(event) => handleImportUpload(event.target.files?.[0])} />
+                  </label>
                 </div>
               </CardHeader>
               <CardContent>
@@ -903,6 +1051,31 @@ export function AdminModuleOperations() {
                   <ErrorState error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />
                 ) : (
                 <>
+                {importPreview ? (
+                  <div className="mb-4 rounded-2xl border border-[#e2e8f0] bg-white/70 p-4 text-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <Badge variant="outline" className={cn('border', importPreview.accepted ? 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]' : 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]')}>
+                        {importApplyResult?.accepted
+                          ? `${importApplyResult.createdCount} records applied`
+                          : importPreview.accepted
+                            ? `${importPreview.rowCount} records validated`
+                            : `${importPreview.errors.length} validation issues`}
+                      </Badge>
+                      {importPreview.accepted && !importApplyResult?.accepted ? (
+                        <Button size="sm" onClick={applyImportedRecords} disabled={importApplyMutation.isPending || importRows.length === 0}>
+                          {importApplyMutation.isPending ? 'Applying...' : 'Apply Imported Records'}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {importPreview.errors.length > 0 ? (
+                      <div className="mt-3 space-y-1 text-[#9f1239]">
+                        {importPreview.errors.slice(0, 6).map((error) => (
+                          <p key={`${error.row}-${error.field}-${error.message}`}>Row {error.row}: {error.field} - {error.message}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>

@@ -9,10 +9,11 @@ import {
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
 import {
@@ -60,6 +61,26 @@ type CreateControlDto = {
 };
 
 type UpdateControlDto = Partial<CreateControlDto>;
+
+type ImportRecordRow = {
+  objectType?: string;
+  ownerRole?: string;
+  workflowName?: string;
+  status?: OperationRecordStatus;
+  risk?: OperationRisk;
+  lastEvent?: string;
+  payload?: unknown;
+};
+
+type ImportValidationError = { row: number; field: string; message: string };
+
+type ImportValidationResult = {
+  accepted: boolean;
+  rowCount: number;
+  rows: ImportRecordRow[];
+  errors: ImportValidationError[];
+  events: string[];
+};
 
 type SerializedOperationRecord = {
   id: string;
@@ -166,6 +187,22 @@ function actorIdValue(req: Request): string | undefined {
   return typeof actorIdLike.value === 'string' ? actorIdLike.value : undefined;
 }
 
+function csvEscape(value: unknown): string {
+  if (value === undefined || value === null) return '';
+  const text = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function toCsv(rows: Array<Record<string, unknown>>): string {
+  if (rows.length === 0) return '';
+  const headers = Object.keys(rows[0]);
+  const lines = [
+    headers.join(','),
+    ...rows.map((row) => headers.map((header) => csvEscape(row[header])).join(',')),
+  ];
+  return `${lines.join('\n')}\n`;
+}
+
 @ApiTags('Admin Module Operations')
 @UseGuards(AuthGuard)
 @Controller('admin/module-operations')
@@ -208,6 +245,121 @@ export class AdminModuleOperationsController {
     await this.nativeAdapter.syncNativeRecords(tenantId, moduleId, actorIdValue(req));
     const records = await this.repository.findRecords(tenantId, moduleId);
     return records.map((record) => this.serializeRecord(record));
+  }
+
+  @Get(':moduleId/records/export.csv')
+  async exportRecordsCsv(@Param('moduleId') moduleIdParam: string, @Req() req: Request, @Res() res: Response) {
+    const moduleId = this.normalizeModuleId(moduleIdParam);
+    this.assertAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    await this.nativeAdapter.syncNativeRecords(tenantId, moduleId, actorIdValue(req));
+    const records = await this.repository.findRecords(tenantId, moduleId);
+    const rows = records.map((record) => ({
+      id: record.id,
+      objectType: record.object_type,
+      ownerRole: record.owner_role,
+      workflowName: record.workflow_name,
+      status: record.status,
+      risk: record.risk,
+      lastEvent: record.last_event,
+      source: record.source,
+      nativeSource: record.native_source ?? '',
+      nativeId: record.native_record_id ?? '',
+    }));
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${moduleId}-operation-records.csv"`);
+    res.send(toCsv(rows.length > 0 ? rows : [{
+      id: '',
+      objectType: '',
+      ownerRole: '',
+      workflowName: '',
+      status: '',
+      risk: '',
+      lastEvent: '',
+      source: '',
+      nativeSource: '',
+      nativeId: '',
+    }]));
+  }
+
+  @Get(':moduleId/records/import-template.csv')
+  async importRecordsTemplate(@Param('moduleId') moduleIdParam: string, @Req() req: Request, @Res() res: Response) {
+    const moduleId = this.normalizeModuleId(moduleIdParam);
+    this.assertAdminScope(req);
+    const csv = toCsv([{
+      objectType: 'Operational item',
+      ownerRole: 'HR Admin',
+      workflowName: 'Review and approve',
+      status: 'In Review',
+      risk: 'Medium',
+      lastEvent: 'Imported from CSV',
+      payload: JSON.stringify({ moduleId }),
+    }]);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${moduleId}-operation-import-template.csv"`);
+    res.send(csv);
+  }
+
+  @Post(':moduleId/records/import-preview')
+  async importRecordsPreview(@Param('moduleId') moduleIdParam: string, @Body() body: { rows?: ImportRecordRow[] }, @Req() req: Request) {
+    this.normalizeModuleId(moduleIdParam);
+    this.assertAdminScope(req);
+    const validation = this.validateImportRows(body.rows ?? []);
+    return {
+      accepted: validation.accepted,
+      rowCount: validation.rowCount,
+      errors: validation.errors,
+      events: validation.events,
+    };
+  }
+
+  @Post(':moduleId/records/import-apply')
+  async importRecordsApply(@Param('moduleId') moduleIdParam: string, @Body() body: { rows?: ImportRecordRow[] }, @Req() req: Request) {
+    const moduleId = this.normalizeModuleId(moduleIdParam);
+    this.assertAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    const validation = this.validateImportRows(body.rows ?? []);
+
+    if (!validation.accepted) {
+      return {
+        accepted: false,
+        rowCount: validation.rowCount,
+        createdCount: 0,
+        errors: validation.errors,
+        events: validation.events,
+        created: [],
+      };
+    }
+
+    const created: SerializedOperationRecord[] = [];
+    for (const row of validation.rows) {
+      const record = await this.repository.createRecord({
+        tenantId,
+        moduleId,
+        objectType: row.objectType!,
+        ownerRole: row.ownerRole!,
+        workflowName: row.workflowName!,
+        status: row.status!,
+        risk: row.risk!,
+        lastEvent: row.lastEvent!,
+        payload: {
+          source: 'module-operation-import',
+          importedAt: new Date().toISOString(),
+          ...this.normalizeImportPayload(row.payload),
+        },
+        actorId: actorIdValue(req),
+      });
+      created.push(this.serializeRecord(record));
+    }
+
+    return {
+      accepted: true,
+      rowCount: validation.rowCount,
+      createdCount: created.length,
+      errors: [],
+      events: ['ModuleOperationImportApplied'],
+      created,
+    };
   }
 
   @Post(':moduleId/records')
@@ -432,6 +584,62 @@ export class AdminModuleOperationsController {
   private normalizeUuid(value: string, field: string): Uuid {
     if (!Uuid.isValid(value)) throw new BadRequestException(`${field} must be a valid UUID`);
     return new Uuid(value);
+  }
+
+  private validateImportRows(rowsInput: ImportRecordRow[]): ImportValidationResult {
+    const rows = rowsInput.map((row) => this.normalizeImportRow(row));
+    const errors: ImportValidationError[] = [];
+    for (const [index, row] of rows.entries()) {
+      const rowNumber = index + 1;
+      if (!row.objectType) errors.push({ row: rowNumber, field: 'objectType', message: 'Object type is required' });
+      if (!row.ownerRole) errors.push({ row: rowNumber, field: 'ownerRole', message: 'Owner role is required' });
+      if (!row.workflowName) errors.push({ row: rowNumber, field: 'workflowName', message: 'Workflow name is required' });
+      if (!row.lastEvent) errors.push({ row: rowNumber, field: 'lastEvent', message: 'Last event is required' });
+      if (!row.status || !RECORD_STATUSES.includes(row.status)) {
+        errors.push({ row: rowNumber, field: 'status', message: `Status must be one of: ${RECORD_STATUSES.join(', ')}` });
+      }
+      if (!row.risk || !RISKS.includes(row.risk)) {
+        errors.push({ row: rowNumber, field: 'risk', message: `Risk must be one of: ${RISKS.join(', ')}` });
+      }
+    }
+    return {
+      accepted: errors.length === 0,
+      rowCount: rows.length,
+      rows,
+      errors,
+      events: errors.length === 0 ? ['ModuleOperationImportValidated'] : ['ModuleOperationImportRejected'],
+    };
+  }
+
+  private normalizeImportRow(row: ImportRecordRow): ImportRecordRow {
+    const cleanString = (value?: string): string | undefined => {
+      if (value === undefined || value === null) return undefined;
+      const trimmed = String(value).trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+    return {
+      objectType: cleanString(row.objectType),
+      ownerRole: cleanString(row.ownerRole),
+      workflowName: cleanString(row.workflowName),
+      status: cleanString(row.status) as OperationRecordStatus | undefined,
+      risk: cleanString(row.risk) as OperationRisk | undefined,
+      lastEvent: cleanString(row.lastEvent),
+      payload: row.payload,
+    };
+  }
+
+  private normalizeImportPayload(payload: unknown): Record<string, unknown> {
+    if (payload === undefined || payload === null || payload === '') return {};
+    if (typeof payload === 'object' && !Array.isArray(payload)) return payload as Record<string, unknown>;
+    if (typeof payload === 'string') {
+      try {
+        const parsed = JSON.parse(payload) as unknown;
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+      } catch {
+        return { note: payload };
+      }
+    }
+    return { value: payload };
   }
 
   private serializeDate(value: Date): string {

@@ -14,6 +14,7 @@ import {
   type CoordinateEvidence,
   type GeolocationFailureReason,
 } from '@/lib/attendance-location';
+import { buildEmployeeJourneyItems, type EmployeeJourneyTone } from '@/lib/employee-journey';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -95,6 +96,13 @@ interface AttendancePeriodMetrics {
   payrollReady: number;
   undertimeMinutes: number;
 }
+
+const journeyToneClasses: Record<EmployeeJourneyTone, string> = {
+  attention: 'border-amber-200 bg-amber-50 text-amber-800',
+  default: 'border-slate-200 bg-white text-slate-700',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-orange-200 bg-orange-50 text-orange-800',
+};
 
 interface AttendancePeriodView {
   periodStart: string;
@@ -512,6 +520,27 @@ export function EmployeeDashboard() {
   }), [attendancePeriodView?.totals]);
 
   const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
+  const journeyItems = React.useMemo(() => buildEmployeeJourneyItems({
+    attendance: {
+      canCheckIn: todayState?.canCheckIn,
+      canCheckOut: todayState?.canCheckOut,
+      statusLabel: statusMeta.label,
+      workedTodayMinutes: todayState?.totalWorkedMinutes,
+    },
+    hasRecentPayslip: true,
+    leaveBalances: data.absenceBalance,
+    pendingTaskCount: data.pendingTasks.length,
+    profileComplete: Boolean(activeWorker?.employeeId && activeWorker?.jobTitle),
+  }), [
+    activeWorker?.employeeId,
+    activeWorker?.jobTitle,
+    data.absenceBalance,
+    data.pendingTasks.length,
+    statusMeta.label,
+    todayState?.canCheckIn,
+    todayState?.canCheckOut,
+    todayState?.totalWorkedMinutes,
+  ]);
 
   const buildClockPayload = async (): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
     if (!selectedWorkerId) return null;
@@ -907,12 +936,37 @@ export function EmployeeDashboard() {
                   <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                     <div>
                       <Badge variant="secondary" className="mb-2">Employee Self-Service</Badge>
-                      <h2 className="text-lg font-semibold text-slate-950">My HCM Workspace</h2>
+                      <h2 className="text-lg font-semibold text-slate-950">My Journey</h2>
                       <p className="mt-1 text-sm text-slate-600">
-                        The same modules appear here as employee actions: workforce, payroll and reward, people, and talent.
+                        Start with today&apos;s required actions, then continue into the right HR module.
                       </p>
                     </div>
                     <Link className="text-sm font-medium text-[#6366f1]" to="/employee/time-off">Start a leave request</Link>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {journeyItems.map((item) => (
+                      <Link key={item.label} to={item.href} className="group">
+                        <div className="flex h-full min-h-[128px] flex-col justify-between rounded-2xl border border-white/70 bg-white/60 p-4 transition-all group-hover:-translate-y-0.5 group-hover:bg-white/90">
+                          <div>
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.category}</p>
+                              <Badge variant="outline" className={cn('border text-[11px]', journeyToneClasses[item.tone])}>{item.status}</Badge>
+                            </div>
+                            <h3 className="mt-2 text-sm font-semibold text-slate-950">{item.label}</h3>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between text-sm font-semibold text-[#4f46e5]">
+                            <span>{item.actionLabel}</span>
+                            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="mt-6 border-t border-white/70 pt-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-sm font-semibold text-slate-950">All employee modules</h3>
+                      <p className="text-xs text-slate-500">Workforce, reward, people, talent, and support.</p>
+                    </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                     {selfServiceModules.map((module) => {

@@ -33,6 +33,12 @@ interface EmployeeMassUpdatePreview {
   errors: Array<{ row: number; field: string; message: string }>;
 }
 
+interface EmployeeMassUpdateApplyResult extends EmployeeMassUpdatePreview {
+  updatedCount: number;
+  events: string[];
+  applied: Array<{ employeeId: string; workerId: string; updatedFields: string[] }>;
+}
+
 function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
   switch (status) {
     case 'ACTIVE':
@@ -80,6 +86,8 @@ export function AdminWorkers() {
   const [search, setSearch] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [uploadPreview, setUploadPreview] = React.useState<EmployeeMassUpdatePreview | null>(null);
+  const [uploadedRows, setUploadedRows] = React.useState<EmployeeMassUpdateRow[]>([]);
+  const [uploadApplyResult, setUploadApplyResult] = React.useState<EmployeeMassUpdateApplyResult | null>(null);
 
   const { data: workersData, isLoading, isError, error, refetch } = useApiQuery<Worker[]>(
     ['admin-workers', search, page],
@@ -111,6 +119,12 @@ export function AdminWorkers() {
   const massPreviewMutation = useApiMutation<EmployeeMassUpdatePreview, { rows: EmployeeMassUpdateRow[] }>(
     '/hr/core/workers/mass-update-preview',
     'post',
+  );
+
+  const massApplyMutation = useApiMutation<EmployeeMassUpdateApplyResult, { rows: EmployeeMassUpdateRow[] }>(
+    '/hr/core/workers/mass-update-apply',
+    'post',
+    [['admin-workers']]
   );
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -153,7 +167,10 @@ export function AdminWorkers() {
   const handleUpload = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const result = await massPreviewMutation.mutateAsync({ rows: parseSimpleCsv(await file.text()) });
+      const rows = parseSimpleCsv(await file.text());
+      setUploadedRows(rows);
+      setUploadApplyResult(null);
+      const result = await massPreviewMutation.mutateAsync({ rows });
       setUploadPreview(result);
       addNotification({
         title: result.accepted ? 'Upload validated' : 'Validation issues found',
@@ -163,6 +180,30 @@ export function AdminWorkers() {
       });
     } catch (err) {
       addNotification({ title: 'Upload failed', message: err instanceof Error ? err.message : 'Could not process the file.', type: 'error', read: false });
+    }
+  };
+
+  const handleApplyUpload = async () => {
+    if (!uploadPreview?.accepted || uploadedRows.length === 0) return;
+    try {
+      const result = await massApplyMutation.mutateAsync({ rows: uploadedRows });
+      setUploadApplyResult(result);
+      setUploadPreview({
+        accepted: result.accepted,
+        rowCount: result.rowCount,
+        errors: result.errors,
+      });
+      if (result.accepted) {
+        refetch();
+      }
+      addNotification({
+        title: result.accepted ? 'Employee updates applied' : 'Could not apply upload',
+        message: result.accepted ? `${result.updatedCount} employee record(s) updated.` : `${result.errors.length} issue(s) need correction.`,
+        type: result.accepted ? 'success' : 'warning',
+        read: false,
+      });
+    } catch (err) {
+      addNotification({ title: 'Apply failed', message: err instanceof Error ? err.message : 'Could not apply employee updates.', type: 'error', read: false });
     }
   };
 
@@ -306,15 +347,31 @@ export function AdminWorkers() {
       <section className="fusion-glass rounded-[2rem] p-6">
         {uploadPreview ? (
           <div className="mb-4 fusion-glass rounded-2xl p-4 text-sm">
-            <Badge variant={uploadPreview.accepted ? 'default' : 'destructive'}>
-              {uploadPreview.accepted ? `${uploadPreview.rowCount} rows accepted` : `${uploadPreview.errors.length} validation errors`}
-            </Badge>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <Badge variant={uploadPreview.accepted ? 'default' : 'destructive'}>
+                {uploadApplyResult?.accepted
+                  ? `${uploadApplyResult.updatedCount} rows applied`
+                  : uploadPreview.accepted
+                    ? `${uploadPreview.rowCount} rows accepted`
+                    : `${uploadPreview.errors.length} validation errors`}
+              </Badge>
+              {uploadPreview.accepted && !uploadApplyResult?.accepted ? (
+                <Button size="sm" onClick={handleApplyUpload} disabled={massApplyMutation.isPending || uploadedRows.length === 0}>
+                  {massApplyMutation.isPending ? 'Applying...' : 'Apply Updates'}
+                </Button>
+              ) : null}
+            </div>
             {uploadPreview.errors.length > 0 ? (
               <div className="mt-3 space-y-1">
                 {uploadPreview.errors.slice(0, 5).map((error) => (
                   <p key={`${error.row}-${error.field}-${error.message}`}>Row {error.row}: {error.field} - {error.message}</p>
                 ))}
               </div>
+            ) : null}
+            {uploadApplyResult?.accepted ? (
+              <p className="mt-3 text-slate-600">
+                Updated fields: {Array.from(new Set(uploadApplyResult.applied.flatMap((item) => item.updatedFields))).join(', ') || 'employee records'}.
+              </p>
             ) : null}
           </div>
         ) : null}
