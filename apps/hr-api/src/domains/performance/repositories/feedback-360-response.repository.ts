@@ -50,13 +50,13 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
       reviewerId: new Uuid(row.reviewer_id),
       relationshipType: row.relationship_type,
       status: (row.status as Feedback360ResponseStatus) ?? 'PENDING',
-      competencyScores: row.competency_scores ?? undefined,
+      competencyScores: this.parseJsonRecord<number>(row.competency_scores),
       overallRating: row.overall_rating ?? undefined,
       strengths: row.strengths ?? undefined,
       improvements: row.improvements ?? undefined,
       comments: row.comments ?? undefined,
-      dimensionScores: row.dimension_scores ?? undefined,
-      areaComments: row.area_comments ?? undefined,
+      dimensionScores: this.parseJsonRecord<number>(row.dimension_scores),
+      areaComments: this.parseJsonRecord<string>(row.area_comments),
       visibility: row.visibility ?? undefined,
       isAnonymous: row.is_anonymous ?? true,
       submittedAt: row.submitted_at ?? undefined,
@@ -65,6 +65,18 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     });
+  }
+
+  private parseJsonRecord<T extends number | string>(value: unknown): Record<string, T> | undefined {
+    if (!value) return undefined;
+    if (typeof value === 'object' && !Array.isArray(value)) return value as Record<string, T>;
+    if (typeof value !== 'string') return undefined;
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, T> : undefined;
+    } catch {
+      return undefined;
+    }
   }
 
   private toRow(entity: Feedback360Response): Record<string, unknown> {

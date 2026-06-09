@@ -116,6 +116,22 @@ interface Feedback360Cycle {
   anonymityEnabled?: boolean;
 }
 
+interface FeedbackRevieweeOption {
+  workerId: string;
+  label: string;
+  relationshipType: string;
+  source: 'ASSIGNED' | 'ELIGIBLE';
+}
+
+interface EligibleFeedbackReviewee {
+  id: string;
+  employeeId?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  relationshipType: string;
+}
+
 const PEER_REVIEW_AREAS = [
   { key: 'communication', label: 'Communication' },
   { key: 'professionalism', label: 'Professionalism' },
@@ -159,6 +175,11 @@ function employeeName(worker?: Worker, fallback = 'Employee') {
   return `${worker.firstName} ${worker.lastName}`.trim() || worker.email || fallback;
 }
 
+function feedbackRevieweeName(reviewee?: EligibleFeedbackReviewee, fallback = 'Eligible colleague') {
+  if (!reviewee) return fallback;
+  return `${reviewee.firstName ?? ''} ${reviewee.lastName ?? ''}`.trim() || reviewee.email || reviewee.employeeId || fallback;
+}
+
 export function EmployeePerformance() {
   const { user } = useAuth();
   const addNotification = useUIStore((s) => s.addNotification);
@@ -189,6 +210,12 @@ export function EmployeePerformance() {
 
   const { data: worker } = useApiQuery<Worker>(['employee-performance-worker'], '/employee/profile');
   const workerId = worker?.id ?? '';
+  const { data: eligibleRevieweeData } = useApiQuery<EligibleFeedbackReviewee[]>(
+    ['employee-performance-eligible-feedback-reviewees', workerId],
+    '/performance/feedback-360-reviewees/eligible',
+    { enabled: Boolean(workerId) },
+  );
+  const eligibleFeedbackReviewees = React.useMemo(() => eligibleRevieweeData ?? [], [eligibleRevieweeData]);
 
   const { data: notificationsData, refetch: refetchNotifications } = useApiQuery<PerformanceNotification[]>(
     ['employee-performance-notifications', workerId],
@@ -218,15 +245,31 @@ export function EmployeePerformance() {
     '/performance/feedback-360-cycles/available',
   );
   const availableFeedbackCycles = React.useMemo(() => availableFeedbackCyclesData ?? [], [availableFeedbackCyclesData]);
-  const eligibleReviewees = React.useMemo(() => {
-    const unique = new Map<string, FeedbackRequest>();
+  const eligibleReviewees = React.useMemo<FeedbackRevieweeOption[]>(() => {
+    const unique = new Map<string, FeedbackRevieweeOption>();
+    const eligibleById = new Map(eligibleFeedbackReviewees.map((item) => [item.id, item]));
     for (const request of feedbackRequests) {
       if (request.revieweeId && request.revieweeId !== workerId) {
-        unique.set(request.revieweeId, request);
+        const reviewee = eligibleById.get(request.revieweeId);
+        unique.set(request.revieweeId, {
+          workerId: request.revieweeId,
+          label: feedbackRevieweeName(reviewee, `Assigned reviewee - ${request.revieweeId.slice(-6)}`),
+          relationshipType: request.relationshipType,
+          source: 'ASSIGNED',
+        });
       }
     }
+    for (const reviewee of eligibleFeedbackReviewees) {
+      if (reviewee.id === workerId || unique.has(reviewee.id)) continue;
+      unique.set(reviewee.id, {
+        workerId: reviewee.id,
+        label: feedbackRevieweeName(reviewee),
+        relationshipType: reviewee.relationshipType,
+        source: 'ELIGIBLE',
+      });
+    }
     return [...unique.values()];
-  }, [feedbackRequests, workerId]);
+  }, [eligibleFeedbackReviewees, feedbackRequests, workerId]);
 
   React.useEffect(() => {
     const pending = feedbackRequests.find((request) => request.status === 'PENDING');
@@ -234,13 +277,16 @@ export function EmployeePerformance() {
   }, [feedbackRequests]);
 
   React.useEffect(() => {
-    setDirectFeedbackForm((current) => ({
-      ...current,
-      cycleId: current.cycleId || availableFeedbackCycles[0]?.id || '',
-      revieweeId: eligibleReviewees.some((request) => request.revieweeId === current.revieweeId)
-        ? current.revieweeId
-        : eligibleReviewees[0]?.revieweeId ?? '',
-    }));
+    setDirectFeedbackForm((current) => {
+      const selected = eligibleReviewees.find((option) => option.workerId === current.revieweeId);
+      const fallback = eligibleReviewees[0];
+      return {
+        ...current,
+        cycleId: current.cycleId || availableFeedbackCycles[0]?.id || '',
+        revieweeId: selected ? current.revieweeId : fallback?.workerId ?? '',
+        relationshipType: selected?.relationshipType ?? fallback?.relationshipType ?? current.relationshipType,
+      };
+    });
   }, [availableFeedbackCycles, eligibleReviewees]);
 
   const selectedFeedback = feedbackRequests.find((request) => request.id === selectedFeedbackId);
@@ -585,7 +631,7 @@ export function EmployeePerformance() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="h-5 w-5 text-[#4f46e5]" /> Give 360 Feedback</CardTitle>
-            <CardDescription>Submit feedback only for people assigned to you by an active review workflow.</CardDescription>
+            <CardDescription>Submit feedback for active assignments or eligible colleagues in your reporting context.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="grid gap-4 xl:grid-cols-[280px_220px_1fr]" onSubmit={submitDirectFeedback}>
@@ -594,13 +640,21 @@ export function EmployeePerformance() {
                 <select
                   id="direct-reviewee"
                   value={directFeedbackForm.revieweeId}
-                  onChange={(event) => setDirectFeedbackForm({ ...directFeedbackForm, revieweeId: event.target.value })}
+                  onChange={(event) => {
+                    const option = eligibleReviewees.find((item) => item.workerId === event.target.value);
+                    setDirectFeedbackForm({
+                      ...directFeedbackForm,
+                      revieweeId: event.target.value,
+                      relationshipType: option?.relationshipType ?? directFeedbackForm.relationshipType,
+                    });
+                  }}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  {eligibleReviewees.length === 0 ? <option value="">No assigned reviewees</option> : null}
-                  {eligibleReviewees.map((request) => (
-                    <option key={request.revieweeId} value={request.revieweeId}>
-                      {request.relationshipType} reviewee - {request.revieweeId.slice(-6)}
+                  {eligibleReviewees.length === 0 ? <option value="">No eligible colleagues</option> : null}
+                  {eligibleReviewees.map((option) => (
+                    <option key={option.workerId} value={option.workerId}>
+                      {option.label} - {option.relationshipType.toLowerCase().replace('_', ' ')}
+                      {option.source === 'ASSIGNED' ? ' assignment' : ''}
                     </option>
                   ))}
                 </select>

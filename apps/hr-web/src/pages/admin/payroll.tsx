@@ -1920,9 +1920,15 @@ export function AdminPayroll() {
             <CardContent className="space-y-4">
               {setup.deductionPolicies.map((deduction, index) => (
                 <div key={`${deduction.code}-${index}`} className="space-y-3 border-t pt-4 first:border-t-0 first:pt-0">
-                  <div className="grid gap-2">
-                    <Label>Name</Label>
-                    <Input value={deduction.label} onChange={(event) => updateDeduction(index, { label: event.target.value })} />
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label>Name</Label>
+                      <Input value={deduction.label} onChange={(event) => updateDeduction(index, { label: event.target.value })} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Code</Label>
+                      <Input value={deduction.code} onChange={(event) => updateDeduction(index, { code: event.target.value.toUpperCase() })} />
+                    </div>
                   </div>
                   <div className="grid gap-2">
                     <Label>Timing</Label>

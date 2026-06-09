@@ -1,0 +1,81 @@
+import { describe, expect, it } from 'vitest';
+import {
+  buildEmployeeImportTemplateCsv,
+  buildHrDashboardExportCsv,
+  type EmployeeImportTemplateOptions,
+} from './employee-import-export-template.service.js';
+import type { HrReportDashboard } from './service-usage-reporting.service.js';
+
+describe('employee import/export reporting templates', () => {
+  it('renders a hardened employee import template with migration-ready HR columns', () => {
+    const options: EmployeeImportTemplateOptions = {
+      legalEntityCode: '=LEGAL',
+      departmentCode: 'HR',
+    };
+
+    const csv = buildEmployeeImportTemplateCsv(options);
+
+    expect(csv).toContain('employeeNumber,firstName,lastName,workEmail,employmentType,hireDate');
+    expect(csv).toContain('attendancePolicyCode,leavePlanCode,performanceCycleCode,benefitsGroupCode,serviceDeliveryGroup');
+    expect(csv).toContain("'=LEGAL");
+    expect(csv).not.toMatch(/(^|,)=LEGAL,/m);
+  });
+
+  it('renders HR dashboard report groups as an exportable CSV pack', () => {
+    const dashboard: HrReportDashboard = {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      generatedAt: '2026-06-03T09:00:00.000Z',
+      totals: {
+        reportGroups: 2,
+        activeReportGroups: 2,
+        totalActivity: 19,
+        queueBacklog: 2,
+        issues: 3,
+      },
+      reports: [
+        {
+          code: 'ATTENDANCE',
+          title: 'Attendance Report',
+          category: 'Workforce',
+          services: ['TIME_ATTENDANCE'],
+          activity: 13,
+          commands: 8,
+          events: 5,
+          notifications: 0,
+          workflowTransitions: 0,
+          queueBacklog: 2,
+          issues: 3,
+          readiness: 'Attention',
+          chartData: [],
+        },
+        {
+          code: 'BENEFITS',
+          title: 'Benefits Report',
+          category: 'Reward',
+          services: ['BENEFITS'],
+          activity: 6,
+          commands: 2,
+          events: 1,
+          notifications: 1,
+          workflowTransitions: 2,
+          queueBacklog: 0,
+          issues: 0,
+          readiness: 'Live',
+          lastActivityAt: '2026-06-03T08:00:00.000Z',
+          chartData: [],
+        },
+      ],
+      activityByReport: [],
+      queueHealth: {
+        outbox: { pendingEvents: 2, exhaustedEvents: 0 },
+        inbox: { inProgressEvents: 0, failedRetryableEvents: 0, failedNonRetryableEvents: 0, skippedEvents: 0 },
+      },
+    };
+
+    const csv = buildHrDashboardExportCsv(dashboard);
+
+    expect(csv).toContain('code,title,category,services,readiness,activity,commands,events,notifications,workflowTransitions,queueBacklog,issues,lastActivityAt');
+    expect(csv).toContain('ATTENDANCE,Attendance Report,Workforce,TIME_ATTENDANCE,Attention,13,8,5,0,0,2,3,');
+    expect(csv).toContain('BENEFITS,Benefits Report,Reward,BENEFITS,Live,6,2,1,1,2,0,0,2026-06-03T08:00:00.000Z');
+  });
+});

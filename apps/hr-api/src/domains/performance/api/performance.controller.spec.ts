@@ -489,6 +489,47 @@ describe('PerformanceController', () => {
     expect(command.payload.isAnonymous).toBe(false);
   });
 
+  it('presents employee-facing 360 feedback with parsed score fields and masked anonymous reviewers', async () => {
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(workerId),
+      email: { value: 'employee@example.com' },
+    });
+    (feedback360ResponseRepo.findByReviewee as ReturnType<typeof vi.fn>).mockResolvedValue([{
+      id: new Uuid('00000000-0000-0000-0000-000000000300'),
+      tenantId: new Uuid(tenantId),
+      cycleId: new Uuid('00000000-0000-0000-0000-000000000200'),
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid('00000000-0000-0000-0000-000000000202'),
+      relationshipType: 'PEER',
+      status: 'SUBMITTED',
+      competencyScores: '{"communication":4,"teamwork":5}',
+      dimensionScores: '{"communication":4,"teamwork":5}',
+      areaComments: '{"communication":"Clear updates"}',
+      overallRating: 4.5,
+      strengths: 'Collaborative',
+      improvements: 'Share risks earlier',
+      comments: 'Strong partner',
+      visibility: 'ANONYMOUS',
+      isAnonymous: true,
+      submittedAt: new Date('2026-06-01T09:00:00.000Z'),
+      createdAt: new Date('2026-05-20T09:00:00.000Z'),
+      updatedAt: new Date('2026-06-01T09:00:00.000Z'),
+    }]);
+
+    const result = await controller.getFeedback360ResponsesByReviewee(workerId, requestWithActor(actor({
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_READ'],
+      email: 'employee@example.com',
+    })));
+
+    expect(result).toEqual([expect.objectContaining({
+      reviewerId: null,
+      competencyScores: { communication: 4, teamwork: 5 },
+      dimensionScores: { communication: 4, teamwork: 5 },
+      areaComments: { communication: 'Clear updates' },
+    })]);
+  });
+
   it('returns the manager review queue for a manager-scoped request', async () => {
     (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: new Uuid(actorId),
@@ -581,6 +622,67 @@ describe('PerformanceController', () => {
     })))).rejects.toBeInstanceOf(BadRequestException);
 
     expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('returns eligible self-service 360 reviewees from peer and reporting-line relationships', async () => {
+    const peerId = '00000000-0000-0000-0000-000000000021';
+    const managerId = '00000000-0000-0000-0000-000000000022';
+    const outsideId = '00000000-0000-0000-0000-000000000023';
+    const departmentId = new Uuid('00000000-0000-0000-0000-000000000901');
+    const sharedManagerId = new Uuid(managerId);
+    const reviewer = {
+      id: new Uuid(actorId),
+      tenantId: new Uuid(tenantId),
+      email: { value: 'employee@example.com' },
+      firstName: 'Mona',
+      lastName: 'Reviewer',
+      employeeId: 'E-010',
+      departmentId,
+      managerId: sharedManagerId,
+    };
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockImplementation((id: Uuid) => {
+      if (id.value === actorId) return Promise.resolve(reviewer);
+      return Promise.resolve(undefined);
+    });
+    (workerRepo.findActive as ReturnType<typeof vi.fn>).mockResolvedValue([
+      reviewer,
+      {
+        id: new Uuid(peerId),
+        tenantId: new Uuid(tenantId),
+        firstName: 'Aly',
+        lastName: 'Peer',
+        employeeId: 'E-011',
+        departmentId,
+        managerId: sharedManagerId,
+      },
+      {
+        id: new Uuid(managerId),
+        tenantId: new Uuid(tenantId),
+        firstName: 'Nader',
+        lastName: 'Manager',
+        employeeId: 'E-012',
+        departmentId: new Uuid('00000000-0000-0000-0000-000000000902'),
+      },
+      {
+        id: new Uuid(outsideId),
+        tenantId: new Uuid(tenantId),
+        firstName: 'Farah',
+        lastName: 'Outside',
+        employeeId: 'E-013',
+        departmentId: new Uuid('00000000-0000-0000-0000-000000000903'),
+      },
+    ]);
+
+    const result = await controller.getEligibleFeedback360Reviewees(requestWithActor(actor({
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_READ'],
+      email: 'employee@example.com',
+    })));
+
+    expect(result).toEqual([
+      expect.objectContaining({ id: peerId, relationshipType: 'PEER' }),
+      expect.objectContaining({ id: managerId, relationshipType: 'DIRECT_REPORT' }),
+    ]);
   });
 
   it('loads child objectives by parent objective id, not review cycle id', async () => {

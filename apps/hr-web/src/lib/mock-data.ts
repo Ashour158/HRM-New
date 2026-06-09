@@ -217,6 +217,90 @@ const WORKERS = makeWorkers();
 
 const ok = <T>(data: T) => ({ success: true, correlationId: 'demo', data });
 
+function mockAttendanceToday() {
+  const now = new Date();
+  return {
+    workerId: DEMO_WORKER_ME.id,
+    workDate: now.toISOString().slice(0, 10),
+    status: 'YET_TO_CHECK_IN',
+    canCheckIn: true,
+    canCheckOut: false,
+    elapsedMinutes: 0,
+    totalWorkedMinutes: 0,
+    locationStatus: 'NO_GEOLOCATION',
+    events: [],
+  };
+}
+
+function mockAttendancePeriodView() {
+  const today = new Date();
+  const iso = (daysAgo: number) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - daysAgo);
+    return date.toISOString().slice(0, 10);
+  };
+  const series = [
+    { workDate: iso(6), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(5), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8.5, deductionHours: 0, overtimeHours: 0.5, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(4), employeeDays: 1, present: 0, absent: 0, onLeave: 1, exceptions: 0, payableHours: 0, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(3), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 1, payableHours: 7.75, deductionHours: 0.25, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 15, missingCheckout: 0, payrollReady: 0, undertimeMinutes: 15 },
+    { workDate: iso(2), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(1), employeeDays: 1, present: 1, absent: 0, onLeave: 0, exceptions: 0, payableHours: 8.25, deductionHours: 0, overtimeHours: 0.25, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 1, undertimeMinutes: 0 },
+    { workDate: iso(0), employeeDays: 1, present: 0, absent: 0, onLeave: 0, exceptions: 0, payableHours: 0, deductionHours: 0, overtimeHours: 0, geofenceViolations: 0, lateMinutes: 0, missingCheckout: 0, payrollReady: 0, undertimeMinutes: 0 },
+  ];
+  const totals = series.reduce((acc, day) => ({
+    employeeDays: acc.employeeDays + day.employeeDays,
+    present: acc.present + day.present,
+    absent: acc.absent + day.absent,
+    onLeave: acc.onLeave + day.onLeave,
+    exceptions: acc.exceptions + day.exceptions,
+    payableHours: acc.payableHours + day.payableHours,
+    deductionHours: acc.deductionHours + day.deductionHours,
+    overtimeHours: acc.overtimeHours + day.overtimeHours,
+    geofenceViolations: acc.geofenceViolations + day.geofenceViolations,
+    lateMinutes: acc.lateMinutes + day.lateMinutes,
+    missingCheckout: acc.missingCheckout + day.missingCheckout,
+    payrollReady: acc.payrollReady + day.payrollReady,
+    undertimeMinutes: acc.undertimeMinutes + day.undertimeMinutes,
+  }), {
+    employeeDays: 0,
+    present: 0,
+    absent: 0,
+    onLeave: 0,
+    exceptions: 0,
+    payableHours: 0,
+    deductionHours: 0,
+    overtimeHours: 0,
+    geofenceViolations: 0,
+    lateMinutes: 0,
+    missingCheckout: 0,
+    payrollReady: 0,
+    undertimeMinutes: 0,
+  });
+
+  return {
+    periodStart: iso(6),
+    periodEnd: iso(0),
+    range: 'WEEKLY',
+    scope: 'SELF',
+    totals,
+    series,
+    workers: [{
+      workerId: DEMO_WORKER_ME.id,
+      employeeId: DEMO_WORKER_ME.employeeId,
+      name: `${DEMO_WORKER_ME.firstName} ${DEMO_WORKER_ME.lastName}`,
+      departmentName: DEMO_WORKER_ME.departmentName,
+      managerId: DEMO_WORKER_ME.managerId,
+      ...totals,
+    }],
+    policyEvidence: {
+      flexibleRuleCodes: ['FLEX-CORE-09-15'],
+      leavePolicyTypes: ['ANNUAL'],
+      scheduleSources: ['ROTATING_SHIFT_A'],
+    },
+  };
+}
+
 const PLANNING_GROUPS_BY_DEPT = [
   { id: 'dept-eng', name: 'Engineering', headcount: 65, positionCount: 72, vacancies: 7, annualCost: 11200000, employees: [
     { id: 'wkr-mgr-001', name: 'James Harrington', jobTitle: 'Engineering Manager', status: 'ACTIVE' },
@@ -373,17 +457,8 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   }),
 
   // ── Attendance ────────────────────────────────────────────────────────────
-  'GET /time/attendance/today': () => ok({
-    workerId: 'wkr-001',
-    workDate: new Date().toISOString().slice(0, 10),
-    status: 'YET_TO_CHECK_IN',
-    canCheckIn: true,
-    canCheckOut: false,
-    elapsedMinutes: 0,
-    totalWorkedMinutes: 0,
-    locationStatus: 'NO_GEOLOCATION',
-    events: [],
-  }),
+  'GET /time/attendance/today': () => ok(mockAttendanceToday()),
+  'GET /time/attendance/workers/': () => ok(mockAttendanceToday()),
   'GET /time/attendance/summary': () => ok({
     workerId: 'wkr-001',
     summary: { payableMinutes: 9480, lateMinutes: 15, undertimeMinutes: 0, overtimeMinutes: 120, geofenceViolations: 0 },
@@ -391,6 +466,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   'GET /time/attendance/daily-ledger': () => ok({ entries: [], totals: { payableMinutes: 0, lateMinutes: 0, overtimeMinutes: 0 } }),
   'GET /time/attendance/correction-requests': () => ok([]),
   'GET /time/attendance/reminders': () => ok({ reminders: [], missedCheckouts: [] }),
+  'GET /time/attendance/reports/period-view': () => ok(mockAttendancePeriodView()),
   'GET /time/attendance/reports/summary': () => ok({ entries: [], periodSummary: { totalPayableMinutes: 0, totalLateMinutes: 0, totalOvertimeMinutes: 0 } }),
   'GET /time/attendance/scheduling-command-center': () => ok({ shifts: [], unscheduled: 0 }),
   'GET /time/attendance/period-close/readiness': () => ok({ ready: true, blockers: [], warnings: [], workerCount: 8, processedCount: 8 }),

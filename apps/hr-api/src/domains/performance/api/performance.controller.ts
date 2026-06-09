@@ -296,13 +296,13 @@ export class PerformanceController {
       reviewerId: response.isAnonymous && !canSeeReviewer ? null : response.reviewerId.value,
       relationshipType: response.relationshipType,
       status: response.status,
-      competencyScores: response.competencyScores,
+      competencyScores: this.normalizeFeedbackRecord(response.competencyScores),
       overallRating: response.overallRating,
       strengths: response.strengths,
       improvements: response.improvements,
       comments: response.comments,
-      dimensionScores: response.dimensionScores,
-      areaComments: response.areaComments,
+      dimensionScores: this.normalizeFeedbackRecord(response.dimensionScores),
+      areaComments: this.normalizeFeedbackRecord(response.areaComments),
       visibility: response.visibility,
       isAnonymous: response.isAnonymous,
       submittedAt: response.submittedAt,
@@ -310,6 +310,19 @@ export class PerformanceController {
       createdAt: response.createdAt,
       updatedAt: response.updatedAt,
     };
+  }
+
+  private normalizeFeedbackRecord<T extends number | string>(value: unknown): Record<string, T> | undefined {
+    if (!value) return undefined;
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, T> : undefined;
+      } catch {
+        return undefined;
+      }
+    }
+    return typeof value === 'object' && !Array.isArray(value) ? value as Record<string, T> : undefined;
   }
 
   private async canAccessWorker(req: Request, workerId: string): Promise<boolean> {
@@ -1066,6 +1079,30 @@ export class PerformanceController {
     }));
 
     return this.mergeCommandResult(submitResult, { feedback360ResponseId, revieweeId: dto.revieweeId, reviewerId: reviewer.id.value });
+  }
+
+  @Get('feedback-360-reviewees/eligible')
+  async getEligibleFeedback360Reviewees(@Req() req: Request) {
+    const reviewer = await this.currentWorkerForRequest(req);
+    const workers = (await this.workerRepo.findActive())
+      .filter((worker) => worker.tenantId.value === reviewer.tenantId.value && worker.id.value !== reviewer.id.value);
+
+    return workers
+      .map((worker) => ({
+        worker,
+        relationshipType: this.feedbackRelationshipType(worker, reviewer),
+      }))
+      .filter((item): item is { worker: typeof workers[number]; relationshipType: 'PEER' | 'MANAGER' | 'DIRECT_REPORT' } => Boolean(item.relationshipType))
+      .map(({ worker, relationshipType }) => ({
+        id: worker.id.value,
+        employeeId: (worker as { employeeId?: string }).employeeId,
+        firstName: (worker as { firstName?: string }).firstName,
+        lastName: (worker as { lastName?: string }).lastName,
+        email: this.getWorkerEmail(worker),
+        departmentId: worker.departmentId?.value,
+        managerId: worker.managerId?.value,
+        relationshipType,
+      }));
   }
 
   @Post('feedback-360-responses/:id/commands/submit')

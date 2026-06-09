@@ -358,6 +358,10 @@ function formatDateLabel(value: string) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit' }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
+function formatLedgerDateLabel(value: string) {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
 function dateKey(value = new Date()) {
   return value.toISOString().slice(0, 10);
 }
@@ -518,6 +522,15 @@ export function EmployeeDashboard() {
       geofenceViolations: attendancePeriodView?.totals.geofenceViolations ?? 0,
     },
   }), [attendancePeriodView?.totals]);
+  const attendanceLedgerRows = React.useMemo(() => (attendancePeriodView?.series ?? [])
+    .slice()
+    .sort((left, right) => right.workDate.localeCompare(left.workDate))
+    .slice(0, attendanceRange === 'DAILY' ? 1 : 6), [attendancePeriodView?.series, attendanceRange]);
+  const attendancePolicySignals = React.useMemo(() => [
+    { label: 'Schedules', values: attendancePeriodView?.policyEvidence.scheduleSources ?? [] },
+    { label: 'Flex rules', values: attendancePeriodView?.policyEvidence.flexibleRuleCodes ?? [] },
+    { label: 'Leave bridge', values: attendancePeriodView?.policyEvidence.leavePolicyTypes ?? [] },
+  ].filter((signal) => signal.values.length > 0), [attendancePeriodView?.policyEvidence]);
 
   const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
   const journeyItems = React.useMemo(() => buildEmployeeJourneyItems({
@@ -1252,6 +1265,60 @@ export function EmployeeDashboard() {
                         <EvidenceMetric label="Undertime" value={`${attendanceSummary?.summary.undertimeMinutes ?? 0} min`} />
                         <EvidenceMetric label="Overtime" value={`${attendanceSummary?.summary.overtimeMinutes ?? 0} min`} />
                         <EvidenceMetric label="Geofence flags" value={`${attendanceSummary?.summary.geofenceViolations ?? 0}`} />
+                      </div>
+                    </div>
+
+                    <div className="fusion-glass rounded-2xl p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="font-semibold">Attendance ledger detail</h3>
+                          <p className="mt-1 text-xs text-slate-500">
+                            Payable time, exceptions, and payroll readiness for the selected period.
+                          </p>
+                        </div>
+                        <Badge variant="secondary">{rangeLabel(attendanceRange)}</Badge>
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {attendanceLedgerRows.map((day) => (
+                          <div key={day.workDate} className="grid gap-2 rounded-xl border border-slate-200 bg-white/70 px-3 py-2 text-xs md:grid-cols-[72px_1fr_1fr]">
+                            <p className="font-semibold text-slate-900">{formatLedgerDateLabel(day.workDate)}</p>
+                            <div className="grid grid-cols-2 gap-2 text-slate-600">
+                              <span>Payable {formatMinutes(Math.round(day.payableHours * 60))}</span>
+                              <span>Overtime {formatMinutes(Math.round(day.overtimeHours * 60))}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-slate-600">
+                              <span>Late {day.lateMinutes}m</span>
+                              <span>{day.payrollReady > 0 ? 'Payroll ready' : `${day.exceptions} exceptions`}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {attendanceLedgerRows.length === 0 ? (
+                          <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
+                            No ledger rows were generated for this period yet.
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="mt-4 border-t border-slate-200 pt-4">
+                        <h4 className="text-xs font-bold uppercase tracking-wide text-slate-500">Policy signals</h4>
+                        <div className="mt-3 space-y-3">
+                          {attendancePolicySignals.map((signal) => (
+                            <div key={signal.label}>
+                              <p className="text-xs font-semibold text-slate-600">{signal.label}</p>
+                              <div className="mt-1 flex flex-wrap gap-2">
+                                {signal.values.map((value) => (
+                                  <Badge key={`${signal.label}-${value}`} variant="outline" className="bg-white/70">
+                                    {value}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                          {attendancePolicySignals.length === 0 ? (
+                            <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 text-xs text-slate-500">
+                              Policy evidence will appear when schedule, leave, or flexible-hour rules affect the ledger.
+                            </p>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </aside>

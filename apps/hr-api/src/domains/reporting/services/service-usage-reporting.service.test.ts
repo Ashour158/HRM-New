@@ -196,7 +196,7 @@ describe('service usage reporting summary', () => {
     const dashboard = buildHrReportsDashboard(usage);
 
     expect(dashboard.totals).toMatchObject({
-      reportGroups: 8,
+      reportGroups: 9,
       activeReportGroups: 6,
       totalActivity: 44,
       queueBacklog: 2,
@@ -226,6 +226,13 @@ describe('service usage reporting summary', () => {
     expect(dashboard.reports.find((report) => report.code === 'BENEFITS')).toMatchObject({
       title: 'Benefits Report',
       activity: 2,
+    });
+    expect(dashboard.reports.find((report) => report.code === 'SERVICE_USAGE')).toMatchObject({
+      title: 'Service Usage Report',
+      category: 'Operations',
+      services: ['REPORTING', 'SYSTEM_GOVERNANCE'],
+      activity: 0,
+      readiness: 'No Data',
     });
     expect(dashboard.reports.find((report) => report.code === 'ENGAGEMENT')).toMatchObject({
       title: 'Engagement Report',
