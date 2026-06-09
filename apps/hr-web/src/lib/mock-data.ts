@@ -331,12 +331,29 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     { id: 'pay-002', workerId: 'wkr-001', payPeriodStart: '2026-04-01', payPeriodEnd: '2026-04-30', payDate: '2026-04-30', grossPay: 8500, netPay: 6120, deductions: 850, taxes: 1530, currency: 'USD' },
     { id: 'pay-003', workerId: 'wkr-001', payPeriodStart: '2026-03-01', payPeriodEnd: '2026-03-31', payDate: '2026-03-31', grossPay: 8500, netPay: 6120, deductions: 850, taxes: 1530, currency: 'USD' },
   ]),
-  'GET /employee/benefits': () => ok([
-    { id: 'ben-001', workerId: 'wkr-001', benefitType: 'HEALTH', planName: 'Premium Health Plan', coverageLevel: 'EMPLOYEE_PLUS_SPOUSE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
-    { id: 'ben-002', workerId: 'wkr-001', benefitType: 'DENTAL', planName: 'Dental Plus', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
-    { id: 'ben-003', workerId: 'wkr-001', benefitType: 'VISION', planName: 'Vision Care', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
-    { id: 'ben-004', workerId: 'wkr-001', benefitType: '401K', planName: '401(k) Retirement Plan', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-09-15', status: 'ACTIVE' },
-  ]),
+  'GET /employee/benefits': () => ok({
+    enrollments: [
+      { id: 'ben-001', workerId: 'wkr-001', benefitType: 'HEALTH', planName: 'Premium Health Plan', coverageLevel: 'EMPLOYEE_PLUS_SPOUSE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
+      { id: 'ben-002', workerId: 'wkr-001', benefitType: 'DENTAL', planName: 'Dental Plus', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
+      { id: 'ben-003', workerId: 'wkr-001', benefitType: 'VISION', planName: 'Vision Care', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-03-15', status: 'ACTIVE' },
+      { id: 'ben-004', workerId: 'wkr-001', benefitType: '401K', planName: '401(k) Retirement Plan', coverageLevel: 'EMPLOYEE', effectiveDate: '2021-09-15', status: 'ACTIVE' },
+    ],
+    activePrograms: [
+      { id: '00000000-0000-0000-0000-000000000321', programName: 'Premium Health Plan', programType: 'HEALTH', status: 'ACTIVE' },
+      { id: '00000000-0000-0000-0000-000000000322', programName: 'Dental Plus', programType: 'DENTAL', status: 'ACTIVE' },
+    ],
+    openEnrollmentActive: true,
+    openEnrollmentDeadline: '2026-06-30',
+    lifeEvents: [
+      { id: 'life-001', type: 'MARRIAGE', date: '2026-02-14', status: 'PROCESSED' },
+    ],
+    dependents: [
+      { id: 'dep-001', name: 'Alex Employee', relationship: 'Spouse', dateOfBirth: '1991-05-20' },
+    ],
+    spendingAccounts: [],
+  }),
+  'POST /employee/benefits/enrollments': () => ok({ enrollmentId: 'ben-new', status: 'DRAFT' }),
+  'POST /employee/benefits/life-events': () => ok({ lifeEventId: 'life-new', status: 'RECORDED' }),
   'GET /employee/onboarding': () => ok({
     status: 'COMPLETED', completedAt: '2021-04-05',
     tasks: [

@@ -325,6 +325,112 @@ describe('EmployeeSelfServiceController', () => {
     expect(programRepo.findActive).toHaveBeenCalledWith(tenantId);
   });
 
+  it('submits a benefits enrollment command for the authenticated worker only', async () => {
+    const commandBus = { execute: vi.fn().mockResolvedValue({ success: true, data: { enrollmentId: 'generated-enrollment', status: 'DRAFT' } }) };
+    const workerRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+      findByEmailForTenant: vi.fn().mockResolvedValue({
+        id: workerId,
+        tenantId,
+        employeeNumber: 'EMP-100',
+        firstName: 'Regular',
+        lastName: 'Employee',
+        email: { toString: () => 'employee@example.com' },
+        status: 'ACTIVE',
+      }),
+    };
+    const controller = new EmployeeSelfServiceController(
+      workerRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      commandBus as never,
+    );
+
+    await controller.createBenefitsEnrollment({
+      programId: programId.value,
+      coverageLevel: 'EMPLOYEE_SPOUSE',
+      requestedWorkerId: '00000000-0000-0000-0000-999999999999',
+      dependents: [{
+        dependentId: 'dep-1',
+        firstName: 'Alex',
+        lastName: 'Employee',
+        relationship: 'SPOUSE',
+        dateOfBirth: '1991-05-20',
+      }],
+      effectiveDate: '2026-01-01',
+    }, request());
+
+    expect(commandBus.execute).toHaveBeenCalledTimes(1);
+    const sent = commandBus.execute.mock.calls[0][0];
+    expect(sent).toMatchObject({
+      commandName: 'CreateBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      subjectWorkerId: workerId,
+      payload: {
+        workerId,
+        programId,
+        coverageLevel: 'EMPLOYEE_SPOUSE',
+      },
+    });
+    expect(sent.payload.workerId.value).toBe(workerId.value);
+    expect(sent.payload.workerId.value).not.toBe('00000000-0000-0000-0000-999999999999');
+  });
+
+  it('records a benefits life event command for the authenticated worker only', async () => {
+    const commandBus = { execute: vi.fn().mockResolvedValue({ success: true, data: { lifeEventId: 'generated-life-event', status: 'RECORDED' } }) };
+    const workerRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue({
+        id: workerId,
+        tenantId,
+        employeeNumber: 'EMP-100',
+        firstName: 'Regular',
+        lastName: 'Employee',
+        email: { toString: () => 'employee@example.com' },
+        status: 'ACTIVE',
+      }),
+      findByEmailForTenant: vi.fn(),
+    };
+    const controller = new EmployeeSelfServiceController(
+      workerRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      commandBus as never,
+    );
+
+    await controller.createBenefitsLifeEvent({
+      eventType: 'MARRIAGE',
+      eventDate: '2026-02-14',
+      description: 'Marriage certificate will be attached',
+    }, {
+      ...request(),
+      actor: {
+        ...request().actor,
+        actorId: { value: workerId.value },
+      },
+    } as Request);
+
+    expect(commandBus.execute).toHaveBeenCalledTimes(1);
+    const sent = commandBus.execute.mock.calls[0][0];
+    expect(sent).toMatchObject({
+      commandName: 'CreateBenefitsLifeEvent',
+      aggregateType: 'BenefitsLifeEvent',
+      subjectWorkerId: workerId,
+      payload: {
+        workerId,
+        eventType: 'MARRIAGE',
+        description: 'Marriage certificate will be attached',
+      },
+    });
+  });
+
   it('rejects terminated workers before returning protected profile data', async () => {
     const workerRepo = {
       findByIdForTenant: vi.fn().mockResolvedValue(undefined),
