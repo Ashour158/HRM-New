@@ -65,6 +65,8 @@ type EmployeeMassUpdateValidationResult = {
   rowCount: number;
   rows: EmployeeMassUpdateRow[];
   workersByEmployeeId: Map<string, WorkerProfile>;
+  createEmployeeIds: Set<string>;
+  updateEmployeeIds: Set<string>;
   errors: EmployeeMassUpdateValidationError[];
   events: string[];
 };
@@ -605,6 +607,8 @@ export class HrCoreController {
     return {
       accepted: validation.accepted,
       rowCount: validation.rowCount,
+      createCount: validation.createEmployeeIds.size,
+      updateCount: validation.updateEmployeeIds.size,
       errors: validation.errors,
       events: validation.events,
     };
@@ -620,19 +624,49 @@ export class HrCoreController {
       return {
         accepted: false,
         rowCount: validation.rowCount,
+        createCount: validation.createEmployeeIds.size,
+        updateCount: validation.updateEmployeeIds.size,
         updatedCount: 0,
+        createdCount: 0,
         errors: validation.errors,
         events: validation.events,
         applied: [],
       };
     }
 
-    const applied: Array<{ employeeId: string; workerId: string; updatedFields: string[] }> = [];
+    const applied: Array<{ employeeId: string; workerId: string; action: 'CREATE' | 'UPDATE'; updatedFields: string[] }> = [];
 
     for (const row of validation.rows) {
       const employeeId = row.employeeId!;
       const worker = validation.workersByEmployeeId.get(employeeId);
-      if (!worker) continue;
+      if (!worker) {
+        const commandResult = await this.executeCommand(this.buildCommand('CreateWorker', 'WorkerProfile', {
+          workerId: Uuid.generate().value,
+          employeeNumber: employeeId,
+          firstName: row.firstName!,
+          lastName: row.lastName!,
+          workEmail: row.workEmail,
+          personalEmail: row.personalEmail,
+          phoneNumber: row.phoneNumber,
+          workPhoneNumber: row.workPhoneNumber,
+          departmentName: row.department,
+          jobTitle: row.jobTitle,
+          workLocation: this.hasMassUpdateValue(row.workLocationCode) ? { code: row.workLocationCode } : undefined,
+          salaryAmount: row.grossSalary,
+          grossSalaryAmount: row.grossSalary,
+          salaryCurrency: row.currency?.toUpperCase(),
+          salaryBasis: row.grossSalary !== undefined ? 'MONTHLY' : undefined,
+          payFrequency: row.grossSalary !== undefined ? 'MONTHLY' : undefined,
+        }, req));
+        const result = commandResult as { data?: { workerId?: string }; aggregateId?: Uuid };
+        applied.push({
+          employeeId,
+          workerId: result.data?.workerId ?? result.aggregateId?.value ?? '',
+          action: 'CREATE',
+          updatedFields: this.massUpdateEditableFields(row),
+        });
+        continue;
+      }
 
       const updatedFields: string[] = [];
       const personalData: Record<string, unknown> = {};
@@ -694,13 +728,16 @@ export class HrCoreController {
           subjectWorkerId: worker.id,
         }));
 
-      applied.push({ employeeId, workerId: worker.id.value, updatedFields: uniqueUpdatedFields });
+      applied.push({ employeeId, workerId: worker.id.value, action: 'UPDATE', updatedFields: uniqueUpdatedFields });
     }
 
     return {
       accepted: true,
       rowCount: validation.rowCount,
-      updatedCount: applied.length,
+      createCount: validation.createEmployeeIds.size,
+      updateCount: validation.updateEmployeeIds.size,
+      createdCount: applied.filter((row) => row.action === 'CREATE').length,
+      updatedCount: applied.filter((row) => row.action === 'UPDATE').length,
       errors: [],
       events: ['EmployeeMassUpdateApplied'],
       applied,
@@ -716,6 +753,8 @@ export class HrCoreController {
     const seenEmails = new Set<string>();
     const errors: EmployeeMassUpdateValidationError[] = [];
     const workersByEmployeeId = new Map<string, WorkerProfile>();
+    const createEmployeeIds = new Set<string>();
+    const updateEmployeeIds = new Set<string>();
 
     for (const [index, row] of rows.entries()) {
       if (!row.employeeId) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee ID is required' });
@@ -726,8 +765,15 @@ export class HrCoreController {
       if (row.employeeId) {
         seenEmployeeIds.add(row.employeeId);
         const existing = await this.workerRepo.findByEmployeeNumberForTenant(row.employeeId, tenantId);
-        if (!existing) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee does not exist for mass update' });
-        if (existing) workersByEmployeeId.set(row.employeeId, existing);
+        if (existing) {
+          workersByEmployeeId.set(row.employeeId, existing);
+          updateEmployeeIds.add(row.employeeId);
+        } else {
+          createEmployeeIds.add(row.employeeId);
+          if (!row.firstName) errors.push({ row: index + 1, field: 'firstName', message: 'First name is required for new employees' });
+          if (!row.lastName) errors.push({ row: index + 1, field: 'lastName', message: 'Last name is required for new employees' });
+          if (!row.workEmail) errors.push({ row: index + 1, field: 'workEmail', message: 'Work email is required for new employees' });
+        }
       }
       for (const [field, email] of [
         ['workEmail', row.workEmail],
@@ -739,7 +785,12 @@ export class HrCoreController {
           errors.push({ row: index + 1, field, message: 'Duplicate email in upload' });
         }
         seenEmails.add(normalizedEmail);
+        const existingEmailOwner = await this.workerRepo.findByEmailForTenant(email, tenantId);
+        if (existingEmailOwner && existingEmailOwner.employeeNumber !== row.employeeId) {
+          errors.push({ row: index + 1, field, message: 'Email already belongs to another employee' });
+        }
       }
+      if (row.grossSalary !== undefined && !Number.isFinite(Number(row.grossSalary))) errors.push({ row: index + 1, field: 'grossSalary', message: 'Gross salary must be a valid number' });
       if (row.grossSalary !== undefined && Number(row.grossSalary) < 0) errors.push({ row: index + 1, field: 'grossSalary', message: 'Gross salary cannot be negative' });
       if (row.currency && !/^[A-Z]{3}$/.test(row.currency)) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
     }
@@ -749,6 +800,8 @@ export class HrCoreController {
       rowCount: rows.length,
       rows,
       workersByEmployeeId,
+      createEmployeeIds,
+      updateEmployeeIds,
       errors,
       events: errors.length === 0 ? ['EmployeeMassUpdateValidated'] : ['EmployeeMassUpdateRejected'],
     };

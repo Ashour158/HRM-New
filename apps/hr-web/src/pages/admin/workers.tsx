@@ -9,34 +9,23 @@ import { DataTable } from '@/components/common/data-table';
 import { ErrorState } from '@/components/common/error-state';
 import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
+import { parseEmployeeCsv } from '@/lib/employee-csv';
 import { Download, FileSpreadsheet, Search, Plus, Upload, UserMinus, UserCheck, Eye } from 'lucide-react';
-import type { Worker } from '@/types';
-
-interface EmployeeMassUpdateRow {
-  employeeId?: string;
-  firstName?: string;
-  lastName?: string;
-  workEmail?: string;
-  personalEmail?: string;
-  phoneNumber?: string;
-  workPhoneNumber?: string;
-  department?: string;
-  jobTitle?: string;
-  workLocationCode?: string;
-  grossSalary?: number;
-  currency?: string;
-}
+import type { EmployeeMassUpdateRow, Worker } from '@/types';
 
 interface EmployeeMassUpdatePreview {
   accepted: boolean;
   rowCount: number;
+  createCount?: number;
+  updateCount?: number;
   errors: Array<{ row: number; field: string; message: string }>;
 }
 
 interface EmployeeMassUpdateApplyResult extends EmployeeMassUpdatePreview {
+  createdCount?: number;
   updatedCount: number;
   events: string[];
-  applied: Array<{ employeeId: string; workerId: string; updatedFields: string[] }>;
+  applied: Array<{ employeeId: string; workerId: string; action?: 'CREATE' | 'UPDATE'; updatedFields: string[] }>;
 }
 
 function getStatusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -61,20 +50,6 @@ function downloadBlob(blob: Blob, filename: string) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
-}
-
-function parseSimpleCsv(text: string): EmployeeMassUpdateRow[] {
-  const [headerLine, ...lines] = text.trim().split(/\r?\n/);
-  const headers = headerLine.split(',').map((item) => item.trim());
-  return lines.filter(Boolean).map((line) => {
-    const values = line.split(',').map((item) => item.trim());
-    return headers.reduce<EmployeeMassUpdateRow>((row, header, index) => {
-      const value = values[index];
-      if (!value) return row;
-      if (header === 'grossSalary') return { ...row, grossSalary: Number(value) };
-      return { ...row, [header]: value };
-    }, {});
-  });
 }
 
 /**
@@ -170,13 +145,13 @@ export function AdminWorkers() {
       setUploadedRows([]);
       setUploadPreview(null);
       setUploadApplyResult(null);
-      const rows = parseSimpleCsv(await file.text());
+      const rows = parseEmployeeCsv(await file.text());
       const result = await massPreviewMutation.mutateAsync({ rows });
       setUploadedRows(rows);
       setUploadPreview(result);
       addNotification({
         title: result.accepted ? 'Upload validated' : 'Validation issues found',
-        message: result.accepted ? `${result.rowCount} rows ready to import.` : `${result.errors.length} validation error(s) detected.`,
+        message: result.accepted ? `${result.rowCount} rows ready: ${result.createCount ?? 0} create, ${result.updateCount ?? 0} update.` : `${result.errors.length} validation error(s) detected.`,
         type: result.accepted ? 'success' : 'warning',
         read: false,
       });
@@ -193,6 +168,8 @@ export function AdminWorkers() {
       setUploadPreview({
         accepted: result.accepted,
         rowCount: result.rowCount,
+        createCount: result.createCount,
+        updateCount: result.updateCount,
         errors: result.errors,
       });
       if (result.accepted) {
@@ -200,7 +177,7 @@ export function AdminWorkers() {
       }
       addNotification({
         title: result.accepted ? 'Employee updates applied' : 'Could not apply upload',
-        message: result.accepted ? `${result.updatedCount} employee record(s) updated.` : `${result.errors.length} issue(s) need correction.`,
+        message: result.accepted ? `${result.createdCount ?? 0} employee record(s) created, ${result.updatedCount} updated.` : `${result.errors.length} issue(s) need correction.`,
         type: result.accepted ? 'success' : 'warning',
         read: false,
       });
@@ -323,7 +300,7 @@ export function AdminWorkers() {
           <div>
             <h3 className="font-semibold text-slate-900">Employee Data Migration</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Upload CSV files using the downloadable template. Validation checks employee IDs, email uniqueness, salary, and currency before changes are accepted.
+              Upload CSV files using the downloadable template. Validation checks create/update rows, email uniqueness, salary, and currency before changes are accepted.
             </p>
           </div>
           <Badge variant={uploadPreview?.accepted ? 'default' : uploadPreview ? 'destructive' : 'secondary'}>
@@ -337,7 +314,7 @@ export function AdminWorkers() {
           </div>
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="font-medium text-slate-900">Required fields</p>
-            <p className="mt-1">employeeId plus at least one editable employee field.</p>
+            <p className="mt-1">Updates need employeeId. New employees also need first name, last name, and work email.</p>
           </div>
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="font-medium text-slate-900">Template columns</p>
@@ -352,9 +329,9 @@ export function AdminWorkers() {
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <Badge variant={uploadPreview.accepted ? 'default' : 'destructive'}>
                 {uploadApplyResult?.accepted
-                  ? `${uploadApplyResult.updatedCount} rows applied`
+                  ? `${uploadApplyResult.createdCount ?? 0} created · ${uploadApplyResult.updatedCount} updated`
                   : uploadPreview.accepted
-                    ? `${uploadPreview.rowCount} rows accepted`
+                    ? `${uploadPreview.rowCount} rows accepted · ${uploadPreview.createCount ?? 0} create · ${uploadPreview.updateCount ?? 0} update`
                     : `${uploadPreview.errors.length} validation errors`}
               </Badge>
               {uploadPreview.accepted && !uploadApplyResult?.accepted ? (
@@ -372,7 +349,7 @@ export function AdminWorkers() {
             ) : null}
             {uploadApplyResult?.accepted ? (
               <p className="mt-3 text-slate-600">
-                Updated fields: {Array.from(new Set(uploadApplyResult.applied.flatMap((item) => item.updatedFields))).join(', ') || 'employee records'}.
+                Applied fields: {Array.from(new Set(uploadApplyResult.applied.flatMap((item) => item.updatedFields))).join(', ') || 'employee records'}.
               </p>
             ) : null}
           </div>

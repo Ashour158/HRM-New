@@ -64,6 +64,21 @@ export interface Worker {
   legalEntityName?: string;
 }
 
+export interface EmployeeMassUpdateRow {
+  employeeId?: string;
+  firstName?: string;
+  lastName?: string;
+  workEmail?: string;
+  personalEmail?: string;
+  phoneNumber?: string;
+  workPhoneNumber?: string;
+  department?: string;
+  jobTitle?: string;
+  workLocationCode?: string;
+  grossSalary?: number;
+  currency?: string;
+}
+
 export interface EmployeeProfileData {
   worker: Worker;
   basic: {
