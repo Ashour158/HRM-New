@@ -5,9 +5,11 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
+  BellRing,
   CheckCircle2,
   Clock3,
   FileText,
+  Mail,
   PlugZap,
   RefreshCcw,
   Router,
@@ -22,7 +24,8 @@ import { ErrorState } from '@/components/common/error-state';
 import { useUIStore } from '@/stores/ui-store';
 
 type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL';
-type IntegrationState = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'UNKNOWN';
+type IntegrationCredentialState = 'CONFIGURED' | 'NOT_CONFIGURED';
+type IntegrationState = 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'UNKNOWN' | 'CREDENTIALS_NOT_CONFIGURED' | 'INCIDENT_ACTIVE';
 
 interface IntegrationStatus {
   adapterName: string;
@@ -64,6 +67,42 @@ interface IntegrationResult {
   error?: string;
 }
 
+interface IntegrationProviderReadiness {
+  adapterName: string;
+  direction: IntegrationDirection;
+  credentialState: IntegrationCredentialState;
+  ready: boolean;
+  blockers: string[];
+  owner: {
+    team: string;
+    contact: string;
+    escalation?: string;
+  };
+  environments: Array<{
+    name: 'SANDBOX' | 'PRODUCTION';
+    credentialState: IntegrationCredentialState;
+  }>;
+  retryPolicy: {
+    maxAttempts: number;
+    backoff: 'EXPONENTIAL' | 'LINEAR';
+    deadLetterAfterAttempts: number;
+  };
+  auditLogHooks: string[];
+  incident: {
+    state: 'NONE' | 'ACTIVE' | 'MITIGATING';
+    severity?: string;
+    summary?: string;
+  };
+  outboundHealth?: {
+    state: IntegrationState;
+    consecutiveFailures: number;
+    totalFailures: number;
+    lastCheckedAt?: string;
+    lastSuccessAt?: string;
+    lastFailureAt?: string;
+  };
+}
+
 function unwrapApiData<T>(response: { data: unknown }): T {
   const envelope = response.data as { data?: T; success?: boolean };
   if (envelope && typeof envelope === 'object' && envelope.success === true && 'data' in envelope) {
@@ -85,6 +124,7 @@ function formatDate(value: string | undefined) {
 function stateClass(state: IntegrationState) {
   if (state === 'HEALTHY') return 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]';
   if (state === 'DEGRADED' || state === 'UNKNOWN') return 'border-[#f59e0b]/30 bg-[#fde68a]/60 text-[#78350f]';
+  if (state === 'CREDENTIALS_NOT_CONFIGURED') return 'border-[#f59e0b]/30 bg-[#fff7ed] text-[#9a3412]';
   return 'border-[#e11d48]/30 bg-[#e11d48]/10 text-[#e11d48]';
 }
 
@@ -118,8 +158,13 @@ export function AdminIntegrations() {
     queryFn: async () => unwrapApiData<{ adapters: IntegrationHealth[] }>(await apiClient.get('/hr/integrations/health')),
     enabled: false,
   });
+  const readinessQuery = useQuery({
+    queryKey: ['integration-readiness'],
+    queryFn: async () => unwrapApiData<{ adapters: IntegrationProviderReadiness[] }>(await apiClient.get('/hr/integrations/readiness')),
+  });
 
   const adapters = statusQuery.data?.adapters ?? [];
+  const readinessAdapters = readinessQuery.data?.adapters ?? [];
   const selected = adapters.find((adapter) => adapter.adapterName === selectedAdapter) ?? adapters[0];
 
   React.useEffect(() => {
@@ -160,6 +205,9 @@ export function AdminIntegrations() {
   const failedCount = adapters.reduce((total, adapter) => total + adapter.totalFailures, 0);
   const lastHealth = healthQuery.data?.adapters ?? [];
   const selectedHealth = selected ? lastHealth.find((item) => item.adapterName === selected.adapterName) : undefined;
+  const communicationAdapters = readinessAdapters.filter((adapter) => /mail|email|smtp|notification/i.test(adapter.adapterName));
+  const communicationReady = communicationAdapters.some((adapter) => adapter.ready);
+  const communicationBlockers = communicationAdapters.flatMap((adapter) => adapter.blockers.map((blocker) => `${adapter.adapterName}: ${blocker}`));
 
   return (
     <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
@@ -388,6 +436,110 @@ export function AdminIntegrations() {
             </CardContent>
           </Card>
         ) : null}
+
+        <section className="grid gap-4 xl:grid-cols-[1fr_24rem]">
+          <Card className="overflow-hidden rounded-[2rem] border-[#8b5cf6]/20">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Mail className="h-5 w-5 text-[#4f46e5]" />
+                Communication Delivery Readiness
+              </CardTitle>
+              <CardDescription>
+                Email and notification delivery controls used by policy, approval, payroll, and employee-service events.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {readinessQuery.isLoading ? (
+                <Skeleton className="h-40 w-full" />
+              ) : readinessQuery.isError ? (
+                <ErrorState error={readinessQuery.error} onRetry={() => readinessQuery.refetch()} />
+              ) : communicationAdapters.length > 0 ? (
+                communicationAdapters.map((adapter) => (
+                  <div key={adapter.adapterName} className="rounded-2xl border border-[#e2e8f0] bg-white p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className="font-semibold text-[#0f172a]">{adapter.adapterName}</p>
+                        <p className="mt-1 text-sm leading-6 text-[#475569]">
+                          Owned by {adapter.owner.team}. Used for outbound employee and administrator messages.
+                        </p>
+                      </div>
+                      <HealthBadge state={adapter.ready ? 'HEALTHY' : adapter.outboundHealth?.state ?? 'CREDENTIALS_NOT_CONFIGURED'} />
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-3">
+                      {adapter.environments.map((environment) => (
+                        <div key={environment.name} className="fusion-glass rounded-2xl p-3">
+                          <p className="font-mono text-xs uppercase tracking-wider text-[#64748b]">{environment.name}</p>
+                          <p className={`mt-2 font-semibold ${environment.credentialState === 'CONFIGURED' ? 'text-[#047857]' : 'text-[#9a3412]'}`}>
+                            {environment.credentialState === 'CONFIGURED' ? 'Credentials configured' : 'Credentials required'}
+                          </p>
+                        </div>
+                      ))}
+                      <div className="fusion-glass rounded-2xl p-3">
+                        <p className="font-mono text-xs uppercase tracking-wider text-[#64748b]">Retry Policy</p>
+                        <p className="mt-2 font-semibold text-[#0f172a]">
+                          {adapter.retryPolicy.maxAttempts} attempts / {adapter.retryPolicy.backoff.toLowerCase()}
+                        </p>
+                        <p className="text-sm text-[#64748b]">Dead-letter after {adapter.retryPolicy.deadLetterAfterAttempts}</p>
+                      </div>
+                    </div>
+                    {adapter.blockers.length > 0 ? (
+                      <div className="mt-4 rounded-2xl border border-[#f59e0b]/30 bg-[#fff7ed] p-3 text-sm text-[#9a3412]">
+                        <AlertTriangle className="mr-2 inline h-4 w-4" />
+                        {adapter.blockers.join(', ')}
+                      </div>
+                    ) : null}
+                  </div>
+                ))
+              ) : (
+                <EmptyState
+                  icon={Mail}
+                  title="No communication adapter registered"
+                  description="Register an email or notification adapter before employee-facing messages can leave the platform."
+                />
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className={communicationReady ? 'border-[#8b5cf6]/20 bg-[#8b5cf6]/5' : 'border-[#f59e0b]/30 bg-[#fff7ed]'}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <BellRing className="h-5 w-5 text-[#4f46e5]" />
+                Message Gate
+              </CardTitle>
+              <CardDescription>
+                Operator decision point before relying on outbound email for approvals and policy changes.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+              <div className="flex items-center justify-between rounded-2xl bg-white/70 p-3">
+                <span>Outbound email</span>
+                <span className={`font-semibold ${communicationReady ? 'text-[#047857]' : 'text-[#9a3412]'}`}>
+                  {communicationReady ? 'Ready' : 'Blocked'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-white/70 p-3">
+                <span>Platform inbox</span>
+                <span className="font-semibold text-[#047857]">Ready</span>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-white/70 p-3">
+                <span>Recovery path</span>
+                <span className="font-semibold text-[#0f172a]">Dead-letter queue</span>
+              </div>
+              {communicationBlockers.length > 0 ? (
+                <ul className="space-y-2 rounded-2xl bg-white/70 p-3">
+                  {communicationBlockers.slice(0, 4).map((blocker) => (
+                    <li key={blocker} className="flex gap-2 text-[#9a3412]">
+                      <AlertTriangle className="mt-1 h-4 w-4 shrink-0" />
+                      <span>{blocker}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="rounded-2xl bg-white/70 p-3 text-[#047857]">Communication delivery is ready for governed workflow notifications.</p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
 
         <Card className="overflow-hidden rounded-[2rem]">
           <CardHeader>
