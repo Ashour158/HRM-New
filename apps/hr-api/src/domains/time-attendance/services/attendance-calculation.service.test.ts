@@ -96,4 +96,20 @@ describe('AttendanceCalculationService', () => {
     expect(result.lowTrustPunch).toBe(true);
     expect(result.events).toContain('LOW_TRUST_CLOCK_EVENT');
   });
+
+  it('rounds worked and payable minutes using the attendance policy increment', () => {
+    const result = service.calculateDay({
+      workDate: '2026-05-25',
+      sessions: [session('2026-05-25T06:04:00.000Z', '2026-05-25T14:02:00.000Z')],
+      policy: {
+        ...policy,
+        roundingIncrementMinutes: 15,
+      },
+      timezoneOffsetMinutes: 180,
+    });
+
+    expect(result.workedMinutes).toBe(480);
+    expect(result.payableMinutes).toBe(480);
+    expect(result.undertimeMinutes).toBe(0);
+  });
 });

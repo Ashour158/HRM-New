@@ -1363,9 +1363,30 @@ function PolicyBusinessControls({
     const carryoverRule = firstLedgerRecord(selected?.carryoverRules, 'CARRYOVER_EXPIRY', 'Carryover expiry');
     const blackoutRule = firstLedgerRecord(selected?.blackoutRules, 'BLACKOUT_WINDOW', 'Blackout window');
     const documentRule = firstLedgerRecord(selected?.documentRules, 'DOCUMENT_THRESHOLD', 'Document threshold');
+    const periodLimits = asRecords(selected?.periodLimits);
+    const monthlyAmountLimit = periodLimits.find((limit) => stringField(limit, 'window') === 'CALENDAR_MONTH' && typeof limit.maxAmount === 'number');
+    const weeklyRequestLimit = periodLimits.find((limit) => stringField(limit, 'window') === 'CALENDAR_WEEK' && typeof limit.maxRequests === 'number');
+    const monthlyRequestLimit = periodLimits.find((limit) => stringField(limit, 'window') === 'CALENDAR_MONTH' && typeof limit.maxRequests === 'number');
     const updateLeaveLedger = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => (
       update({ [key]: upsertFirstLedgerRecord(selected?.[key], fallbackCode, fallbackLabel, changes) })
     );
+    const updatePeriodLimit = (current: Record<string, unknown> | undefined, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => {
+      const code = recordCode(current) || fallbackCode;
+      const next = periodLimits.filter((limit) => recordCode(limit) !== code);
+      return update({
+        periodLimits: [
+          ...next,
+          {
+            code,
+            label: stringField(current, 'label', fallbackLabel),
+            active: true,
+            includeStatuses: ['PENDING_APPROVAL', 'APPROVED'],
+            ...current,
+            ...changes,
+          },
+        ],
+      });
+    };
     return (
       <Card>
         <CardHeader>
@@ -1400,6 +1421,12 @@ function PolicyBusinessControls({
             <GuidedToggle label="Employee requestable" checked={booleanField(selected, 'requestableByEmployee', true)} onChange={(checked) => update({ requestableByEmployee: checked })} />
             <GuidedToggle label="Deducts balance" checked={booleanField(selected, 'deductFromBalance', true)} onChange={(checked) => update({ deductFromBalance: checked })} />
             <GuidedToggle label="Paid" checked={booleanField(selected, 'paid', true)} onChange={(checked) => update({ paid: checked })} />
+          </div>
+          <div className="lg:col-span-4 grid gap-3 rounded-xl border border-[#e2e8f0] bg-white p-4 md:grid-cols-4">
+            <GuidedInput label="Monthly max amount" type="number" value={numberField(monthlyAmountLimit, 'maxAmount')} onChange={(value) => updatePeriodLimit(monthlyAmountLimit, `${activeCode}_MONTHLY_AMOUNT_LIMIT`, 'Monthly amount limit', { window: 'CALENDAR_MONTH', maxAmount: optionalNumber(value), appliesToUnits: [stringField(selected, 'unit', 'DAYS')] })} />
+            <GuidedInput label="Weekly max requests" type="number" value={numberField(weeklyRequestLimit, 'maxRequests')} onChange={(value) => updatePeriodLimit(weeklyRequestLimit, `${activeCode}_WEEKLY_REQUEST_LIMIT`, 'Weekly request limit', { window: 'CALENDAR_WEEK', maxRequests: optionalNumber(value), appliesToUnits: [stringField(selected, 'unit', 'DAYS')] })} />
+            <GuidedInput label="Monthly max requests" type="number" value={numberField(monthlyRequestLimit, 'maxRequests')} onChange={(value) => updatePeriodLimit(monthlyRequestLimit, `${activeCode}_MONTHLY_REQUEST_LIMIT`, 'Monthly request limit', { window: 'CALENDAR_MONTH', maxRequests: optionalNumber(value), appliesToUnits: [stringField(selected, 'unit', 'DAYS')] })} />
+            <GuidedInput label="Rolling days window" type="number" value={numberField(monthlyAmountLimit, 'rollingDays')} onChange={(value) => updatePeriodLimit(monthlyAmountLimit, `${activeCode}_MONTHLY_AMOUNT_LIMIT`, 'Monthly amount limit', { window: 'ROLLING_DAYS', rollingDays: optionalNumber(value), appliesToUnits: [stringField(selected, 'unit', 'DAYS')] })} />
           </div>
           <div className="lg:col-span-4 grid gap-3 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4 md:grid-cols-4">
             <GuidedInput label="Accrual rule code" value={recordCode(accrualRule) || 'MONTHLY_ACCRUAL'} onChange={(value) => updateLeaveLedger('accrualRules', 'MONTHLY_ACCRUAL', 'Monthly accrual', { code: value })} />

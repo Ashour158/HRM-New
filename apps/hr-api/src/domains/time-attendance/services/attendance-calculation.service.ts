@@ -108,6 +108,11 @@ function minutesBetween(start: Date, end: Date): number {
   return Math.max(Math.round((end.getTime() - start.getTime()) / 60000), 0);
 }
 
+function roundMinutes(value: number, increment?: number): number {
+  if (!increment || increment <= 0) return value;
+  return Math.round(value / increment) * increment;
+}
+
 function localMinutesOfDay(date: Date, timezoneOffsetMinutes: number): number {
   const shifted = new Date(date.getTime() + timezoneOffsetMinutes * 60000);
   return shifted.getUTCHours() * 60 + shifted.getUTCMinutes();
@@ -118,10 +123,10 @@ export class AttendanceCalculationService {
   calculateDay(input: AttendanceDayCalculationInput): AttendanceDayCalculation {
     const timezoneOffsetMinutes = input.timezoneOffsetMinutes ?? input.policy.timezoneOffsetMinutes ?? 0;
     const completeSessions = input.sessions.filter((session) => session.checkOutAt);
-    const workedMinutes = completeSessions.reduce(
+    const workedMinutes = roundMinutes(completeSessions.reduce(
       (total, session) => total + minutesBetween(session.checkInAt, session.checkOutAt as Date),
       0,
-    );
+    ), input.policy.roundingIncrementMinutes);
     const onDutyMinutes = input.approvedOnDutyMinutes ?? 0;
     const rawPayableMinutes = workedMinutes + onDutyMinutes;
     const minimumPayableDayMinutes = input.policy.minimumPayableDayMinutes ?? 0;
