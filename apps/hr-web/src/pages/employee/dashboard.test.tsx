@@ -1,15 +1,22 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EmployeeDashboard } from './dashboard';
+import { EmployeeAttendanceAction, EmployeeDashboard } from './dashboard';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 
 const useApiQueryMock = vi.fn();
 const useApiMutationMock = vi.fn();
+const apiClientPostMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/hooks/use-api', () => ({
   useApiQuery: (...args: unknown[]) => useApiQueryMock(...args),
   useApiMutation: (...args: unknown[]) => useApiMutationMock(...args),
+}));
+
+vi.mock('@/lib/api-client', () => ({
+  apiClient: {
+    post: apiClientPostMock,
+  },
 }));
 
 vi.mock('@/hooks/use-auth', () => ({
@@ -113,11 +120,14 @@ const periodView = {
 describe('EmployeeDashboard attendance view', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    apiClientPostMock.mockReset();
     useApiMutationMock.mockReturnValue({ mutateAsync: vi.fn(), isPending: false });
     useApiQueryMock.mockImplementation((queryKey: unknown) => {
       const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
       if (key === 'employee-attendance-setup') return { data: DEFAULT_HCM_SETUP, isLoading: false };
+      if (key === 'employee-attendance-action-setup') return { data: DEFAULT_HCM_SETUP, isLoading: false };
       if (key === 'employee-dashboard-profile') return { data: worker, isLoading: false };
+      if (key === 'employee-attendance-action-profile') return { data: worker, isLoading: false };
       if (key === 'employee-attendance-state') return { data: todayState, isLoading: false };
       if (key === 'employee-attendance-period-view') return { data: periodView, isLoading: false };
       if (key === 'employee-attendance-corrections') return { data: [], isLoading: false };
@@ -182,5 +192,58 @@ describe('EmployeeDashboard attendance view', () => {
     expect(payload.idempotencyKey).toMatch(/^clock-in-00000000-0000-0000-0000-000000000020-/);
     expect(payload.clientRequestId).toBe(payload.idempotencyKey);
     expect(payload.captureReference).toBe(payload.idempotencyKey);
+  });
+
+  it('sends the same evidence envelope from the direct check-in route', async () => {
+    apiClientPostMock.mockResolvedValue({ data: { eventId: 'evt-1' } });
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: vi.fn((success: PositionCallback) => success({
+          coords: {
+            accuracy: 9,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            latitude: 30.0444,
+            longitude: 31.2357,
+            speed: null,
+          },
+          timestamp: Date.now(),
+        } as GeolocationPosition)),
+      },
+    });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/employee/attendance/check-in?workplaceCode=CAIRO_HQ']}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <Routes>
+          <Route path="/employee/attendance/:direction" element={<EmployeeAttendanceAction />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledTimes(1));
+    const payload = apiClientPostMock.mock.calls[0]?.[1] as {
+      captureEvidence?: { geolocationCapture?: { captured?: boolean; policyRequiresGeolocation?: boolean } };
+      captureMethod?: string;
+      captureReference?: string;
+      clientRequestId?: string;
+      idempotencyKey?: string;
+      verificationStatus?: string;
+      workerId?: string;
+    };
+    expect(payload.workerId).toBe(worker.id);
+    expect(payload.idempotencyKey).toMatch(/^clock-in-00000000-0000-0000-0000-000000000020-/);
+    expect(payload.clientRequestId).toBe(payload.idempotencyKey);
+    expect(payload.captureReference).toBe(payload.idempotencyKey);
+    expect(payload.captureMethod).toBe('MOBILE_GEOFENCE');
+    expect(payload.verificationStatus).toBe('VERIFIED');
+    expect(payload.captureEvidence?.geolocationCapture).toMatchObject({
+      captured: true,
+      policyRequiresGeolocation: true,
+    });
   });
 });

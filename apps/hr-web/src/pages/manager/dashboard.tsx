@@ -491,6 +491,32 @@ export function ManagerDashboard() {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+            <div className="mt-5 border-t border-white/50 pt-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h3 className="text-sm font-bold text-slate-900">Team ledger</h3>
+                <span className="text-xs font-semibold text-slate-500">{rangeLabel(attendanceRange)}</span>
+              </div>
+              <div className="space-y-2">
+                {(teamAttendance?.workers ?? []).slice(0, 5).map((worker) => (
+                  <div key={worker.workerId} className="grid gap-2 rounded-xl border border-white/60 bg-white/55 px-3 py-2 text-xs md:grid-cols-[minmax(0,1.25fr)_repeat(3,minmax(0,0.75fr))]">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">{worker.name}</p>
+                      <p className="truncate text-slate-500">{worker.employeeId}{worker.departmentName ? ` - ${worker.departmentName}` : ''}</p>
+                    </div>
+                    <p className="font-semibold text-slate-700">Payable {formatHours(worker.payableHours)}</p>
+                    <p className="font-semibold text-slate-700">Late {worker.lateMinutes}m</p>
+                    <p className={cn('font-semibold', worker.exceptions > 0 ? 'text-amber-700' : 'text-emerald-700')}>
+                      {worker.payrollReady > 0 ? 'Payroll ready' : `${worker.exceptions} exceptions`}
+                    </p>
+                  </div>
+                ))}
+                {(teamAttendance?.workers ?? []).length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-white/70 bg-white/45 p-3 text-xs text-slate-500">
+                    Team attendance rows will appear when direct reports have policy-ledger activity in this range.
+                  </div>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
 

@@ -102,6 +102,13 @@ interface AttendancePeriodView {
   scope: 'SELF' | 'TEAM' | 'TENANT';
   totals: AttendancePeriodMetrics;
   series: Array<AttendancePeriodMetrics & { workDate: string }>;
+  workers: Array<AttendancePeriodMetrics & {
+    workerId: string;
+    employeeId: string;
+    name: string;
+    departmentName?: string;
+    managerId?: string;
+  }>;
   policyEvidence: {
     flexibleRuleCodes: string[];
     leavePolicyTypes: string[];
@@ -1410,11 +1417,27 @@ export function EmployeeAttendanceAction() {
           return;
         }
 
+        const hasLocation = hasCoordinateEvidence(capture.evidence);
+        const timestamp = new Date().toISOString();
+        const clockRequestId = `clock-${action}-${activeWorker.id}-${timestamp.replace(/[:.]/g, '')}`;
         await apiClient.post(`/time/attendance/${action === 'in' ? 'check-in' : 'check-out'}`, {
           workerId: activeWorker.id,
           workplaceCode,
           deviceId: 'browser',
-          timestamp: new Date().toISOString(),
+          timestamp,
+          idempotencyKey: clockRequestId,
+          clientRequestId: clockRequestId,
+          captureMethod: hasLocation ? 'MOBILE_GEOFENCE' : 'WEB_KIOSK',
+          captureDeviceKind: 'BROWSER',
+          captureReference: clockRequestId,
+          verificationStatus: hasLocation ? 'VERIFIED' : 'PENDING',
+          captureEvidence: {
+            geolocationCapture: {
+              captured: hasLocation,
+              failureReason: capture.failureReason,
+              policyRequiresGeolocation: requiresGeolocation,
+            },
+          },
           ...capture.evidence,
         });
         setMessage(`${actionLabel} recorded with timestamp and location evidence.`);
