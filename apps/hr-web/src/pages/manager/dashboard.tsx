@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { DataTable } from '@/components/common/data-table';
+import { buildManagerJourneyItems, type ManagerJourneyTone } from '@/lib/manager-journey';
 import { cn, formatDate } from '@/lib/utils';
 import {
   Users,
@@ -95,6 +96,13 @@ const attendanceRangeOptions: Array<{ value: AttendancePeriodRange; label: strin
   { value: 'MONTHLY', label: 'Monthly' },
   { value: 'NINETY_DAYS', label: '90 days' },
 ];
+
+const managerJourneyToneClasses: Record<ManagerJourneyTone, string> = {
+  attention: 'border-red-200 bg-red-50 text-red-700',
+  default: 'border-indigo-100 bg-indigo-50 text-indigo-700',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-orange-200 bg-orange-50 text-orange-700',
+};
 
 const teamPerformanceTrend = [
   { month: 'Jan', score: 78 },
@@ -241,6 +249,24 @@ export function ManagerDashboard() {
     () => (teamAttendance?.series ?? []).map((day) => ({ day: formatAttendanceDate(day.workDate), hours: day.payableHours })),
     [teamAttendance?.series],
   );
+  const managerJourneyItems = React.useMemo(() => buildManagerJourneyItems({
+    averagePerformance: data?.teamMetrics.averagePerformance,
+    directReportCount: data?.teamMetrics.headcount ?? directReports.length,
+    openGoals: data?.teamMetrics.openGoals,
+    pendingExpenses: expenseCount,
+    pendingLeaveApprovals: absenceCount,
+    pendingTimesheets: timesheetCount,
+    teamAttendanceExceptions: teamAttendance?.totals.exceptions,
+  }), [
+    absenceCount,
+    data?.teamMetrics.averagePerformance,
+    data?.teamMetrics.headcount,
+    data?.teamMetrics.openGoals,
+    directReports.length,
+    expenseCount,
+    teamAttendance?.totals.exceptions,
+    timesheetCount,
+  ]);
 
   const kpiTiles = [
     {
@@ -338,6 +364,28 @@ export function ManagerDashboard() {
             <Quote size={20} className="mt-1 -scale-x-100 shrink-0 text-amber-400" fill="currentColor" />
             <span className="italic">{dailyQuote}</span>
           </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {managerJourneyItems.map((item) => (
+            <Link key={item.label} to={item.href} className="group">
+              <div className="flex h-full min-h-[142px] flex-col justify-between rounded-[1.5rem] border border-white/70 bg-white/65 p-5 shadow-sm transition-all group-hover:-translate-y-0.5 group-hover:bg-white/90 group-hover:shadow-md">
+                <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{item.category}</p>
+                    <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-bold', managerJourneyToneClasses[item.tone])}>
+                      {item.status}
+                    </span>
+                  </div>
+                  <h2 className="mt-3 text-base font-extrabold text-slate-950">{item.label}</h2>
+                </div>
+                <div className="mt-5 flex items-center justify-between text-sm font-bold text-indigo-600">
+                  <span>{item.actionLabel}</span>
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </div>
+              </div>
+            </Link>
+          ))}
         </div>
 
         {/* Vivid bento KPI tiles */}
