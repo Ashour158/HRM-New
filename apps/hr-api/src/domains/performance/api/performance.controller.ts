@@ -42,6 +42,7 @@ import { DevelopmentPlanRepository } from '../repositories/development-plan.repo
 import { PerformanceNotificationRepository } from '../repositories/performance-notification.repository.js';
 import { PerformanceAnalyticsService } from '../services/performance-analytics.service.js';
 import { PerformanceNotificationService } from '../services/performance-notification.service.js';
+import { parseJsonRecord } from '../utils/feedback-360-records.js';
 
 import type * as dtos from './dtos.js';
 import {
@@ -296,13 +297,13 @@ export class PerformanceController {
       reviewerId: response.isAnonymous && !canSeeReviewer ? null : response.reviewerId.value,
       relationshipType: response.relationshipType,
       status: response.status,
-      competencyScores: this.normalizeFeedbackRecord(response.competencyScores),
+      competencyScores: parseJsonRecord<number>(response.competencyScores, 'number'),
       overallRating: response.overallRating,
       strengths: response.strengths,
       improvements: response.improvements,
       comments: response.comments,
-      dimensionScores: this.normalizeFeedbackRecord(response.dimensionScores),
-      areaComments: this.normalizeFeedbackRecord(response.areaComments),
+      dimensionScores: parseJsonRecord<number>(response.dimensionScores, 'number'),
+      areaComments: parseJsonRecord<string>(response.areaComments, 'string'),
       visibility: response.visibility,
       isAnonymous: response.isAnonymous,
       submittedAt: response.submittedAt,
@@ -310,19 +311,6 @@ export class PerformanceController {
       createdAt: response.createdAt,
       updatedAt: response.updatedAt,
     };
-  }
-
-  private normalizeFeedbackRecord<T extends number | string>(value: unknown): Record<string, T> | undefined {
-    if (!value) return undefined;
-    if (typeof value === 'string') {
-      try {
-        const parsed = JSON.parse(value) as unknown;
-        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, T> : undefined;
-      } catch {
-        return undefined;
-      }
-    }
-    return typeof value === 'object' && !Array.isArray(value) ? value as Record<string, T> : undefined;
   }
 
   private async canAccessWorker(req: Request, workerId: string): Promise<boolean> {

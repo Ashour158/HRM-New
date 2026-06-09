@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmployeeDashboard } from './dashboard';
@@ -127,7 +127,7 @@ describe('EmployeeDashboard attendance view', () => {
 
   it('shows the period ledger details and policy signals behind attendance', () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <EmployeeDashboard />
       </MemoryRouter>,
     );
@@ -138,5 +138,49 @@ describe('EmployeeDashboard attendance view', () => {
     expect(screen.getByText('Policy signals')).toBeInTheDocument();
     expect(screen.getByText('FLEX-CORE-09-15')).toBeInTheDocument();
     expect(screen.getByText('ROTATING_SHIFT_A')).toBeInTheDocument();
+  });
+
+  it('sends a stable idempotency key when recording employee check-in', async () => {
+    const checkInMutation = vi.fn(async (_payload: unknown) => ({}));
+    useApiMutationMock.mockImplementation((path: string) => ({
+      mutateAsync: path === '/time/attendance/check-in' ? checkInMutation : vi.fn(async () => ({})),
+      isPending: false,
+    }));
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: vi.fn((success: PositionCallback) => success({
+          coords: {
+            accuracy: 12,
+            altitude: null,
+            altitudeAccuracy: null,
+            heading: null,
+            latitude: 30.0444,
+            longitude: 31.2357,
+            speed: null,
+          },
+          timestamp: Date.now(),
+        } as GeolocationPosition)),
+      },
+    });
+    window.localStorage.setItem('pending-attendance-clock', 'in');
+
+    render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <EmployeeDashboard />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(checkInMutation).toHaveBeenCalledTimes(1));
+    const payload = checkInMutation.mock.calls[0]?.[0] as {
+      captureReference?: string;
+      clientRequestId?: string;
+      idempotencyKey?: string;
+      workerId?: string;
+    };
+    expect(payload.workerId).toBe(worker.id);
+    expect(payload.idempotencyKey).toMatch(/^clock-in-00000000-0000-0000-0000-000000000020-/);
+    expect(payload.clientRequestId).toBe(payload.idempotencyKey);
+    expect(payload.captureReference).toBe(payload.idempotencyKey);
   });
 });

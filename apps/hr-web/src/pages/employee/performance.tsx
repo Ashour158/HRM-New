@@ -52,10 +52,10 @@ interface PerformanceGoal {
 }
 
 interface FeedbackRequest {
-  id: string;
-  cycleId: string;
-  revieweeId: string;
-  reviewerId: string | null;
+  id: ApiId;
+  cycleId: ApiId;
+  revieweeId: ApiId;
+  reviewerId: ApiId | null;
   relationshipType: string;
   status: string;
   isAnonymous: boolean;
@@ -110,7 +110,7 @@ interface EmployeeActionPlan {
 }
 
 interface Feedback360Cycle {
-  id: string;
+  id: ApiId;
   name: string;
   status: string;
   anonymityEnabled?: boolean;
@@ -124,7 +124,7 @@ interface FeedbackRevieweeOption {
 }
 
 interface EligibleFeedbackReviewee {
-  id: string;
+  id: ApiId;
   employeeId?: string;
   firstName?: string;
   lastName?: string;
@@ -178,6 +178,13 @@ function employeeName(worker?: Worker, fallback = 'Employee') {
 function feedbackRevieweeName(reviewee?: EligibleFeedbackReviewee, fallback = 'Eligible colleague') {
   if (!reviewee) return fallback;
   return `${reviewee.firstName ?? ''} ${reviewee.lastName ?? ''}`.trim() || reviewee.email || reviewee.employeeId || fallback;
+}
+
+type ApiId = string | { value?: string } | null | undefined;
+
+function stableId(value: ApiId): string {
+  if (typeof value === 'string') return value;
+  return value?.value ?? '';
 }
 
 export function EmployeePerformance() {
@@ -247,22 +254,24 @@ export function EmployeePerformance() {
   const availableFeedbackCycles = React.useMemo(() => availableFeedbackCyclesData ?? [], [availableFeedbackCyclesData]);
   const eligibleReviewees = React.useMemo<FeedbackRevieweeOption[]>(() => {
     const unique = new Map<string, FeedbackRevieweeOption>();
-    const eligibleById = new Map(eligibleFeedbackReviewees.map((item) => [item.id, item]));
+    const eligibleById = new Map(eligibleFeedbackReviewees.map((item) => [stableId(item.id), item]));
     for (const request of feedbackRequests) {
-      if (request.revieweeId && request.revieweeId !== workerId) {
-        const reviewee = eligibleById.get(request.revieweeId);
-        unique.set(request.revieweeId, {
-          workerId: request.revieweeId,
-          label: feedbackRevieweeName(reviewee, `Assigned reviewee - ${request.revieweeId.slice(-6)}`),
+      const revieweeId = stableId(request.revieweeId);
+      if (revieweeId && revieweeId !== workerId) {
+        const reviewee = eligibleById.get(revieweeId);
+        unique.set(revieweeId, {
+          workerId: revieweeId,
+          label: feedbackRevieweeName(reviewee, `Assigned reviewee - ${revieweeId.slice(-6)}`),
           relationshipType: request.relationshipType,
           source: 'ASSIGNED',
         });
       }
     }
     for (const reviewee of eligibleFeedbackReviewees) {
-      if (reviewee.id === workerId || unique.has(reviewee.id)) continue;
-      unique.set(reviewee.id, {
-        workerId: reviewee.id,
+      const revieweeId = stableId(reviewee.id);
+      if (!revieweeId || revieweeId === workerId || unique.has(revieweeId)) continue;
+      unique.set(revieweeId, {
+        workerId: revieweeId,
         label: feedbackRevieweeName(reviewee),
         relationshipType: reviewee.relationshipType,
         source: 'ELIGIBLE',
@@ -273,7 +282,7 @@ export function EmployeePerformance() {
 
   React.useEffect(() => {
     const pending = feedbackRequests.find((request) => request.status === 'PENDING');
-    setSelectedFeedbackId((current) => current || pending?.id || feedbackRequests[0]?.id || '');
+    setSelectedFeedbackId((current) => current || stableId(pending?.id) || stableId(feedbackRequests[0]?.id) || '');
   }, [feedbackRequests]);
 
   React.useEffect(() => {
@@ -282,14 +291,14 @@ export function EmployeePerformance() {
       const fallback = eligibleReviewees[0];
       return {
         ...current,
-        cycleId: current.cycleId || availableFeedbackCycles[0]?.id || '',
+        cycleId: current.cycleId || stableId(availableFeedbackCycles[0]?.id) || '',
         revieweeId: selected ? current.revieweeId : fallback?.workerId ?? '',
         relationshipType: selected?.relationshipType ?? fallback?.relationshipType ?? current.relationshipType,
       };
     });
   }, [availableFeedbackCycles, eligibleReviewees]);
 
-  const selectedFeedback = feedbackRequests.find((request) => request.id === selectedFeedbackId);
+  const selectedFeedback = feedbackRequests.find((request) => stableId(request.id) === selectedFeedbackId);
   const pendingFeedbackCount = feedbackRequests.filter((request) => request.status === 'PENDING').length;
   const unreadNotifications = notifications.filter((notification) => !notification.readAt).length;
 
@@ -299,7 +308,7 @@ export function EmployeePerformance() {
     setError('');
     setMessage('');
     try {
-      await apiClient.post(`/performance/feedback-360-responses/${selectedFeedback.id}/commands/submit`, {
+      await apiClient.post(`/performance/feedback-360-responses/${stableId(selectedFeedback.id)}/commands/submit`, {
         competencyScores: numericScores(feedbackForm.dimensionScores),
         dimensionScores: numericScores(feedbackForm.dimensionScores),
         areaComments: trimComments(feedbackForm.areaComments),
@@ -573,11 +582,14 @@ export function EmployeePerformance() {
                     onChange={(event) => setSelectedFeedbackId(event.target.value)}
                     className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   >
-                    {feedbackRequests.map((request) => (
-                      <option key={request.id} value={request.id}>
-                        {request.relationshipType} - {request.status} {request.isAnonymous ? '(anonymous)' : ''}
-                      </option>
-                    ))}
+                    {feedbackRequests.map((request) => {
+                      const requestId = stableId(request.id);
+                      return (
+                        <option key={requestId} value={requestId}>
+                          {request.relationshipType} - {request.status} {request.isAnonymous ? '(anonymous)' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -667,7 +679,10 @@ export function EmployeePerformance() {
                   onChange={(event) => setDirectFeedbackForm({ ...directFeedbackForm, cycleId: event.target.value })}
                   className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
-                  {availableFeedbackCycles.map((cycle) => <option key={cycle.id} value={cycle.id}>{cycle.name}</option>)}
+                  {availableFeedbackCycles.map((cycle) => {
+                    const cycleId = stableId(cycle.id);
+                    return <option key={cycleId} value={cycleId}>{cycle.name}</option>;
+                  })}
                 </select>
               </div>
               <label className="flex items-center gap-2 rounded-md border bg-slate-50 p-3 text-sm">

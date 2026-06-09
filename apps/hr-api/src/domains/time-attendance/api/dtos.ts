@@ -106,6 +106,8 @@ export const CheckInOutDtoSchema = z.object({
   accuracyMeters: OptionalNullableNumberSchema,
   deviceId: z.string().optional(),
   timestamp: z.coerce.date().optional(),
+  idempotencyKey: z.string().trim().min(1).optional(),
+  clientRequestId: z.string().trim().min(1).optional(),
   captureMethod: CaptureMethodSchema.optional(),
   captureDeviceKind: z.string().optional(),
   captureReference: z.string().optional(),
@@ -121,6 +123,8 @@ export class CheckInOutDto {
   @ApiPropertyOptional() accuracyMeters?: number;
   @ApiPropertyOptional() deviceId?: string;
   @ApiPropertyOptional() timestamp?: Date;
+  @ApiPropertyOptional() idempotencyKey?: string;
+  @ApiPropertyOptional() clientRequestId?: string;
   @ApiPropertyOptional() captureMethod?: z.infer<typeof CaptureMethodSchema>;
   @ApiPropertyOptional() captureDeviceKind?: string;
   @ApiPropertyOptional() captureReference?: string;

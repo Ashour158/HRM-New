@@ -163,8 +163,8 @@ export function AdminIntegrations() {
     queryFn: async () => unwrapApiData<{ adapters: IntegrationProviderReadiness[] }>(await apiClient.get('/hr/integrations/readiness')),
   });
 
-  const adapters = statusQuery.data?.adapters ?? [];
-  const readinessAdapters = readinessQuery.data?.adapters ?? [];
+  const adapters = React.useMemo(() => statusQuery.data?.adapters ?? [], [statusQuery.data?.adapters]);
+  const readinessAdapters = React.useMemo(() => readinessQuery.data?.adapters ?? [], [readinessQuery.data?.adapters]);
   const selected = adapters.find((adapter) => adapter.adapterName === selectedAdapter) ?? adapters[0];
 
   React.useEffect(() => {

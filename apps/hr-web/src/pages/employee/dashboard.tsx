@@ -42,15 +42,6 @@ import {
   UserCircle,
   UserRoundCheck,
 } from 'lucide-react';
-import {
-  Area,
-  AreaChart as ReAreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as ReTooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import type { HcmSetupConfig, Worker } from '@/types';
 
 const dailyQuotes = [
@@ -166,6 +157,8 @@ interface ClockPayload {
   accuracyMeters?: number;
   deviceId?: string;
   timestamp?: string;
+  idempotencyKey?: string;
+  clientRequestId?: string;
   captureMethod?: 'API_IMPORT' | 'BIOMETRIC_DEVICE' | 'FACIAL_RECOGNITION' | 'MANUAL_CORRECTION' | 'MOBILE_GEOFENCE' | 'QR_CODE' | 'RFID_CARD' | 'WEB_KIOSK';
   captureDeviceKind?: string;
   captureReference?: string;
@@ -304,6 +297,7 @@ function captureBrowserPosition(): Promise<GeolocationCapture> {
   if (!navigator.geolocation) return Promise.resolve({ evidence: {}, failureReason: 'unsupported' });
   return new Promise((resolve) => {
     let settled = false;
+    // eslint-disable-next-line prefer-const
     let timeoutId: number | undefined;
 
     const finish = (capture: GeolocationCapture) => {
@@ -513,6 +507,10 @@ export function EmployeeDashboard() {
       lateMinutes: day.lateMinutes,
     }));
   }, [attendancePeriodView?.series, today, todayState?.totalWorkedMinutes]);
+  const attendanceChartMaxHours = React.useMemo(
+    () => Math.max(1, ...attendanceSeries.map((point) => point.hours || 0)),
+    [attendanceSeries],
+  );
   const attendanceSummary = React.useMemo(() => ({
     summary: {
       payableMinutes: Math.round((attendancePeriodView?.totals.payableHours ?? 0) * 60),
@@ -555,19 +553,23 @@ export function EmployeeDashboard() {
     todayState?.totalWorkedMinutes,
   ]);
 
-  const buildClockPayload = async (): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
+  const buildClockPayload = React.useCallback(async (direction: 'in' | 'out'): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
     if (!selectedWorkerId) return null;
     const capture = await captureBrowserPosition();
     const hasLocation = hasCoordinateEvidence(capture.evidence);
+    const timestamp = new Date().toISOString();
+    const clockRequestId = `clock-${direction}-${selectedWorkerId}-${timestamp.replace(/[:.]/g, '')}`;
     return {
       payload: {
         workerId: selectedWorkerId,
         workplaceCode,
         deviceId: 'browser',
-        timestamp: new Date().toISOString(),
+        timestamp,
+        idempotencyKey: clockRequestId,
+        clientRequestId: clockRequestId,
         captureMethod: hasLocation ? 'MOBILE_GEOFENCE' : 'WEB_KIOSK',
         captureDeviceKind: 'BROWSER',
-        captureReference: `browser-${Date.now()}`,
+        captureReference: clockRequestId,
         verificationStatus: hasLocation ? 'VERIFIED' : 'PENDING',
         captureEvidence: {
           geolocationCapture: {
@@ -580,16 +582,16 @@ export function EmployeeDashboard() {
       },
       failureReason: capture.failureReason,
     };
-  };
+  }, [requiresGeolocation, selectedWorkerId, workplaceCode]);
 
-  const recordClock = async (direction: 'in' | 'out') => {
+  const recordClock = React.useCallback(async (direction: 'in' | 'out') => {
     setClockError('');
     setClockMessage('Capturing attendance evidence...');
     setManualPunchDirection(null);
     setManualPunchReason('');
     setClockPendingDirection(direction);
     try {
-      const capture = await buildClockPayload();
+      const capture = await buildClockPayload(direction);
       if (!capture) {
         setClockMessage('');
         setClockError('No linked employee profile was found for attendance capture.');
@@ -639,7 +641,7 @@ export function EmployeeDashboard() {
     } finally {
       setClockPendingDirection(null);
     }
-  };
+  }, [addNotification, buildClockPayload, checkInMutation, checkOutMutation, requiresGeolocation]);
 
   const requestManualPunchReview = async () => {
     if (!selectedWorkerId || !manualPunchDirection) return;
@@ -702,7 +704,7 @@ export function EmployeeDashboard() {
     window.localStorage.removeItem('pending-attendance-clock');
     setPendingClockCommand(null);
     void recordClock(action);
-  }, [clockPendingDirection, pendingClockCommand, selectedWorkerId, todayState, todayState?.canCheckIn, todayState?.canCheckOut]);
+  }, [clockPendingDirection, pendingClockCommand, recordClock, selectedWorkerId, todayState]);
 
   const submitOnDuty = async () => {
     if (!selectedWorkerId || !onDutyReason.trim()) return;
@@ -767,7 +769,7 @@ export function EmployeeDashboard() {
     }
   };
 
-  const timeline = todayState?.events ?? [];
+  const timeline = React.useMemo(() => todayState?.events ?? [], [todayState?.events]);
   const latestMappedEvent = React.useMemo(
     () => [...timeline].reverse().find((event) => hasCoordinateEvidence(event.location)),
     [timeline],
@@ -879,22 +881,22 @@ export function EmployeeDashboard() {
             </Select>
           </div>
         </div>
-        <div className="-ml-2 h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <ReAreaChart data={attendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-              <defs>
-                <linearGradient id="fusionAttendance" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
-                  <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.02} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-              <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
-              <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
-              <Area type="monotone" dataKey="hours" stroke="#818cf8" strokeWidth={3} fill="url(#fusionAttendance)" />
-            </ReAreaChart>
-          </ResponsiveContainer>
+        <div className="h-64 min-h-[256px] min-w-0 overflow-hidden rounded-2xl bg-white/55 p-4">
+          <div className="flex h-full items-end gap-2" role="img" aria-label={`${rangeLabel(attendanceRange)} attendance hours trend`}>
+            {attendanceSeries.map((point) => {
+              const height = Math.max(8, Math.round(((point.hours || 0) / attendanceChartMaxHours) * 100));
+              return (
+                <div key={point.day} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2 text-center">
+                  <div
+                    className="mx-auto w-full max-w-12 rounded-t-2xl bg-gradient-to-t from-indigo-500 to-violet-300 shadow-sm shadow-indigo-500/20"
+                    style={{ height: `${height}%` }}
+                    title={`${point.day}: ${point.hours.toFixed(1)} hours`}
+                  />
+                  <span className="truncate text-[11px] font-semibold text-slate-500">{point.day}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 

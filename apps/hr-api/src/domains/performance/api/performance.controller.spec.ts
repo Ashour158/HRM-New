@@ -530,6 +530,41 @@ describe('PerformanceController', () => {
     })]);
   });
 
+  it('rejects malformed 360 feedback score records instead of casting them', async () => {
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(workerId),
+      email: { value: 'employee@example.com' },
+    });
+    (feedback360ResponseRepo.findByReviewee as ReturnType<typeof vi.fn>).mockResolvedValue([{
+      id: new Uuid('00000000-0000-0000-0000-000000000301'),
+      tenantId: new Uuid(tenantId),
+      cycleId: new Uuid('00000000-0000-0000-0000-000000000200'),
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid('00000000-0000-0000-0000-000000000202'),
+      relationshipType: 'PEER',
+      status: 'SUBMITTED',
+      competencyScores: '{"communication":"4"}',
+      dimensionScores: { communication: '4' },
+      areaComments: '{"communication":4}',
+      visibility: 'ANONYMOUS',
+      isAnonymous: true,
+      createdAt: new Date('2026-05-20T09:00:00.000Z'),
+      updatedAt: new Date('2026-06-01T09:00:00.000Z'),
+    }]);
+
+    const result = await controller.getFeedback360ResponsesByReviewee(workerId, requestWithActor(actor({
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_READ'],
+      email: 'employee@example.com',
+    })));
+
+    expect(result).toEqual([expect.objectContaining({
+      competencyScores: undefined,
+      dimensionScores: undefined,
+      areaComments: undefined,
+    })]);
+  });
+
   it('returns the manager review queue for a manager-scoped request', async () => {
     (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: new Uuid(actorId),
