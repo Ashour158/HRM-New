@@ -20,7 +20,7 @@ export class MentalHealthCaseRepository extends BaseRepository<'mental_health_ca
 
   async findByTenant(tenantId: Uuid): Promise<MentalHealthCase[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['mental_health_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['mental_health_cases']));
   }
 
 

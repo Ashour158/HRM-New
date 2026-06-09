@@ -20,7 +20,7 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
 
   async findBySubjectWorker(subjectWorkerId: Uuid): Promise<Feedback360Cycle[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('subject_worker_id', '=', subjectWorkerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Feedback360Cycle): Promise<void> {

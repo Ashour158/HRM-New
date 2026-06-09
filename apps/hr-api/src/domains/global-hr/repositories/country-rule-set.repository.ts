@@ -33,7 +33,7 @@ export class CountryRuleSetRepository {
       .selectAll()
       .where('country_code', '=', countryCode)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async findActiveByCountryCode(countryCode: string): Promise<CountryRuleSet | undefined> {

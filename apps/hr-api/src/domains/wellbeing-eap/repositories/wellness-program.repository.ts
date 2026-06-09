@@ -20,7 +20,7 @@ export class WellnessProgramRepository extends BaseRepository<'wellness_programs
 
   async findByTenant(tenantId: Uuid): Promise<WellnessProgram[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['wellness_programs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['wellness_programs']));
   }
 
 

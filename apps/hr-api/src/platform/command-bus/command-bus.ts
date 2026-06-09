@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { Kysely, Transaction } from 'kysely';
 import { Uuid, AggregateRoot } from '@hcm/shared-kernel';
@@ -244,6 +244,21 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
     commandPatterns: [/Benefits/i, /SpendingAccount/i, /CarrierReconciliation/i],
   },
   {
+    area: 'GLOBAL_HR',
+    aggregateTypes: ['CountryRuleSet', 'StatutoryLeaveType', 'WorksCouncilConsultation', 'WorkAuthorizationCase'],
+    commandPatterns: [/CountryRuleSet/i, /StatutoryLeaveType/i, /WorksCouncil/i, /WorkAuthorization/i],
+  },
+  {
+    area: 'DEI_ANALYTICS',
+    aggregateTypes: ['DeiReport', 'PayGapReport', 'PayEquityReview', 'AttritionSegmentReport'],
+    commandPatterns: [/Dei/i, /PayGap/i, /PayEquity/i, /AttritionSegment/i],
+  },
+  {
+    area: 'ENGAGEMENT',
+    aggregateTypes: ['EngagementSurvey', 'SurveyResponse', 'Feedback360Cycle', 'RecognitionProgram', 'RecognitionRecord'],
+    commandPatterns: [/Engagement/i, /SurveyResponse/i, /Feedback360/i, /Recognition/i],
+  },
+  {
     area: 'COUNTRY_POLICY',
     aggregateTypes: ['CountryPolicyPack', 'CountryPolicyValidationRun', 'CountryPolicyImpactSimulation'],
     commandPatterns: [/CountryPolicy/i],
@@ -252,6 +267,12 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
     area: 'COMPLIANCE',
     aggregateTypes: ['PolicyDocument', 'PolicyAcknowledgement', 'LegalHold', 'StatutoryReport'],
     commandPatterns: [/PolicyDocument/i, /PolicyAcknowledgement/i, /LegalHold/i, /StatutoryReport/i, /Compliance/i],
+  },
+  {
+    area: 'ACCESS_GOVERNANCE',
+    aggregateTypes: [],
+    // Every business command must at least pass applied access governance.
+    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Award|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Create|Deactivate|Deprecate|Dispute|Draft|End|Enroll|Enter|Execute|Exempt|Expire|Extend|Fail|Fill|Finalize|Flag|Freeze|Generate|Implement|Investigate|Launch|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Schedule|Screen|Send|Setup|Skip|Start|Submit|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
   },
 ];
 
@@ -320,7 +341,7 @@ export class CommandBus implements OnModuleInit {
     private readonly fsmFramework: FsmFramework,
     private readonly transitionLedger: TransitionLedgerService,
     _eventBus: EventBus,
-    @Optional() private readonly hcmSetup?: Pick<HcmSetupService, 'getSetup'>,
+    @Optional() @Inject(HcmSetupService) private readonly hcmSetup?: Pick<HcmSetupService, 'getSetup'>,
   ) {
     this.db = createKyselyInstance(getPool());
     this.tenantValidator = new TenantValidator(this.db);

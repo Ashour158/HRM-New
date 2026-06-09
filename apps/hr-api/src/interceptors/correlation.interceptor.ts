@@ -22,6 +22,7 @@ export class CorrelationInterceptor implements NestInterceptor {
 
     const correlationId =
       (request.headers['x-correlation-id'] as string | undefined) ??
+      request.correlationId ??
       generateCorrelationId().value;
 
     request.correlationId = correlationId;

@@ -61,6 +61,7 @@ function service(): AccessGovernanceService {
     updateFieldAccessPolicy: vi.fn(),
     createSodRule: vi.fn(),
     updateSodRule: vi.fn(),
+    remediateSodViolation: vi.fn(),
   } as unknown as AccessGovernanceService;
 }
 
@@ -144,6 +145,13 @@ describe('AccessGovernanceController', () => {
       rotatedAt: null,
       revokedAt: null,
       revokedReason: null,
+      credentialLifecycle: {
+        storageMode: 'HASH_ONLY_EXTERNAL_VAULT_READY',
+        secretMaterialState: 'ONE_TIME_SECRET_RETURNED',
+        externalVaultBoundary: 'PENDING_EXTERNAL_VAULT_INTEGRATION',
+        vaultSecretRef: null,
+        rotationDueAt: null,
+      },
       createdBy: '00000000-0000-0000-0000-000000000010',
       createdAt: '2026-06-03T00:00:00.000Z',
       updatedAt: '2026-06-03T00:00:00.000Z',
@@ -230,6 +238,47 @@ describe('AccessGovernanceController', () => {
       new Uuid('00000000-0000-0000-0000-000000000010'),
     );
     expect(result.decision).toBe('APPROVED');
+  });
+
+  it('routes SoD remediation commands through the governance service', async () => {
+    const fakeService = service();
+    vi.mocked(fakeService.remediateSodViolation).mockResolvedValue({
+      ruleId: '00000000-0000-0000-0000-0000000000a0',
+      ruleCode: 'PAYROLL_REQUEST_APPROVE',
+      subjectUserId: '00000000-0000-0000-0000-000000000080',
+      action: 'REMOVE_CONFLICTING_ROLE',
+      removedRoleId: '00000000-0000-0000-0000-000000000091',
+      retainedRoleId: '00000000-0000-0000-0000-000000000090',
+      evidence: { caseId: 'SOD-101' },
+      remediatedBy: '00000000-0000-0000-0000-000000000010',
+      remediatedAt: '2026-06-03T00:00:00.000Z',
+      externalWorkflowBoundary: 'RECORDED_FOR_GRC_OR_TICKETING_HANDOFF',
+    });
+    const controller = new AccessGovernanceController(fakeService) as unknown as {
+      remediateSodViolation: (ruleId: string, dto: Record<string, unknown>, req: Request) => Promise<Record<string, unknown>>;
+    };
+
+    const result = await controller.remediateSodViolation(
+      '00000000-0000-0000-0000-0000000000a0',
+      {
+        subjectUserId: '00000000-0000-0000-0000-000000000080',
+        violatingRoleId: '00000000-0000-0000-0000-000000000090',
+        conflictingRoleId: '00000000-0000-0000-0000-000000000091',
+        action: 'REMOVE_CONFLICTING_ROLE',
+        evidence: { caseId: 'SOD-101' },
+      },
+      request(['COMPLIANCE_OFFICER']),
+    );
+
+    expect(fakeService.remediateSodViolation).toHaveBeenCalledWith(
+      new Uuid('00000000-0000-0000-0000-000000000001'),
+      expect.objectContaining({
+        ruleId: '00000000-0000-0000-0000-0000000000a0',
+        action: 'REMOVE_CONFLICTING_ROLE',
+      }),
+      new Uuid('00000000-0000-0000-0000-000000000010'),
+    );
+    expect(result.externalWorkflowBoundary).toBe('RECORDED_FOR_GRC_OR_TICKETING_HANDOFF');
   });
 
   it('blocks write operations for non-governance roles', async () => {

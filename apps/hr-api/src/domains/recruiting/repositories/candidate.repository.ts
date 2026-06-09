@@ -54,7 +54,7 @@ export class CandidateRepository {
       .where('requisition_id', '=', requisitionId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -67,7 +67,7 @@ export class CandidateRepository {
       .where('status', '=', status)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

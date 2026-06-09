@@ -25,12 +25,16 @@ import type {
   IssuedServiceAccountCredentialView,
   IssueServiceAccountCredentialDto,
   PermissionView,
+  RemediateSodViolationDto,
   RevokeServiceAccountCredentialDto,
   RotateServiceAccountCredentialDto,
   RolePermissionView,
   RoleView,
+  ServiceAccountCredentialLifecycleView,
   ServiceAccountCredentialView,
   ServiceAccountView,
+  SodRemediationAction,
+  SodRemediationView,
   SodRuleView,
   UpdateAbacPolicyDto,
   UpdateAccessReviewCampaignDto,
@@ -63,6 +67,7 @@ const SERVICE_ACCOUNT_CREDENTIAL_STATUSES = new Set(['ACTIVE', 'ROTATED', 'REVOK
 const ACCESS_REVIEW_STATUSES = new Set(['DRAFT', 'LAUNCHED', 'IN_REVIEW', 'COMPLETED', 'CANCELLED']);
 const ACCESS_REVIEW_DECISIONS = new Set(['PENDING', 'APPROVED', 'REVOKE', 'ESCALATE']);
 const ACCESS_REVIEW_WORKFLOW_EVENTS = new Set(['LAUNCHED', 'REMINDER_SENT', 'ESCALATED', 'COMPLETED', 'REVOKE_FULFILLED']);
+const SOD_REMEDIATION_ACTIONS = new Set(['REMOVE_VIOLATING_ROLE', 'REMOVE_CONFLICTING_ROLE', 'DOCUMENT_EXCEPTION']);
 
 @Injectable()
 export class AccessGovernanceService {
@@ -274,8 +279,13 @@ export class AccessGovernanceService {
       },
     });
 
+    const view = this.toServiceAccountCredentialView(credential);
     return {
-      ...this.toServiceAccountCredentialView(credential),
+      ...view,
+      credentialLifecycle: {
+        ...view.credentialLifecycle,
+        secretMaterialState: 'ONE_TIME_SECRET_RETURNED',
+      },
       oneTimeSecret: generated.oneTimeSecret,
     };
   }
@@ -387,6 +397,7 @@ export class AccessGovernanceService {
   }
 
   async createAccessReviewItem(tenantId: Uuid, dto: CreateAccessReviewItemDto): Promise<AccessReviewItemView[]> {
+    const assignedReviewerId = this.optionalUuidValue(dto.reviewerId, 'reviewerId');
     const items = await this.repository.createAccessReviewItem(tenantId, {
       campaign_id: this.uuid(this.requiredString(dto.campaignId, 'campaignId'), 'campaignId').value,
       subject_user_id: this.optionalUuidValue(dto.subjectUserId, 'subjectUserId'),
@@ -395,9 +406,9 @@ export class AccessGovernanceService {
       permission_id: this.optionalUuidValue(dto.permissionId, 'permissionId'),
       service_account_id: this.optionalUuidValue(dto.serviceAccountId, 'serviceAccountId'),
       decision: this.enumValue(dto.decision ?? 'PENDING', ACCESS_REVIEW_DECISIONS, 'decision'),
-      reviewer_id: null,
+      reviewer_id: assignedReviewerId,
       reviewed_at: null,
-      evidence: dto.evidence ?? {},
+      evidence: this.withReviewerAssignmentEvidence(dto.evidence, assignedReviewerId),
     });
     return items.map((item) => this.toAccessReviewItemView(item));
   }
@@ -409,13 +420,21 @@ export class AccessGovernanceService {
     reviewerId?: Uuid,
   ): Promise<AccessReviewItemView> {
     const decision = dto.decision !== undefined ? this.enumValue(dto.decision, ACCESS_REVIEW_DECISIONS, 'decision') : undefined;
+    const assignedReviewerId = dto.reviewerId !== undefined ? this.optionalUuidValue(dto.reviewerId, 'reviewerId') : undefined;
+    const decisionReviewerId = reviewerId?.value ?? assignedReviewerId;
+    const decidedAt = new Date();
     const item = await this.repository.updateAccessReviewItem(tenantId, itemId, {
       ...(decision !== undefined ? {
         decision,
-        reviewer_id: reviewerId?.value ?? null,
-        reviewed_at: decision === 'PENDING' ? null : new Date(),
+        ...(decisionReviewerId !== undefined ? { reviewer_id: decisionReviewerId } : {}),
+        reviewed_at: decision === 'PENDING' ? null : decidedAt,
       } : {}),
-      ...(dto.evidence !== undefined ? { evidence: dto.evidence } : {}),
+      ...(decision === undefined && assignedReviewerId !== undefined ? { reviewer_id: assignedReviewerId } : {}),
+      ...(decision !== undefined
+        ? { evidence: this.withDecisionEvidence(dto.evidence, decision, decisionReviewerId ?? null, decidedAt) }
+        : dto.evidence !== undefined
+          ? { evidence: dto.evidence }
+          : {}),
     });
     if (!item) throw new NotFoundException('Access review item not found');
     if (decision === 'REVOKE') {
@@ -426,7 +445,7 @@ export class AccessGovernanceService {
 
   async launchAccessReviewCampaign(tenantId: Uuid, campaignId: Uuid, actorId?: Uuid): Promise<AccessReviewWorkflowEventView> {
     const campaign = await this.getAccessReviewCampaignOrThrow(tenantId, campaignId);
-    const pendingCount = await this.pendingAccessReviewItemCount(tenantId, campaignId);
+    const pendingItems = await this.pendingAccessReviewItems(tenantId, campaignId);
     await this.repository.updateAccessReviewCampaign(tenantId, campaignId, {
       status: 'IN_REVIEW',
       launched_at: new Date(),
@@ -436,8 +455,8 @@ export class AccessGovernanceService {
       actorId,
       targetRole: campaign.reviewer_role,
       message: 'Access review campaign launched',
-      pendingItemCount: pendingCount,
-      payload: { campaignCode: campaign.code },
+      pendingItemCount: pendingItems.length,
+      payload: this.accessReviewPendingPayload(campaign, pendingItems),
     });
   }
 
@@ -451,7 +470,7 @@ export class AccessGovernanceService {
     if (campaign.status === 'COMPLETED' || campaign.status === 'CANCELLED') {
       throw new BadRequestException('Completed or cancelled access reviews cannot receive reminders');
     }
-    const pendingCount = await this.pendingAccessReviewItemCount(tenantId, campaignId);
+    const pendingItems = await this.pendingAccessReviewItems(tenantId, campaignId);
     await this.repository.updateAccessReviewCampaign(tenantId, campaignId, {
       status: 'IN_REVIEW',
       last_reminder_at: new Date(),
@@ -461,8 +480,8 @@ export class AccessGovernanceService {
       actorId,
       targetRole: campaign.reviewer_role,
       message: this.optionalString(dto.message) ?? 'Access certification reminder sent',
-      pendingItemCount: pendingCount,
-      payload: { campaignCode: campaign.code },
+      pendingItemCount: pendingItems.length,
+      payload: this.accessReviewPendingPayload(campaign, pendingItems),
     });
   }
 
@@ -476,19 +495,20 @@ export class AccessGovernanceService {
     if (campaign.status === 'COMPLETED' || campaign.status === 'CANCELLED') {
       throw new BadRequestException('Completed or cancelled access reviews cannot be escalated');
     }
-    const pendingCount = await this.pendingAccessReviewItemCount(tenantId, campaignId);
+    const pendingItems = await this.pendingAccessReviewItems(tenantId, campaignId);
+    const escalationCount = (campaign.escalation_count ?? 0) + 1;
     await this.repository.updateAccessReviewCampaign(tenantId, campaignId, {
       status: 'IN_REVIEW',
       escalated_at: new Date(),
-      escalation_count: (campaign.escalation_count ?? 0) + 1,
+      escalation_count: escalationCount,
     });
     return this.createAccessReviewWorkflowEvent(tenantId, campaignId, {
       eventType: 'ESCALATED',
       actorId,
       targetRole: campaign.reviewer_role,
       message: this.optionalString(dto.message) ?? 'Access certification escalated',
-      pendingItemCount: pendingCount,
-      payload: { campaignCode: campaign.code, escalationCount: (campaign.escalation_count ?? 0) + 1 },
+      pendingItemCount: pendingItems.length,
+      payload: this.accessReviewPendingPayload(campaign, pendingItems, { escalationCount }),
     });
   }
 
@@ -590,6 +610,63 @@ export class AccessGovernanceService {
     return this.toSodRuleView(rule);
   }
 
+  async remediateSodViolation(
+    tenantId: Uuid,
+    dto: RemediateSodViolationDto,
+    actorId?: Uuid,
+  ): Promise<SodRemediationView> {
+    const ruleId = this.uuid(this.requiredString(dto.ruleId, 'ruleId'), 'ruleId');
+    const subjectUserId = this.uuid(this.requiredString(dto.subjectUserId, 'subjectUserId'), 'subjectUserId');
+    const violatingRoleId = this.uuid(this.requiredString(dto.violatingRoleId, 'violatingRoleId'), 'violatingRoleId');
+    const conflictingRoleId = this.uuid(this.requiredString(dto.conflictingRoleId, 'conflictingRoleId'), 'conflictingRoleId');
+    const action = this.enumValue(dto.action ?? 'DOCUMENT_EXCEPTION', SOD_REMEDIATION_ACTIONS, 'action') as SodRemediationAction;
+    const rule = (await this.repository.listSodRules(tenantId)).find((candidate) => candidate.id === ruleId.value);
+    if (!rule) throw new NotFoundException('SoD rule not found');
+    this.assertSodRolePairCovered(rule, violatingRoleId.value, conflictingRoleId.value);
+
+    const removedRoleId = action === 'REMOVE_VIOLATING_ROLE'
+      ? violatingRoleId
+      : action === 'REMOVE_CONFLICTING_ROLE'
+        ? conflictingRoleId
+        : null;
+    const retainedRoleId = action === 'REMOVE_VIOLATING_ROLE'
+      ? conflictingRoleId
+      : action === 'REMOVE_CONFLICTING_ROLE'
+        ? violatingRoleId
+        : null;
+    if (removedRoleId) {
+      await this.repository.removeUserRole(tenantId, subjectUserId, removedRoleId);
+    }
+
+    const remediatedAt = new Date();
+    const evidence = this.withSodRemediationEvidence(dto.evidence, rule, action, removedRoleId?.value ?? null, retainedRoleId?.value ?? null);
+    const remediation: SodRemediationView = {
+      ruleId: rule.id,
+      ruleCode: rule.code,
+      subjectUserId: subjectUserId.value,
+      action,
+      removedRoleId: removedRoleId?.value ?? null,
+      retainedRoleId: retainedRoleId?.value ?? null,
+      evidence,
+      remediatedBy: actorId?.value ?? null,
+      remediatedAt: remediatedAt.toISOString(),
+      externalWorkflowBoundary: 'RECORDED_FOR_GRC_OR_TICKETING_HANDOFF',
+    };
+
+    await this.recordGovernanceEvent(tenantId, {
+      eventName: 'SodViolationRemediated',
+      aggregateType: 'SodRule',
+      aggregateId: ruleId,
+      actorId,
+      payload: {
+        ...this.evidenceRecord(dto.evidence),
+        ...remediation,
+      },
+    });
+
+    return remediation;
+  }
+
   private async getAccessReviewCampaignOrThrow(tenantId: Uuid, campaignId: Uuid): Promise<AccessReviewCampaignRecord> {
     const campaign = await this.repository.findAccessReviewCampaign(tenantId, campaignId);
     if (!campaign) throw new NotFoundException('Access review campaign not found');
@@ -597,8 +674,31 @@ export class AccessGovernanceService {
   }
 
   private async pendingAccessReviewItemCount(tenantId: Uuid, campaignId: Uuid): Promise<number> {
+    return (await this.pendingAccessReviewItems(tenantId, campaignId)).length;
+  }
+
+  private async pendingAccessReviewItems(tenantId: Uuid, campaignId: Uuid): Promise<AccessReviewItemRecord[]> {
     const items = await this.repository.listAccessReviewItemsForCampaign(tenantId, campaignId);
-    return items.filter((item) => item.decision === 'PENDING').length;
+    return items.filter((item) => item.decision === 'PENDING');
+  }
+
+  private accessReviewPendingPayload(
+    campaign: AccessReviewCampaignRecord,
+    pendingItems: AccessReviewItemRecord[],
+    extra: Record<string, unknown> = {},
+  ): Record<string, unknown> {
+    const assignedReviewerIds = Array.from(
+      new Set(pendingItems.map((item) => item.reviewer_id).filter((reviewerId): reviewerId is string => Boolean(reviewerId))),
+    );
+    return {
+      campaignCode: campaign.code,
+      reviewerRole: campaign.reviewer_role,
+      dueAt: this.date(campaign.due_at),
+      pendingItemIds: pendingItems.map((item) => item.id),
+      assignedReviewerIds,
+      unassignedItemCount: pendingItems.filter((item) => !item.reviewer_id).length,
+      ...extra,
+    };
   }
 
   private async fulfillAccessReviewRevocation(
@@ -626,7 +726,9 @@ export class AccessGovernanceService {
     }
 
     if (item.service_account_id) {
-      await this.repository.updateServiceAccount(tenantId, new Uuid(item.service_account_id), { status: 'DISABLED' });
+      const serviceAccountId = new Uuid(item.service_account_id);
+      const credentialIdsRevoked = await this.revokeActiveServiceAccountCredentials(tenantId, serviceAccountId);
+      await this.repository.updateServiceAccount(tenantId, serviceAccountId, { status: 'DISABLED' });
       await this.createAccessReviewWorkflowEvent(tenantId, new Uuid(item.campaign_id), {
         eventType: 'REVOKE_FULFILLED',
         actorId,
@@ -638,9 +740,27 @@ export class AccessGovernanceService {
           itemId: item.id,
           serviceAccountId: item.service_account_id,
           serviceAccountCode: item.service_account_code,
+          credentialIdsRevoked,
         },
       });
     }
+  }
+
+  private async revokeActiveServiceAccountCredentials(tenantId: Uuid, serviceAccountId: Uuid): Promise<string[]> {
+    const credentials = await this.repository.listServiceAccountCredentials(tenantId);
+    const activeCredentials = credentials.filter((credential) => (
+      credential.service_account_id === serviceAccountId.value
+      && credential.status === 'ACTIVE'
+    ));
+    const revokedAt = new Date();
+    for (const credential of activeCredentials) {
+      await this.repository.updateServiceAccountCredential(tenantId, serviceAccountId, new Uuid(credential.id), {
+        status: 'REVOKED',
+        revoked_at: revokedAt,
+        revoked_reason: 'Access review revoke decision fulfilled',
+      });
+    }
+    return activeCredentials.map((credential) => credential.id);
   }
 
   private async createAccessReviewWorkflowEvent(
@@ -689,6 +809,94 @@ export class AccessGovernanceService {
       secretPrefix: oneTimeSecret.slice(0, 16),
       secretHash: createHash('sha256').update(oneTimeSecret).digest('hex'),
     };
+  }
+
+  private withReviewerAssignmentEvidence(value: unknown, reviewerId: string | null): Record<string, unknown> {
+    return {
+      ...this.evidenceRecord(value),
+      assignment: {
+        reviewerId,
+        assignmentState: reviewerId ? 'ASSIGNED' : 'UNASSIGNED',
+      },
+    };
+  }
+
+  private withDecisionEvidence(
+    value: unknown,
+    decision: string,
+    reviewerId: string | null,
+    decidedAt: Date,
+  ): Record<string, unknown> {
+    return {
+      ...this.evidenceRecord(value),
+      decision: {
+        value: decision,
+        decidedBy: reviewerId,
+        decidedAt: decidedAt.toISOString(),
+        revokeFulfillmentBoundary: decision === 'REVOKE' ? 'LOCAL_ACCESS_STATE_ONLY' : null,
+      },
+    };
+  }
+
+  private withSodRemediationEvidence(
+    value: unknown,
+    rule: SodRuleRecord,
+    action: SodRemediationAction,
+    removedRoleId: string | null,
+    retainedRoleId: string | null,
+  ): Record<string, unknown> {
+    return {
+      ...this.evidenceRecord(value),
+      sodRule: {
+        ruleId: rule.id,
+        ruleCode: rule.code,
+        enforcementPoint: rule.enforcement_point,
+      },
+      remediation: {
+        action,
+        removedRoleId,
+        retainedRoleId,
+        externalWorkflowBoundary: 'RECORDED_FOR_GRC_OR_TICKETING_HANDOFF',
+      },
+    };
+  }
+
+  private evidenceRecord(value: unknown): Record<string, unknown> {
+    if (value === undefined || value === null) return {};
+    if (typeof value === 'object' && !Array.isArray(value)) return { ...(value as Record<string, unknown>) };
+    return { value };
+  }
+
+  private assertSodRolePairCovered(rule: SodRuleRecord, roleA: string, roleB: string): void {
+    const rolePairs = this.sodRolePairs(rule.incompatible_role_pairs);
+    if (rolePairs.length === 0) return;
+    const matches = rolePairs.some(([left, right]) => (
+      (left === roleA && right === roleB) || (left === roleB && right === roleA)
+    ));
+    if (!matches) {
+      throw new BadRequestException('SoD remediation role pair does not match the selected rule');
+    }
+  }
+
+  private sodRolePairs(value: unknown): Array<[string, string]> {
+    const parsed = this.parseJsonLike(value);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((pair): pair is [string, string] => (
+        Array.isArray(pair)
+        && typeof pair[0] === 'string'
+        && typeof pair[1] === 'string'
+      ))
+      .map(([left, right]) => [left, right]);
+  }
+
+  private parseJsonLike(value: unknown): unknown {
+    if (typeof value !== 'string') return value;
+    try {
+      return JSON.parse(value) as unknown;
+    } catch {
+      return value;
+    }
   }
 
   private async recordGovernanceEvent(
@@ -912,10 +1120,29 @@ export class AccessGovernanceService {
       rotatedAt: this.date(credential.rotated_at),
       revokedAt: this.date(credential.revoked_at),
       revokedReason: credential.revoked_reason,
+      credentialLifecycle: this.toCredentialLifecycleView(credential),
       createdBy: credential.created_by,
       createdAt: this.date(credential.created_at) ?? '',
       updatedAt: this.date(credential.updated_at) ?? '',
     };
+  }
+
+  private toCredentialLifecycleView(credential: ServiceAccountCredentialRecord): ServiceAccountCredentialLifecycleView {
+    return {
+      storageMode: 'HASH_ONLY_EXTERNAL_VAULT_READY',
+      secretMaterialState: this.credentialSecretMaterialState(credential.status),
+      // This service deliberately stores hash-only metadata; real secret material remains an external vault integration boundary.
+      externalVaultBoundary: 'PENDING_EXTERNAL_VAULT_INTEGRATION',
+      vaultSecretRef: null,
+      rotationDueAt: this.date(credential.expires_at),
+    };
+  }
+
+  private credentialSecretMaterialState(status: string): ServiceAccountCredentialLifecycleView['secretMaterialState'] {
+    if (status === 'ROTATED') return 'ROTATED_HASH_RETAINED';
+    if (status === 'REVOKED') return 'REVOKED_HASH_RETAINED';
+    if (status === 'EXPIRED') return 'EXPIRED_HASH_RETAINED';
+    return 'HASH_ONLY_RETAINED';
   }
 
   private toAccessReviewCampaignView(campaign: AccessReviewCampaignRecord): AccessReviewCampaignView {

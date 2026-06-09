@@ -17,7 +17,7 @@ export class CalculatedFieldRepository {
 
   async findByStatus(status: string): Promise<CalculatedField[]> {
     const rows = await this.db.selectFrom('hr_reporting.calculated_fields').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: CalculatedField): Promise<void> {

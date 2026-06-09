@@ -471,6 +471,29 @@ export type BenefitsPolicyRuntime = {
   evidenceRules?: PolicyRuleLedger[];
 };
 
+export type GlobalHrPolicyRuntime = {
+  countryRuleSetRules?: PolicyRuleLedger[];
+  workAuthorizationRules?: PolicyRuleLedger[];
+  worksCouncilRules?: PolicyRuleLedger[];
+  statutoryLeaveBridgeRules?: PolicyRuleLedger[];
+};
+
+export type DeiAnalyticsPolicyRuntime = {
+  reportPublicationRules?: PolicyRuleLedger[];
+  payGapRules?: PolicyRuleLedger[];
+  payEquityReviewRules?: PolicyRuleLedger[];
+  suppressionRules?: PolicyRuleLedger[];
+  remediationRules?: PolicyRuleLedger[];
+};
+
+export type EngagementPolicyRuntime = {
+  surveyPublicationRules?: PolicyRuleLedger[];
+  responsePrivacyRules?: PolicyRuleLedger[];
+  recognitionApprovalRules?: PolicyRuleLedger[];
+  feedbackCycleRules?: PolicyRuleLedger[];
+  notificationRules?: PolicyRuleLedger[];
+};
+
 export type RuntimePolicyArea =
   | 'EMPLOYEE_SETUP'
   | 'LEAVE'
@@ -479,7 +502,10 @@ export type RuntimePolicyArea =
   | 'ACCESS_GOVERNANCE'
   | 'COUNTRY_POLICY'
   | 'COMPLIANCE'
-  | 'BENEFITS';
+  | 'BENEFITS'
+  | 'GLOBAL_HR'
+  | 'DEI_ANALYTICS'
+  | 'ENGAGEMENT';
 
 export type RuntimePolicyRevisionEvidence = {
   area: RuntimePolicyArea;
@@ -513,6 +539,9 @@ export interface HcmSetupConfig {
   countryPolicyRuntime?: Record<string, unknown>;
   compliancePolicyRuntime?: CompliancePolicyRuntime;
   benefitsPolicyRuntime?: BenefitsPolicyRuntime;
+  globalHrPolicyRuntime?: GlobalHrPolicyRuntime;
+  deiAnalyticsPolicyRuntime?: DeiAnalyticsPolicyRuntime;
+  engagementPolicyRuntime?: EngagementPolicyRuntime;
   runtimePolicyRevisions?: RuntimePolicyRevisionEvidence[];
 }
 

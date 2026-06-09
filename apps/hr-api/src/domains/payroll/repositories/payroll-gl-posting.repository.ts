@@ -15,7 +15,7 @@ export class PayrollGlPostingRepository {
     await this.db
       .insertInto(this.tableName)
       .values(row)
-      .onConflict((oc) => oc
+      .onConflict((oc: any) => oc
         .columns(['tenant_id', 'payroll_cycle_id'])
         .doUpdateSet({
           posting_number: row.posting_number,

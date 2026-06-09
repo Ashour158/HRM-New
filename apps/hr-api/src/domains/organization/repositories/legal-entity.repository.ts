@@ -36,7 +36,7 @@ export class LegalEntityRepository extends BaseRepository<'hr_org.legal_entities
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.legal_entities']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.legal_entities']));
   }
 
   async save(entity: LegalEntity): Promise<void> {

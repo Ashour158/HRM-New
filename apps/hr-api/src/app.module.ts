@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller.js';
 import { AuthModule } from './auth/auth.module.js';
+import { ObservabilityModule } from './observability/observability.module.js';
 import { PlatformModule } from './platform/platform.module.js';
 import { HrCoreModule } from './domains/hr-core/hr-core.module.js';
 import { RecruitingModule } from './domains/recruiting/recruiting.module.js';
@@ -43,12 +44,27 @@ import { EmployeeSelfServiceController } from './employee-self-service.controlle
 import { AdminDashboardController } from './admin-dashboard.controller.js';
 import { AuditController } from './audit.controller.js';
 import { ManagerTeamController } from './manager-team.controller.js';
+import { AuthGuard } from './guards/auth.guard.js';
+import { RolesGuard } from './guards/roles.guard.js';
+import { PermissionGuard } from './guards/permission.guard.js';
 
 @Module({
-  imports: [AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule],
+  imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule],
   controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController, ManagerTeamController],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: PermissionGuard,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: TenantInterceptor,

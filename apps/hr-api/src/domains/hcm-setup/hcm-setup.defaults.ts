@@ -9,6 +9,9 @@ const BOOTSTRAP_RUNTIME_POLICY_AREAS = [
   'COUNTRY_POLICY',
   'COMPLIANCE',
   'BENEFITS',
+  'GLOBAL_HR',
+  'DEI_ANALYTICS',
+  'ENGAGEMENT',
 ] as const;
 
 export const DEFAULT_HCM_SETUP: HcmSetupConfig = {
@@ -534,6 +537,75 @@ export const DEFAULT_HCM_SETUP: HcmSetupConfig = {
       active: true,
       outcomes: [{ action: 'CREATE_PAYROLL_BRIDGE', value: { deductionCode: 'MEDICAL_EMPLOYEE_SHARE' }, reason: 'Approved coverage creates payroll contribution input.' }],
       retroBehavior: 'ADJUSTMENT_QUEUE',
+    }],
+  },
+  globalHrPolicyRuntime: {
+    workAuthorizationRules: [{
+      code: 'WORK_AUTH_ACTIVE_REQUIRED',
+      label: 'Active work authorization required',
+      active: true,
+      outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Work authorization changes require HR validation before employment-impacting actions.' }],
+      retroBehavior: 'REVALIDATE_PENDING',
+    }],
+    worksCouncilRules: [{
+      code: 'WORKS_COUNCIL_REVIEW',
+      label: 'Works council review',
+      active: true,
+      outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Country-specific consultation is required when policy scope matches.' }],
+      retroBehavior: 'BLOCK_RETROACTIVE',
+    }],
+    statutoryLeaveBridgeRules: [{
+      code: 'STATUTORY_LEAVE_BRIDGE',
+      label: 'Statutory leave bridge',
+      active: true,
+      outcomes: [{ action: 'CREATE_REVALIDATION', reason: 'Country statutory leave setup revalidates open leave rules.' }],
+      retroBehavior: 'REVALIDATE_PENDING',
+    }],
+  },
+  deiAnalyticsPolicyRuntime: {
+    suppressionRules: [{
+      code: 'SMALL_SEGMENT_SUPPRESSION',
+      label: 'Small segment suppression',
+      active: true,
+      outcomes: [{ action: 'BLOCK', value: { minimumPopulation: 10 }, reason: 'Small population analytics are suppressed for privacy.' }],
+      retroBehavior: 'FUTURE_ONLY',
+    }],
+    payEquityReviewRules: [{
+      code: 'PAY_EQUITY_REVIEW_REQUIRED',
+      label: 'Pay equity review required',
+      active: true,
+      outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Pay equity findings require review before publication.' }],
+      retroBehavior: 'REVALIDATE_PENDING',
+    }],
+    remediationRules: [{
+      code: 'REMEDIATION_TRACKING_REQUIRED',
+      label: 'Remediation tracking required',
+      active: true,
+      outcomes: [{ action: 'CREATE_NOTIFICATION', reason: 'Approved remediation plans notify accountable owners.' }],
+      retroBehavior: 'FUTURE_ONLY',
+    }],
+  },
+  engagementPolicyRuntime: {
+    surveyPublicationRules: [{
+      code: 'SURVEY_PUBLICATION_APPROVAL',
+      label: 'Survey publication approval',
+      active: true,
+      outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Engagement surveys require approval before publication.' }],
+      retroBehavior: 'FUTURE_ONLY',
+    }],
+    responsePrivacyRules: [{
+      code: 'ANONYMOUS_RESPONSE_PRIVACY',
+      label: 'Anonymous response privacy',
+      active: true,
+      outcomes: [{ action: 'MASK_FIELD', reason: 'Anonymous survey responses mask employee identifiers in analytics views.' }],
+      retroBehavior: 'FUTURE_ONLY',
+    }],
+    recognitionApprovalRules: [{
+      code: 'RECOGNITION_APPROVAL_REQUIRED',
+      label: 'Recognition approval required',
+      active: true,
+      outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Recognition awards require manager or HR approval before award.' }],
+      retroBehavior: 'REVALIDATE_PENDING',
     }],
   },
   runtimePolicyRevisions: BOOTSTRAP_RUNTIME_POLICY_AREAS.map((area) => ({

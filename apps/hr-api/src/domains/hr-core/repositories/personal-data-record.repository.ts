@@ -52,7 +52,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['personal_data_records']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['personal_data_records']));
   }
 
   async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<PersonalDataRecord[]> {
@@ -62,7 +62,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       .where('worker_id', '=', workerId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['personal_data_records']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['personal_data_records']));
   }
 
   async findByWorkerAndCategory(workerId: Uuid, dataCategory: DataCategory): Promise<PersonalDataRecord | undefined> {
@@ -151,7 +151,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       }
     }
 
-    return alerts.sort((left, right) => left.daysUntilExpiry - right.daysUntilExpiry);
+    return alerts.sort((left: any, right: any) => left.daysUntilExpiry - right.daysUntilExpiry);
   }
 
   async save(entity: PersonalDataRecord): Promise<void> {

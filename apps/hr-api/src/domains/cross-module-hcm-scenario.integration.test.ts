@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildServiceUsageSummary, type ServiceUsageMetricRow } from './reporting/services/service-usage-reporting.service.js';
+import { requiredPolicyAreaForCommand } from '../platform/command-bus/command-bus.js';
 
 describe('cross-module HCM scenario contract', () => {
   it('keeps setup, employee action, approval, notification, payroll, and reporting in one evidence chain', () => {
@@ -30,6 +31,13 @@ describe('cross-module HCM scenario contract', () => {
 
     const summary = buildServiceUsageSummary(tenantId, rows, new Date('2026-06-03T09:00:00.000Z'));
     const serviceNames = summary.services.map((service) => service.serviceArea);
+    const policyPrerequisites = scenarioSteps.map((step) => ({
+      commandName: step.commandName,
+      area: requiredPolicyAreaForCommand({
+        commandName: step.commandName,
+        aggregateType: step.aggregateType,
+      }),
+    }));
 
     expect(scenarioSteps.map((step) => step.commandName)).toEqual([
       'CreateLegalEntity',
@@ -43,6 +51,19 @@ describe('cross-module HCM scenario contract', () => {
       'ApproveAbsenceRequest',
       'CreatePayrollInput',
       'GenerateServiceUsageSummary',
+    ]);
+    expect(policyPrerequisites).toEqual([
+      { commandName: 'CreateLegalEntity', area: 'ACCESS_GOVERNANCE' },
+      { commandName: 'CreateOrgUnit', area: 'ACCESS_GOVERNANCE' },
+      { commandName: 'CreateOrgUnit', area: 'ACCESS_GOVERNANCE' },
+      { commandName: 'CreateWorker', area: 'EMPLOYEE_SETUP' },
+      { commandName: 'UpdateWorkerOrganizationAssignment', area: 'EMPLOYEE_SETUP' },
+      { commandName: 'ApplyPolicyRevision', area: 'ACCESS_GOVERNANCE' },
+      { commandName: 'SubmitAbsenceRequest', area: 'LEAVE' },
+      { commandName: 'RecordTimeClockEvent', area: 'ATTENDANCE' },
+      { commandName: 'ApproveAbsenceRequest', area: 'LEAVE' },
+      { commandName: 'CreatePayrollInput', area: 'PAYROLL' },
+      { commandName: 'GenerateServiceUsageSummary', area: 'ACCESS_GOVERNANCE' },
     ]);
     expect(serviceNames).toEqual(expect.arrayContaining([
       'ORGANIZATION',

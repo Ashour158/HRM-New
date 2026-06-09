@@ -20,19 +20,19 @@ export class ShiftScheduleRepository extends BaseRepository<'shift_schedules', S
 
   async findByWorker(workerId: Uuid): Promise<ShiftSchedule[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_schedules']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_schedules']));
   }
 
   async findByTenant(tenantId: Uuid): Promise<ShiftSchedule[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_schedules']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_schedules']));
   }
 
   async findByTenantScoped(tenantId: Uuid, workplaceCode?: string): Promise<ShiftSchedule[]> {
     let query = this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value);
     if (workplaceCode) query = query.where('workplace_code', '=', workplaceCode);
     const rows = await query.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_schedules']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_schedules']));
   }
 
   async save(entity: ShiftSchedule): Promise<void> {

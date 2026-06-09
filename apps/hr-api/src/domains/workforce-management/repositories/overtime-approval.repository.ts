@@ -20,12 +20,12 @@ export class WfmOvertimeApprovalRepository extends BaseRepository<'wfm_overtime_
 
   async findByTenant(tenantId: Uuid): Promise<WfmOvertimeApproval[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['wfm_overtime_approvals']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['wfm_overtime_approvals']));
   }
 
   async findByWorker(workerId: Uuid): Promise<WfmOvertimeApproval[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['wfm_overtime_approvals']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['wfm_overtime_approvals']));
   }
 
 

@@ -24,7 +24,7 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
 
   async findByWorker(workerId: Uuid): Promise<AbsenceRequest[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['absence_requests']));
   }
 
   async findByTenant(tenantId: Uuid, status?: AbsenceRequestStatus): Promise<AbsenceRequest[]> {
@@ -38,7 +38,7 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
     }
 
     const rows = await query.orderBy('created_at', 'desc').execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['absence_requests']));
   }
 
   async findApprovedOverlapping(
@@ -60,7 +60,7 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
     }
 
     const rows = await query.orderBy('start_date', 'asc').execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['absence_requests']));
   }
 
   async findOverlappingByWorker(
@@ -80,7 +80,7 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
       .where('start_date', '<=', endDate)
       .where('end_date', '>=', startDate)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_requests']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['absence_requests']));
   }
 
   async save(entity: AbsenceRequest): Promise<void> {

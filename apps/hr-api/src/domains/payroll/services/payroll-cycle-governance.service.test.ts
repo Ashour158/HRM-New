@@ -322,6 +322,109 @@ describe('PayrollCycleGovernanceService', () => {
     ]));
   });
 
+  it('blocks enterprise close readiness when GL mapping and payment batch configuration are missing', () => {
+    const readiness = service.evaluateCloseToPayReadiness({
+      preview: { ...preview, rows: [preview.rows[0]], employeeCount: 1 },
+      bankRows: [bankRows[0]],
+      workLocationCode: 'CAIRO_HQ',
+      existingCycles: [],
+      setup: {
+        locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+        statutoryPayrollPacks: [{
+          code: 'EG_STAT',
+          label: 'Egypt statutory payroll',
+          active: true,
+          countryCode: 'EG',
+          locationCodes: ['CAIRO_HQ'],
+          calculationPolicy: {
+            taxRatePercent: 10,
+            employeeInsuranceRatePercent: 5,
+          },
+        }],
+      },
+      closeEvidence: {
+        requireEnterpriseEvidence: true,
+      },
+    });
+
+    expect(readiness.canClose).toBe(false);
+    expect(readiness.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'MISSING_GL_MAPPING',
+        blocking: true,
+        message: expect.stringContaining('GL account mapping'),
+      }),
+      expect.objectContaining({
+        code: 'MISSING_PAYMENT_BATCH_CONFIG',
+        blocking: true,
+        message: expect.stringContaining('bank file format'),
+      }),
+    ]));
+  });
+
+  it('blocks enterprise close readiness when persisted GL, payment, payslip, or payroll exception evidence is not ready', () => {
+    const readiness = service.evaluateCloseToPayReadiness({
+      preview: { ...preview, rows: [preview.rows[0]], employeeCount: 1 },
+      bankRows: [bankRows[0]],
+      workLocationCode: 'CAIRO_HQ',
+      existingCycles: [],
+      setup: {
+        locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+        statutoryPayrollPacks: [{
+          code: 'EG_STAT',
+          label: 'Egypt statutory payroll',
+          active: true,
+          countryCode: 'EG',
+          locationCodes: ['CAIRO_HQ'],
+          bankFileFormats: ['CBE_EGYPT_CSV'],
+          calculationPolicy: {
+            taxRatePercent: 10,
+            employeeInsuranceRatePercent: 5,
+          },
+          glAccountMapping: {
+            salaryExpenseAccount: '6100',
+            employerInsuranceExpenseAccount: '6110',
+            taxPayableAccount: '2150',
+            insurancePayableAccount: '2160',
+            deductionPayableAccount: '2250',
+            bankClearingAccount: '1050',
+          },
+        }],
+      },
+      closeEvidence: {
+        requireEnterpriseEvidence: true,
+        expectedPayslipWorkerIds: ['worker-1'],
+        glPosting: {
+          status: 'DRAFT',
+          totalDebits: 100,
+          totalCredits: 90,
+          lineCount: 2,
+        },
+        paymentBatch: {
+          status: 'RECONCILIATION_EXCEPTION',
+          readyCount: 1,
+          blockedCount: 0,
+          totalNet: 8400,
+          exceptionCount: 1,
+        },
+        payslipArtifacts: [{
+          workerId: 'worker-2',
+          employeeId: 'EMP-002',
+          status: 'GENERATED',
+          contentHash: 'hash',
+          htmlReady: true,
+        }],
+      },
+    });
+
+    expect(readiness.canClose).toBe(false);
+    expect(readiness.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'GL_POSTING_UNBALANCED', blocking: true }),
+      expect.objectContaining({ code: 'UNRESOLVED_PAYROLL_EXCEPTION', blocking: true }),
+      expect.objectContaining({ code: 'MISSING_PAYSLIP_ARTIFACT', workerId: 'worker-1', blocking: true }),
+    ]));
+  });
+
   it('evaluates close readiness for a large tenant payroll preview without dropping worker-level blockers', () => {
     const rowCount = 1_000;
     const largeRows = Array.from({ length: rowCount }, (_, index) => ({

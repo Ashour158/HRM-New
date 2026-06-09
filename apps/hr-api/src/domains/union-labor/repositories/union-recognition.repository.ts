@@ -20,7 +20,7 @@ export class UnionRecognitionRepository extends BaseRepository<'union_recognitio
 
   async findByTenant(tenantId: Uuid): Promise<UnionRecognition[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['union_recognitions']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['union_recognitions']));
   }
 
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
@@ -6,6 +6,7 @@ import { getPool, createKyselyInstance } from '@hcm/database';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../event-bus/event-bus.js';
 import { outboxMetadataForEvent, outboxRowToEnvelope, type OutboxEventRow } from './outbox-event-envelope.js';
+import { ObservabilityMetricsService } from '../../observability/observability-metrics.service.js';
 
 export type OutboxEvent = OutboxEventRow;
 
@@ -15,7 +16,11 @@ export class OutboxPublisher {
   private readonly db: Kysely<Database>;
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(private readonly eventBus: EventBus) {
+  constructor(
+    private readonly eventBus: EventBus,
+    @Optional() @Inject(ObservabilityMetricsService)
+    private readonly metrics?: ObservabilityMetricsService,
+  ) {
     this.db = createKyselyInstance(getPool());
   }
 
@@ -45,6 +50,7 @@ export class OutboxPublisher {
         publish_attempt_count: 0,
       })
       .execute();
+    this.metrics?.recordOutboxPublish({ eventName: event.eventName, status: 'scheduled' });
   }
 
   async pollAndPublish(batchSize = 100): Promise<number> {
@@ -69,8 +75,10 @@ export class OutboxPublisher {
             .set({ published_at: new Date() })
             .where('id', '=', row.id)
             .execute();
+          this.metrics?.recordOutboxPublish({ eventName: row.event_name, status: 'published' });
           published++;
         } catch (err) {
+          this.metrics?.recordOutboxPublish({ eventName: row.event_name, status: 'failed' });
           this.logger.error({
             type: 'OUTBOX_PUBLISH_FAILED',
             outboxEventId: row.id,
@@ -105,8 +113,10 @@ export class OutboxPublisher {
         .set({ published_at: new Date() })
         .where('id', '=', outboxEventId)
         .execute();
+      this.metrics?.recordOutboxPublish({ eventName: row.event_name, status: 'published' });
       return 1;
     } catch (err) {
+      this.metrics?.recordOutboxPublish({ eventName: row.event_name, status: 'failed' });
       this.logger.error({
         type: 'OUTBOX_TARGETED_PUBLISH_FAILED',
         outboxEventId,

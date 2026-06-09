@@ -47,7 +47,7 @@ export class OnboardingTaskRepository {
       .orderBy('due_date', 'asc')
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -61,7 +61,7 @@ export class OnboardingTaskRepository {
       .orderBy('due_date', 'asc')
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -74,7 +74,7 @@ export class OnboardingTaskRepository {
       .where('assigned_to', '=', assigneeId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -89,7 +89,7 @@ export class OnboardingTaskRepository {
       .where('status', 'not in', ['COMPLETED', 'SKIPPED'])
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

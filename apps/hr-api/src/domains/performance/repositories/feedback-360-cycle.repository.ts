@@ -18,7 +18,7 @@ export class Feedback360CycleRepository extends BaseRepository<'performance_feed
 
   async findByTenant(tenantId: Uuid): Promise<Feedback360Cycle[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Feedback360Cycle): Promise<void> {

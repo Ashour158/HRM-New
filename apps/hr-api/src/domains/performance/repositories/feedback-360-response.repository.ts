@@ -18,17 +18,17 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
 
   async findByCycle(cycleId: Uuid): Promise<Feedback360Response[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('cycle_id', '=', cycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewee(revieweeId: Uuid): Promise<Feedback360Response[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('reviewee_id', '=', revieweeId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewer(reviewerId: Uuid): Promise<Feedback360Response[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('reviewer_id', '=', reviewerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Feedback360Response): Promise<void> {

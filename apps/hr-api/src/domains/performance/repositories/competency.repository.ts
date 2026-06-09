@@ -18,12 +18,12 @@ export class CompetencyRepository extends BaseRepository<'competencies', Compete
 
   async findByTenant(tenantId: Uuid): Promise<Competency[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByCategory(category: string): Promise<Competency[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('category', '=', category).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Competency): Promise<void> {

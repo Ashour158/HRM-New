@@ -27,7 +27,7 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['equity_grants']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['equity_grants']));
   }
 
   async save(entity: EquityGrant): Promise<void> {

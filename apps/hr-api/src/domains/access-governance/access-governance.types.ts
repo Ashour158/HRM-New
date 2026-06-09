@@ -54,6 +54,14 @@ export type ServiceAccountView = {
   updatedAt: string;
 };
 
+export type ServiceAccountCredentialLifecycleView = {
+  storageMode: 'HASH_ONLY_EXTERNAL_VAULT_READY';
+  secretMaterialState: 'ONE_TIME_SECRET_RETURNED' | 'HASH_ONLY_RETAINED' | 'ROTATED_HASH_RETAINED' | 'REVOKED_HASH_RETAINED' | 'EXPIRED_HASH_RETAINED';
+  externalVaultBoundary: 'PENDING_EXTERNAL_VAULT_INTEGRATION';
+  vaultSecretRef: string | null;
+  rotationDueAt: string | null;
+};
+
 export type ServiceAccountCredentialView = {
   id: string;
   serviceAccountId: string;
@@ -67,6 +75,7 @@ export type ServiceAccountCredentialView = {
   rotatedAt: string | null;
   revokedAt: string | null;
   revokedReason: string | null;
+  credentialLifecycle: ServiceAccountCredentialLifecycleView;
   createdBy: string | null;
   createdAt: string;
   updatedAt: string;
@@ -153,6 +162,21 @@ export type SodRuleView = {
   enforcementPoint: string | null;
   breakGlassAllowed: boolean;
   createdAt: string;
+};
+
+export type SodRemediationAction = 'REMOVE_VIOLATING_ROLE' | 'REMOVE_CONFLICTING_ROLE' | 'DOCUMENT_EXCEPTION';
+
+export type SodRemediationView = {
+  ruleId: string;
+  ruleCode: string;
+  subjectUserId: string;
+  action: SodRemediationAction;
+  removedRoleId: string | null;
+  retainedRoleId: string | null;
+  evidence: unknown;
+  remediatedBy: string | null;
+  remediatedAt: string;
+  externalWorkflowBoundary: 'RECORDED_FOR_GRC_OR_TICKETING_HANDOFF';
 };
 
 export type AccessGovernanceSummary = {
@@ -246,12 +270,14 @@ export type CreateAccessReviewItemDto = {
   roleId?: string | null;
   permissionId?: string | null;
   serviceAccountId?: string | null;
+  reviewerId?: string | null;
   decision?: string;
   evidence?: unknown;
 };
 
 export type UpdateAccessReviewItemDto = {
   decision?: string;
+  reviewerId?: string | null;
   evidence?: unknown;
 };
 
@@ -289,3 +315,12 @@ export type CreateSodRuleDto = {
 };
 
 export type UpdateSodRuleDto = Partial<CreateSodRuleDto>;
+
+export type RemediateSodViolationDto = {
+  ruleId?: string;
+  subjectUserId?: string;
+  violatingRoleId?: string;
+  conflictingRoleId?: string;
+  action?: SodRemediationAction;
+  evidence?: unknown;
+};

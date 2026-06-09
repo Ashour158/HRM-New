@@ -20,12 +20,12 @@ export class ShiftSwapRequestRepository extends BaseRepository<'shift_swap_reque
 
   async findByTenant(tenantId: Uuid): Promise<ShiftSwapRequest[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_swap_requests']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_swap_requests']));
   }
 
   async findByRequester(requesterWorkerId: Uuid): Promise<ShiftSwapRequest[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('requester_worker_id', '=', requesterWorkerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_swap_requests']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_swap_requests']));
   }
 
 

@@ -54,7 +54,7 @@ export class HeadcountRequestRepository {
       .where('requested_by', '=', requestedBy.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -68,7 +68,7 @@ export class HeadcountRequestRepository {
       .where('status', 'in', ['SUBMITTED', 'UNDER_REVIEW'])
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -81,7 +81,7 @@ export class HeadcountRequestRepository {
       .where('tenant_id', '=', tenantId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

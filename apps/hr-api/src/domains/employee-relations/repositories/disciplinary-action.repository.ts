@@ -20,7 +20,7 @@ export class DisciplinaryActionRepository extends BaseRepository<'disciplinary_a
 
   async findByTenant(tenantId: Uuid): Promise<DisciplinaryAction[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['disciplinary_actions']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['disciplinary_actions']));
   }
 
 

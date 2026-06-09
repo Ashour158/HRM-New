@@ -60,4 +60,45 @@ describe('HcmSetupService', () => {
     expect(setup.locations.length).toBeGreaterThan(0);
     expect(repository.upsert).toHaveBeenCalledWith(tenantId, setup);
   });
+
+  it('preserves tenant-default runtime policy evidence when applying a worker-scoped revision', async () => {
+    const repository = {
+      getByTenant: vi.fn().mockResolvedValue(undefined),
+      upsert: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new HcmSetupService(repository);
+
+    const setup = await service.updateSetup(tenantId, {
+      runtimePolicyRevisions: [{
+        area: 'LEAVE',
+        revisionId: 'worker-leave-policy',
+        status: 'APPLIED',
+        appliedAt: '2026-06-08T00:00:00.000Z',
+        scope: {
+          tenantId: tenantId.value,
+          workerIds: ['00000000-0000-0000-0000-000000000012'],
+          effectiveFrom: '2026-06-08',
+        },
+        engineName: 'PolicyApplicationEngine',
+        engineVersion: '1.0.0',
+      }],
+    });
+
+    const leaveEvidence = setup.runtimePolicyRevisions.filter((revision) => revision.area === 'LEAVE');
+
+    expect(leaveEvidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          revisionId: expect.stringContaining('SYSTEM_BOOTSTRAP_LEAVE'),
+        }),
+        expect.objectContaining({
+          revisionId: 'worker-leave-policy',
+          scope: expect.objectContaining({
+            tenantId: tenantId.value,
+            workerIds: ['00000000-0000-0000-0000-000000000012'],
+          }),
+        }),
+      ]),
+    );
+  });
 });

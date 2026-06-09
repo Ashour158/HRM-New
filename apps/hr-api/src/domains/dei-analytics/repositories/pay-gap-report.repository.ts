@@ -17,7 +17,7 @@ export class PayGapReportRepository {
 
   async findByStatus(status: string): Promise<PayGapReport[]> {
     const rows = await this.db.selectFrom('hr_dei_analytics.pay_gap_reports').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: PayGapReport): Promise<void> {

@@ -15,7 +15,7 @@ export class PayrollPayslipArtifactRepository {
     await this.db
       .insertInto(this.tableName)
       .values(row)
-      .onConflict((oc) => oc
+      .onConflict((oc: any) => oc
         .columns(['tenant_id', 'payroll_cycle_id', 'worker_id'])
         .doUpdateSet({
           employee_id: row.employee_id,
@@ -48,7 +48,7 @@ export class PayrollPayslipArtifactRepository {
       .where('payroll_cycle_id', '=', payrollCycleId.value)
       .orderBy('employee_id', 'asc')
       .execute();
-    return rows.map((row) => this.toRecord(row as Database['payroll_payslip_artifacts']));
+    return rows.map((row: any) => this.toRecord(row as Database['payroll_payslip_artifacts']));
   }
 
   async findByCycleAndWorker(tenantId: Uuid, payrollCycleId: Uuid, workerId: Uuid): Promise<PayrollPayslipArtifactRecord | undefined> {

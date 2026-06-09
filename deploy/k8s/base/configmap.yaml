@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hcm-platform-config
+data:
+  NODE_ENV: production
+  PORT: "3001"
+  REDIS_URL: redis://redis:6379
+  KAFKA_BROKERS: redpanda:9092
+  JWT_EXPIRES_IN: 1h
+  REFRESH_TOKEN_EXPIRES_IN: 7d
+  MFA_REQUIRED: "false"
+  OIDC_ISSUER_URL: ""
+  OIDC_CLIENT_ID: ""
+  OIDC_REDIRECT_URI: ""
+  SAML_METADATA_URL: ""
+  SAML_ENTITY_ID: ""
+  CORS_ORIGINS: https://hcm.example.com
+  LOG_LEVEL: info
+  OTEL_ENABLED: "false"
+  OTEL_SERVICE_NAME: hr-api
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""

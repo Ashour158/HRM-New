@@ -10,6 +10,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export interface CarrierResult extends IntegrationResult {
   carrierReference?: string;
@@ -45,6 +46,13 @@ export interface LifeEventPayload {
 export class BenefitsCarrierAdapter implements IntegrationAdapter {
   readonly name = 'benefits-carrier';
   readonly direction = 'BIDIRECTIONAL' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'Benefits Operations',
+    ownerContact: 'benefits-ops@example.com',
+    sandboxEndpointRef: 'env:HR_BENEFITS_CARRIER_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_BENEFITS_CARRIER_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/benefits-carrier',
+  });
   private readonly logger = new Logger(BenefitsCarrierAdapter.name);
 
   async healthCheck(): Promise<boolean> {

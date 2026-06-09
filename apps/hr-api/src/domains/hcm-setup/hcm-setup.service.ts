@@ -13,19 +13,40 @@ function cloneSetup(setup: HcmSetupConfig): HcmSetupConfig {
   return JSON.parse(JSON.stringify(setup)) as HcmSetupConfig;
 }
 
+function sortedScopeValues(values: string[] | undefined): string[] {
+  return [...(values ?? [])].sort();
+}
+
+function runtimePolicyRevisionKey(evidence: RuntimePolicyRevisionEvidence): string {
+  const scope = evidence.scope ?? {};
+  return JSON.stringify({
+    area: evidence.area,
+    tenantId: scope.tenantId ?? '',
+    countryCodes: sortedScopeValues(scope.countryCodes),
+    legalEntityIds: sortedScopeValues(scope.legalEntityIds),
+    orgUnitIds: sortedScopeValues(scope.orgUnitIds),
+    departmentIds: sortedScopeValues(scope.departmentIds),
+    locationCodes: sortedScopeValues(scope.locationCodes),
+    employeeTypes: sortedScopeValues(scope.employeeTypes),
+    workerIds: sortedScopeValues(scope.workerIds),
+    effectiveFrom: scope.effectiveFrom ?? '',
+    effectiveUntil: scope.effectiveUntil ?? '',
+  });
+}
+
 function mergeRuntimePolicyRevisions(
   existing: RuntimePolicyRevisionEvidence[] | undefined,
   incoming: RuntimePolicyRevisionEvidence[] | undefined,
 ): RuntimePolicyRevisionEvidence[] | undefined {
   if (!incoming) return existing;
-  const byArea = new Map<string, RuntimePolicyRevisionEvidence>();
+  const byScope = new Map<string, RuntimePolicyRevisionEvidence>();
   for (const evidence of existing ?? []) {
-    byArea.set(evidence.area, evidence);
+    byScope.set(runtimePolicyRevisionKey(evidence), evidence);
   }
   for (const evidence of incoming) {
-    byArea.set(evidence.area, evidence);
+    byScope.set(runtimePolicyRevisionKey(evidence), evidence);
   }
-  return Array.from(byArea.values());
+  return Array.from(byScope.values());
 }
 
 function mergeSetup(...configs: Array<Partial<HcmSetupConfig> | undefined>): HcmSetupConfig {

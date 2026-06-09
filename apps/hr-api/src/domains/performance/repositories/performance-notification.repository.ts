@@ -77,7 +77,7 @@ export class PerformanceNotificationRepository {
       LIMIT 100
     `.execute(this.db);
 
-    return result.rows.map((row) => this.toRecord(row));
+    return result.rows.map((row: any) => this.toRecord(row));
   }
 
   async markRead(tenantId: string, notificationId: string, workerId: string): Promise<PerformanceNotificationRecord | undefined> {

@@ -27,7 +27,7 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['compensation_bands']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_bands']));
   }
 
   async findByJobFamily(jobFamily: string): Promise<CompensationBand[]> {
@@ -36,7 +36,7 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
       .selectAll()
       .where('job_family', '=', jobFamily)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['compensation_bands']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_bands']));
   }
 
   async save(entity: CompensationBand): Promise<void> {

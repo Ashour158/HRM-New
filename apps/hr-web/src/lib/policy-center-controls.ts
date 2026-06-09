@@ -6,7 +6,10 @@ export type PolicyArea =
   | 'ACCESS_GOVERNANCE'
   | 'COUNTRY_POLICY'
   | 'COMPLIANCE'
-  | 'BENEFITS';
+  | 'BENEFITS'
+  | 'GLOBAL_HR'
+  | 'DEI_ANALYTICS'
+  | 'ENGAGEMENT';
 
 export type PolicyStatus = 'DRAFT' | 'IN_REVIEW' | 'REVIEWED' | 'APPROVED' | 'PUBLISHED' | 'APPLIED' | 'REJECTED' | 'ARCHIVED';
 
@@ -49,7 +52,12 @@ export type GuidedPolicyChange =
   | { type: 'FIELD_ACCESS_OVERRIDE'; override: Record<string, unknown> & { id: string } }
   | { type: 'COUNTRY_RUNTIME'; changes: Record<string, unknown> }
   | { type: 'COMPLIANCE_RUNTIME'; changes: Record<string, unknown> }
-  | { type: 'BENEFITS_RUNTIME'; changes: Record<string, unknown> };
+  | { type: 'BENEFITS_RUNTIME'; changes: Record<string, unknown> }
+  | {
+      type: 'DOMAIN_POLICY_RUNTIME';
+      key: 'globalHrPolicyRuntime' | 'deiAnalyticsPolicyRuntime' | 'engagementPolicyRuntime';
+      changes: Record<string, unknown>;
+    };
 
 export const POLICY_CONTROL_LENSES = {
   EMPLOYEE_SETUP: {
@@ -148,6 +156,42 @@ export const POLICY_CONTROL_LENSES = {
     evidenceFields: ['policyRevisionId', 'benefitsRuleCode', 'scopeMatch', 'workerId', 'enrollmentId', 'decision', 'reason'],
     notificationEvents: ['PolicyRevisionApplied', 'BenefitsPolicyChanged', 'BenefitsEnrollmentRevalidated', 'BenefitsEvidenceRequired'],
   },
+  GLOBAL_HR: {
+    area: 'GLOBAL_HR',
+    label: 'Global HR Rules',
+    brain: 'GlobalHrPolicyBrain',
+    description: 'Controls work authorization, statutory leave types, works council consultations, country rule sets, and cross-country compliance handoffs.',
+    engines: ['GlobalHrPolicyResolver', 'WorkAuthorizationEngine', 'WorksCouncilWorkflowEngine', 'StatutoryLeaveBridgeEngine'],
+    controls: ['Country rule sets', 'Work authorization lifecycle', 'Works council triggers', 'Statutory leave bridges', 'Cross-country escalation'],
+    runtimeKeys: ['runtimePolicyRevisions', 'countryPolicyRuntime'],
+    serviceConsumers: ['Work authorization cases', 'Country rule set maintenance', 'Works council consultations', 'Statutory leave type setup'],
+    evidenceFields: ['policyRevisionId', 'countryCode', 'workerId', 'authorizationCaseId', 'decision', 'reason'],
+    notificationEvents: ['PolicyRevisionApplied', 'WorkAuthorizationPolicyChanged', 'WorksCouncilRuleChanged'],
+  },
+  DEI_ANALYTICS: {
+    area: 'DEI_ANALYTICS',
+    label: 'DEI Analytics Rules',
+    brain: 'DeiAnalyticsPolicyBrain',
+    description: 'Controls DEI report publication, pay gap calculations, pay equity reviews, suppression thresholds, and remediation workflows.',
+    engines: ['DeiReportPolicyResolver', 'PayGapSuppressionEngine', 'PayEquityWorkflowEngine', 'AttritionAnalyticsPrivacyEngine'],
+    controls: ['Suppression thresholds', 'Pay gap calculations', 'Review workflow', 'Remediation triggers', 'Publication approval'],
+    runtimeKeys: ['runtimePolicyRevisions'],
+    serviceConsumers: ['DEI reports', 'Pay gap reports', 'Pay equity reviews', 'Attrition segment reports'],
+    evidenceFields: ['policyRevisionId', 'reportId', 'segmentKey', 'suppressionDecision', 'decision', 'reason'],
+    notificationEvents: ['PolicyRevisionApplied', 'DeiReportPolicyChanged', 'PayEquityReviewPolicyChanged'],
+  },
+  ENGAGEMENT: {
+    area: 'ENGAGEMENT',
+    label: 'Engagement Rules',
+    brain: 'EngagementPolicyBrain',
+    description: 'Controls survey publication, anonymous response handling, recognition approvals, feedback cycles, and employee engagement notifications.',
+    engines: ['EngagementSurveyPolicyResolver', 'AnonymousResponsePrivacyEngine', 'RecognitionWorkflowEngine', 'FeedbackCyclePolicyEngine'],
+    controls: ['Survey lifecycle', 'Anonymity and privacy', 'Recognition approval', 'Feedback cycle governance', 'Notification rules'],
+    runtimeKeys: ['runtimePolicyRevisions'],
+    serviceConsumers: ['Engagement surveys', 'Survey responses', 'Recognition programs', 'Recognition awards', 'Feedback 360 cycles'],
+    evidenceFields: ['policyRevisionId', 'surveyId', 'recognitionId', 'privacyDecision', 'decision', 'reason'],
+    notificationEvents: ['PolicyRevisionApplied', 'EngagementSurveyPolicyChanged', 'RecognitionPolicyChanged'],
+  },
 } satisfies Record<PolicyArea, PolicyControlLens>;
 
 export const SYSTEM_POLICY_SURFACES: SystemPolicySurface[] = [
@@ -198,6 +242,30 @@ export const SYSTEM_POLICY_SURFACES: SystemPolicySurface[] = [
     commandEnforcement: ['SubmitBenefitsEnrollment', 'ChangeBenefitsCoverage', 'ApproveBenefitsLifeEvent', 'ReconcileCarrierFile', 'SyncPayrollContribution'],
     notificationEvents: ['BenefitsPolicyChanged', 'BenefitsEnrollmentRevalidated', 'BenefitsEvidenceRequired'],
     runtimeEvidence: ['benefitsPolicyRuntime', 'admin_policy_decision_evidence', 'notification_inbox'],
+  },
+  {
+    module: 'Global HR',
+    policyArea: 'GLOBAL_HR',
+    governedBy: 'Country rule sets, work authorization, statutory leave, works council, and cross-country compliance policies',
+    commandEnforcement: ['CreateCountryRuleSet', 'CreateWorkAuthorizationCase', 'CreateWorksCouncilConsultation', 'CreateStatutoryLeaveType'],
+    notificationEvents: ['WorkAuthorizationPolicyChanged', 'WorksCouncilRuleChanged', 'PolicyRevisionApplied'],
+    runtimeEvidence: ['runtimePolicyRevisions', 'countryPolicyRuntime', 'admin_policy_decision_evidence'],
+  },
+  {
+    module: 'DEI Analytics',
+    policyArea: 'DEI_ANALYTICS',
+    governedBy: 'DEI reporting, pay gap calculation, pay equity review, suppression threshold, remediation, and publication policies',
+    commandEnforcement: ['GenerateDeiReport', 'ReviewDeiReport', 'PublishPayGapReport', 'StartPayEquityRemediation'],
+    notificationEvents: ['DeiReportPolicyChanged', 'PayEquityReviewPolicyChanged', 'PolicyRevisionApplied'],
+    runtimeEvidence: ['runtimePolicyRevisions', 'admin_policy_decision_evidence', 'service_usage_reporting'],
+  },
+  {
+    module: 'Engagement',
+    policyArea: 'ENGAGEMENT',
+    governedBy: 'Survey lifecycle, response privacy, recognition approval, feedback cycle, and employee communication policies',
+    commandEnforcement: ['PublishEngagementSurvey', 'SubmitSurveyResponse', 'ApproveRecognitionRecord', 'AwardRecognitionRecord'],
+    notificationEvents: ['EngagementSurveyPolicyChanged', 'RecognitionPolicyChanged', 'PolicyRevisionApplied'],
+    runtimeEvidence: ['runtimePolicyRevisions', 'admin_policy_decision_evidence', 'notification_inbox'],
   },
   {
     module: 'Onboarding',
@@ -423,6 +491,16 @@ export function applyGuidedPolicyChange(area: PolicyArea, draft: Record<string, 
       ...current,
       benefitsPolicyRuntime: {
         ...asRecord(current.benefitsPolicyRuntime),
+        ...change.changes,
+      },
+    };
+  }
+
+  if (change.type === 'DOMAIN_POLICY_RUNTIME') {
+    return {
+      ...current,
+      [change.key]: {
+        ...asRecord(current[change.key]),
         ...change.changes,
       },
     };

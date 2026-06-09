@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { persistTenantId, readTenantId } from '@/lib/auth-storage';
 import type { Tenant, TenantConfig } from '@/types';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -29,7 +30,7 @@ function useTenantsQuery() {
  * @returns Tenant state, config, and selection methods
  */
 export function useTenant() {
-  const [tenantId, setTenantIdState] = useState(() => localStorage.getItem('tenant_id') || DEFAULT_TENANT_ID);
+  const [tenantId, setTenantIdState] = useState(() => readTenantId() || DEFAULT_TENANT_ID);
 
   const { data: tenants = [], isLoading } = useTenantsQuery();
 
@@ -52,7 +53,7 @@ export function useTenant() {
    * Sets the active tenant ID.
    */
   const setTenantId = useCallback((id: string) => {
-    localStorage.setItem('tenant_id', id);
+    persistTenantId(id);
     setTenantIdState(id);
   }, []);
 

@@ -20,7 +20,7 @@ export class EapReferralRepository extends BaseRepository<'eap_referrals', EapRe
 
   async findByTenant(tenantId: Uuid): Promise<EapReferral[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['eap_referrals']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['eap_referrals']));
   }
 
 

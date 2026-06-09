@@ -17,7 +17,7 @@ export class HrAiKillSwitchRepository {
 
   async findByUseCaseId(useCaseId: Uuid): Promise<HrAiKillSwitch[]> {
     const rows = await this.db.selectFrom('hr_ai_governance.hr_ai_kill_switches').selectAll().where('use_case_id', '=', useCaseId.value).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: HrAiKillSwitch): Promise<void> {

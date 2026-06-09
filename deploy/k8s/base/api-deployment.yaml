@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hcm-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: hcm-api
+  template:
+    metadata:
+      labels:
+        app: hcm-api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /api/v1/metrics
+        prometheus.io/port: "3001"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: ghcr.io/your-org/hr-hcm-api:v1.4.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - configMapRef:
+                name: hcm-platform-config
+            - secretRef:
+                name: hcm-platform-secrets
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: 3001
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi

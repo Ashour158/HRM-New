@@ -20,7 +20,7 @@ export class LeaveCaseRepository extends BaseRepository<'leave_cases', LeaveCase
 
   async findByWorker(workerId: Uuid): Promise<LeaveCase[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['leave_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['leave_cases']));
   }
 
   async save(entity: LeaveCase): Promise<void> {

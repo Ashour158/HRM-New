@@ -27,7 +27,7 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['total_compensation_statements']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['total_compensation_statements']));
   }
 
   async findByWorkerAndYear(workerId: Uuid, statementYear: number): Promise<TotalCompensationStatement | undefined> {

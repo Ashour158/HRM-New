@@ -27,7 +27,7 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
   }
 
   async findByManager(managerId: Uuid): Promise<ManagerRelationship[]> {
@@ -36,7 +36,7 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
       .selectAll()
       .where('manager_id', '=', managerId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
   }
 
   async findByTenant(tenantId: Uuid): Promise<ManagerRelationship[]> {
@@ -45,7 +45,7 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
   }
 
   async findActiveForWorker(workerId: Uuid): Promise<ManagerRelationship | undefined> {

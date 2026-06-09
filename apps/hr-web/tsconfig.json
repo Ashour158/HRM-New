@@ -17,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@hcm/openapi-contracts": ["../../packages/hr-openapi-contracts/src/index.ts"]
     }
   },
   "include": ["src"],

@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import {
@@ -15,6 +16,7 @@ import {
 } from '@hcm/platform-core';
 import { getPool } from '@hcm/database';
 import { createKyselyInstance } from '@hcm/database';
+import { PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
 
 /**
  * Resolves the tenant from the incoming request, validates that it is
@@ -23,6 +25,8 @@ import { createKyselyInstance } from '@hcm/database';
  */
 @Injectable()
 export class TenantInterceptor implements NestInterceptor {
+  constructor(private readonly reflector: Reflector) {}
+
   async intercept(
     context: ExecutionContext,
     next: CallHandler,
@@ -31,14 +35,18 @@ export class TenantInterceptor implements NestInterceptor {
     const request = ctx.getRequest<Request>();
     const response = ctx.getResponse<Response>();
 
-    // Skip tenant resolution for public health and documentation routes.
+    const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return next.handle();
+    }
+
+    // Skip tenant resolution for documentation routes that do not map to controllers.
     const path = request.path ?? request.url;
     if (typeof path === 'string' &&
-      (path === '/health' || path === '/health/ready' || path === '/health/live' ||
-       path.endsWith('/health') || path.endsWith('/health/ready') || path.endsWith('/health/live') ||
-       path === '/api/docs' || path.startsWith('/api/docs') ||
-       path === '/api/v1/auth/login' || path === '/api/v1/auth/logout' ||
-       path.startsWith('/api/v1/auth/'))) {
+      (path === '/api/docs' || path.startsWith('/api/docs'))) {
       return next.handle();
     }
 

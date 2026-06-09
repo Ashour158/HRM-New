@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { User, Role, Permission } from '@/types';
+import { clearAuthSession, persistAuthSession, readAuthToken, readRefreshToken } from '@/lib/auth-storage';
 
 /**
  * Authentication store state and actions.
@@ -12,7 +13,8 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
-  login: (user: User, token: string) => void;
+  refreshToken: string | null;
+  login: (user: User, token: string, refreshToken?: string) => void;
   logout: () => void;
   setLoading: (loading: boolean) => void;
   updateUser: (user: Partial<User>) => void;
@@ -20,7 +22,7 @@ interface AuthState {
 
 /**
  * Zustand store for authentication state.
- * Persists user and token to localStorage.
+ * Persists only user context to sessionStorage; bearer tokens stay outside durable localStorage.
  */
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -30,11 +32,11 @@ export const useAuthStore = create<AuthState>()(
       permissions: [],
       isAuthenticated: false,
       isLoading: true,
-      token: null,
+      token: readAuthToken(),
+      refreshToken: readRefreshToken(),
 
-      login: (user: User, token: string) => {
-        localStorage.setItem('auth_token', token);
-        localStorage.setItem('tenant_id', user.tenantId);
+      login: (user: User, token: string, refreshToken?: string) => {
+        persistAuthSession({ token, refreshToken, tenantId: user.tenantId });
         set({
           user,
           roles: user.roles,
@@ -42,12 +44,12 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: true,
           isLoading: false,
           token,
+          refreshToken: refreshToken ?? null,
         });
       },
 
       logout: () => {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('tenant_id');
+        clearAuthSession();
         set({
           user: null,
           roles: [],
@@ -55,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
           isAuthenticated: false,
           isLoading: false,
           token: null,
+          refreshToken: null,
         });
       },
 
@@ -69,7 +72,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, token: state.token, isAuthenticated: state.isAuthenticated }),
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        user: state.user,
+        isAuthenticated: state.isAuthenticated,
+      }),
     }
   )
 );

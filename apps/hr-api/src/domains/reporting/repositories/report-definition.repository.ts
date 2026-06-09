@@ -17,7 +17,7 @@ export class ReportDefinitionRepository {
 
   async findByStatus(status: string): Promise<ReportDefinition[]> {
     const rows = await this.db.selectFrom('hr_reporting.report_definitions').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: ReportDefinition): Promise<void> {

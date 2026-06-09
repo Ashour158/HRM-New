@@ -17,7 +17,7 @@ export class ReportExecutionRepository {
 
   async findByReportDefinitionId(reportDefinitionId: Uuid): Promise<ReportExecution[]> {
     const rows = await this.db.selectFrom('hr_reporting.report_executions').selectAll().where('report_definition_id', '=', reportDefinitionId.value).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: ReportExecution): Promise<void> {

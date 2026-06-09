@@ -33,7 +33,7 @@ export class WorkAuthorizationCaseRepository {
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async findActiveByWorker(workerId: Uuid): Promise<WorkAuthorizationCase | undefined> {

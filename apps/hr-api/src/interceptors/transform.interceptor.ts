@@ -23,10 +23,15 @@ export class TransformInterceptor implements NestInterceptor {
     const request = ctx.getRequest<Request>();
     const correlationId =
       (request.headers['x-correlation-id'] as string | undefined) ??
+      request.correlationId ??
       generateCorrelationId().value;
+    const path = request.path ?? request.url;
 
     return next.handle().pipe(
       map((data: unknown) => {
+        if (typeof path === 'string' && (path === '/metrics' || path.endsWith('/metrics'))) {
+          return data;
+        }
         if (
           data !== null &&
           typeof data === 'object' &&

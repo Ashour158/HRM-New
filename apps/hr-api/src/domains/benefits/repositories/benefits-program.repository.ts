@@ -27,7 +27,7 @@ export class BenefitsProgramRepository extends BaseRepository<'benefits_programs
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_programs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['benefits_programs']));
   }
 
   async findActive(tenantId?: Uuid): Promise<BenefitsProgram[]> {
@@ -39,7 +39,7 @@ export class BenefitsProgramRepository extends BaseRepository<'benefits_programs
       query = query.where('tenant_id', '=', tenantId.value);
     }
     const rows = await query.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_programs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['benefits_programs']));
   }
 
   async save(entity: BenefitsProgram): Promise<void> {

@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { AccessControlService } from '@hcm/access-control';
@@ -6,6 +8,21 @@ import { CommandBus, requiredPolicyAreaForCommand } from './command-bus.js';
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440001');
+
+const governedPolicyCases = [
+  ['leave', 'LEAVE', 'SubmitAbsenceRequest', 'AbsenceRequest'],
+  ['attendance', 'ATTENDANCE', 'RecordTimeClockEvent', 'TimeClockEvent'],
+  ['payroll', 'PAYROLL', 'ClosePayrollCycle', 'PayrollCycle'],
+  ['access governance', 'ACCESS_GOVERNANCE', 'CreateRole', 'AccessGovernanceRole'],
+  ['compliance', 'COMPLIANCE', 'RequirePolicyAcknowledgement', 'PolicyAcknowledgement'],
+  ['country policy', 'COUNTRY_POLICY', 'PublishCountryPolicyPack', 'CountryPolicyPack'],
+  ['global HR policy', 'GLOBAL_HR', 'CreateWorkAuthorizationCase', 'WorkAuthorizationCase'],
+  ['benefits', 'BENEFITS', 'SubmitBenefitsEnrollment', 'BenefitsEnrollment'],
+  ['onboarding', 'ACCESS_GOVERNANCE', 'StartOnboarding', 'OnboardingPlan'],
+  ['performance', 'ACCESS_GOVERNANCE', 'CreateGoal', 'Goal'],
+  ['service delivery', 'ACCESS_GOVERNANCE', 'OpenHrServiceCase', 'HrServiceCase'],
+  ['reporting', 'ACCESS_GOVERNANCE', 'CreateReportDefinition', 'ReportDefinition'],
+] as const;
 
 function makeCommand(overrides: Partial<HrCommandEnvelope<unknown>> = {}): HrCommandEnvelope<unknown> {
   return {
@@ -39,6 +56,26 @@ function commandBusWith(overrides: Record<string, unknown> = {}) {
     accessControl: new AccessControlService(),
     ...overrides,
   }) as Record<string, (...args: unknown[]) => Promise<unknown>>;
+}
+
+function readCommandHandlerNames(): string[] {
+  const root = join(process.cwd(), 'src', 'domains');
+  const files: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      const fullPath = join(dir, entry);
+      if (statSync(fullPath).isDirectory()) {
+        walk(fullPath);
+      } else if (fullPath.endsWith('.handler.ts')) {
+        files.push(fullPath);
+      }
+    }
+  };
+  walk(root);
+  return files.flatMap((file) => {
+    const source = readFileSync(file, 'utf8');
+    return [...source.matchAll(/@CommandHandler\(['"`]([^'"`]+)['"`]\)/g)].map((match) => match[1]);
+  }).sort();
 }
 
 describe('CommandBus security gates', () => {
@@ -162,11 +199,11 @@ describe('CommandBus security gates', () => {
     expect(requiredPolicyAreaForCommand({
       aggregateType: 'LearningEnrollment',
       commandName: 'SubmitEnrollment',
-    })).toBeUndefined();
+    })).toBe('ACCESS_GOVERNANCE');
     expect(requiredPolicyAreaForCommand({
       aggregateType: 'EmployeeLifeEvent',
       commandName: 'ApproveLifeEvent',
-    })).toBeUndefined();
+    })).toBe('ACCESS_GOVERNANCE');
   });
 
   it('rejects stale expected state when the stored aggregate state has moved', async () => {
@@ -443,6 +480,12 @@ describe('CommandBus security gates', () => {
     ['access governance', 'CreateRole', 'AccessGovernanceRole'],
     ['compliance', 'RequirePolicyAcknowledgement', 'PolicyAcknowledgement'],
     ['country policy', 'ValidateCountryPolicyPack', 'CountryPolicyPack'],
+    ['global HR policy', 'CreateWorkAuthorizationCase', 'WorkAuthorizationCase'],
+    ['benefits', 'SubmitBenefitsEnrollment', 'BenefitsEnrollment'],
+    ['onboarding', 'StartOnboarding', 'OnboardingPlan'],
+    ['performance', 'CreateGoal', 'Goal'],
+    ['service delivery', 'OpenHrServiceCase', 'HrServiceCase'],
+    ['reporting', 'CreateReportDefinition', 'ReportDefinition'],
   ])('consumes applied access policy overrides before %s command execution', async (_domain, commandName, aggregateType) => {
     const bus = commandBusWith({
       hcmSetup: {
@@ -482,42 +525,35 @@ describe('CommandBus security gates', () => {
   });
 
   it.each([
-    ['LEAVE', 'SubmitAbsenceRequest', 'AbsenceRequest'],
-    ['ATTENDANCE', 'RecordTimeClockEvent', 'TimeClockEvent'],
-    ['PAYROLL', 'ClosePayrollCycle', 'PayrollCycle'],
-    ['ACCESS_GOVERNANCE', 'CreateRole', 'AccessGovernanceRole'],
-    ['COMPLIANCE', 'RequirePolicyAcknowledgement', 'PolicyAcknowledgement'],
-    ['COUNTRY_POLICY', 'PublishCountryPolicyPack', 'CountryPolicyPack'],
-    ['EMPLOYEE_SETUP', 'CreateWorker', 'WorkerProfile'],
-  ])('maps %s governed commands to an applied policy prerequisite', (area, commandName, aggregateType) => {
+    ...governedPolicyCases,
+    ['employee setup', 'EMPLOYEE_SETUP', 'CreateWorker', 'WorkerProfile'],
+    ['DEI analytics', 'DEI_ANALYTICS', 'PublishPayEquityReview', 'PayEquityReview'],
+    ['engagement', 'ENGAGEMENT', 'AwardRecognitionRecord', 'RecognitionRecord'],
+  ])('maps %s governed commands to an applied policy prerequisite', (_domain, area, commandName, aggregateType) => {
     expect(requiredPolicyAreaForCommand(makeCommand({ commandName, aggregateType }))).toBe(area);
   });
 
-  it('fails closed when a governed command has no applied runtime policy revision evidence', async () => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [],
-        }),
-      },
-    });
+  it('maps every registered domain command handler to a runtime policy prerequisite', () => {
+    const unmapped = readCommandHandlerNames().filter((commandName) => (
+      !requiredPolicyAreaForCommand(makeCommand({ commandName, aggregateType: 'UnmappedAggregate' }))
+    ));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
-      commandName: 'SubmitAbsenceRequest',
-      aggregateType: 'AbsenceRequest',
-      payload: { workerId },
-    }))).rejects.toMatchObject({
-      errorCode: 'REQUIRED_POLICY_REVISION_NOT_APPLIED',
-    });
+    expect(unmapped).toEqual([]);
   });
 
-  it('allows a governed command when matching applied runtime policy revision evidence exists', async () => {
+  it.each(governedPolicyCases)('fails closed for %s commands when matching applied runtime policy evidence is missing', async (
+    _domain,
+    area,
+    commandName,
+    aggregateType,
+  ) => {
+    const unrelatedArea = area === 'ACCESS_GOVERNANCE' ? 'LEAVE' : 'ACCESS_GOVERNANCE';
     const bus = commandBusWith({
       hcmSetup: {
         getSetup: async () => ({
           runtimePolicyRevisions: [{
-            area: 'LEAVE',
-            revisionId: 'policy-leave-v7',
+            area: unrelatedArea,
+            revisionId: `policy-${unrelatedArea}`,
             status: 'APPLIED',
             appliedAt: '2026-06-07T10:00:00.000Z',
             engineName: 'PolicyApplicationEngine',
@@ -528,9 +564,97 @@ describe('CommandBus security gates', () => {
     });
 
     await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
-      commandName: 'SubmitAbsenceRequest',
-      aggregateType: 'AbsenceRequest',
+      commandName,
+      aggregateType,
       payload: { workerId },
+    }))).rejects.toMatchObject({
+      errorCode: 'REQUIRED_POLICY_REVISION_NOT_APPLIED',
+      errorMessage: expect.stringContaining(`${area} commands require an applied Policy Center revision`),
+    });
+  });
+
+  it.each(governedPolicyCases)('allows %s commands when matching applied runtime policy evidence exists', async (
+    _domain,
+    area,
+    commandName,
+    aggregateType,
+  ) => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [{
+            area,
+            revisionId: `policy-${area}`,
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          }],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName,
+      aggregateType,
+      payload: { workerId },
+    }))).resolves.toBeUndefined();
+  });
+
+  it.each([
+    ['GLOBAL_HR', 'CreateWorkAuthorizationCase', 'WorkAuthorizationCase'],
+    ['DEI_ANALYTICS', 'ReviewDeiReport', 'DeiReport'],
+    ['ENGAGEMENT', 'PublishEngagementSurvey', 'EngagementSurvey'],
+  ])('fails closed for %s commands until a first-class applied policy revision exists', async (area, commandName, aggregateType) => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [{
+            area: 'ACCESS_GOVERNANCE',
+            revisionId: 'generic-access',
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          }],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName,
+      aggregateType,
+      payload: {},
+    }))).rejects.toMatchObject({
+      errorCode: 'REQUIRED_POLICY_REVISION_NOT_APPLIED',
+      errorMessage: expect.stringContaining(`${area} commands require an applied Policy Center revision`),
+    });
+  });
+
+  it.each([
+    ['GLOBAL_HR', 'CreateWorkAuthorizationCase', 'WorkAuthorizationCase'],
+    ['DEI_ANALYTICS', 'ReviewDeiReport', 'DeiReport'],
+    ['ENGAGEMENT', 'PublishEngagementSurvey', 'EngagementSurvey'],
+  ])('allows %s commands when the matching first-class runtime policy is applied', async (area, commandName, aggregateType) => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [{
+            area,
+            revisionId: `policy-${area}`,
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          }],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName,
+      aggregateType,
+      payload: {},
     }))).resolves.toBeUndefined();
   });
 

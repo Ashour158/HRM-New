@@ -14,9 +14,13 @@ const allAreas: PolicyArea[] = [
   'LEAVE',
   'ATTENDANCE',
   'PAYROLL',
+  'BENEFITS',
   'ACCESS_GOVERNANCE',
   'COUNTRY_POLICY',
   'COMPLIANCE',
+  'GLOBAL_HR',
+  'DEI_ANALYTICS',
+  'ENGAGEMENT',
 ];
 
 describe('policy center controls', () => {
@@ -47,6 +51,9 @@ describe('policy center controls', () => {
       'Notifications And Outbox',
       'Reporting',
       'Integrations And Service Accounts',
+      'Global HR',
+      'DEI Analytics',
+      'Engagement',
     ]));
 
     for (const surface of SYSTEM_POLICY_SURFACES) {

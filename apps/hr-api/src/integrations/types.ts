@@ -10,6 +10,108 @@ import type { Uuid } from '@hcm/shared-kernel';
 /** Direction of data flow for an integration adapter. */
 export type IntegrationDirection = 'INBOUND' | 'OUTBOUND' | 'BIDIRECTIONAL';
 
+/** Environment lanes must stay explicitly separated for provider readiness. */
+export type IntegrationEnvironmentName = 'SANDBOX' | 'PRODUCTION';
+
+/** Credential posture as exposed by the integration readiness surface. */
+export type IntegrationCredentialState = 'CONFIGURED' | 'NOT_CONFIGURED';
+
+/** Incident posture for an integration provider. */
+export type IntegrationIncidentStateName = 'NONE' | 'ACTIVE' | 'MITIGATING';
+
+/** Severity label for provider incidents. */
+export type IntegrationIncidentSeverity = 'SEV1' | 'SEV2' | 'SEV3' | 'SEV4';
+
+/** Operational state stored for an adapter. */
+export type IntegrationOperationalState =
+  | 'HEALTHY'
+  | 'DEGRADED'
+  | 'UNHEALTHY'
+  | 'UNKNOWN'
+  | 'CREDENTIALS_NOT_CONFIGURED'
+  | 'INCIDENT_ACTIVE';
+
+/** Outbound health posture surfaced in readiness snapshots. */
+export type IntegrationOutboundHealthState =
+  | 'HEALTHY'
+  | 'DEGRADED'
+  | 'UNHEALTHY'
+  | 'UNKNOWN'
+  | 'CREDENTIALS_NOT_CONFIGURED';
+
+/** Audit hook names adapters must declare for governed operation. */
+export type IntegrationAuditLogHook =
+  | 'HEALTH_CHECK'
+  | 'SEND_ATTEMPT'
+  | 'SEND_SUCCESS'
+  | 'SEND_FAILURE'
+  | 'RECEIVE_ATTEMPT'
+  | 'RECEIVE_SUCCESS'
+  | 'RECEIVE_FAILURE'
+  | 'INCIDENT_STATE_CHANGED';
+
+/** Owner and escalation metadata for a provider. */
+export interface IntegrationOwner {
+  team: string;
+  contact: string;
+  escalation?: string;
+}
+
+/** One environment lane for a provider. References point to config/vault keys only. */
+export interface IntegrationEnvironmentReadiness {
+  name: IntegrationEnvironmentName;
+  endpointRef: string;
+  credentialRef: string;
+  credentialState: IntegrationCredentialState;
+}
+
+/** Retry and DLQ policy declared by each outbound provider. */
+export interface IntegrationRetryPolicy {
+  maxAttempts: number;
+  backoff: 'EXPONENTIAL' | 'LINEAR';
+  initialDelayMs: number;
+  maxDelayMs: number;
+  deadLetterAfterAttempts: number;
+}
+
+/** Active incident metadata. */
+export interface IntegrationIncidentState {
+  state: IntegrationIncidentStateName;
+  severity?: IntegrationIncidentSeverity;
+  summary?: string;
+  openedAt?: Date;
+  updatedAt?: Date;
+}
+
+/** Runtime outbound health summarized for readiness views. */
+export interface IntegrationOutboundHealth {
+  state: IntegrationOutboundHealthState;
+  consecutiveFailures: number;
+  totalFailures: number;
+  lastCheckedAt?: Date;
+  lastSuccessAt?: Date;
+  lastFailureAt?: Date;
+}
+
+/** Static governance metadata declared by each integration adapter. */
+export interface IntegrationReadinessMetadata {
+  owner: IntegrationOwner;
+  environments: IntegrationEnvironmentReadiness[];
+  retryPolicy: IntegrationRetryPolicy;
+  auditLogHooks: IntegrationAuditLogHook[];
+  incident: IntegrationIncidentState;
+}
+
+/** Runtime readiness snapshot combining adapter metadata and health state. */
+export interface IntegrationProviderReadiness extends IntegrationReadinessMetadata {
+  adapterName: string;
+  direction: IntegrationDirection;
+  credentialState: IntegrationCredentialState;
+  ready: boolean;
+  blockers: string[];
+  outboundHealth?: IntegrationOutboundHealth;
+}
+
 /** Result of a single integration operation. */
 export interface IntegrationResult {
   success: boolean;
@@ -28,13 +130,14 @@ export interface IntegrationHealth {
   lastCheckedAt: Date;
   latencyMs?: number;
   errorMessage?: string;
+  readiness?: IntegrationProviderReadiness;
 }
 
 /** Operational status for one adapter. */
 export interface IntegrationStatus {
   adapterName: string;
   direction: IntegrationDirection;
-  state: 'HEALTHY' | 'DEGRADED' | 'UNHEALTHY' | 'UNKNOWN';
+  state: IntegrationOperationalState;
   lastSuccessAt?: Date;
   lastFailureAt?: Date;
   consecutiveFailures: number;
@@ -87,6 +190,9 @@ export interface IntegrationAdapter {
 
   /** Data-flow direction. */
   readonly direction: IntegrationDirection;
+
+  /** Governed readiness metadata for provider ownership and production posture. */
+  readonly readiness: IntegrationReadinessMetadata;
 
   /** Quick health probe (e.g. ping endpoint, check auth token). */
   healthCheck(): Promise<boolean>;

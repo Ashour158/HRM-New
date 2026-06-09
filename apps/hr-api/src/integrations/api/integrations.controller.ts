@@ -33,6 +33,18 @@ export class IntegrationsController {
     return { adapters: this.orchestrator.getIntegrationStatus() };
   }
 
+  /** GET /hr/integrations/readiness - governed production-readiness view. */
+  @Get('readiness')
+  getReadiness() {
+    return { adapters: this.orchestrator.getProviderReadiness() };
+  }
+
+  /** GET /hr/integrations/:adapterName/readiness - readiness for one adapter. */
+  @Get(':adapterName/readiness')
+  getAdapterReadiness(@Param('adapterName') adapterName: string) {
+    return this.orchestrator.getAdapterReadiness(adapterName);
+  }
+
   /**
    * POST /hr/integrations/:adapterName/trigger – manually trigger an adapter.
    * The payload is passed straight through to the adapter's `send()` method.

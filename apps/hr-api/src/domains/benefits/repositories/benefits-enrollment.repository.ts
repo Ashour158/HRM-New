@@ -27,7 +27,7 @@ export class BenefitsEnrollmentRepository extends BaseRepository<'benefits_enrol
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_enrollments']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['benefits_enrollments']));
   }
 
   async findByProgram(programId: Uuid): Promise<BenefitsEnrollment[]> {
@@ -36,7 +36,7 @@ export class BenefitsEnrollmentRepository extends BaseRepository<'benefits_enrol
       .selectAll()
       .where('program_id', '=', programId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_enrollments']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['benefits_enrollments']));
   }
 
   async save(entity: BenefitsEnrollment): Promise<void> {

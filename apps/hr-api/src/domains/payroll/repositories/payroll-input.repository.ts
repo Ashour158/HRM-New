@@ -20,12 +20,12 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollInput[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('payroll_cycle_id', '=', payrollCycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['payroll_inputs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_inputs']));
   }
 
   async findByWorker(workerId: Uuid): Promise<PayrollInput[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['payroll_inputs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_inputs']));
   }
 
   async save(entity: PayrollInput): Promise<void> {

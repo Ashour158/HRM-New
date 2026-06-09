@@ -5,11 +5,13 @@ import {
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import jwt from 'jsonwebtoken';
 import { loadAppConfig } from '../config/app.config.js';
 import type { HrActor } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
+import { PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
 
 interface JwtPayload {
   sub: string;
@@ -48,8 +50,15 @@ const API_KEY_ACTORS: Record<
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
+  constructor(private readonly reflector: Reflector = new Reflector()) {}
+
   canActivate(context: ExecutionContext): boolean {
+    const isPublic = this.isPublicRoute(context);
+    if (isPublic) return true;
+
     const request = context.switchToHttp().getRequest<Request>();
+    if (request.actor) return true;
+
     const config = loadAppConfig();
 
     // 1. Try API key first (for SYSTEM / INTEGRATION actors).
@@ -93,6 +102,16 @@ export class AuthGuard implements CanActivate {
     }
   }
 
+  private isPublicRoute(context: ExecutionContext): boolean {
+    if (typeof context.getHandler !== 'function' || typeof context.getClass !== 'function') {
+      return false;
+    }
+    return this.reflector.getAllAndOverride<boolean>(PUBLIC_ROUTE_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]) === true;
+  }
+
   private resolveApiKeyActor(
     apiKey: string,
     config: ReturnType<typeof loadAppConfig>,
@@ -120,7 +139,7 @@ export class AuthGuard implements CanActivate {
   }
 
   private buildActorFromJwt(payload: JwtPayload): HrActor {
-      return {
+    return {
       actorType: (payload.actor_type as HrActor['actorType']) ?? 'USER',
       actorId: { value: payload.sub } as unknown as HrActor['actorId'],
       roles: payload.roles ?? [],

@@ -20,7 +20,7 @@ export class LearningCourseRepository extends BaseRepository<'learning_courses',
 
   async findByTenant(tenantId: Uuid): Promise<LearningCourse[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: LearningCourse): Promise<void> {

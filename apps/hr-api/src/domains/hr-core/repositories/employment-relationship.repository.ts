@@ -40,7 +40,7 @@ export class EmploymentRelationshipRepository extends BaseRepository<'employment
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['employment_relationships']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['employment_relationships']));
   }
 
   async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<EmploymentRelationship[]> {
@@ -50,7 +50,7 @@ export class EmploymentRelationshipRepository extends BaseRepository<'employment
       .where('worker_id', '=', workerId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['employment_relationships']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['employment_relationships']));
   }
 
   async save(entity: EmploymentRelationship): Promise<void> {

@@ -18,7 +18,7 @@ export class KpiMeasurementRepository extends BaseRepository<'kpi_measurements',
 
   async findByKpi(kpiId: Uuid): Promise<KpiMeasurement[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('kpi_id', '=', kpiId.value).orderBy('period_start desc').execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: KpiMeasurement): Promise<void> {

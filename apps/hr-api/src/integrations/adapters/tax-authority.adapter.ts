@@ -10,6 +10,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export interface FilingResult extends IntegrationResult {
   filingId?: string;
@@ -32,6 +33,18 @@ export type YearEndFormType = 'W-2' | 'W-2C' | '1099-NEC' | '1099-MISC' | '1095-
 export class TaxAuthorityAdapter implements IntegrationAdapter {
   readonly name = 'tax-authority';
   readonly direction = 'OUTBOUND' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'Payroll Tax Operations',
+    ownerContact: 'payroll-tax-ops@example.com',
+    sandboxEndpointRef: 'env:HR_TAX_AUTHORITY_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_TAX_AUTHORITY_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/tax-authority',
+    retryPolicy: {
+      maxAttempts: 5,
+      deadLetterAfterAttempts: 5,
+      maxDelayMs: 60_000,
+    },
+  });
   private readonly logger = new Logger(TaxAuthorityAdapter.name);
 
   async healthCheck(): Promise<boolean> {

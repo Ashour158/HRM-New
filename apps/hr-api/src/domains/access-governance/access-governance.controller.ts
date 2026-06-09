@@ -28,6 +28,7 @@ import type {
   CreateServiceAccountDto,
   CreateSodRuleDto,
   IssueServiceAccountCredentialDto,
+  RemediateSodViolationDto,
   ReplaceRolePermissionsDto,
   RevokeServiceAccountCredentialDto,
   RotateServiceAccountCredentialDto,
@@ -299,6 +300,20 @@ export class AccessGovernanceController {
   async updateSodRule(@Param('ruleId') ruleId: string, @Body() dto: UpdateSodRuleDto, @Req() req: Request) {
     this.assertWriteScope(req);
     return this.service.updateSodRule(this.getTenantId(req), this.uuid(ruleId, 'ruleId'), dto);
+  }
+
+  @Post('sod-rules/:ruleId/remediations')
+  async remediateSodViolation(
+    @Param('ruleId') ruleId: string,
+    @Body() dto: Omit<RemediateSodViolationDto, 'ruleId'>,
+    @Req() req: Request,
+  ) {
+    this.assertWriteScope(req);
+    return this.service.remediateSodViolation(
+      this.getTenantId(req),
+      { ...dto, ruleId: this.uuid(ruleId, 'ruleId').value },
+      this.getActorId(req),
+    );
   }
 
   private assertReadScope(req: Request): void {

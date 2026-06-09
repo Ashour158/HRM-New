@@ -54,7 +54,7 @@ export class JobRequisitionRepository {
       .where('position_id', '=', positionId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -67,7 +67,7 @@ export class JobRequisitionRepository {
       .where('department_id', '=', departmentId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -81,7 +81,7 @@ export class JobRequisitionRepository {
       .where('status', '=', 'OPEN')
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

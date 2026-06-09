@@ -20,7 +20,7 @@ export class PayrollCycleRepository extends BaseRepository<'payroll_cycles', Pay
 
   async findByTenant(tenantId: Uuid): Promise<PayrollCycle[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['payroll_cycles']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_cycles']));
   }
 
   async save(entity: PayrollCycle): Promise<void> {

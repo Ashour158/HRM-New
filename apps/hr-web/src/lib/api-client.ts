@@ -1,4 +1,6 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
+import type { ApiResponse, AuthRefreshResponse } from '@hcm/openapi-contracts';
+import { clearAuthSession, persistAuthSession, readAuthToken, readRefreshToken, readTenantId } from '@/lib/auth-storage';
 import { generateUUID } from './utils';
 import { createMockAdapter } from './mock-adapter';
 
@@ -7,6 +9,7 @@ import { createMockAdapter } from './mock-adapter';
  */
 interface RetryConfig extends InternalAxiosRequestConfig {
   retryCount?: number;
+  authRefreshAttempted?: boolean;
 }
 
 const MAX_RETRIES = 3;
@@ -16,43 +19,13 @@ const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
 
-function readPersistedAuthState(): { token?: string; tenantId?: string } {
-  try {
-    const raw = localStorage.getItem('auth-storage');
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as { state?: { token?: unknown; user?: { tenantId?: unknown } } };
-    return {
-      token: typeof parsed.state?.token === 'string' ? parsed.state.token : undefined,
-      tenantId: typeof parsed.state?.user?.tenantId === 'string' ? parsed.state.user.tenantId : undefined,
-    };
-  } catch {
-    return {};
-  }
+function persistTokens(token: string, refreshToken?: string): void {
+  persistAuthSession({ token, refreshToken });
 }
 
-function readAuthToken(): string | null {
-  const token = localStorage.getItem('auth_token');
-  if (token && token !== LOCAL_BYPASS_TOKEN) return token;
-
-  const persistedToken = readPersistedAuthState().token;
-  if (persistedToken && persistedToken !== LOCAL_BYPASS_TOKEN) {
-    localStorage.setItem('auth_token', persistedToken);
-    return persistedToken;
-  }
-
-  return null;
-}
-
-function readTenantId(): string {
-  return localStorage.getItem('tenant_id')
-    || readPersistedAuthState().tenantId
+function currentTenantId(): string {
+  return readTenantId()
     || (AUTH_BYPASS_ENABLED ? DEFAULT_TENANT_ID : '');
-}
-
-function clearAuthSession(): void {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('tenant_id');
-  localStorage.removeItem('auth-storage');
 }
 
 /**
@@ -76,7 +49,7 @@ function createApiClient(): AxiosInstance {
         config.headers.set('Authorization', `Bearer ${token}`);
       }
 
-      const tenantId = readTenantId();
+      const tenantId = currentTenantId();
       if (tenantId) {
         config.headers.set('X-Tenant-ID', tenantId);
       }
@@ -98,6 +71,26 @@ function createApiClient(): AxiosInstance {
 
       // Handle 401 Unauthorized
       if (error.response?.status === 401) {
+        const isAuthEndpoint = typeof config.url === 'string' && config.url.startsWith('/auth/');
+        const refreshToken = readRefreshToken();
+        if (!AUTH_BYPASS_ENABLED && !config.authRefreshAttempted && !isAuthEndpoint && refreshToken) {
+          try {
+            config.authRefreshAttempted = true;
+            const refreshResponse = await axios.post<ApiResponse<AuthRefreshResponse>>(
+              `${client.defaults.baseURL}/auth/refresh`,
+              { refreshToken },
+              { headers: { 'Content-Type': 'application/json' }, timeout: 15000 },
+            );
+            if (refreshResponse.data.success && refreshResponse.data.data.token) {
+              persistTokens(refreshResponse.data.data.token, refreshResponse.data.data.refreshToken);
+              config.headers.set('Authorization', `Bearer ${refreshResponse.data.data.token}`);
+              return client(config);
+            }
+          } catch {
+            // Fall through to session expiry handling.
+          }
+        }
+
         if (!AUTH_BYPASS_ENABLED) {
           clearAuthSession();
           if (window.location.pathname !== '/login') {

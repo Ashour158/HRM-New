@@ -20,7 +20,7 @@ export class AbsenceAccrualBalanceRepository extends BaseRepository<'absence_acc
 
   async findByWorker(workerId: Uuid): Promise<AbsenceAccrualBalance[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['absence_accrual_balances']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['absence_accrual_balances']));
   }
 
   async save(entity: AbsenceAccrualBalance): Promise<void> {

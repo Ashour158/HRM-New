@@ -20,7 +20,7 @@ export class ErInvestigationRepository extends BaseRepository<'er_investigations
 
   async findByTenant(tenantId: Uuid): Promise<ErInvestigation[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['er_investigations']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['er_investigations']));
   }
 
 

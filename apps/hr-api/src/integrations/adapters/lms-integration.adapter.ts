@@ -14,6 +14,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export interface LmsResult extends IntegrationResult {
   lmsAssignmentId?: string;
@@ -56,6 +57,13 @@ export interface XapiStatement {
 export class LmsIntegrationAdapter implements IntegrationAdapter {
   readonly name = 'lms-integration';
   readonly direction = 'BIDIRECTIONAL' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'Learning Operations',
+    ownerContact: 'learning-ops@example.com',
+    sandboxEndpointRef: 'env:HR_LMS_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_LMS_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/lms-integration',
+  });
   private readonly logger = new Logger(LmsIntegrationAdapter.name);
 
   async healthCheck(): Promise<boolean> {

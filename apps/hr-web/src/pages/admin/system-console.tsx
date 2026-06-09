@@ -222,6 +222,19 @@ interface AdminPanelTool {
   status?: 'live' | 'not-configured';
 }
 
+interface GuidedAdminJourney {
+  title: string;
+  description: string;
+  path: string;
+  actionLabel: string;
+  status: ConsoleStatus;
+  statusLabel: string;
+  icon: React.ElementType;
+  signals: string[];
+}
+
+type PendingAdminWorkGroup = 'Setup And People' | 'Policy And Payroll' | 'Operational Health';
+
 interface PendingAdminWorkItem {
   title: string;
   helper: string;
@@ -231,6 +244,7 @@ interface PendingAdminWorkItem {
   path: string;
   actionLabel: string;
   icon: React.ElementType;
+  group: PendingAdminWorkGroup;
 }
 
 function unwrapApiData<T>(payload: unknown): T {
@@ -265,6 +279,13 @@ function statusClasses(status: ConsoleStatus) {
   if (status === 'partial') return 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]';
   if (status === 'attention') return 'border-[#f59e0b]/30 bg-[#fde68a]/60 text-[#78350f]';
   return 'border-[#e11d48]/30 bg-[#e11d48]/10 text-[#e11d48]';
+}
+
+function groupStatus(items: PendingAdminWorkItem[]): ConsoleStatus {
+  if (items.some((item) => item.status === 'attention')) return 'attention';
+  if (items.some((item) => item.status === 'partial')) return 'partial';
+  if (items.some((item) => item.status === 'not-configured')) return 'not-configured';
+  return 'live';
 }
 
 function StatusBadge({ status, label }: { status: ConsoleStatus; label: string }) {
@@ -378,6 +399,37 @@ function AdminPanelTile({ tool }: { tool: AdminPanelTool }) {
   );
 }
 
+function GuidedJourneyCard({ journey }: { journey: GuidedAdminJourney }) {
+  const Icon = journey.icon;
+
+  return (
+    <Link to={journey.path} className="group focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30">
+      <div className="flex h-full min-h-[240px] flex-col fusion-glass rounded-2xl p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
+            <Icon className="h-5 w-5" />
+          </div>
+          <StatusBadge status={journey.status} label={journey.statusLabel} />
+        </div>
+        <h4 className="mt-4 font-semibold text-[#0f172a]">{journey.title}</h4>
+        <p className="mt-2 text-sm leading-5 text-[#475569]">{journey.description}</p>
+        <div className="mt-4 flex-1 space-y-2">
+          {journey.signals.map((signal) => (
+            <div key={signal} className="flex items-start gap-2 text-xs leading-5 text-[#475569]">
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#4f46e5]" />
+              <span>{signal}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center justify-between border-t border-[#e2e8f0] pt-3 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
+          <span>{journey.actionLabel}</span>
+          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
 export function AdminSystemConsole() {
   const { user } = useAuth();
   const [adminToolQuery, setAdminToolQuery] = React.useState('');
@@ -443,6 +495,29 @@ export function AdminSystemConsole() {
     departments: setupQuery.data?.departments?.filter((item) => item.active).length ?? 0,
     locations: setupQuery.data?.locations?.filter((item) => item.active).length ?? 0,
   };
+  const activeJobTitles = setupQuery.data?.jobTitles?.filter((item) => item.active).length ?? 0;
+  const activeDocumentRequirements = setupQuery.data?.documentRequirements?.filter((item) => item.active).length ?? 0;
+  const activeRequiredFieldRules = setupQuery.data?.fieldRules?.filter((item) => item.active && item.required).length ?? 0;
+  const activeLeavePolicies = setupQuery.data?.leavePolicies?.filter((item) => item.active).length ?? 0;
+  const requestableLeavePolicies = setupQuery.data?.leavePolicies?.filter((item) => item.active && item.requestableByEmployee).length ?? 0;
+  const holidayCalendarCount = setupQuery.data?.attendancePolicy?.holidayCalendars?.length
+    ?? setupQuery.data?.attendancePolicy?.holidays?.length
+    ?? 0;
+  const statutoryPayrollPackCount = setupQuery.data?.statutoryPayrollPacks?.filter((item) => item.active).length ?? 0;
+  const payrollBlockingRuleCount = setupQuery.data?.payrollBlockingRules?.filter((item) => item.active && item.blocking).length ?? 0;
+  const payrollPolicy = setupQuery.data?.payrollCalculationPolicy;
+  const payrollRatesConfigured = typeof payrollPolicy?.taxRatePercent === 'number'
+    && typeof payrollPolicy?.employeeInsuranceRatePercent === 'number';
+  const attendancePolicyReady = setupQuery.isSuccess
+    && Boolean(setupQuery.data?.attendancePolicy)
+    && activeLeavePolicies > 0;
+  const employeeAssignmentReady = setupQuery.isSuccess
+    && activeSetupCounts.departments > 0
+    && activeSetupCounts.locations > 0
+    && activeRequiredFieldRules > 0;
+  const payrollSetupReady = setupQuery.isSuccess
+    && payrollRatesConfigured
+    && statutoryPayrollPackCount > 0;
   const readinessDown = readinessQuery.data?.checks?.filter((check) => check.status === 'down').length ?? 0;
   const integrationAdapterNames = Array.isArray(integrationQuery.data?.adapters)
     ? integrationQuery.data.adapters
@@ -459,19 +534,44 @@ export function AdminSystemConsole() {
       ? Object.keys(integrationQuery.data.adapters).length
       : 0;
   const mailAdapterConfigured = integrationAdapterNames.some((name) => /mail|email|smtp|notification/i.test(name));
+  const setupGapLabels = [
+    setupQuery.isSuccess && activeSetupCounts.departments === 0 ? 'no active departments' : null,
+    setupQuery.isSuccess && activeSetupCounts.locations === 0 ? 'no active locations' : null,
+    setupQuery.isSuccess && activeRequiredFieldRules === 0 ? 'no required employee fields' : null,
+    setupQuery.isError ? 'setup unavailable' : null,
+  ].filter(Boolean) as string[];
+  const integrationGapLabels = [
+    integrationQuery.isError ? 'connection status unavailable' : null,
+    integrationQuery.isSuccess && integrationAdapterCount === 0 ? 'no connections registered' : null,
+    integrationQuery.isSuccess && !mailAdapterConfigured ? 'email delivery connection missing' : null,
+    mapsConfigured ? null : 'attendance map key missing',
+  ].filter(Boolean) as string[];
   const usageTotals = serviceUsageQuery.data?.totals;
   const usageQueueHealth = serviceUsageQuery.data?.queueHealth;
+  const pendingPolicyActions = ['IN_REVIEW', 'REVIEWED', 'APPROVED', 'PUBLISHED'].reduce(
+    (total, status) => total + (policyQuery.data?.byStatus?.[status] ?? 0),
+    0,
+  );
+  const unappliedPolicyRevisions = Math.max(
+    (policyQuery.data?.totalRevisions ?? 0) - (policyQuery.data?.byStatus?.APPLIED ?? 0),
+    0,
+  );
+  const unresolvedDeadLetters = (deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0)
+    + (deadLetterQuery.data?.outbox?.exhausted ?? 0);
+  const queueBacklog = (usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0)
+    + (usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0)
+    + (usageQueueHealth?.inbox.inProgressEvents ?? usageTotals?.inboxInProgressEvents ?? 0);
   const adminDisplayName = `${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim() || user?.email || 'System Administrator';
   const primaryRole = user?.roles?.[0]?.name?.replace(/_/g, ' ') ?? 'Administrator';
   const adminPanelTools: AdminPanelTool[] = [
-    { label: 'Access Governance', description: 'Users, roles, permissions, service accounts, access reviews, ABAC, field-access, and SoD.', group: 'Foundation', path: '/admin/system-console/access-governance', icon: UserCog, tone: 'text-[#f59e0b]' },
-    { label: 'Tenant Setup', description: 'Departments, locations, ID rules, custom fields, and document setup.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#f59e0b]' },
+    { label: 'Access Governance', description: 'Users, roles, service accounts, access reviews, sensitive-field access, and duty conflicts.', group: 'Foundation', path: '/admin/system-console/access-governance', icon: UserCog, tone: 'text-[#f59e0b]' },
+    { label: 'Company Setup', description: 'Departments, locations, employee IDs, required fields, documents, and policy defaults.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#f59e0b]' },
     { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#818cf8]' },
     { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#4f46e5]' },
-    { label: 'Data Governance', description: 'Required fields, sensitive fields, masking rules, and protected worker data.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#6366f1]' },
+    { label: 'Employee Data Rules', description: 'Required employee fields, sensitive data visibility, and protected worker information.', group: 'Foundation', path: '/admin/system-console/settings', icon: DatabaseZap, tone: 'text-[#6366f1]' },
     { label: 'Documents And Files', description: 'Required documents, expiry rules, evidence, and digital file controls.', group: 'Foundation', path: '/admin/system-console/settings', icon: FolderOpen, tone: 'text-[#818cf8]' },
     { label: 'Leave Management', description: 'Entitlements, balances, requests, approvals, holidays, and payroll impact.', group: 'Workforce Operations', path: '/admin/leave', icon: Umbrella, tone: 'text-[#818cf8]' },
-    { label: 'Attendance And Time', description: 'Check-in policies, geolocation evidence, exceptions, ledgers, and exports.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#f59e0b]' },
+    { label: 'Attendance And Time', description: 'Check-in rules, workplace evidence, exceptions, daily ledgers, and payroll handoff.', group: 'Workforce Operations', path: '/admin/attendance', icon: CalendarCheck, tone: 'text-[#f59e0b]' },
     { label: 'Shift Scheduling', description: 'Roster planning, coverage gaps, shift bids, swaps, and fatigue controls.', group: 'Workforce Operations', path: '/admin/modules/workforce-management/operations', icon: Timer, tone: 'text-[#f59e0b]' },
     { label: 'HR Service Delivery', description: 'Cases, tasks, service catalog, SLA rules, and employee support queues.', group: 'Workforce Operations', path: '/admin/modules/service-delivery/operations', icon: ClipboardCheck, tone: 'text-[#f59e0b]' },
     { label: 'Travel And Expenses', description: 'Travel requests, expenses, approvals, and reimbursements.', group: 'Workforce Operations', icon: Plane, tone: 'text-[#818cf8]', status: 'not-configured' },
@@ -489,10 +589,10 @@ export function AdminSystemConsole() {
     { label: 'Reporting And Analytics', description: 'Report builder operations, scheduled reports, usage, and calculated fields.', group: 'Governance And Insights', path: '/admin/modules/reporting/operations', icon: FileText, tone: 'text-[#818cf8]' },
     { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#4f46e5]' },
     { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'not-configured' },
-    { label: 'System Operations', description: 'Health, queues, integrations, service usage, and data operations.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
-    { label: 'Dead-Letter Events', description: 'Inspect, retry, skip, and export failed inbox/outbox events with operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
+    { label: 'System Operations', description: 'Readiness, recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'Failed Work Queue', description: 'Review failed background work, decide recovery actions, and export operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
     { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#4f46e5]' },
-    { label: 'Event Contracts', description: 'Topics, aggregate mappings, schema versions, and consumer naming contracts.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
+    { label: 'Service Event Map', description: 'Review service event names, ownership, versioning, and consuming teams.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
   ];
   const filteredAdminPanelTools = adminPanelTools.filter((tool) => (
     tool.label.toLowerCase().includes(adminToolQuery.trim().toLowerCase())
@@ -503,138 +603,183 @@ export function AdminSystemConsole() {
     'Reward And Talent',
     'Governance And Insights',
   ];
-  const adminJourneySteps = [
+  const guidedJourneys: GuidedAdminJourney[] = [
     {
-      step: '01',
-      title: 'Set Tenant Foundation',
-      description: 'Company setup, IDs, departments, locations, documents, required fields, and sensitive data rules.',
-      path: '/admin/system-console/settings',
-      status: setupQuery.isSuccess ? 'live' : 'attention',
-      label: setupQuery.isSuccess ? 'Ready' : 'Check setup',
-      icon: Settings,
-    },
-    {
-      step: '02',
-      title: 'Build Organization',
-      description: 'Create legal entities, org units, departments, manager relationships, and workforce planning scenarios.',
+      title: 'Organization Setup',
+      description: 'Confirm company structure before hiring, transfers, approvals, and reporting depend on it.',
       path: '/admin/organization',
-      status: 'live',
-      label: 'Operational',
+      actionLabel: 'Open Organization',
+      status: setupQuery.isSuccess && activeSetupCounts.departments > 0 && activeSetupCounts.locations > 0 ? 'live' : setupQuery.isSuccess ? 'attention' : 'partial',
+      statusLabel: setupQuery.isSuccess && activeSetupCounts.departments > 0 && activeSetupCounts.locations > 0 ? 'Ready' : setupQuery.isSuccess ? 'Needs setup' : 'Loading',
       icon: Building2,
+      signals: [
+        `${activeSetupCounts.departments} active departments`,
+        `${activeSetupCounts.locations} active work locations`,
+        `${activeJobTitles} job titles available`,
+      ],
     },
     {
-      step: '03',
-      title: 'Create Employees',
-      description: 'Create worker records, assign employment details, lifecycle status, department, and manager ownership.',
+      title: 'Employee Assignment',
+      description: 'Prepare the data rules administrators need when creating or assigning employees.',
       path: '/admin/employees/new',
-      status: 'live',
-      label: 'Operational',
+      actionLabel: 'Create Employee',
+      status: employeeAssignmentReady ? 'live' : setupQuery.isSuccess ? 'attention' : 'partial',
+      statusLabel: employeeAssignmentReady ? 'Ready' : setupQuery.isSuccess ? 'Check setup' : 'Loading',
       icon: UserRoundPlus,
+      signals: [
+        `${activeRequiredFieldRules} required employee fields`,
+        `${activeDocumentRequirements} hiring document slots`,
+        setupQuery.data?.employeeIdPolicy?.mode === 'AUTO' ? 'Employee IDs auto-generate' : 'Employee ID entry is controlled',
+      ],
     },
     {
-      step: '04',
-      title: 'Govern Policies',
-      description: 'Create, scope, validate, simulate, approve, publish, and apply active rules.',
-      path: '/admin/system-console/policies',
-      status: policyQuery.isSuccess ? 'live' : 'attention',
-      label: policyQuery.isSuccess ? 'Policy center ready' : 'Check policies',
-      icon: ShieldCheck,
+      title: 'Leave And Attendance Policies',
+      description: 'Set leave types, holiday calendars, workday rules, and attendance checks before payroll closes.',
+      path: '/admin/system-console/settings',
+      actionLabel: 'Configure Time Rules',
+      status: attendancePolicyReady ? 'live' : setupQuery.isSuccess ? 'attention' : 'partial',
+      statusLabel: attendancePolicyReady ? 'Ready' : setupQuery.isSuccess ? 'Needs setup' : 'Loading',
+      icon: CalendarCheck,
+      signals: [
+        `${activeLeavePolicies} active leave policies`,
+        `${requestableLeavePolicies} employee-requestable leave types`,
+        `${holidayCalendarCount} holiday calendar entries`,
+      ],
     },
     {
-      step: '05',
-      title: 'Verify Operations',
-      description: 'Monitor health, queues, notifications, service usage, audit history, and integrations.',
+      title: 'Payroll Statutory Setup',
+      description: 'Review country payroll packs, tax and insurance rates, and payroll blockers before running pay.',
+      path: '/admin/payroll',
+      actionLabel: 'Open Payroll Controls',
+      status: payrollSetupReady ? 'live' : setupQuery.isSuccess ? 'attention' : 'partial',
+      statusLabel: payrollSetupReady ? 'Ready' : setupQuery.isSuccess ? 'Needs setup' : 'Loading',
+      icon: BadgeDollarSign,
+      signals: [
+        `${statutoryPayrollPackCount} active statutory packs`,
+        payrollRatesConfigured ? 'Tax and insurance rates are present' : 'Tax or insurance rates need review',
+        `${payrollBlockingRuleCount} payroll blocking rules active`,
+      ],
+    },
+    {
+      title: 'Access Review',
+      description: 'Review administrator roles, service accounts, sensitive field access, and high-risk permissions.',
+      path: '/admin/system-console/access-governance',
+      actionLabel: 'Review Access',
+      status: 'live',
+      statusLabel: 'Available',
+      icon: UserCog,
+      signals: [
+        'Role and permission reviews live in one area',
+        'Service accounts can be checked before integrations run',
+        'Sensitive employee fields have governed access paths',
+      ],
+    },
+    {
+      title: 'Integrations',
+      description: 'Check external connections that affect notifications, attendance maps, imports, and exports.',
+      path: '/admin/system-console/integrations',
+      actionLabel: 'Verify Connections',
+      status: integrationGapLabels.length > 0 ? 'attention' : integrationQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: integrationGapLabels.length > 0 ? 'Configure' : integrationQuery.isSuccess ? 'Ready' : 'Loading',
+      icon: PlugZap,
+      signals: [
+        `${integrationAdapterCount} connections registered`,
+        mailAdapterConfigured ? 'Email delivery connection present' : 'Email delivery needs review',
+        mapsConfigured ? 'Attendance maps configured' : 'Attendance maps need a key',
+      ],
+    },
+    {
+      title: 'Queues, Audit, And Health',
+      description: 'Watch readiness, recover failed work, review notifications, and confirm recent audit evidence.',
       path: '/admin/system-console#system-operations',
-      status: readinessQuery.data?.status === 'ready' ? 'live' : readinessQuery.isSuccess ? 'attention' : 'partial',
-      label: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch',
+      actionLabel: 'Open Health',
+      status: readinessDown > 0 || queueBacklog > 0 || unresolvedDeadLetters > 0 ? 'attention' : readinessQuery.isSuccess ? 'live' : 'partial',
+      statusLabel: readinessDown > 0 || queueBacklog > 0 || unresolvedDeadLetters > 0 ? 'Watch' : readinessQuery.isSuccess ? 'Ready' : 'Loading',
       icon: Activity,
+      signals: [
+        `${readinessDown} readiness blockers`,
+        `${queueBacklog + unresolvedDeadLetters} queue items need review`,
+        `${auditQuery.data?.length ?? 0} recent audit records visible`,
+      ],
     },
-  ] satisfies Array<{
-    step: string;
-    title: string;
-    description: string;
-    path: string;
-    status: ConsoleStatus;
-    label: string;
-    icon: React.ElementType;
-  }>;
+  ];
 
   const controls = React.useMemo<ConsoleControl[]>(() => [
     {
       title: 'Health And Readiness',
-      description: 'Platform health checks for the application, database, queues, and integrations.',
+      description: 'Readiness checks for the HR workspace, database, recovery queues, and connected services.',
       status: readinessQuery.data?.status === 'ready' ? 'live' : readinessQuery.isSuccess ? 'attention' : 'partial',
-      statusLabel: readinessQuery.data?.status === 'ready' ? 'Ready' : readinessQuery.isSuccess ? 'Not ready' : 'Endpoint check',
+      statusLabel: readinessQuery.data?.status === 'ready' ? 'Ready' : readinessQuery.isSuccess ? 'Not ready' : 'Checking',
       icon: Activity,
       evidence: [
-        `Application health: ${healthQuery.data?.status ?? 'not loaded'}${healthQuery.data?.version ? ` / v${healthQuery.data.version}` : ''}`,
-        `Availability: ${livenessQuery.data?.status ?? 'not loaded'}`,
+        `Workspace health: ${healthQuery.data?.status ?? 'not loaded'}${healthQuery.data?.version ? ` / v${healthQuery.data.version}` : ''}`,
+        `Availability check: ${livenessQuery.data?.status ?? 'not loaded'}`,
         `${readinessQuery.data?.checks?.length ?? 0} readiness checks, ${readinessDown} down`,
         'Tracks readiness before administrators make high-risk changes',
       ],
     },
     {
       title: 'Identity, Roles, And Access',
-      description: 'Authentication, RBAC, service accounts, access reviews, ABAC, field policy, and SoD are managed from Access Governance.',
+      description: 'Sign-in rules, roles, service accounts, access reviews, sensitive-field access, and duty conflicts.',
       status: 'live',
       statusLabel: 'Admin managed',
       icon: KeyRound,
       link: '/admin/system-console/access-governance',
       linkLabel: 'Open Access Governance',
       evidence: [
-        'Auth guard and admin role gates protect admin routes',
+        'Admin-only routes are protected by role checks',
         'Roles, permissions, and user-role grants are managed here',
         'Service-account identities and access-review campaigns/items are persisted and editable',
-        'Policy overrides are evaluated in the command bus before domain handlers run',
+        'High-risk actions can require reason capture or extra review',
       ],
     },
     {
       title: 'Approvals And Triggers',
-      description: 'Domain approvals and automated actions are visible by module.',
+      description: 'Approval states and follow-up actions are visible in the module workspaces that own them.',
       status: 'partial',
-      statusLabel: 'Domain-backed',
+      statusLabel: 'Module owned',
       icon: Workflow,
       evidence: [
-        'Module operations show records and approvals per commercial module',
-        'Domain actions record approval states',
-        'Central trigger designer is not configured yet',
+        'Module workspaces show approval status next to business records',
+        'Operational actions keep review state and actor evidence',
+        'A central automation designer is not configured yet',
       ],
     },
     {
-      title: 'Notifications And Outbox',
-      description: 'HR operations notifications, service usage, queue recovery, and failed-event actions.',
+      title: 'Notifications And Recovery Queue',
+      description: 'HR operations notifications, failed work review, recovery decisions, and activity reporting.',
       status: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'live' : notificationsQuery.isSuccess ? 'partial' : 'attention',
       statusLabel: notificationsQuery.isSuccess && deadLetterQuery.isSuccess ? 'Ready' : notificationsQuery.isSuccess ? 'Partial' : 'Needs attention',
       icon: BellRing,
       link: '/admin/system-console/dead-letter-events',
-      linkLabel: 'Open Dead-Letter Events',
+      linkLabel: 'Open Failed Work Queue',
       evidence: [
         'HR operations notifications are visible',
-        'Retryable queue items can be recovered',
-        'Operator page supports tenant-scoped inspect, retry, skip, and CSV export',
-        `${unreadNotifications} unread HR operations notifications in the current inbox`,
+        'Retryable failed work can be recovered',
+        'Operators can inspect, retry, skip, and export recovery evidence',
+        `${unreadNotifications} unread HR operations notifications in the admin inbox`,
         `${usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0} pending queue items and ${usageQueueHealth?.outbox.exhaustedEvents ?? usageTotals?.exhaustedOutboxEvents ?? 0} exhausted items`,
-        `${usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0} retryable inbox failures and ${usageQueueHealth?.inbox.failedNonRetryableEvents ?? usageTotals?.inboxFailedNonRetryableEvents ?? 0} non-retryable inbox failures`,
-        `${deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0} non-retryable inbox rows and ${deadLetterQuery.data?.outbox?.exhausted ?? 0} exhausted outbox rows`,
+        `${usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0} retryable recovery items and ${usageQueueHealth?.inbox.failedNonRetryableEvents ?? usageTotals?.inboxFailedNonRetryableEvents ?? 0} non-retryable recovery items`,
+        `${deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0} non-retryable items and ${deadLetterQuery.data?.outbox?.exhausted ?? 0} exhausted delivery items`,
       ],
     },
     {
       title: 'Integrations',
-      description: 'External providers, health checks, ownership, and safe connection checks.',
+      description: 'External providers, connection health, ownership, and safe connection checks.',
       status: integrationQuery.isSuccess ? 'partial' : 'attention',
       statusLabel: integrationQuery.isSuccess ? 'Configured' : 'Needs attention',
       icon: PlugZap,
       link: '/admin/system-console/integrations',
       linkLabel: 'Open Integration Controls',
       evidence: [
-        `Connected environment: ${apiBaseUrl ? 'configured' : 'not configured'}`,
-        `${integrationAdapterCount} integration adapters reported by /hr/integrations/status`,
-        `Google Maps browser key: ${mapsConfigured ? 'configured' : 'not configured'}`,
+        `HR service connection: ${apiBaseUrl ? 'configured' : 'not configured'}`,
+        `${integrationAdapterCount} external connections registered`,
+        `Attendance map key: ${mapsConfigured ? 'configured' : 'not configured'}`,
       ],
     },
     {
-      title: 'Service Usage Reporting',
-      description: 'Cross-module usage by actions, notifications, approvals, and queue health.',
+      title: 'Activity Reporting',
+      description: 'Cross-module activity by actions, notifications, approvals, and queue health.',
       status: serviceUsageQuery.isSuccess ? 'live' : 'attention',
       statusLabel: serviceUsageQuery.isSuccess ? 'Ready' : 'Needs attention',
       icon: FileText,
@@ -644,7 +789,7 @@ export function AdminSystemConsole() {
         `${usageTotals?.commands ?? 0} actions and ${usageTotals?.failedCommands ?? 0} failed actions`,
         `${usageTotals?.events ?? 0} service events, ${usageTotals?.notifications ?? 0} notifications, ${usageTotals?.workflowTransitions ?? 0} approval changes`,
         `${usageTotals?.oldestQueueBacklogAt ? `Oldest queue backlog at ${new Date(usageTotals.oldestQueueBacklogAt).toLocaleString()}` : 'No queue backlog timestamp reported'}`,
-        'Uses GET /reporting/service-usage/summary',
+        'Reporting workspace summarizes operational activity and exceptions',
       ],
     },
     {
@@ -656,23 +801,23 @@ export function AdminSystemConsole() {
       link: '/admin/system-console/audit',
       linkLabel: 'Open Audit Trail',
       evidence: [
-        'Uses GET /audit for recent tenant audit entries',
+        'Recent tenant audit entries are available to authorized roles',
         `${auditQuery.data?.length ?? 0} recent audit records available to this actor`,
         'Dedicated admin audit page supports filters, search, and CSV export',
       ],
     },
     {
-      title: 'Event Contracts',
-      description: 'Topic registry, aggregate mappings, event schema versions, and consumer group rules are visible to operators.',
+      title: 'Service Event Map',
+      description: 'Service event names, ownership, versioning, and consuming teams are visible to operators.',
       status: 'live',
       statusLabel: 'Registry UI',
       icon: GitBranch,
       link: '/admin/system-console/event-contracts',
-      linkLabel: 'Open Event Contracts',
+      linkLabel: 'Open Service Event Map',
       evidence: [
-        'Uses GET /admin/event-contracts/registry',
-        'Displays canonical topics, aggregate routes, prefix fallbacks, and envelope defaults',
-        'Supports replay-safe governance of schema/topic alignment',
+        'Shows event names used across HR service areas',
+        'Highlights ownership, versioning, and consuming teams',
+        'Helps operators review service-event changes before rollout',
       ],
     },
     {
@@ -745,9 +890,9 @@ export function AdminSystemConsole() {
       status: dashboardQuery.isSuccess ? 'live' : 'attention',
     },
     {
-      label: 'Commercial Modules',
+      label: 'Admin Areas',
       value: commercialModules.length.toString(),
-      helper: `${nativeModules} admin, ${workbenchModules} operations, ${apiReadyModules} setup needed`,
+      helper: `${nativeModules} full admin, ${workbenchModules} operations, ${apiReadyModules} setup needed`,
       icon: Layers3,
       status: 'live' as ConsoleStatus,
     },
@@ -759,7 +904,7 @@ export function AdminSystemConsole() {
       status: policyQuery.isSuccess ? 'live' : 'attention',
     },
     {
-      label: 'Usage Signals',
+      label: 'Activity Signals',
       value: formatNumber((usageTotals?.commands ?? 0) + (usageTotals?.events ?? 0) + (usageTotals?.notifications ?? 0) + (usageTotals?.workflowTransitions ?? 0)),
       helper: 'Actions, notifications, and approvals',
       icon: BellRing,
@@ -767,90 +912,71 @@ export function AdminSystemConsole() {
     },
   ];
 
-  const pendingPolicyActions = ['IN_REVIEW', 'REVIEWED', 'APPROVED', 'PUBLISHED'].reduce(
-    (total, status) => total + (policyQuery.data?.byStatus?.[status] ?? 0),
-    0,
-  );
-  const unappliedPolicyRevisions = Math.max(
-    (policyQuery.data?.totalRevisions ?? 0) - (policyQuery.data?.byStatus?.APPLIED ?? 0),
-    0,
-  );
-  const unresolvedDeadLetters = (deadLetterQuery.data?.inbox?.failedNonRetryable ?? 0)
-    + (deadLetterQuery.data?.outbox?.exhausted ?? 0);
-  const queueBacklog = (usageQueueHealth?.outbox.pendingEvents ?? usageTotals?.pendingOutboxEvents ?? 0)
-    + (usageQueueHealth?.inbox.failedRetryableEvents ?? usageTotals?.inboxFailedRetryableEvents ?? 0)
-    + (usageQueueHealth?.inbox.inProgressEvents ?? usageTotals?.inboxInProgressEvents ?? 0);
-  const setupGapLabels = [
-    setupQuery.isSuccess && activeSetupCounts.departments === 0 ? 'no active departments' : null,
-    setupQuery.isSuccess && activeSetupCounts.locations === 0 ? 'no active locations' : null,
-    setupQuery.isError ? 'setup unavailable' : null,
-  ].filter(Boolean) as string[];
-  const integrationGapLabels = [
-    integrationQuery.isError ? 'integration status unavailable' : null,
-    integrationQuery.isSuccess && integrationAdapterCount === 0 ? 'no adapters registered' : null,
-    integrationQuery.isSuccess && !mailAdapterConfigured ? 'email delivery adapter missing' : null,
-    mapsConfigured ? null : 'Google Maps key missing',
-  ].filter(Boolean) as string[];
   const pendingAdminWork: PendingAdminWorkItem[] = [
     {
-      title: 'Policy Approval And Apply Queue',
+      title: 'Policy Review And Apply Queue',
       helper: pendingPolicyActions > 0
-        ? `${pendingPolicyActions} revisions need review, approval, publish, or apply. ${unappliedPolicyRevisions} revisions are not applied.`
-        : 'No policy lifecycle action is waiting for this tenant.',
+        ? `${pendingPolicyActions} policy revisions need review, approval, publish, or apply. ${unappliedPolicyRevisions} revisions are not active yet.`
+        : 'No policy review or apply action is waiting for this tenant.',
       count: pendingPolicyActions,
       status: pendingPolicyActions > 0 ? 'attention' : 'live',
       statusLabel: pendingPolicyActions > 0 ? 'Action' : 'Clear',
       path: '/admin/system-console/policies',
       actionLabel: 'Open Policy Center',
       icon: ShieldCheck,
+      group: 'Policy And Payroll',
     },
     {
-      title: 'Failed Events And Dead Letters',
+      title: 'Failed Work Decisions',
       helper: unresolvedDeadLetters > 0
-        ? `${unresolvedDeadLetters} non-retryable or exhausted events need an operator decision.`
-        : 'No non-retryable inbox or exhausted outbox rows reported.',
+        ? `${unresolvedDeadLetters} failed work items need an operator decision.`
+        : 'No failed work items need an operator decision.',
       count: unresolvedDeadLetters,
       status: unresolvedDeadLetters > 0 ? 'attention' : deadLetterQuery.isSuccess ? 'live' : 'partial',
       statusLabel: unresolvedDeadLetters > 0 ? 'Inspect' : deadLetterQuery.isSuccess ? 'Clear' : 'Loading',
       path: '/admin/system-console/dead-letter-events',
-      actionLabel: 'Open Dead Letters',
+      actionLabel: 'Open Failed Work',
       icon: AlertTriangle,
+      group: 'Operational Health',
     },
     {
-      title: 'Queue Health And Backlog',
+      title: 'Recovery Queue Health',
       helper: queueBacklog > 0
         ? `${queueBacklog} pending, retryable, or in-progress queue items need monitoring.`
-        : 'Outbox/inbox backlog is clear in service usage reporting.',
+        : 'Recovery queue backlog is clear in activity reporting.',
       count: queueBacklog,
       status: queueBacklog > 0 ? 'attention' : serviceUsageQuery.isSuccess ? 'live' : 'partial',
       statusLabel: queueBacklog > 0 ? 'Watch' : serviceUsageQuery.isSuccess ? 'Clear' : 'Loading',
       path: '/admin/system-console#system-operations',
       actionLabel: 'Review Operations',
       icon: Workflow,
+      group: 'Operational Health',
     },
     {
-      title: 'Missing Setup And Data Quality',
+      title: 'Setup And Data Quality',
       helper: setupGapLabels.length > 0
         ? setupGapLabels.join(', ')
-        : 'Tenant departments and locations are configured.',
+        : 'Departments, locations, and required employee fields are configured.',
       count: setupGapLabels.length,
       status: setupGapLabels.length > 0 ? 'attention' : setupQuery.isSuccess ? 'live' : 'partial',
       statusLabel: setupGapLabels.length > 0 ? 'Fix setup' : setupQuery.isSuccess ? 'Ready' : 'Loading',
       path: '/admin/system-console/settings',
       actionLabel: 'Open Settings',
       icon: DatabaseZap,
+      group: 'Setup And People',
     },
     {
       title: 'Integration Readiness',
       helper: integrationGapLabels.length > 0
         ? integrationGapLabels.join(', ')
-        : `${integrationAdapterCount} adapters registered, email delivery available, and attendance map key configured.`,
+        : `${integrationAdapterCount} connections registered, email delivery available, and attendance maps configured.`,
       count: integrationGapLabels.length,
       status: integrationGapLabels.length > 0 ? 'attention' : integrationQuery.isSuccess ? 'live' : 'partial',
       statusLabel: integrationGapLabels.length > 0 ? 'Configure' : integrationQuery.isSuccess ? 'Ready' : 'Loading',
       path: '/admin/system-console/integrations',
       actionLabel: 'Open Integrations',
       icon: PlugZap,
+      group: 'Operational Health',
     },
     {
       title: 'Unread Admin Notifications',
@@ -863,6 +989,7 @@ export function AdminSystemConsole() {
       path: '/admin/system-console#admin-notifications',
       actionLabel: 'View Inbox',
       icon: BellRing,
+      group: 'Operational Health',
     },
     {
       title: 'Readiness Blockers',
@@ -875,8 +1002,36 @@ export function AdminSystemConsole() {
       path: '/admin/system-console#system-operations',
       actionLabel: 'Open Health',
       icon: Network,
+      group: 'Operational Health',
     },
   ];
+  const pendingWorkGroups = ([
+    {
+      title: 'Setup And People',
+      helper: 'Data required before admins create employees, assign teams, or enforce required fields.',
+      icon: Building2,
+    },
+    {
+      title: 'Policy And Payroll',
+      helper: 'Reviews that affect leave, attendance, payroll, and live policy behavior.',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Operational Health',
+      helper: 'Readiness, recovery queues, integrations, notifications, and audit follow-up.',
+      icon: Activity,
+    },
+  ] satisfies Array<{ title: PendingAdminWorkGroup; helper: string; icon: React.ElementType }>).map((group) => {
+    const items = pendingAdminWork.filter((item) => item.group === group.title);
+    return {
+      ...group,
+      items,
+      status: groupStatus(items),
+    };
+  });
+  const priorityAdminWork = pendingAdminWork
+    .filter((item) => item.status === 'attention' && item.count > 0)
+    .slice(0, 3);
 
   return (
     <div className="min-h-screen fusion-bg">
@@ -884,8 +1039,8 @@ export function AdminSystemConsole() {
         <BusinessPageHeader
           eyebrow="Platform Administration"
           icon={Network}
-          title="Administrator Settings"
-          subtitle="Manage setup, policies, organization, services, compliance, payroll, workforce, reporting, and operations from one panel."
+          title="Admin Command Center"
+          subtitle="Start the right admin journey, review pending work, and check operational health from one governed landing page."
         />
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
@@ -894,11 +1049,11 @@ export function AdminSystemConsole() {
               <div className="border-b border-[#e2e8f0] bg-[#0f172a] px-5 py-5 text-white">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-[#a5b4fc]">Admin Panel Home</p>
-                    <h3 className="mt-2 font-headline text-2xl font-bold">Enterprise HR Administration Center</h3>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#a5b4fc]">System Console</p>
+                    <h3 className="mt-2 font-headline text-2xl font-bold">Enterprise HR Command Center</h3>
                     <p className="mt-2 max-w-3xl text-sm leading-6 text-[#eef2ff]">
-                      Manage business configuration, policies, workforce services, compliance, reporting, and operational
-                      modules from one governed control surface.
+                      Move through setup, employee assignment, policies, payroll, access, integrations, and health checks
+                      without hunting across the admin area.
                     </p>
                   </div>
                   <div className="rounded-lg border border-white/20 bg-white/10 p-3 text-sm">
@@ -910,8 +1065,8 @@ export function AdminSystemConsole() {
               <div className="grid gap-0 divide-y divide-[#e2e8f0] md:grid-cols-4 md:divide-x md:divide-y-0">
                 {[
                   { label: 'Employees', value: formatNumber(dashboardQuery.data?.headcount), helper: 'active workforce signal' },
-                  { label: 'Setup Data', value: `${activeSetupCounts.departments}/${activeSetupCounts.locations}`, helper: 'departments / locations' },
-                  { label: 'Policies', value: formatNumber(policyQuery.data?.totalRevisions), helper: 'versioned revisions' },
+                  { label: 'Setup Readiness', value: `${activeSetupCounts.departments}/${activeSetupCounts.locations}`, helper: 'departments / locations' },
+                  { label: 'Policy Work', value: formatNumber(policyQuery.data?.totalRevisions), helper: 'policy revisions' },
                   { label: 'Health', value: readinessQuery.data?.status === 'ready' ? 'Ready' : 'Watch', helper: `${readinessDown} readiness blockers` },
                 ].map((item) => (
                   <div key={item.label} className="p-4">
@@ -926,26 +1081,44 @@ export function AdminSystemConsole() {
 
           <Card className="border-[#e2e8f0] bg-white">
             <CardHeader>
-              <CardTitle className="text-lg">Admin Scope</CardTitle>
-              <CardDescription>What this panel controls today.</CardDescription>
+              <CardTitle className="text-lg">Recommended Next Moves</CardTitle>
+              <CardDescription>Highest-priority work from setup, policies, queues, integrations, and health.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
-              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>Business administration</span>
-                <StatusBadge status="live" label="Grouped" />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>Policies and setup</span>
-                <StatusBadge status={policyQuery.isSuccess && setupQuery.isSuccess ? 'live' : 'attention'} label="Panel only" />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>System operations</span>
-                <StatusBadge status="partial" label="Separated" />
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                <span>Setup still needed</span>
-                <StatusBadge status="attention" label="Visible" />
-              </div>
+              {priorityAdminWork.length > 0 ? (
+                priorityAdminWork.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.title}
+                      to={item.path}
+                      className="group flex items-start justify-between gap-3 rounded-lg border border-[#f59e0b]/30 bg-[#fffbeb] p-3 transition-colors hover:bg-white focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/20"
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-[#f59e0b]">
+                          <Icon className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-[#0f172a]">{item.title}</p>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#475569]">{item.helper}</p>
+                        </div>
+                      </div>
+                      <ArrowRight className="mt-2 h-4 w-4 shrink-0 text-[#4f46e5] transition-transform group-hover:translate-x-1" />
+                    </Link>
+                  );
+                })
+              ) : (
+                <div className="rounded-lg border border-[#8b5cf6]/20 bg-[#f5f3ff] p-4">
+                  <p className="font-semibold text-[#0f172a]">No urgent admin work is waiting.</p>
+                  <p className="mt-1 text-sm leading-6 text-[#475569]">Use the guided work paths below to review setup, policies, access, integrations, and health.</p>
+                </div>
+              )}
+              <Button asChild className="w-full" variant="outline">
+                <Link to="/admin/system-console#guided-work-paths">
+                  View Guided Work Paths
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
+              </Button>
             </CardContent>
           </Card>
         </section>
@@ -956,41 +1129,62 @@ export function AdminSystemConsole() {
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <Radar className="h-5 w-5 text-[#f59e0b]" />
-                Enterprise Command Center
+                Pending Admin Work
               </CardTitle>
               <CardDescription>
-                Pending admin work from policies, setup, queues, notifications, integrations, and platform readiness.
+                Setup, policy, payroll, integration, queue, and health items grouped by administrator concern.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 p-5 pt-0 md:grid-cols-2">
-              {pendingAdminWork.map((item) => {
-                const Icon = item.icon;
+            <CardContent className="grid gap-4 p-5 pt-0 xl:grid-cols-3">
+              {pendingWorkGroups.map((group) => {
+                const GroupIcon = group.icon;
                 return (
-                  <Link
-                    key={item.title}
-                    to={item.path}
-                    className="group rounded-2xl border border-[#e2e8f0] bg-[#f6f7fb] p-4 transition-all hover:-translate-y-0.5 hover:border-[#f59e0b]/50 hover:bg-white hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)] focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/20"
-                  >
+                  <div key={group.title} className="rounded-2xl border border-[#e2e8f0] bg-[#f6f7fb] p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-start gap-3">
-                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white text-[#f59e0b]">
-                          <Icon className="h-5 w-5" />
+                        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#4f46e5]">
+                          <GroupIcon className="h-5 w-5" />
                         </div>
                         <div>
-                          <p className="font-semibold text-[#0f172a]">{item.title}</p>
-                          <p className="mt-1 text-sm leading-5 text-[#475569]">{item.helper}</p>
+                          <p className="font-semibold text-[#0f172a]">{group.title}</p>
+                          <p className="mt-1 text-sm leading-5 text-[#475569]">{group.helper}</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-headline text-3xl font-bold text-[#0f172a]">{item.count}</p>
-                        <StatusBadge status={item.status} label={item.statusLabel} />
-                      </div>
+                      <StatusBadge status={group.status} label={group.status === 'live' ? 'Clear' : group.status === 'attention' ? 'Watch' : 'Loading'} />
                     </div>
-                    <div className="mt-4 flex items-center justify-between border-t border-[#e2e8f0] pt-3 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
-                      <span>{item.actionLabel}</span>
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    <div className="mt-4 space-y-3">
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <Link
+                            key={item.title}
+                            to={item.path}
+                            className="group block rounded-xl border border-[#e2e8f0] bg-white p-3 transition-all hover:-translate-y-0.5 hover:border-[#f59e0b]/50 hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)] focus:outline-none focus:ring-2 focus:ring-[#f59e0b]/20"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-start gap-3">
+                                <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#fff7ed] text-[#f59e0b]">
+                                  <Icon className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[#0f172a]">{item.title}</p>
+                                  <p className="mt-1 text-sm leading-5 text-[#475569]">{item.helper}</p>
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <p className="font-headline text-2xl font-bold text-[#0f172a]">{item.count}</p>
+                                <StatusBadge status={item.status} label={item.statusLabel} />
+                              </div>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between border-t border-[#e2e8f0] pt-2 text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
+                              <span>{item.actionLabel}</span>
+                              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                            </div>
+                          </Link>
+                        );
+                      })}
                     </div>
-                  </Link>
+                  </div>
                 );
               })}
             </CardContent>
@@ -1022,37 +1216,18 @@ export function AdminSystemConsole() {
           </Card>
         </section>
 
-        <section className="space-y-4">
+        <section id="guided-work-paths" className="space-y-4 scroll-mt-28">
           <div>
-            <h3 className="font-headline text-xl font-bold text-[#0f172a]">Administrator Journey</h3>
+            <h3 className="font-headline text-xl font-bold text-[#0f172a]">Guided Work Paths</h3>
             <p className="mt-1 text-sm text-[#475569]">
-              Follow this path to make changes that affect the whole system: setup first, structure second, people third,
-              policies fourth, operations verification last.
+              Choose the journey that matches the change you need to make. Each path shows the setup signals that matter
+              before an administrator commits a high-impact change.
             </p>
           </div>
-          <div className="grid gap-3 lg:grid-cols-5">
-            {adminJourneySteps.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link key={item.step} to={item.path} className="group focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30">
-                  <div className="flex h-full min-h-[190px] flex-col fusion-glass rounded-2xl p-4 transition-all group-hover:-translate-y-0.5 group-hover:border-[#8b5cf6]/60 group-hover:shadow-[0_10px_24px_rgba(31,49,86,0.08)]">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">{item.step}</span>
-                      <StatusBadge status={item.status} label={item.label} />
-                    </div>
-                    <div className="mt-4 grid h-11 w-11 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <h4 className="mt-4 font-semibold text-[#0f172a]">{item.title}</h4>
-                    <p className="mt-2 flex-1 text-sm leading-5 text-[#475569]">{item.description}</p>
-                    <div className="mt-4 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">
-                      <span>Open step</span>
-                      <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {guidedJourneys.map((journey) => (
+              <GuidedJourneyCard key={journey.title} journey={journey} />
+            ))}
           </div>
         </section>
 
@@ -1182,11 +1357,11 @@ export function AdminSystemConsole() {
               </CardHeader>
               <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
                 <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                  <p className="font-semibold text-[#0f172a]">Auth mode</p>
-                  <p>{authBypassEnabled ? 'Local auth bypass is enabled for this build.' : 'Token auth is enforced for this build.'}</p>
+                  <p className="font-semibold text-[#0f172a]">Sign-in mode</p>
+                  <p>{authBypassEnabled ? 'Local sign-in shortcut is enabled for this build.' : 'Standard sign-in is enforced for this build.'}</p>
                 </div>
                 <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
-                  <p className="font-semibold text-[#0f172a]">Policy application</p>
+                  <p className="font-semibold text-[#0f172a]">Live policy changes</p>
                   <p>Only applied policy revisions change live service behavior.</p>
                 </div>
                 <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3">
@@ -1224,7 +1399,7 @@ export function AdminSystemConsole() {
                 <BellRing className="h-5 w-5 text-[#6366f1]" />
                 Recent Notifications
               </CardTitle>
-              <CardDescription>HR operations inbox from the platform notification center.</CardDescription>
+              <CardDescription>Recent HR operations messages for this administrator.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0">
               {notificationsQuery.isLoading ? (

@@ -94,6 +94,7 @@ const SERVICE_AREA_PATTERNS: Array<[RegExp, string]> = [
   [/attendance|timesheet|time.?clock|overtime|work.?schedule/i, 'TIME_ATTENDANCE'],
   [/payroll|payslip|pay.?cycle|pay.?input|calculation.?run|result.?line/i, 'PAYROLL'],
   [/benefit|spending.?account|carrier.?reconciliation/i, 'BENEFITS'],
+  [/dei|diversity|pay.?gap|pay.?equity|attrition.?segment/i, 'DEI_ANALYTICS'],
   [/compensation|bonus|equity|pay.?scale|total.?comp/i, 'COMPENSATION'],
   [/onboarding/i, 'ONBOARDING'],
   [/service.?case|knowledge|catalog|sla/i, 'SERVICE_DELIVERY'],

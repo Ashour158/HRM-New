@@ -44,7 +44,7 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
 
   async findByWorker(workerId: Uuid): Promise<TimeClockEvent[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['time_clock_events']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['time_clock_events']));
   }
 
   async findByWorkerForTenant(tenantId: Uuid, workerId: Uuid): Promise<TimeClockEvent[]> {
@@ -55,7 +55,7 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
       .where('worker_id', '=', workerId.value)
       .orderBy('timestamp', 'asc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['time_clock_events']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['time_clock_events']));
   }
 
   async findByWorkersBetween(workerIds: Uuid[], startAt: Date, endAt: Date): Promise<TimeClockEvent[]> {
@@ -68,7 +68,7 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
       .where('timestamp', '<', endAt)
       .orderBy('timestamp', 'asc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['time_clock_events']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['time_clock_events']));
   }
 
   async findByWorkersBetweenForTenant(tenantId: Uuid, workerIds: Uuid[], startAt: Date, endAt: Date): Promise<TimeClockEvent[]> {
@@ -82,7 +82,7 @@ export class TimeClockEventRepository extends BaseRepository<'time_clock_events'
       .where('timestamp', '<', endAt)
       .orderBy('timestamp', 'asc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['time_clock_events']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['time_clock_events']));
   }
 
   async save(entity: TimeClockEvent): Promise<void> {

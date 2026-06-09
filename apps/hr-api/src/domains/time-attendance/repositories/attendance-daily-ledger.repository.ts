@@ -32,7 +32,7 @@ export class AttendanceDailyLedgerRepository {
       .where('tenant_id', '=', tenantId.value)
       .where('work_date', '=', workDateToDb(workDate))
       .execute();
-    return rows.map((row) => this.toRecord(row as Database['attendance_daily_ledgers']));
+    return rows.map((row: any) => this.toRecord(row as Database['attendance_daily_ledgers']));
   }
 
   async findByWorker(tenantId: Uuid, workerId: Uuid, options?: { dateFrom?: string; dateTo?: string }): Promise<AttendanceDailyLedgerStoredRecord[]> {
@@ -46,7 +46,7 @@ export class AttendanceDailyLedgerRepository {
     if (options?.dateTo) query = query.where('work_date', '<=', workDateToDb(options.dateTo));
 
     const rows = await query.orderBy('work_date', 'desc').execute();
-    return rows.map((row) => this.toRecord(row as Database['attendance_daily_ledgers']));
+    return rows.map((row: any) => this.toRecord(row as Database['attendance_daily_ledgers']));
   }
 
   async saveMany(records: AttendanceLedgerSnapshotRecord[]): Promise<AttendanceDailyLedgerStoredRecord[]> {
@@ -89,9 +89,9 @@ export class AttendanceDailyLedgerRepository {
     const savedRows = await this.db
       .insertInto(this.tableName)
       .values(rows)
-      .onConflict((oc) => oc
+      .onConflict((oc: any) => oc
         .columns(['tenant_id', 'worker_id', 'work_date'])
-        .doUpdateSet((eb) => ({
+        .doUpdateSet((eb: any) => ({
           employee_id: eb.ref('excluded.employee_id'),
           worker_name: eb.ref('excluded.worker_name'),
           status: eb.ref('excluded.status'),
@@ -122,7 +122,7 @@ export class AttendanceDailyLedgerRepository {
       .returningAll()
       .execute();
 
-    return savedRows.map((row) => this.toRecord(row as Database['attendance_daily_ledgers']));
+    return savedRows.map((row: any) => this.toRecord(row as Database['attendance_daily_ledgers']));
   }
 
   private toRecord(row: Database['attendance_daily_ledgers']): AttendanceDailyLedgerStoredRecord {

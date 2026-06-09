@@ -54,7 +54,7 @@ export class PositionRepository {
       .where('department_id', '=', departmentId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -67,7 +67,7 @@ export class PositionRepository {
       .where('legal_entity_id', '=', legalEntityId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -81,7 +81,7 @@ export class PositionRepository {
       .where('status', '=', 'VACANT')
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -95,7 +95,7 @@ export class PositionRepository {
       .where('status', '=', 'ACTIVE')
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -112,7 +112,7 @@ export class PositionRepository {
     }
 
     const rows = await query.execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

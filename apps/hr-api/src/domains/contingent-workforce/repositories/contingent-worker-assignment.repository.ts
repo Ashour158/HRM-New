@@ -20,7 +20,7 @@ export class ContingentWorkerAssignmentRepository extends BaseRepository<'contin
 
   async findByWorker(workerId: Uuid): Promise<ContingentWorkerAssignment[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['contingent_worker_assignments']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['contingent_worker_assignments']));
   }
 
   async save(entity: ContingentWorkerAssignment): Promise<void> {

@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
@@ -6,6 +6,7 @@ import { getPool, createKyselyInstance } from '@hcm/database';
 import { getTopicForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
 import { InboxDeduplicator } from './inbox-deduplicator.js';
 import { outboxRowToEnvelope, type OutboxEventRow } from './outbox-event-envelope.js';
+import { ObservabilityMetricsService } from '../../observability/observability-metrics.service.js';
 
 export interface InboxEvent {
   id: Uuid;
@@ -36,12 +37,20 @@ export class InboxConsumer {
   private readonly logger = new Logger(InboxConsumer.name);
   private readonly db: Kysely<Database>;
   private readonly replayHandlers = new Map<string, InboxEventHandler>();
+  private readonly metrics?: ObservabilityMetricsService;
 
   constructor(
     private readonly deduplicator: InboxDeduplicator,
+    @Optional() @Inject(ObservabilityMetricsService)
+    metricsOrDb?: ObservabilityMetricsService | Kysely<Database>,
     @Optional() db?: Kysely<Database>,
   ) {
-    this.db = db ?? createKyselyInstance(getPool());
+    if (isMetricsService(metricsOrDb)) {
+      this.metrics = metricsOrDb;
+      this.db = db ?? createKyselyInstance(getPool());
+    } else {
+      this.db = metricsOrDb ?? createKyselyInstance(getPool());
+    }
   }
 
   registerReplayHandler(
@@ -67,6 +76,7 @@ export class InboxConsumer {
       consumerVersion,
     );
     if (isDup) {
+      this.metrics?.recordInboxProcess({ consumerName, eventName: event.eventName, status: 'deduplicated' });
       this.logger.log({ type: 'INBOX_DEDUPLICATED', eventId: sourceEventId, consumerName });
       return;
     }
@@ -80,6 +90,7 @@ export class InboxConsumer {
       .executeTakeFirst();
 
     if (existing && ['SUCCESS', 'SKIPPED'].includes(existing.processing_status)) {
+      this.metrics?.recordInboxProcess({ consumerName, eventName: event.eventName, status: 'deduplicated' });
       this.logger.log({ type: 'INBOX_DEDUPLICATED', eventId: sourceEventId, consumerName });
       return;
     }
@@ -128,6 +139,7 @@ export class InboxConsumer {
         .set({ processing_status: 'SUCCESS', processed_at: new Date() })
         .where('id', '=', inboxId)
         .execute();
+      this.metrics?.recordInboxProcess({ consumerName, eventName: event.eventName, status: 'success' });
     } catch (err) {
       const isRetryable = this.isRetryableError(err);
       const status = isRetryable ? 'FAILED_RETRYABLE' : 'FAILED_NON_RETRYABLE';
@@ -144,6 +156,11 @@ export class InboxConsumer {
         })
         .where('id', '=', inboxId)
         .execute();
+      this.metrics?.recordInboxProcess({
+        consumerName,
+        eventName: event.eventName,
+        status: isRetryable ? 'failed_retryable' : 'failed_non_retryable',
+      });
 
       throw err;
     }
@@ -191,6 +208,7 @@ export class InboxConsumer {
         })
         .where('id', '=', row.id)
         .execute();
+      this.metrics?.recordInboxProcess({ consumerName, eventName: 'LegacyInboxEvent', status: 'skipped' });
       skipped++;
     }
 
@@ -238,6 +256,7 @@ export class InboxConsumer {
           })
           .where('id', '=', row.id)
           .execute();
+        this.metrics?.recordInboxProcess({ consumerName: 'inbox-recovery', eventName: 'RecoveredInboxEvent', status: 'failed_retryable' });
         retryable++;
         continue;
       }
@@ -252,6 +271,7 @@ export class InboxConsumer {
         })
         .where('id', '=', row.id)
         .execute();
+      this.metrics?.recordInboxProcess({ consumerName: 'inbox-recovery', eventName: 'StaleInboxEvent', status: 'skipped' });
       skipped++;
     }
 
@@ -302,6 +322,7 @@ export class InboxConsumer {
             })
             .where('id', '=', row.id)
             .execute();
+          this.metrics?.recordInboxProcess({ consumerName, eventName: row.event_name, status: 'skipped' });
           continue;
         }
 
@@ -353,6 +374,7 @@ export class InboxConsumer {
         })
         .where('id', '=', row.id)
         .execute();
+      this.metrics?.recordInboxProcess({ consumerName: row.consumer_name, eventName: row.event_name, status: 'failed_non_retryable' });
       return 0;
     }
 
@@ -374,6 +396,7 @@ export class InboxConsumer {
         })
         .where('id', '=', row.id)
         .execute();
+      this.metrics?.recordInboxProcess({ consumerName: row.consumer_name, eventName: row.event_name, status: 'skipped' });
       return 0;
     }
 
@@ -446,4 +469,8 @@ function uuidValue(value: unknown): string {
   const uuidLike = value as { value?: unknown } | undefined;
   if (typeof uuidLike?.value === 'string') return uuidLike.value;
   throw new Error('Event envelope is missing a UUID value');
+}
+
+function isMetricsService(value: unknown): value is ObservabilityMetricsService {
+  return Boolean(value && typeof value === 'object' && 'recordInboxProcess' in value);
 }

@@ -14,6 +14,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export interface IamProvisioningResult extends IntegrationResult {
   iamUserId?: string;
@@ -28,6 +29,13 @@ export interface IamRole {
 export class IamProvisioningAdapter implements IntegrationAdapter {
   readonly name = 'iam-provisioning';
   readonly direction = 'OUTBOUND' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'Identity Platform',
+    ownerContact: 'identity-platform@example.com',
+    sandboxEndpointRef: 'env:HR_IAM_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_IAM_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/iam-provisioning',
+  });
   private readonly logger = new Logger(IamProvisioningAdapter.name);
 
   /** Health probe – checks IAM command port reachability. */

@@ -65,6 +65,9 @@ const AREA_NOTIFICATION_TITLES: Record<PolicyArea, string> = {
   COUNTRY_POLICY: 'Country policy changed',
   COMPLIANCE: 'Compliance policy changed',
   BENEFITS: 'Benefits policy changed',
+  GLOBAL_HR: 'Global HR policy changed',
+  DEI_ANALYTICS: 'DEI analytics policy changed',
+  ENGAGEMENT: 'Engagement policy changed',
 };
 
 const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
@@ -399,6 +402,102 @@ const ENTERPRISE_POLICY_TEMPLATES: PolicyTemplateRecord[] = [
     },
   },
   {
+    area: 'GLOBAL_HR',
+    code: 'GLOBAL-HR-WORK-AUTHORIZATION',
+    title: 'Global HR work authorization controls',
+    description: 'Controls country-specific work authorization, works council consultation, statutory leave bridges, and expat eligibility checks.',
+    recommendedScope: { countryCodes: ['EG'] },
+    draftConfig: {
+      globalHrPolicyRuntime: {
+        workAuthorizationRules: [{
+          code: 'WORK_AUTH_REQUIRED',
+          label: 'Work authorization evidence required',
+          active: true,
+          outcomes: [{ action: 'REQUIRE_EVIDENCE', reason: 'Employees must have valid work authorization evidence before assignment activation.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+        worksCouncilRules: [{
+          code: 'WORKS_COUNCIL_NOTICE',
+          label: 'Works council notice for workforce changes',
+          active: true,
+          outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Covered workforce changes require consultation evidence before publish.' }],
+          retroBehavior: 'BLOCK_RETROACTIVE',
+        }],
+        statutoryLeaveBridgeRules: [{
+          code: 'COUNTRY_LEAVE_BRIDGE',
+          label: 'Country statutory leave bridge',
+          active: true,
+          outcomes: [{ action: 'CREATE_POLICY_BRIDGE', value: { leavePolicyCode: 'STATUTORY' }, reason: 'Country statutory leave rules must be reflected in leave policy runtime.' }],
+          retroBehavior: 'ADJUSTMENT_QUEUE',
+        }],
+      },
+    },
+  },
+  {
+    area: 'DEI_ANALYTICS',
+    code: 'DEI-PAY-EQUITY-GOVERNANCE',
+    title: 'DEI and pay equity governance',
+    description: 'Controls protected analytics suppression, pay equity review workflow, remediation queues, and manager-facing privacy rules.',
+    recommendedScope: {},
+    draftConfig: {
+      deiAnalyticsPolicyRuntime: {
+        suppressionRules: [{
+          code: 'SMALL_SEGMENT_SUPPRESSION',
+          label: 'Small segment suppression',
+          active: true,
+          outcomes: [{ action: 'MASK_FIELD', value: { minimumCohortSize: 5 }, reason: 'Small demographic segments must be suppressed in reports.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
+        payEquityReviewRules: [{
+          code: 'PAY_EQUITY_REVIEW_REQUIRED',
+          label: 'Pay equity review required',
+          active: true,
+          outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Pay equity reports require HR governance approval before publication.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+        remediationRules: [{
+          code: 'PAY_GAP_REMEDIATION_QUEUE',
+          label: 'Pay gap remediation queue',
+          active: true,
+          outcomes: [{ action: 'CREATE_REMEDIATION_CASE', reason: 'Material pay gaps create remediation cases for HR operations.' }],
+          retroBehavior: 'ADJUSTMENT_QUEUE',
+        }],
+      },
+    },
+  },
+  {
+    area: 'ENGAGEMENT',
+    code: 'ENGAGEMENT-SURVEY-RECOGNITION',
+    title: 'Engagement survey and recognition governance',
+    description: 'Controls survey publication, response anonymity, recognition approval, notification timing, and manager visibility.',
+    recommendedScope: {},
+    draftConfig: {
+      engagementPolicyRuntime: {
+        surveyPublicationRules: [{
+          code: 'SURVEY_PUBLICATION_APPROVAL',
+          label: 'Survey publication approval',
+          active: true,
+          outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Engagement surveys require HR approval before launch.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
+        responsePrivacyRules: [{
+          code: 'ANONYMOUS_RESPONSE_THRESHOLD',
+          label: 'Anonymous response threshold',
+          active: true,
+          outcomes: [{ action: 'MASK_FIELD', value: { minimumResponses: 5 }, reason: 'Managers cannot view response detail below the anonymity threshold.' }],
+          retroBehavior: 'FUTURE_ONLY',
+        }],
+        recognitionApprovalRules: [{
+          code: 'MONETARY_RECOGNITION_APPROVAL',
+          label: 'Monetary recognition approval',
+          active: true,
+          outcomes: [{ action: 'REQUIRE_APPROVAL', reason: 'Monetary recognition awards require budget owner approval.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+      },
+    },
+  },
+  {
     area: 'COUNTRY_POLICY',
     code: 'COUNTRY-STATUTORY-PACK',
     title: 'Country statutory pack lifecycle',
@@ -641,6 +740,36 @@ function benefitsPolicyRuntime(draftConfig: unknown): Record<string, unknown> {
 
 function hasBenefitsPolicyPayload(runtime: Record<string, unknown>): boolean {
   return BENEFITS_POLICY_RUNTIME_KEYS.some((key) => {
+    const value = runtime[key];
+    if (Array.isArray(value)) return value.length > 0;
+    return Object.keys(asObject(value)).length > 0;
+  });
+}
+
+const GLOBAL_HR_POLICY_RUNTIME_KEYS = [
+  'workAuthorizationRules',
+  'worksCouncilRules',
+  'statutoryLeaveBridgeRules',
+] as const;
+
+const DEI_ANALYTICS_POLICY_RUNTIME_KEYS = [
+  'suppressionRules',
+  'payEquityReviewRules',
+  'remediationRules',
+] as const;
+
+const ENGAGEMENT_POLICY_RUNTIME_KEYS = [
+  'surveyPublicationRules',
+  'responsePrivacyRules',
+  'recognitionApprovalRules',
+] as const;
+
+function domainPolicyRuntime(draftConfig: unknown, key: 'globalHrPolicyRuntime' | 'deiAnalyticsPolicyRuntime' | 'engagementPolicyRuntime'): Record<string, unknown> {
+  return asObject(asObject(draftConfig)[key] ?? draftConfig);
+}
+
+function hasDomainPolicyPayload(runtime: Record<string, unknown>, keys: readonly string[]): boolean {
+  return keys.some((key) => {
     const value = runtime[key];
     if (Array.isArray(value)) return value.length > 0;
     return Object.keys(asObject(value)).length > 0;
@@ -893,6 +1022,51 @@ function buildBenefitsPolicySimulation(draftConfig: unknown): PolicyImpactSimula
       waitingPeriodDays: benefitsWaitingPeriodDays(rule),
     })),
     carrierExportRules: ruleCodes(carrierRules),
+  };
+}
+
+function buildGlobalHrPolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['globalHrPolicySimulation'] | undefined {
+  const runtime = asObject(asObject(draftConfig).globalHrPolicyRuntime ?? draftConfig);
+  if (Object.keys(runtime).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(runtime, ['workAuthorizationRules', 'worksCouncilRules', 'statutoryLeaveBridgeRules']);
+  return {
+    ruleCodes: ruleCodes(ledgers),
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'location', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Revalidate workforce assignment, authorization, and statutory setup records.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior !== 'FUTURE_ONLY') ? ['worker_assignments', 'work_authorization_cases', 'statutory_leave_bridges'] : [],
+    workAuthorizationRuleCodes: ruleCodes(policyRecords(runtime, 'workAuthorizationRules')),
+    worksCouncilRuleCodes: ruleCodes(policyRecords(runtime, 'worksCouncilRules')),
+    statutoryLeaveBridgeCodes: ruleCodes(policyRecords(runtime, 'statutoryLeaveBridgeRules')),
+  };
+}
+
+function buildDeiAnalyticsPolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['deiAnalyticsPolicySimulation'] | undefined {
+  const runtime = asObject(asObject(draftConfig).deiAnalyticsPolicyRuntime ?? draftConfig);
+  if (Object.keys(runtime).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(runtime, ['suppressionRules', 'payEquityReviewRules', 'remediationRules']);
+  return {
+    ruleCodes: ruleCodes(ledgers),
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'location', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Re-evaluate analytics visibility, pay equity review, and remediation queues.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior !== 'FUTURE_ONLY') ? ['dei_reports', 'pay_equity_reviews', 'remediation_cases'] : [],
+    suppressionRuleCodes: ruleCodes(policyRecords(runtime, 'suppressionRules')),
+    payEquityReviewRuleCodes: ruleCodes(policyRecords(runtime, 'payEquityReviewRules')),
+    remediationRuleCodes: ruleCodes(policyRecords(runtime, 'remediationRules')),
+  };
+}
+
+function buildEngagementPolicySimulation(draftConfig: unknown): PolicyImpactSimulationResult['engagementPolicySimulation'] | undefined {
+  const runtime = asObject(asObject(draftConfig).engagementPolicyRuntime ?? draftConfig);
+  if (Object.keys(runtime).length === 0) return undefined;
+  const ledgers = ruleLedgersFromRecord(runtime, ['surveyPublicationRules', 'responsePrivacyRules', 'recognitionApprovalRules']);
+  return {
+    ruleCodes: ruleCodes(ledgers),
+    scopeDimensions: ['tenant', 'country', 'entity', 'department', 'location', 'employeeType', 'worker'],
+    workflowImpacts: buildWorkflowImpacts(ledgers, 'Re-evaluate engagement survey publication, anonymity, and recognition approval.'),
+    revalidationQueues: ledgers.some((rule) => rule.retroBehavior !== 'FUTURE_ONLY') ? ['engagement_surveys', 'survey_responses', 'recognition_awards'] : [],
+    surveyPublicationRuleCodes: ruleCodes(policyRecords(runtime, 'surveyPublicationRules')),
+    responsePrivacyRuleCodes: ruleCodes(policyRecords(runtime, 'responsePrivacyRules')),
+    recognitionApprovalRuleCodes: ruleCodes(policyRecords(runtime, 'recognitionApprovalRules')),
   };
 }
 
@@ -1600,6 +1774,18 @@ export class PolicyCenterService {
       validateBenefitsLogicLedgerComponents(revision.draftConfig, errors);
     }
 
+    if (revision.area === 'GLOBAL_HR' && !hasDomainPolicyPayload(domainPolicyRuntime(revision.draftConfig, 'globalHrPolicyRuntime'), GLOBAL_HR_POLICY_RUNTIME_KEYS)) {
+      errors.push('Global HR policy revision must include work authorization, works council, or statutory leave bridge rules.');
+    }
+
+    if (revision.area === 'DEI_ANALYTICS' && !hasDomainPolicyPayload(domainPolicyRuntime(revision.draftConfig, 'deiAnalyticsPolicyRuntime'), DEI_ANALYTICS_POLICY_RUNTIME_KEYS)) {
+      errors.push('DEI analytics policy revision must include suppression, pay equity review, or remediation rules.');
+    }
+
+    if (revision.area === 'ENGAGEMENT' && !hasDomainPolicyPayload(domainPolicyRuntime(revision.draftConfig, 'engagementPolicyRuntime'), ENGAGEMENT_POLICY_RUNTIME_KEYS)) {
+      errors.push('Engagement policy revision must include survey publication, response privacy, or recognition approval rules.');
+    }
+
     return {
       valid: errors.length === 0,
       errors,
@@ -1632,6 +1818,9 @@ export class PolicyCenterService {
     const accessPolicySimulation = revision.area === 'ACCESS_GOVERNANCE' ? buildAccessPolicySimulation(revision.draftConfig) : undefined;
     const compliancePolicySimulation = revision.area === 'COMPLIANCE' ? buildCompliancePolicySimulation(revision.draftConfig) : undefined;
     const benefitsPolicySimulation = revision.area === 'BENEFITS' ? buildBenefitsPolicySimulation(revision.draftConfig) : undefined;
+    const globalHrPolicySimulation = revision.area === 'GLOBAL_HR' ? buildGlobalHrPolicySimulation(revision.draftConfig) : undefined;
+    const deiAnalyticsPolicySimulation = revision.area === 'DEI_ANALYTICS' ? buildDeiAnalyticsPolicySimulation(revision.draftConfig) : undefined;
+    const engagementPolicySimulation = revision.area === 'ENGAGEMENT' ? buildEngagementPolicySimulation(revision.draftConfig) : undefined;
     const warnings: string[] = [];
     if (revision.scope.effectiveFrom && new Date(`${revision.scope.effectiveFrom}T00:00:00.000Z`).getTime() < Date.now()) {
       warnings.push('Policy is retroactive; final historical records will not be rewritten automatically.');
@@ -1656,6 +1845,9 @@ export class PolicyCenterService {
       accessPolicySimulation,
       compliancePolicySimulation,
       benefitsPolicySimulation,
+      globalHrPolicySimulation,
+      deiAnalyticsPolicySimulation,
+      engagementPolicySimulation,
       warnings,
       engineName: 'PolicyImpactSimulationEngine',
       engineVersion: ENGINE_VERSION,
@@ -1713,7 +1905,16 @@ export class PolicyCenterService {
     if (asObject(draft.policyControls).makerCheckerRequired === true) return true;
     if (asObject(draft.policyGovernance).makerCheckerRequired === true) return true;
     if (asObject(draft.payrollCalculationPolicy).makerCheckerRequired === true) return true;
-    return ['PAYROLL', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'COMPLIANCE', 'BENEFITS'].includes(revision.area);
+    return [
+      'PAYROLL',
+      'ACCESS_GOVERNANCE',
+      'COUNTRY_POLICY',
+      'COMPLIANCE',
+      'BENEFITS',
+      'GLOBAL_HR',
+      'DEI_ANALYTICS',
+      'ENGAGEMENT',
+    ].includes(revision.area);
   }
 
   private assertMakerChecker(revision: PolicyRevisionRecord, toStatus: PolicyRevisionStatus, actor: PolicyActor): void {
@@ -1787,6 +1988,21 @@ export class PolicyCenterService {
     if (revision.area === 'BENEFITS') {
       const draftObject = asObject(revision.draftConfig);
       return this.withRuntimePolicyEvidence(revision, { benefitsPolicyRuntime: asObject(draftObject.benefitsPolicyRuntime ?? draftObject) });
+    }
+
+    if (revision.area === 'GLOBAL_HR') {
+      const draftObject = asObject(revision.draftConfig);
+      return this.withRuntimePolicyEvidence(revision, { globalHrPolicyRuntime: asObject(draftObject.globalHrPolicyRuntime ?? draftObject) });
+    }
+
+    if (revision.area === 'DEI_ANALYTICS') {
+      const draftObject = asObject(revision.draftConfig);
+      return this.withRuntimePolicyEvidence(revision, { deiAnalyticsPolicyRuntime: asObject(draftObject.deiAnalyticsPolicyRuntime ?? draftObject) });
+    }
+
+    if (revision.area === 'ENGAGEMENT') {
+      const draftObject = asObject(revision.draftConfig);
+      return this.withRuntimePolicyEvidence(revision, { engagementPolicyRuntime: asObject(draftObject.engagementPolicyRuntime ?? draftObject) });
     }
 
     return this.withRuntimePolicyEvidence(revision, draft);

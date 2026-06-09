@@ -36,3 +36,8 @@ export {
   type ExportScheduleConfig,
   type ScheduleResult,
 } from './data-warehouse.adapter.js';
+export {
+  EmailNotificationAdapter,
+  type EmailNotificationPayload,
+  type EmailNotificationResult,
+} from './email-notification.adapter.js';

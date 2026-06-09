@@ -20,17 +20,17 @@ export class PerformanceReviewRepository extends BaseRepository<'performance_rev
 
   async findByWorker(workerId: Uuid): Promise<PerformanceReview[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<PerformanceReview[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByManager(managerId: Uuid): Promise<PerformanceReview[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('manager_id', '=', managerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: PerformanceReview): Promise<void> {

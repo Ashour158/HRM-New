@@ -20,7 +20,7 @@ export class AccommodationCaseRepository extends BaseRepository<'accommodation_c
 
   async findByTenant(tenantId: Uuid): Promise<AccommodationCase[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['accommodation_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['accommodation_cases']));
   }
 
 

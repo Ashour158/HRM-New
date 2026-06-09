@@ -44,7 +44,7 @@ export class EmploymentContractRepository extends BaseRepository<'employment_con
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['employment_contracts']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['employment_contracts']));
   }
 
   async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<EmploymentContract[]> {
@@ -54,7 +54,7 @@ export class EmploymentContractRepository extends BaseRepository<'employment_con
       .where('worker_id', '=', workerId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['employment_contracts']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['employment_contracts']));
   }
 
   async findExpiringWithin(days: number): Promise<EmploymentContractExpiryAlertRow[]> {
@@ -75,14 +75,14 @@ export class EmploymentContractRepository extends BaseRepository<'employment_con
     const rows = await query.execute();
 
     return rows
-      .map((row) => ({
+      .map((row: any) => ({
         workerId: row.worker_id,
         contractId: row.id,
         expiryDate: this.isoDate(row.end_date),
         daysUntilExpiry: this.daysUntil(row.end_date),
       }))
-      .filter((alert): alert is EmploymentContractExpiryAlertRow => Boolean(alert.expiryDate))
-      .sort((left, right) => left.daysUntilExpiry - right.daysUntilExpiry);
+      .filter((alert: any): alert is EmploymentContractExpiryAlertRow => Boolean(alert.expiryDate))
+      .sort((left: any, right: any) => left.daysUntilExpiry - right.daysUntilExpiry);
   }
 
   async save(entity: EmploymentContract): Promise<void> {

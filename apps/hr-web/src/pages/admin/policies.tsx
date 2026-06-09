@@ -311,6 +311,9 @@ const policyAreas: Array<{ area: PolicyArea; label: string; icon: React.ElementT
   { area: 'COUNTRY_POLICY', label: 'Country Rules', icon: Landmark, link: '/admin/country-policy' },
   { area: 'COMPLIANCE', label: 'Compliance Rules', icon: ClipboardCheck, link: '/admin/compliance' },
   { area: 'BENEFITS', label: 'Benefits Rules', icon: HeartPulse, link: '/admin/modules/benefits/operations' },
+  { area: 'GLOBAL_HR', label: 'Global HR Rules', icon: Landmark, link: '/admin/modules/global-hr/operations' },
+  { area: 'DEI_ANALYTICS', label: 'DEI Rules', icon: Users, link: '/admin/modules/dei-analytics/operations' },
+  { area: 'ENGAGEMENT', label: 'Engagement Rules', icon: BellRing, link: '/admin/modules/engagement/operations' },
 ];
 
 const areaTabValues: Record<PolicyArea, string> = {
@@ -322,6 +325,9 @@ const areaTabValues: Record<PolicyArea, string> = {
   COUNTRY_POLICY: 'country',
   COMPLIANCE: 'compliance',
   BENEFITS: 'benefits',
+  GLOBAL_HR: 'global-hr',
+  DEI_ANALYTICS: 'dei',
+  ENGAGEMENT: 'engagement',
 };
 
 const tabAreas = Object.fromEntries(Object.entries(areaTabValues).map(([area, tab]) => [tab, area])) as Record<string, PolicyArea>;
@@ -440,6 +446,9 @@ function currentAreaConfig(area: PolicyArea, setup: Record<string, unknown> | un
   if (area === 'COUNTRY_POLICY') return { countryPolicyRuntime: setup.countryPolicyRuntime ?? {} };
   if (area === 'COMPLIANCE') return { compliancePolicyRuntime: setup.compliancePolicyRuntime ?? {} };
   if (area === 'BENEFITS') return { benefitsPolicyRuntime: setup.benefitsPolicyRuntime ?? {} };
+  if (area === 'GLOBAL_HR') return { runtimePolicyRevisions: setup.runtimePolicyRevisions ?? [], globalHrPolicyRuntime: setup.globalHrPolicyRuntime ?? {} };
+  if (area === 'DEI_ANALYTICS') return { runtimePolicyRevisions: setup.runtimePolicyRevisions ?? [], deiAnalyticsPolicyRuntime: setup.deiAnalyticsPolicyRuntime ?? {} };
+  if (area === 'ENGAGEMENT') return { runtimePolicyRevisions: setup.runtimePolicyRevisions ?? [], engagementPolicyRuntime: setup.engagementPolicyRuntime ?? {} };
   return {
     genderOptions: setup.genderOptions ?? [],
     locations: setup.locations ?? [],
@@ -1172,6 +1181,36 @@ function RuntimeSnapshotSummary({ area, setup }: { area: PolicyArea; setup?: Rec
       ...enrollment.slice(0, 3).map((item) => `${recordLabel(item)} enrollment window`),
       ...contributions.slice(0, 2).map((item) => `${recordLabel(item)} payroll bridge`),
       ...carriers.slice(0, 2).map((item) => `${recordLabel(item)} carrier export`),
+    );
+  } else if (area === 'GLOBAL_HR') {
+    const runtime = asRecord(snapshot.globalHrPolicyRuntime);
+    const applied = asRecords(snapshot.runtimePolicyRevisions).filter((item) => stringField(item, 'area') === 'GLOBAL_HR');
+    facts.push(['Applied policies', applied.length], ['Work authorization rules', asRecords(runtime.workAuthorizationRules).length]);
+    facts.push(['Works council rules', asRecords(runtime.worksCouncilRules).length]);
+    highlights.push(
+      'Work authorization commands require Global HR policy evidence',
+      'Works council and statutory leave changes are policy controlled',
+      ...applied.slice(0, 2).map((item) => `${stringField(item, 'revisionId')} applied`),
+    );
+  } else if (area === 'DEI_ANALYTICS') {
+    const runtime = asRecord(snapshot.deiAnalyticsPolicyRuntime);
+    const applied = asRecords(snapshot.runtimePolicyRevisions).filter((item) => stringField(item, 'area') === 'DEI_ANALYTICS');
+    facts.push(['Applied policies', applied.length], ['Suppression rules', asRecords(runtime.suppressionRules).length]);
+    facts.push(['Pay equity rules', asRecords(runtime.payEquityReviewRules).length]);
+    highlights.push(
+      'DEI and pay equity commands require applied policy evidence',
+      'Suppression and remediation are tracked as governed decisions',
+      ...applied.slice(0, 2).map((item) => `${stringField(item, 'revisionId')} applied`),
+    );
+  } else if (area === 'ENGAGEMENT') {
+    const runtime = asRecord(snapshot.engagementPolicyRuntime);
+    const applied = asRecords(snapshot.runtimePolicyRevisions).filter((item) => stringField(item, 'area') === 'ENGAGEMENT');
+    facts.push(['Applied policies', applied.length], ['Survey rules', asRecords(runtime.surveyPublicationRules).length]);
+    facts.push(['Recognition rules', asRecords(runtime.recognitionApprovalRules).length]);
+    highlights.push(
+      'Survey publication and recognition awards require applied policy evidence',
+      'Response privacy and notification rules are governed',
+      ...applied.slice(0, 2).map((item) => `${stringField(item, 'revisionId')} applied`),
     );
   }
 
@@ -2041,6 +2080,63 @@ function PolicyBusinessControls({
     );
   }
 
+  if (revision.area === 'GLOBAL_HR' || revision.area === 'DEI_ANALYTICS' || revision.area === 'ENGAGEMENT') {
+    const runtimeKey = revision.area === 'GLOBAL_HR'
+      ? 'globalHrPolicyRuntime'
+      : revision.area === 'DEI_ANALYTICS'
+        ? 'deiAnalyticsPolicyRuntime'
+        : 'engagementPolicyRuntime';
+    const runtime = asRecord(draft[runtimeKey]);
+    const lens = getPolicyControlLens(revision.area);
+    const primaryKey = revision.area === 'GLOBAL_HR'
+      ? 'workAuthorizationRules'
+      : revision.area === 'DEI_ANALYTICS'
+        ? 'suppressionRules'
+        : 'surveyPublicationRules';
+    const secondaryKey = revision.area === 'GLOBAL_HR'
+      ? 'worksCouncilRules'
+      : revision.area === 'DEI_ANALYTICS'
+        ? 'payEquityReviewRules'
+        : 'recognitionApprovalRules';
+    const primaryFallback = revision.area === 'GLOBAL_HR'
+      ? ['WORK_AUTH_ACTIVE_REQUIRED', 'Active work authorization required']
+      : revision.area === 'DEI_ANALYTICS'
+        ? ['SMALL_SEGMENT_SUPPRESSION', 'Small segment suppression']
+        : ['SURVEY_PUBLICATION_APPROVAL', 'Survey publication approval'];
+    const secondaryFallback = revision.area === 'GLOBAL_HR'
+      ? ['WORKS_COUNCIL_REVIEW', 'Works council review']
+      : revision.area === 'DEI_ANALYTICS'
+        ? ['PAY_EQUITY_REVIEW_REQUIRED', 'Pay equity review required']
+        : ['RECOGNITION_APPROVAL_REQUIRED', 'Recognition approval required'];
+    const primaryRule = firstLedgerRecord(runtime[primaryKey], primaryFallback[0], primaryFallback[1]);
+    const secondaryRule = firstLedgerRecord(runtime[secondaryKey], secondaryFallback[0], secondaryFallback[1]);
+    const updateDomainRule = (key: string, fallbackCode: string, fallbackLabel: string, changes: Record<string, unknown>) => commit({
+      type: 'DOMAIN_POLICY_RUNTIME',
+      key: runtimeKey,
+      changes: {
+        [key]: upsertFirstLedgerRecord(runtime[key], fallbackCode, fallbackLabel, changes),
+      },
+    });
+
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">{lens.label}</CardTitle>
+        </CardHeader>
+        <BusinessControlBody editable={editable} className="grid gap-3 lg:grid-cols-4">
+          <GuidedInput label="Primary rule code" value={recordCode(primaryRule) || primaryFallback[0]} onChange={(value) => updateDomainRule(primaryKey, primaryFallback[0], primaryFallback[1], { code: value })} />
+          <GuidedInput label="Primary rule label" value={stringField(primaryRule, 'label', primaryFallback[1])} onChange={(value) => updateDomainRule(primaryKey, primaryFallback[0], primaryFallback[1], { label: value })} />
+          <GuidedInput label="Primary decision" value={stringField(primaryRule, 'decision', revision.area === 'DEI_ANALYTICS' ? 'BLOCK_SMALL_SEGMENT' : 'REQUIRE_APPROVAL')} onChange={(value) => updateDomainRule(primaryKey, primaryFallback[0], primaryFallback[1], { decision: value })} />
+          <GuidedInput label="Primary retro behavior" value={stringField(primaryRule, 'retroBehavior', 'REVALIDATE_PENDING')} onChange={(value) => updateDomainRule(primaryKey, primaryFallback[0], primaryFallback[1], { retroBehavior: value })} />
+          <GuidedInput label="Secondary rule code" value={recordCode(secondaryRule) || secondaryFallback[0]} onChange={(value) => updateDomainRule(secondaryKey, secondaryFallback[0], secondaryFallback[1], { code: value })} />
+          <GuidedInput label="Secondary rule label" value={stringField(secondaryRule, 'label', secondaryFallback[1])} onChange={(value) => updateDomainRule(secondaryKey, secondaryFallback[0], secondaryFallback[1], { label: value })} />
+          <GuidedInput label="Secondary decision" value={stringField(secondaryRule, 'decision', 'REQUIRE_APPROVAL')} onChange={(value) => updateDomainRule(secondaryKey, secondaryFallback[0], secondaryFallback[1], { decision: value })} />
+          <GuidedToggle label="Secondary rule active" checked={booleanField(secondaryRule, 'active', true)} onChange={(checked) => updateDomainRule(secondaryKey, secondaryFallback[0], secondaryFallback[1], { active: checked })} />
+        </BusinessControlBody>
+      </Card>
+    );
+  }
+
   const complianceRuntime = asRecord(draft.compliancePolicyRuntime);
   const acknowledgementRule = firstLedgerRecord(complianceRuntime.acknowledgementRules, 'EMPLOYEE_ACK_REQUIRED', 'Employee acknowledgement required');
   const escalationRule = firstLedgerRecord(complianceRuntime.escalationRules, 'OVERDUE_ACK_ESCALATION', 'Overdue acknowledgement escalation');
@@ -2593,6 +2689,15 @@ export function AdminPolicies() {
           </TabsContent>
           <TabsContent value="benefits">
             <AreaWorkspace area="BENEFITS" revisions={byArea.BENEFITS ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'BENEFITS' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+          </TabsContent>
+          <TabsContent value="global-hr">
+            <AreaWorkspace area="GLOBAL_HR" revisions={byArea.GLOBAL_HR ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'GLOBAL_HR' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+          </TabsContent>
+          <TabsContent value="dei">
+            <AreaWorkspace area="DEI_ANALYTICS" revisions={byArea.DEI_ANALYTICS ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'DEI_ANALYTICS' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
+          </TabsContent>
+          <TabsContent value="engagement">
+            <AreaWorkspace area="ENGAGEMENT" revisions={byArea.ENGAGEMENT ?? []} setup={setupQuery.data} selectedId={visibleSelectedRevision?.area === 'ENGAGEMENT' ? visibleSelectedRevision.id : undefined} onSelect={(revision) => setSelectedId(revision.id)} onCreateDraft={createDraftForArea} />
           </TabsContent>
 
           <TabsContent value="impact" className="space-y-4">

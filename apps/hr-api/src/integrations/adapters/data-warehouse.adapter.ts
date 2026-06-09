@@ -8,6 +8,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { ExportResult, IntegrationAdapter, IntegrationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export interface ScheduleResult extends IntegrationResult {
   scheduleId?: string;
@@ -25,6 +26,13 @@ export interface ExportScheduleConfig {
 export class DataWarehouseAdapter implements IntegrationAdapter {
   readonly name = 'data-warehouse';
   readonly direction = 'OUTBOUND' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'People Analytics',
+    ownerContact: 'people-analytics@example.com',
+    sandboxEndpointRef: 'env:HR_WAREHOUSE_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_WAREHOUSE_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/data-warehouse',
+  });
   private readonly logger = new Logger(DataWarehouseAdapter.name);
 
   async healthCheck(): Promise<boolean> {

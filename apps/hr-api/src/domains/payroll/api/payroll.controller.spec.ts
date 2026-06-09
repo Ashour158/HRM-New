@@ -1,7 +1,8 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import { PayrollController } from './payroll.controller.js';
+import { PayrollCycleGovernanceService } from '../services/payroll-cycle-governance.service.js';
 import { PayrollGlPostingService } from '../services/payroll-gl-posting.service.js';
 
 function buildController(overrides: { payrollCycleRepo?: unknown } = {}) {
@@ -472,5 +473,111 @@ describe('PayrollController salary governance', () => {
       ]),
       events: ['PayrollGlPreviewBuilt'],
     });
+  });
+
+  it('fails closed before dispatching close when enterprise close evidence is missing', async () => {
+    const payrollCycleId = '550e8400-e29b-41d4-a716-446655440501';
+    const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
+    const payrollCycle = {
+      id: new Uuid(payrollCycleId),
+      tenantId,
+      cycleName: 'May 2026 Payroll',
+      payPeriodStart: new Date('2026-05-01T00:00:00.000Z'),
+      payPeriodEnd: new Date('2026-05-31T00:00:00.000Z'),
+      payDate: new Date('2026-05-31T00:00:00.000Z'),
+      status: 'APPROVED',
+      aggregateVersion: 4,
+    };
+    const controller = new PayrollController(
+      commandBus as never,
+      {
+        getSetup: async () => ({
+          locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+          statutoryPayrollPacks: [{
+            code: 'EG_STAT',
+            label: 'Egypt statutory payroll',
+            active: true,
+            countryCode: 'EG',
+            locationCodes: ['CAIRO_HQ'],
+            calculationPolicy: {
+              taxRatePercent: 10,
+              employeeInsuranceRatePercent: 5,
+            },
+          }],
+          payrollBlockingRules: [],
+        }),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { buildBankTransferRows: vi.fn(() => []) } as never,
+      new PayrollCycleGovernanceService() as never,
+      {
+        findById: vi.fn(async () => payrollCycle),
+        findByTenant: vi.fn(async () => [payrollCycle]),
+      } as never,
+      {} as never,
+      {} as never,
+      {
+        findByPayrollCycle: vi.fn(async () => [{
+          id: new Uuid('550e8400-e29b-41d4-a716-446655440502'),
+          workerId: new Uuid('550e8400-e29b-41d4-a716-446655440503'),
+          lineType: 'NET_PAY',
+          description: 'Net pay',
+          amount: 8400,
+          currency: 'EGP',
+          ruleSetId: 'SYSTEM',
+          explanation: 'gross - deductions',
+          status: 'LOCKED',
+        }]),
+      } as never,
+      { findByPayrollCycle: vi.fn(async () => undefined) } as never,
+      { findByPayrollCycle: vi.fn(async () => []) } as never,
+      {} as never,
+      { findByPayrollCycle: vi.fn(async () => undefined) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const req = {
+      tenantId: tenantId.value,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    let response: unknown;
+    try {
+      await controller.closePayrollCycle(payrollCycleId, req);
+      throw new Error('Expected payroll close to fail readiness');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      response = (error as BadRequestException).getResponse();
+    }
+
+    expect(response).toMatchObject({
+      message: 'Payroll cycle has blocking readiness issues',
+      readiness: {
+        canClose: false,
+        issues: expect.arrayContaining([
+          expect.objectContaining({ code: 'MISSING_GL_MAPPING' }),
+          expect.objectContaining({ code: 'MISSING_PAYMENT_BATCH_CONFIG' }),
+          expect.objectContaining({ code: 'MISSING_GL_POSTING' }),
+          expect.objectContaining({ code: 'MISSING_PAYMENT_BATCH' }),
+          expect.objectContaining({ code: 'MISSING_PAYSLIP_ARTIFACT' }),
+        ]),
+      },
+    });
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });

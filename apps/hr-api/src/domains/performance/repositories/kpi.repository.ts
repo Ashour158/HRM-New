@@ -18,12 +18,12 @@ export class KpiRepository extends BaseRepository<'kpis', KeyPerformanceIndicato
 
   async findByOrgUnit(orgUnitId: Uuid): Promise<KeyPerformanceIndicator[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('org_unit_id', '=', orgUnitId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByDepartment(department: string): Promise<KeyPerformanceIndicator[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('department', '=', department).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: KeyPerformanceIndicator): Promise<void> {

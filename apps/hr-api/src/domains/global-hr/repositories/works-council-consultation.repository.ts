@@ -33,7 +33,7 @@ export class WorksCouncilConsultationRepository {
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async findBlockingByLegalEntity(legalEntityId: Uuid): Promise<WorksCouncilConsultation[]> {
@@ -43,7 +43,7 @@ export class WorksCouncilConsultationRepository {
       .where('legal_entity_id', '=', legalEntityId.value)
       .where('status', 'in', ['REQUIRED', 'INITIATED', 'IN_PROGRESS'])
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: WorksCouncilConsultation): Promise<void> {

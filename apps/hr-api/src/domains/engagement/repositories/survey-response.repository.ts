@@ -20,7 +20,7 @@ export class SurveyResponseRepository extends BaseRepository<'survey_responses',
 
   async findBySurvey(surveyId: Uuid): Promise<SurveyResponse[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('survey_id', '=', surveyId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: SurveyResponse): Promise<void> {

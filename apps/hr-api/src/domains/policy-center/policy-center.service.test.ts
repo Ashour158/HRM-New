@@ -744,7 +744,7 @@ describe('PolicyCenterService', () => {
     }));
   });
 
-  it('exposes max-depth policy templates for leave, attendance, access, compliance, and benefits', () => {
+  it('exposes max-depth policy templates for leave, attendance, access, compliance, benefits, and people analytics domains', () => {
     const { service } = buildService();
 
     const templates = service.getTemplates();
@@ -755,6 +755,9 @@ describe('PolicyCenterService', () => {
       'ACCESS-GOVERNANCE-LEDGER',
       'COMPLIANCE-RULE-LEDGER',
       'BENEFITS-ELIGIBILITY-LEDGER',
+      'GLOBAL-HR-WORK-AUTHORIZATION',
+      'DEI-PAY-EQUITY-GOVERNANCE',
+      'ENGAGEMENT-SURVEY-RECOGNITION',
     ]));
     expect(templates.find((template) => template.area === 'BENEFITS')).toEqual(expect.objectContaining({
       area: 'BENEFITS',

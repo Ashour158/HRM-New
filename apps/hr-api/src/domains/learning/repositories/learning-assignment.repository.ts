@@ -20,12 +20,12 @@ export class LearningAssignmentRepository extends BaseRepository<'learning_assig
 
   async findByWorker(workerId: Uuid): Promise<LearningAssignment[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByCourse(courseId: Uuid): Promise<LearningAssignment[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('course_id', '=', courseId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: LearningAssignment): Promise<void> {

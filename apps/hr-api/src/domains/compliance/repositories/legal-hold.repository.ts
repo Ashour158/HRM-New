@@ -34,7 +34,7 @@ export class LegalHoldRepository {
       .where('status', '=', 'ACTIVE')
       .execute();
     return rows
-      .map((r) => this.toAggregate(r))
+      .map((r: any) => this.toAggregate(r))
       .filter((h) => h.affectedWorkerIds.some((id) => id.value === workerId.value));
   }
 
@@ -44,7 +44,7 @@ export class LegalHoldRepository {
       .selectAll()
       .where('status', '=', 'ACTIVE')
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: LegalHold): Promise<void> {

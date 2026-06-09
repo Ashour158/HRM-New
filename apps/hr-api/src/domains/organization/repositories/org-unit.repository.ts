@@ -42,7 +42,7 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
       .selectAll()
       .where('parent_id', '=', parentId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.org_units']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.org_units']));
   }
 
   async findByLegalEntity(legalEntityId: Uuid): Promise<OrgUnit[]> {
@@ -51,7 +51,7 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.org_units']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.org_units']));
   }
 
   async findByTenant(tenantId: Uuid): Promise<OrgUnit[]> {
@@ -60,7 +60,7 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toEntity(r as unknown as Database['hr_org.org_units']));
+    return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.org_units']));
   }
 
   async findTree(tenantId: Uuid): Promise<OrgUnitNode[]> {
@@ -69,7 +69,7 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    const entities = rows.map((r) => this.toEntity(r as unknown as Database['hr_org.org_units']));
+    const entities = rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.org_units']));
     const map = new Map<string, OrgUnitNode>();
     const roots: OrgUnitNode[] = [];
 

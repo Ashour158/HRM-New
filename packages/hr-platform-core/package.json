@@ -18,13 +18,13 @@
     "lint": "eslint src/**/*.ts"
   },
   "dependencies": {
-    "@hcm/shared-kernel": "workspace:*",
+    "@hcm/command-contracts": "workspace:*",
     "@hcm/database": "workspace:*",
     "@hcm/event-schemas": "workspace:*",
-    "@hcm/command-contracts": "workspace:*",
-    "kysely": "^0.27.3",
-    "pg": "^8.11.0",
-    "ioredis": "^5.4.0"
+    "@hcm/shared-kernel": "workspace:*",
+    "ioredis": "^5.4.0",
+    "kysely": "^0.28.17",
+    "pg": "^8.11.0"
   },
   "devDependencies": {
     "@types/pg": "^8.11.0",

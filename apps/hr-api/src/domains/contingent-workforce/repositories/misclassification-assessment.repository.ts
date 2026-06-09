@@ -20,7 +20,7 @@ export class MisclassificationAssessmentRepository extends BaseRepository<'miscl
 
   async findByTenant(tenantId: Uuid): Promise<MisclassificationAssessment[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['misclassification_assessments']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['misclassification_assessments']));
   }
 
 

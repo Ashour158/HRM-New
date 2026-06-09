@@ -8,6 +8,7 @@ import { AppService } from './app.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { CorrelationInterceptor } from './interceptors/correlation.interceptor.js';
+import { Public } from './decorators/public.decorator.js';
 
 @Controller()
 @UseInterceptors(CorrelationInterceptor)
@@ -15,16 +16,19 @@ export class AppController {
   constructor(private readonly appService: AppService) {}
 
   @Get('health')
+  @Public()
   getHealth(): ReturnType<AppService['getHealth']> {
     return this.appService.getHealth();
   }
 
   @Get('health/ready')
+  @Public()
   async getReadiness(): Promise<ReturnType<AppService['getReadiness']>> {
     return this.appService.getReadiness();
   }
 
   @Get('health/live')
+  @Public()
   getLiveness(): { status: 'alive'; timestamp: string } {
     return {
       status: 'alive',

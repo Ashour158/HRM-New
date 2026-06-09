@@ -1,6 +1,8 @@
 import { useCallback, useEffect } from 'react';
+import type { ApiResponse, AuthLoginResponse, AuthUserResponse } from '@hcm/openapi-contracts';
 import { useAuthStore } from '@/stores/auth-store';
 import { apiClient } from '@/lib/api-client';
+import { persistTenantId } from '@/lib/auth-storage';
 import type { User } from '@/types';
 
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
@@ -28,11 +30,11 @@ function localBypassEmailForPath(pathname = window.location.pathname): string {
   return LOCAL_ADMIN_EMAIL;
 }
 
-async function authenticateWithApi(email: string, password: string, tenantId?: string): Promise<{ user: User; token: string }> {
+async function authenticateWithApi(email: string, password: string, tenantId?: string): Promise<{ user: User; token: string; refreshToken?: string }> {
   if (tenantId) {
-    localStorage.setItem('tenant_id', tenantId);
+    persistTenantId(tenantId);
   }
-  const response = await apiClient.post<{ success: boolean; data: { user: User; token: string } }>(
+  const response = await apiClient.post<ApiResponse<AuthLoginResponse>>(
     '/auth/login',
     { email, password }
   );
@@ -48,6 +50,18 @@ async function authenticateWithApi(email: string, password: string, tenantId?: s
  */
 export function useAuth() {
   const { user, roles, permissions, isAuthenticated, isLoading, token, login, logout, setLoading } = useAuthStore();
+  const hasPermission = useCallback(
+    (permissionCode: string) => permissions.some((permission) => permission.id === permissionCode),
+    [permissions],
+  );
+  const hasAnyPermission = useCallback(
+    (permissionCodes: string[]) => permissionCodes.some((permissionCode) => hasPermission(permissionCode)),
+    [hasPermission],
+  );
+  const hasAllPermissions = useCallback(
+    (permissionCodes: string[]) => permissionCodes.every((permissionCode) => hasPermission(permissionCode)),
+    [hasPermission],
+  );
 
   /**
    * Authenticates a user with email and password.
@@ -62,7 +76,7 @@ export function useAuth() {
             password || LOCAL_BYPASS_PASSWORD,
             tenantId || DEFAULT_TENANT_ID,
           );
-          login(credentials.user, credentials.token);
+          login(credentials.user, credentials.token, credentials.refreshToken);
           validatedAuthToken = credentials.token;
           validatingAuthToken = null;
           authValidationPromise = null;
@@ -70,7 +84,7 @@ export function useAuth() {
         }
 
         const credentials = await authenticateWithApi(email, password, tenantId);
-        login(credentials.user, credentials.token);
+        login(credentials.user, credentials.token, credentials.refreshToken);
         validatedAuthToken = credentials.token;
         validatingAuthToken = null;
         authValidationPromise = null;
@@ -115,7 +129,7 @@ export function useAuth() {
       authenticateWithApi(desiredEmail, LOCAL_BYPASS_PASSWORD, DEFAULT_TENANT_ID)
         .then((credentials) => {
           if (cancelled) return;
-          login(credentials.user, credentials.token);
+          login(credentials.user, credentials.token, credentials.refreshToken);
           validatedAuthToken = credentials.token;
           validatingAuthToken = null;
           authValidationPromise = null;
@@ -157,7 +171,7 @@ export function useAuth() {
     setLoading(true);
 
     authValidationPromise = apiClient
-      .get<{ success: boolean; data: User }>('/auth/me', {
+      .get<ApiResponse<AuthUserResponse>>('/auth/me', {
         signal: AbortSignal.timeout(AUTH_VALIDATION_TIMEOUT_MS),
       })
       .then((res) => {
@@ -186,6 +200,9 @@ export function useAuth() {
     user,
     roles,
     permissions,
+    hasPermission,
+    hasAnyPermission,
+    hasAllPermissions,
     isAuthenticated,
     isLoading,
     login: loginWithCredentials,

@@ -33,7 +33,7 @@ export class CountryPolicyImpactSimulationRepository {
       .selectAll()
       .where('policy_pack_id', '=', policyPackId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: CountryPolicyImpactSimulation): Promise<void> {

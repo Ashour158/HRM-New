@@ -9,6 +9,9 @@ export const POLICY_AREAS = [
   'COUNTRY_POLICY',
   'COMPLIANCE',
   'BENEFITS',
+  'GLOBAL_HR',
+  'DEI_ANALYTICS',
+  'ENGAGEMENT',
 ] as const;
 
 export type PolicyArea = typeof POLICY_AREAS[number];
@@ -148,6 +151,24 @@ export interface BenefitsPolicySimulation extends DomainPolicySimulation {
   carrierExportRules: string[];
 }
 
+export interface GlobalHrPolicySimulation extends DomainPolicySimulation {
+  workAuthorizationRuleCodes: string[];
+  worksCouncilRuleCodes: string[];
+  statutoryLeaveBridgeCodes: string[];
+}
+
+export interface DeiAnalyticsPolicySimulation extends DomainPolicySimulation {
+  suppressionRuleCodes: string[];
+  payEquityReviewRuleCodes: string[];
+  remediationRuleCodes: string[];
+}
+
+export interface EngagementPolicySimulation extends DomainPolicySimulation {
+  surveyPublicationRuleCodes: string[];
+  responsePrivacyRuleCodes: string[];
+  recognitionApprovalRuleCodes: string[];
+}
+
 export interface PolicyNotificationPreviewRecipient {
   audience: 'HR_OPERATIONS' | 'EMPLOYEE' | 'MANAGER' | 'POLICY_REVIEWER' | 'SERVICE_OWNER';
   workerId?: string;
@@ -206,6 +227,9 @@ export interface PolicyImpactSimulationResult {
   accessPolicySimulation?: AccessPolicySimulation;
   compliancePolicySimulation?: CompliancePolicySimulation;
   benefitsPolicySimulation?: BenefitsPolicySimulation;
+  globalHrPolicySimulation?: GlobalHrPolicySimulation;
+  deiAnalyticsPolicySimulation?: DeiAnalyticsPolicySimulation;
+  engagementPolicySimulation?: EngagementPolicySimulation;
   warnings: string[];
   engineName: 'PolicyImpactSimulationEngine';
   engineVersion: string;

@@ -1,6 +1,7 @@
 {
   "name": "hr-hcm-platform",
   "version": "1.4.0",
+  "packageManager": "pnpm@9.15.9",
   "private": true,
   "description": "Enterprise HR/HCM SaaS Platform — Full-Stack Implementation",
   "engines": {
@@ -14,6 +15,9 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "secret:scan": "node scripts/secret-scan.mjs",
+    "ci:verify-deployment-envelope": "node scripts/verify-deployment-envelope.mjs",
+    "runtime:smoke": "node scripts/runtime-smoke.mjs",
+    "runtime:golden-workflow": "node scripts/golden-workflow-smoke.mjs",
     "db:migrate": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate",
     "db:migrate:create": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate:create",
     "db:seed": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database seed",
@@ -45,5 +49,13 @@
     "*.{js,jsx,json,md}": [
       "prettier --write"
     ]
+  },
+  "pnpm": {
+    "overrides": {
+      "kysely": "^0.28.17",
+      "lodash": "^4.18.1",
+      "multer": "^2.1.1",
+      "tar": "^7.5.11"
+    }
   }
 }

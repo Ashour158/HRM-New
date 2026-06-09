@@ -17,7 +17,7 @@ export class DeiReportRepository {
 
   async findByStatus(status: string): Promise<DeiReport[]> {
     const rows = await this.db.selectFrom('hr_dei_analytics.dei_reports').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: DeiReport): Promise<void> {

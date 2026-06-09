@@ -17,7 +17,7 @@ export class HrAiUseCaseRepository {
 
   async findByStatus(status: string): Promise<HrAiUseCase[]> {
     const rows = await this.db.selectFrom('hr_ai_governance.hr_ai_use_cases').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: HrAiUseCase): Promise<void> {

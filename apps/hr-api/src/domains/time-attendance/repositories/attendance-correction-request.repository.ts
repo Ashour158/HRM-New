@@ -70,7 +70,7 @@ export class AttendanceCorrectionRequestRepository {
     if (options?.dateTo) query = query.where('work_date', '<=', workDateToDb(options.dateTo));
 
     const rows = await query.orderBy('requested_at', 'desc').execute();
-    return rows.map((row) => this.toRecord(row as Database['attendance_correction_requests']));
+    return rows.map((row: any) => this.toRecord(row as Database['attendance_correction_requests']));
   }
 
   async findQueue(tenantId: Uuid, options?: { status?: AttendanceCorrectionStatus; workDate?: string }): Promise<AttendanceCorrectionRequestRecord[]> {
@@ -81,7 +81,7 @@ export class AttendanceCorrectionRequestRepository {
     if (options?.status) query = query.where('status', '=', options.status);
     if (options?.workDate) query = query.where('work_date', '=', workDateToDb(options.workDate));
     const rows = await query.orderBy('requested_at', 'desc').execute();
-    return rows.map((row) => this.toRecord(row as Database['attendance_correction_requests']));
+    return rows.map((row: any) => this.toRecord(row as Database['attendance_correction_requests']));
   }
 
   async save(record: AttendanceCorrectionRequestRecord): Promise<AttendanceCorrectionRequestRecord> {

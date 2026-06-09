@@ -20,12 +20,12 @@ export class EmployeeRelationsCaseRepository extends BaseRepository<'employee_re
 
   async findByTenant(tenantId: Uuid): Promise<EmployeeRelationsCase[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['employee_relations_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['employee_relations_cases']));
   }
 
   async findBySubjectWorker(subjectWorkerId: Uuid): Promise<EmployeeRelationsCase[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('subject_worker_id', '=', subjectWorkerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['employee_relations_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['employee_relations_cases']));
   }
 
 

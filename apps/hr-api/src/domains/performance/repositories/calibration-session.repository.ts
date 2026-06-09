@@ -20,7 +20,7 @@ export class CalibrationSessionRepository extends BaseRepository<'calibration_se
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<CalibrationSession[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: CalibrationSession): Promise<void> {

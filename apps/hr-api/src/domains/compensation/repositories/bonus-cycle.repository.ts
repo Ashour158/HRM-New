@@ -27,7 +27,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['bonus_cycles']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['bonus_cycles']));
   }
 
   async findByYear(cycleYear: number): Promise<BonusCycle[]> {
@@ -36,7 +36,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
       .selectAll()
       .where('cycle_year', '=', cycleYear)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['bonus_cycles']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['bonus_cycles']));
   }
 
   async save(entity: BonusCycle): Promise<void> {

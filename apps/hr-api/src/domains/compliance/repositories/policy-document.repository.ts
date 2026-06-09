@@ -43,7 +43,7 @@ export class PolicyDocumentRepository {
       .selectAll()
       .where('status', '=', status)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: PolicyDocument): Promise<void> {

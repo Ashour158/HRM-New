@@ -41,7 +41,7 @@ export class OfferRepository {
       .where('candidate_id', '=', candidateId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -54,7 +54,7 @@ export class OfferRepository {
       .where('requisition_id', '=', requisitionId.value)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -67,7 +67,7 @@ export class OfferRepository {
       .where('status', 'in', ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'])
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

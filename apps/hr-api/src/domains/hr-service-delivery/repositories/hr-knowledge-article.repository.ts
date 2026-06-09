@@ -20,7 +20,7 @@ export class HrKnowledgeArticleRepository extends BaseRepository<'hr_knowledge_a
 
   async findByTenant(tenantId: Uuid): Promise<HrKnowledgeArticle[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_knowledge_articles']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_knowledge_articles']));
   }
 
 

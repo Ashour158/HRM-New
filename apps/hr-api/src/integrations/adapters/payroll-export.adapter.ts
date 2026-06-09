@@ -12,6 +12,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { ExportResult, IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export type ExportFormat = 'CSV' | 'XML' | 'JSON' | 'API';
 
@@ -19,6 +20,13 @@ export type ExportFormat = 'CSV' | 'XML' | 'JSON' | 'API';
 export class PayrollExportAdapter implements IntegrationAdapter {
   readonly name = 'payroll-export';
   readonly direction = 'OUTBOUND' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'Payroll Integrations',
+    ownerContact: 'payroll-integrations@example.com',
+    sandboxEndpointRef: 'env:HR_PAYROLL_EXPORT_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_PAYROLL_EXPORT_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/payroll-export',
+  });
   private readonly logger = new Logger(PayrollExportAdapter.name);
 
   async healthCheck(): Promise<boolean> {

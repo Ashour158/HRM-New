@@ -17,7 +17,7 @@ export class ReportScheduleRepository {
 
   async findByReportDefinitionId(reportDefinitionId: Uuid): Promise<ReportSchedule[]> {
     const rows = await this.db.selectFrom('hr_reporting.report_schedules').selectAll().where('report_definition_id', '=', reportDefinitionId.value).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: ReportSchedule): Promise<void> {

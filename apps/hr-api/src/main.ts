@@ -4,20 +4,15 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module.js';
 import { loadAppConfig } from './config/app.config.js';
+import { shutdownOpenTelemetry, startOpenTelemetry } from './observability/opentelemetry.js';
+import { StructuredLoggerService } from './observability/structured-logger.service.js';
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
 
-  const app = await NestFactory.create(AppModule, {
-    logger:
-      config.logLevel === 'debug'
-        ? ['debug', 'log', 'warn', 'error', 'verbose']
-        : config.logLevel === 'warn'
-          ? ['warn', 'error']
-          : config.logLevel === 'error'
-            ? ['error']
-            : ['log', 'warn', 'error'],
-  });
+  const logger = new StructuredLoggerService('hr-api', config.logLevel);
+  startOpenTelemetry(config, logger);
+  const app = await NestFactory.create(AppModule, { logger });
 
   // Global API prefix
   app.setGlobalPrefix('api/v1');
@@ -40,6 +35,12 @@ async function bootstrap(): Promise<void> {
 
   // Graceful shutdown hooks
   app.enableShutdownHooks();
+  process.once('SIGTERM', () => {
+    void shutdownOpenTelemetry(logger);
+  });
+  process.once('SIGINT', () => {
+    void shutdownOpenTelemetry(logger);
+  });
 
   // Swagger / OpenAPI
   const swaggerConfig = new DocumentBuilder()
@@ -56,10 +57,11 @@ async function bootstrap(): Promise<void> {
   const port = config.port;
   await app.listen(port);
 
-  console.log(`HR/HCM Platform API running on http://localhost:${port}`);
+  logger.info({ eventType: 'API_BOOTSTRAPPED', port, url: `http://localhost:${port}` });
 }
 
 bootstrap().catch((err: unknown) => {
-  console.error('Bootstrap failed:', err);
+  const logger = new StructuredLoggerService('hr-api', 'error');
+  logger.error(err instanceof Error ? err : new Error(String(err)), 'Bootstrap');
   process.exit(1);
 });

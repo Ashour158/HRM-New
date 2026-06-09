@@ -31,6 +31,9 @@ import {
 } from '../services/payroll-cycle-calculation.service.js';
 import {
   PayrollCycleGovernanceService,
+  type PayrollCloseGlPostingEvidence,
+  type PayrollClosePaymentBatchEvidence,
+  type PayrollClosePayslipArtifactEvidence,
   type ExistingPayrollCycleSummary,
   type PayrollCloseToPayReadiness,
   type PayrollReadinessIssue,
@@ -709,6 +712,78 @@ export class PayrollController {
       currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? 'EGP',
       rows: [],
     };
+  }
+
+  private toGlPostingEvidence(posting: Awaited<ReturnType<PayrollGlPostingRepository['findByPayrollCycle']>>): PayrollCloseGlPostingEvidence | undefined {
+    if (!posting) return undefined;
+    return {
+      status: posting.status,
+      totalDebits: posting.totalDebits,
+      totalCredits: posting.totalCredits,
+      lineCount: posting.lines.length,
+    };
+  }
+
+  private toPaymentBatchEvidence(batch: Awaited<ReturnType<PayrollPaymentBatchRepository['findByPayrollCycle']>>): PayrollClosePaymentBatchEvidence | undefined {
+    if (!batch) return undefined;
+    return {
+      status: batch.status,
+      readyCount: batch.readyCount,
+      blockedCount: batch.blockedCount,
+      totalNet: batch.totalNet,
+      exceptionCount: Number(batch.reconciliationSummary?.exceptionCount ?? 0),
+    };
+  }
+
+  private toPayslipArtifactEvidence(
+    artifacts: Awaited<ReturnType<PayrollPayslipArtifactRepository['findByPayrollCycle']>>,
+  ): PayrollClosePayslipArtifactEvidence[] {
+    return artifacts.map((artifact) => ({
+      workerId: artifact.workerId,
+      employeeId: artifact.employeeId,
+      status: artifact.status,
+      contentHash: artifact.contentHash,
+      htmlReady: artifact.htmlContent.trim().length > 0,
+    }));
+  }
+
+  private async buildPersistedCycleCloseReadiness(req: Request, payrollCycleId: string): Promise<PayrollCloseToPayReadiness> {
+    const tenantId = this.getTenantId(req);
+    const payrollCycleUuid = new Uuid(payrollCycleId);
+    const [preview, setup, resultLines, glPosting, paymentBatch, payslipArtifacts] = await Promise.all([
+      this.buildPersistedCyclePreview(req, payrollCycleId),
+      this.hcmSetupService.getSetup(tenantId),
+      this.resultLineRepo.findByPayrollCycle(payrollCycleUuid),
+      this.glPostingRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+      this.paymentBatchRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+      this.payslipArtifactRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+    ]);
+    const expectedPayslipWorkerIds = [...new Set(resultLines
+      .filter((line) => line.status === 'LOCKED')
+      .map((line) => line.workerId.value))];
+
+    return this.payrollGovernance.evaluateCloseToPayReadiness({
+      preview,
+      bankRows: [],
+      existingCycles: [],
+      setup,
+      closeEvidence: {
+        requireEnterpriseEvidence: true,
+        glPosting: this.toGlPostingEvidence(glPosting),
+        paymentBatch: this.toPaymentBatchEvidence(paymentBatch),
+        payslipArtifacts: this.toPayslipArtifactEvidence(payslipArtifacts),
+        expectedPayslipWorkerIds,
+      },
+    });
+  }
+
+  private async assertPersistedCycleCanClose(req: Request, payrollCycleId: string): Promise<void> {
+    const readiness = await this.buildPersistedCycleCloseReadiness(req, payrollCycleId);
+    if (readiness.canClose) return;
+    throw new BadRequestException({
+      message: 'Payroll cycle has blocking readiness issues',
+      readiness,
+    });
   }
 
   private async buildAttendanceLockIssues(preview: PayrollCyclePreview, req: Request): Promise<PayrollReadinessIssue[]> {
@@ -1474,6 +1549,7 @@ export class PayrollController {
   async closePayrollCycle(@Param('id') id: string, @Req() req: Request) {
     const pc = await this.payrollCycleRepo.findById(new Uuid(id));
     if (!pc) throw new BadRequestException('Payroll cycle not found');
+    await this.assertPersistedCycleCanClose(req, id);
     return this.commandBus.execute(this.buildCommand('ClosePayrollCycle', 'PayrollCycle', { payrollCycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: pc.status, expectedVersion: pc.aggregateVersion }));
   }
 

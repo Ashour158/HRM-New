@@ -24,7 +24,7 @@ export class PayrollPaymentBatchRepository {
     await this.db
       .insertInto(this.tableName)
       .values(row)
-      .onConflict((oc) => oc
+      .onConflict((oc: any) => oc
         .columns(['tenant_id', 'payroll_cycle_id'])
         .doUpdateSet({
           batch_number: row.batch_number,
@@ -79,7 +79,7 @@ export class PayrollPaymentBatchRepository {
       .orderBy('created_at', 'desc')
       .limit(limit)
       .execute();
-    return rows.map((row) => this.toRecord(row as Database['payroll_payment_batches']));
+    return rows.map((row: any) => this.toRecord(row as Database['payroll_payment_batches']));
   }
 
   private toRow(record: PayrollPaymentBatchRecord): Insertable<Database['payroll_payment_batches']> {

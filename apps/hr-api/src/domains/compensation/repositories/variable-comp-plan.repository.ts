@@ -27,7 +27,7 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['variable_comp_plans']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['variable_comp_plans']));
   }
 
   async save(entity: VariableCompPlan): Promise<void> {

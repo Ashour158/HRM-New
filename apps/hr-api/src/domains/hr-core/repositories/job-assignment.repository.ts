@@ -37,7 +37,7 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['job_assignments']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['job_assignments']));
   }
 
   async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<JobAssignment[]> {
@@ -47,7 +47,7 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
       .where('worker_id', '=', workerId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['job_assignments']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['job_assignments']));
   }
 
   async findActiveForWorker(workerId: Uuid): Promise<JobAssignment | undefined> {

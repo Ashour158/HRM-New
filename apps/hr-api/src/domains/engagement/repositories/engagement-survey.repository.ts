@@ -20,7 +20,7 @@ export class EngagementSurveyRepository extends BaseRepository<'engagement_surve
 
   async findByTenant(tenantId: Uuid): Promise<EngagementSurvey[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: EngagementSurvey): Promise<void> {

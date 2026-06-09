@@ -59,7 +59,7 @@ export class OnboardingPlanRepository {
       .where('status', '=', status)
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**
@@ -73,7 +73,7 @@ export class OnboardingPlanRepository {
       .orderBy('start_date', 'desc')
       .execute();
 
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   /**

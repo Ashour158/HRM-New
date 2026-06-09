@@ -18,22 +18,22 @@ export class ObjectiveRepository extends BaseRepository<'objectives', Objective>
 
   async findByOwner(ownerId: Uuid): Promise<Objective[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('owner_id', '=', ownerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByOrgUnit(orgUnitId: Uuid): Promise<Objective[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('org_unit_id', '=', orgUnitId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<Objective[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByParent(parentObjectiveId: Uuid): Promise<Objective[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('parent_objective_id', '=', parentObjectiveId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Objective): Promise<void> {

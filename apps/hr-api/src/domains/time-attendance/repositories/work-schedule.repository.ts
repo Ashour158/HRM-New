@@ -20,7 +20,7 @@ export class WorkScheduleRepository extends BaseRepository<'work_schedules', Wor
 
   async findByWorker(workerId: Uuid): Promise<WorkSchedule[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['work_schedules']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['work_schedules']));
   }
 
   async save(entity: WorkSchedule): Promise<void> {

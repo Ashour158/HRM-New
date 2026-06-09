@@ -22,7 +22,7 @@ export class PayrollExportJobRepository {
       .orderBy('created_at', 'desc')
       .limit(limit)
       .execute();
-    return rows.map((row) => this.toRecord(row as Database['payroll_export_jobs']));
+    return rows.map((row: any) => this.toRecord(row as Database['payroll_export_jobs']));
   }
 
   async findByPayrollCycle(tenantId: Uuid, payrollCycleId: Uuid): Promise<PayrollExportJobRecord[]> {
@@ -33,7 +33,7 @@ export class PayrollExportJobRepository {
       .where('payroll_cycle_id', '=', payrollCycleId.value)
       .orderBy('created_at', 'desc')
       .execute();
-    return rows.map((row) => this.toRecord(row as Database['payroll_export_jobs']));
+    return rows.map((row: any) => this.toRecord(row as Database['payroll_export_jobs']));
   }
 
   private toRow(record: PayrollExportJobRecord): Insertable<Database['payroll_export_jobs']> {

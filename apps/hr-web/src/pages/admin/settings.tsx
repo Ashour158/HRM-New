@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -162,10 +162,16 @@ export function AdminSettings() {
       <div className="fusion-glass flex flex-col gap-4 rounded-[2rem] p-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h2 className="fusion-gradient-text text-2xl font-bold">Admin Settings</h2>
-          <p className="text-slate-500">Low-code employee profile setup, organization values, ID policy, locations, and hiring document rules.</p>
+          <p className="text-slate-500">Company setup values, employee ID policy, locations, required fields, and hiring document rules.</p>
         </div>
         <div className="flex items-center gap-3">
           {savedAt ? <Badge variant="secondary">Saved {savedAt}</Badge> : null}
+          <Button asChild type="button" variant="outline">
+            <Link to="/admin/system-console">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Command Center
+            </Link>
+          </Button>
           <Button asChild type="button" variant="outline">
             <Link to="/admin/system-console/policies">Policy Center</Link>
           </Button>

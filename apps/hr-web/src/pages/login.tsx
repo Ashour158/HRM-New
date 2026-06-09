@@ -1,8 +1,10 @@
 import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
+import type { ApiResponse, AuthProvidersResponse } from '@hcm/openapi-contracts';
 import { useAuth } from '@/hooks/use-auth';
 import { useTenant } from '@/hooks/use-tenant';
+import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,7 +23,30 @@ const DEMO_ACCOUNTS = [
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
-  tenantId: z.string().optional(),
+  tenantId: z.string().uuid('Choose a valid organization').optional().or(z.literal('')),
+});
+
+const authProvidersSchema = z.object({
+  local: z.object({ enabled: z.boolean() }),
+  oidc: z.object({
+    enabled: z.boolean(),
+    issuerUrl: z.string().optional(),
+    clientId: z.string().optional(),
+    redirectUri: z.string().optional(),
+  }),
+  saml: z.object({
+    enabled: z.boolean(),
+    metadataUrl: z.string().optional(),
+    entityId: z.string().optional(),
+  }),
+  mfa: z.object({
+    required: z.boolean(),
+    demoCodeEnabled: z.boolean(),
+  }),
+  session: z.object({
+    accessTokenTtl: z.string(),
+    refreshTokenTtl: z.string(),
+  }),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -36,12 +61,58 @@ export function LoginPage() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [loginError, setLoginError] = React.useState('');
   const [demoLoading, setDemoLoading] = React.useState<string | null>(null);
+  const [authProviders, setAuthProviders] = React.useState<AuthProvidersResponse | null>(null);
+  const [providersLoading, setProvidersLoading] = React.useState(true);
+  const [providerError, setProviderError] = React.useState('');
 
   React.useEffect(() => {
     if (isAuthenticated) {
       navigate('/employee');
     }
   }, [isAuthenticated, navigate]);
+
+  React.useEffect(() => {
+    if (tenants.length === 1 && !formData.tenantId) {
+      setFormData((current) => ({ ...current, tenantId: tenants[0]?.id ?? '' }));
+    }
+  }, [formData.tenantId, tenants]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    apiClient
+      .get<ApiResponse<AuthProvidersResponse>>('/auth/providers')
+      .then((response) => {
+        if (cancelled) return;
+        const parsed = authProvidersSchema.safeParse(response.data.data);
+        if (!parsed.success) {
+          setProviderError('Single Sign-On configuration could not be verified.');
+          setAuthProviders(null);
+          return;
+        }
+        setProviderError('');
+        setAuthProviders(parsed.data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setProviderError('Single Sign-On configuration could not be verified.');
+        setAuthProviders(null);
+      })
+      .finally(() => {
+        if (!cancelled) setProvidersLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const ssoProvider = authProviders?.oidc.enabled ? 'OIDC' : authProviders?.saml.enabled ? 'SAML' : null;
+  const ssoStatusText = providersLoading
+    ? 'Checking Single Sign-On configuration...'
+    : ssoProvider
+      ? `Single Sign-On is available through ${ssoProvider}.`
+      : providerError || 'Single Sign-On is not configured for this organization.';
 
   const validate = (): boolean => {
     try {
@@ -59,6 +130,15 @@ export function LoginPage() {
       }
       return false;
     }
+  };
+
+  const handleSsoLogin = () => {
+    if (!ssoProvider) return;
+
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
+    const tenantId = formData.tenantId || tenants[0]?.id || '';
+    const providerPath = ssoProvider === 'OIDC' ? 'oidc' : 'saml';
+    window.location.assign(`${baseUrl}/auth/${providerPath}/start?tenantId=${encodeURIComponent(tenantId)}`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -239,11 +319,11 @@ export function LoginPage() {
                 )}
               </div>
 
-              {tenants.length > 1 && (
-                <div className="space-y-2">
-                  <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="tenant">
-                    Organization
-                  </Label>
+              <div className="space-y-2">
+                <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="tenant">
+                  Organization
+                </Label>
+                {tenants.length > 1 ? (
                   <Select
                     value={formData.tenantId}
                     onValueChange={(value) => setFormData({ ...formData, tenantId: value })}
@@ -260,13 +340,19 @@ export function LoginPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-              )}
-
-              <label className="flex cursor-pointer items-center gap-2 py-2 text-sm text-[#475569]">
-                <input className="h-4 w-4 rounded border-[#e2e8f0] text-[#4f46e5] focus:ring-[#4f46e5]/20" type="checkbox" />
-                Remember me
-              </label>
+                ) : (
+                  <Input
+                    id="tenant"
+                    value={tenants[0]?.name || 'Default Tenant'}
+                    disabled
+                    readOnly
+                    aria-describedby="tenant-help"
+                  />
+                )}
+                <p id="tenant-help" className="text-xs text-[#64748b]">
+                  Access is scoped to the selected organization.
+                </p>
+              </div>
 
               <div className="space-y-3 pt-1">
                 <Button type="submit" className="h-11 w-full gap-2" disabled={isSubmitting}>
@@ -289,10 +375,20 @@ export function LoginPage() {
                   <div className="h-px flex-1 bg-[#e2e8f0]/50" />
                 </div>
 
-                <Button type="button" variant="outline" className="h-11 w-full gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-11 w-full gap-2"
+                  disabled={providersLoading || !ssoProvider}
+                  aria-describedby="sso-status"
+                  onClick={handleSsoLogin}
+                >
                   <KeyRound className="h-4 w-4" />
                   Single Sign-On (SSO)
                 </Button>
+                <p id="sso-status" className="text-center text-xs text-[#64748b]">
+                  {ssoStatusText}
+                </p>
               </div>
             </form>
 

@@ -101,7 +101,7 @@ describe('EmployeeSelfServiceController', () => {
     expect(profile.documents).toHaveLength(1);
   });
 
-  it('rejects non-employee actors before resolving a worker profile', async () => {
+  it('rejects non-user actors before resolving a worker profile', async () => {
     const workerRepo = {
       findByIdForTenant: vi.fn(),
       findByEmailForTenant: vi.fn(),
@@ -115,16 +115,70 @@ describe('EmployeeSelfServiceController', () => {
       {} as never,
       {} as never,
     );
+    const systemRequest = {
+      ...request(),
+      actor: {
+        ...request().actor,
+        actorType: 'SYSTEM',
+        roles: ['SYSTEM_ACTOR'],
+      },
+    } as Request;
+
+    await expect(controller.getProfile(systemRequest)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(workerRepo.findByIdForTenant).not.toHaveBeenCalled();
+    expect(workerRepo.findByEmailForTenant).not.toHaveBeenCalled();
+  });
+
+  it('allows a linked HR admin to use employee self-service for their own worker profile', async () => {
+    const adminWorkerId = new Uuid('00000000-0000-0000-0000-000000000010');
+    const workerRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue({
+        id: adminWorkerId,
+        tenantId,
+        employeeNumber: 'EMP-HR-001',
+        firstName: 'HR',
+        lastName: 'Admin',
+        email: { toString: () => 'hr.admin@example.com' },
+        hireDate: new Date('2023-01-01T00:00:00.000Z'),
+        employmentType: 'FULL_TIME',
+        status: 'ACTIVE',
+        jobTitle: 'HR Administrator',
+      }),
+      findByEmailForTenant: vi.fn(),
+    };
+    const personalDataRepo = {
+      findByWorker: vi.fn().mockResolvedValue([]),
+    };
+    const controller = new EmployeeSelfServiceController(
+      workerRepo as never,
+      personalDataRepo as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
     const adminRequest = {
       ...request(),
       actor: {
         ...request().actor,
+        actorId: { value: adminWorkerId.value },
         roles: ['HR_ADMIN'],
+        email: 'hr.admin@example.com',
       },
     } as Request;
 
-    await expect(controller.getProfile(adminRequest)).rejects.toBeInstanceOf(ForbiddenException);
-    expect(workerRepo.findByIdForTenant).not.toHaveBeenCalled();
+    const profile = await controller.getProfile(adminRequest);
+
+    expect(profile).toMatchObject({
+      id: adminWorkerId.value,
+      employeeId: 'EMP-HR-001',
+      firstName: 'HR',
+      lastName: 'Admin',
+      email: 'hr.admin@example.com',
+      jobTitle: 'HR Administrator',
+    });
+    expect(workerRepo.findByIdForTenant).toHaveBeenCalledWith(adminWorkerId, tenantId);
     expect(workerRepo.findByEmailForTenant).not.toHaveBeenCalled();
   });
 

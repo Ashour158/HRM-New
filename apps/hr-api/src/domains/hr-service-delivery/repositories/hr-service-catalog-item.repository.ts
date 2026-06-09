@@ -25,7 +25,7 @@ export class HrServiceCatalogItemRepository extends BaseRepository<'hr_service_c
       .where('tenant_id', '=', tenantId.value)
       .orderBy('service_name', 'asc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_catalog_items']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_service_catalog_items']));
   }
 
   async findActive(tenantId: Uuid): Promise<HrServiceCatalogItem[]> {
@@ -36,7 +36,7 @@ export class HrServiceCatalogItemRepository extends BaseRepository<'hr_service_c
       .where('status', '=', 'ACTIVE')
       .orderBy('service_name', 'asc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_catalog_items']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_service_catalog_items']));
   }
 
   async save(entity: HrServiceCatalogItem): Promise<void> {

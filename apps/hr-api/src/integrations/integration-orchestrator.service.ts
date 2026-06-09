@@ -13,6 +13,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type {
   IntegrationAdapter,
   IntegrationHealth,
+  IntegrationProviderReadiness,
   IntegrationResult,
   IntegrationStatus,
 } from './types.js';
@@ -65,20 +66,35 @@ export class IntegrationOrchestrator implements OnModuleInit {
     return this.healthService.getAllStatuses();
   }
 
+  getProviderReadiness(): IntegrationProviderReadiness[] {
+    return this.healthService.getAllReadiness();
+  }
+
+  getAdapterReadiness(adapterName: string): IntegrationProviderReadiness | undefined {
+    return this.healthService.getReadiness(adapterName);
+  }
+
   /** Unified outbound send – delegates to the named adapter. */
   async send(adapterName: string, payload: unknown): Promise<IntegrationResult> {
     const adapter = this.adapters.get(adapterName);
     if (!adapter) {
       throw new Error(`Adapter '${adapterName}' is not registered.`);
     }
+    this.logger.log({ type: 'INTEGRATION_SEND_ATTEMPT', adapterName });
+    if (!this.healthService.hasConfiguredCredentials(adapterName)) {
+      this.logger.warn({ type: 'INTEGRATION_SEND_BLOCKED', adapterName, reason: 'CREDENTIALS_NOT_CONFIGURED' });
+      throw new Error(`Adapter '${adapterName}' credentials are not configured.`);
+    }
     const start = Date.now();
     try {
       const result = await adapter.send(payload);
       this.healthService.recordSuccess(adapterName, Date.now() - start);
+      this.logger.log({ type: 'INTEGRATION_SEND_SUCCESS', adapterName, operationId: result.operationId });
       return result;
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.healthService.recordFailure(adapterName, error);
+      this.logger.error({ type: 'INTEGRATION_SEND_FAILURE', adapterName, error: error.message });
       throw error;
     }
   }

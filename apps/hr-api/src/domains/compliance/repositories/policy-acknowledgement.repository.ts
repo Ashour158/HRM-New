@@ -33,7 +33,7 @@ export class PolicyAcknowledgementRepository {
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async findByPolicyDocument(policyDocumentId: Uuid): Promise<PolicyAcknowledgement[]> {
@@ -42,7 +42,7 @@ export class PolicyAcknowledgementRepository {
       .selectAll()
       .where('policy_document_id', '=', policyDocumentId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: PolicyAcknowledgement): Promise<void> {

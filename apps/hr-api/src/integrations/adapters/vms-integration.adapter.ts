@@ -10,6 +10,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
+import { createReadinessMetadata } from '../readiness.js';
 
 export interface VmsResult extends IntegrationResult {
   vmsReferenceId?: string;
@@ -37,6 +38,13 @@ export interface RateCardEntry {
 export class VmsIntegrationAdapter implements IntegrationAdapter {
   readonly name = 'vms-integration';
   readonly direction = 'BIDIRECTIONAL' as const;
+  readonly readiness = createReadinessMetadata({
+    ownerTeam: 'Contingent Workforce Operations',
+    ownerContact: 'contingent-workforce-ops@example.com',
+    sandboxEndpointRef: 'env:HR_VMS_SANDBOX_ENDPOINT',
+    productionEndpointRef: 'env:HR_VMS_PRODUCTION_ENDPOINT',
+    credentialRefBase: 'vault:integrations/vms-integration',
+  });
   private readonly logger = new Logger(VmsIntegrationAdapter.name);
 
   async healthCheck(): Promise<boolean> {

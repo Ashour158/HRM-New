@@ -20,7 +20,7 @@ export class GrievanceRepository extends BaseRepository<'grievances', Grievance>
 
   async findByTenant(tenantId: Uuid): Promise<Grievance[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['grievances']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['grievances']));
   }
 
 

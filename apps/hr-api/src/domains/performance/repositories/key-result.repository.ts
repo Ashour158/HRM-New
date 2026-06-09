@@ -18,7 +18,7 @@ export class KeyResultRepository extends BaseRepository<'key_results', KeyResult
 
   async findByObjective(objectiveId: Uuid): Promise<KeyResult[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('objective_id', '=', objectiveId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: KeyResult): Promise<void> {

@@ -20,7 +20,7 @@ export class RecognitionRecordRepository extends BaseRepository<'recognition_rec
 
   async findByWorker(workerId: Uuid): Promise<RecognitionRecord[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('to_worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: RecognitionRecord): Promise<void> {

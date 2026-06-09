@@ -17,7 +17,7 @@ export class HrAiModelRunRepository {
 
   async findByUseCaseId(useCaseId: Uuid): Promise<HrAiModelRun[]> {
     const rows = await this.db.selectFrom('hr_ai_governance.hr_ai_model_runs').selectAll().where('use_case_id', '=', useCaseId.value).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: HrAiModelRun): Promise<void> {

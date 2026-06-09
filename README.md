@@ -113,11 +113,27 @@ http://localhost:3001/api/docs
 | API | http://localhost:3001 (or `PORT` env) |
 | Swagger | http://localhost:3001/api/docs |
 | Health | http://localhost:3001/api/v1/health |
+| Metrics | http://localhost:3001/api/v1/metrics |
 | Web App | http://localhost:5173 |
 
-### Authentication (Local Dev Stub)
+### Authentication
 
-The API accepts a tenant via the `X-Tenant-ID` header. The seeded default tenant is:
+The API enforces authentication through global Nest guards. Controllers no longer
+need to opt in one by one. Routes that must remain unauthenticated, such as
+health checks and login, are marked with the explicit `@Public()` decorator.
+
+Seeded local users can sign in through:
+
+```http
+POST /api/v1/auth/login
+```
+
+The login response returns an access token, refresh token, and session metadata.
+The web client stores both tokens, refreshes access tokens through
+`POST /api/v1/auth/refresh`, and clears the session on refresh failure. Protected
+requests use `Authorization: Bearer <token>`.
+
+The seeded default tenant is:
 
 ```
 X-Tenant-ID: 00000000-0000-0000-0000-000000000001
@@ -129,10 +145,20 @@ The web client automatically sends this header when `tenant_id` is set in localS
 localStorage.setItem('tenant_id', '00000000-0000-0000-0000-000000000001');
 ```
 
-JWT tenant claims are verified when a Bearer token is present. Header-based tenant
-resolution remains for local, non-auth, and internal paths. Enabling global
-authentication across every controller is a larger follow-up because it requires
-updating controller contracts and tests together.
+JWT tenant claims are the primary tenant source for authenticated requests.
+Header-based tenant resolution remains available for local tooling, API-key
+system actors, and internal paths.
+
+Authentication capabilities:
+
+- `GET /api/v1/auth/providers` exposes configured local, OIDC, SAML, MFA, and
+  session settings without leaking secrets.
+- `POST /api/v1/auth/mfa/verify` upgrades a protected session when MFA is
+  required.
+- API-key authentication is still available for governed system and integration
+  actors through the configured `API_KEY_HEADER`.
+- Permission checks are enforced globally through the permission guard when
+  controllers declare `@Permissions(...)` or `@AllPermissions(...)`.
 
 ## Worker Lifecycle Vertical Slice
 

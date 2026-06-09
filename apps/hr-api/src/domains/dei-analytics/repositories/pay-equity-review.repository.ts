@@ -17,7 +17,7 @@ export class PayEquityReviewRepository {
 
   async findByStatus(status: string): Promise<PayEquityReview[]> {
     const rows = await this.db.selectFrom('hr_dei_analytics.pay_equity_reviews').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: PayEquityReview): Promise<void> {

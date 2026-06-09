@@ -20,7 +20,7 @@ export class CollectiveBargainingSessionRepository extends BaseRepository<'colle
 
   async findByTenant(tenantId: Uuid): Promise<CollectiveBargainingSession[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['collective_bargaining_sessions']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['collective_bargaining_sessions']));
   }
 
 

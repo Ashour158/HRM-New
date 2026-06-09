@@ -27,7 +27,7 @@ export class BenefitsLifeEventRepository extends BaseRepository<'benefits_life_e
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['benefits_life_events']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['benefits_life_events']));
   }
 
   async save(entity: BenefitsLifeEvent): Promise<void> {

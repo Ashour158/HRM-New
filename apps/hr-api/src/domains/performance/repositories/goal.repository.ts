@@ -20,7 +20,7 @@ export class GoalRepository extends BaseRepository<'goals', Goal> {
 
   async findByWorker(workerId: Uuid): Promise<Goal[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Record<string, never>));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async save(entity: Goal): Promise<void> {

@@ -76,7 +76,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .selectAll()
       .where('manager_id', '=', managerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findByManagerForTenant(managerId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
@@ -86,7 +86,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .where('manager_id', '=', managerId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findByDepartment(departmentId: Uuid): Promise<WorkerProfile[]> {
@@ -95,7 +95,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .selectAll()
       .where('department_id', '=', departmentId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findByDepartmentForTenant(departmentId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
@@ -105,7 +105,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .where('department_id', '=', departmentId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findByLegalEntity(legalEntityId: Uuid): Promise<WorkerProfile[]> {
@@ -114,7 +114,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findByLegalEntityForTenant(legalEntityId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
@@ -124,7 +124,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .where('legal_entity_id', '=', legalEntityId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findActive(): Promise<WorkerProfile[]> {
@@ -133,7 +133,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .selectAll()
       .where('status', '=', 'ACTIVE')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async findByStatusForTenant(status: WorkerStatus, tenantId: Uuid, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
@@ -151,7 +151,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     }
 
     const rows = await dbQuery.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async search(query: string, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
@@ -161,7 +161,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
 
     if (query) {
       const like = `%${query}%`;
-      dbQuery = dbQuery.where((eb) =>
+      dbQuery = dbQuery.where((eb: any) =>
         eb.or([
           eb('first_name', 'ilike', like),
           eb('last_name', 'ilike', like),
@@ -179,7 +179,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     }
 
     const rows = await dbQuery.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async searchForTenant(
@@ -213,7 +213,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     }
     if (query) {
       const like = `%${query}%`;
-      dbQuery = dbQuery.where((eb) =>
+      dbQuery = dbQuery.where((eb: any) =>
         eb.or([
           eb('first_name', 'ilike', like),
           eb('last_name', 'ilike', like),
@@ -231,7 +231,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     }
 
     const rows = await dbQuery.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['workers']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
   async save(entity: WorkerProfile): Promise<void> {

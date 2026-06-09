@@ -32,6 +32,7 @@ import {
   TaxAuthorityAdapter,
   VmsIntegrationAdapter,
   DataWarehouseAdapter,
+  EmailNotificationAdapter,
 } from './adapters/index.js';
 
 // Consumers
@@ -53,6 +54,7 @@ const ADAPTERS = [
   TaxAuthorityAdapter,
   VmsIntegrationAdapter,
   DataWarehouseAdapter,
+  EmailNotificationAdapter,
 ];
 
 const CONSUMERS = [
@@ -86,6 +88,7 @@ export class IntegrationsModule implements OnModuleInit {
     private readonly tax: TaxAuthorityAdapter,
     private readonly vms: VmsIntegrationAdapter,
     private readonly warehouse: DataWarehouseAdapter,
+    private readonly email: EmailNotificationAdapter,
   ) {}
 
   onModuleInit(): void {
@@ -96,5 +99,6 @@ export class IntegrationsModule implements OnModuleInit {
     this.orchestrator.registerAdapter(this.tax);
     this.orchestrator.registerAdapter(this.vms);
     this.orchestrator.registerAdapter(this.warehouse);
+    this.orchestrator.registerAdapter(this.email);
   }
 }

@@ -20,7 +20,7 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollCalculationRun[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('payroll_cycle_id', '=', payrollCycleId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['payroll_calculation_runs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_calculation_runs']));
   }
 
   async save(entity: PayrollCalculationRun): Promise<void> {

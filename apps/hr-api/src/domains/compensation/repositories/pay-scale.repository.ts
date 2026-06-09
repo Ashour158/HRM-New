@@ -27,7 +27,7 @@ export class PayScaleRepository extends BaseRepository<'pay_scales', PayScale> {
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['pay_scales']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['pay_scales']));
   }
 
   async save(entity: PayScale): Promise<void> {

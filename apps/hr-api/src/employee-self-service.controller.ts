@@ -218,8 +218,8 @@ export class EmployeeSelfServiceController {
     if (!actor) {
       throw new ForbiddenException('Authenticated actor is required');
     }
-    if (actor.actorType !== 'USER' || !actor.roles.includes('EMPLOYEE')) {
-      throw new ForbiddenException('Employee self-service requires an employee user session');
+    if (actor.actorType !== 'USER') {
+      throw new ForbiddenException('Employee self-service requires a user session linked to a worker profile');
     }
   }
 

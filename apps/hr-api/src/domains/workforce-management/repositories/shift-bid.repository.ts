@@ -20,12 +20,12 @@ export class ShiftBidRepository extends BaseRepository<'shift_bids', ShiftBid> {
 
   async findByTenant(tenantId: Uuid): Promise<ShiftBid[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_bids']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_bids']));
   }
 
   async findByWorker(workerId: Uuid): Promise<ShiftBid[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['shift_bids']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_bids']));
   }
 
 

@@ -17,7 +17,7 @@ export class AttritionSegmentReportRepository {
 
   async findByStatus(status: string): Promise<AttritionSegmentReport[]> {
     const rows = await this.db.selectFrom('hr_dei_analytics.attrition_segment_reports').selectAll().where('status', '=', status).execute();
-    return rows.map((r) => this.toAggregate(r));
+    return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: AttritionSegmentReport): Promise<void> {

@@ -27,7 +27,7 @@ export class SpendingAccountRepository extends BaseRepository<'spending_accounts
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['spending_accounts']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['spending_accounts']));
   }
 
   async save(entity: SpendingAccount): Promise<void> {

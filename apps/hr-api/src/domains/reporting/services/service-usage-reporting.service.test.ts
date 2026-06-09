@@ -146,4 +146,36 @@ describe('service usage reporting summary', () => {
       pendingOutboxEvents: 1,
     });
   });
+
+  it('keeps thinner commercial domains visible as their own service usage rows', () => {
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+    const rows: ServiceUsageMetricRow[] = [
+      { source: 'COMMAND', serviceArea: 'BenefitsEnrollment', total: 1 },
+      { source: 'OUTBOX', serviceArea: 'BenefitsLifeEvent', total: 1 },
+      { source: 'WORKFLOW', serviceArea: 'EngagementSurvey', total: 1 },
+      { source: 'NOTIFICATION', serviceArea: 'RecognitionRecord', total: 1 },
+      { source: 'COMMAND', serviceArea: 'DeiReport', total: 1 },
+      { source: 'OUTBOX', serviceArea: 'PayEquityReview', total: 1 },
+      { source: 'COMMAND', serviceArea: 'WorkAuthorizationCase', total: 1 },
+    ];
+
+    const summary = buildServiceUsageSummary(tenantId, rows, new Date('2026-06-03T09:00:00.000Z'));
+
+    expect(summary.services.find((service) => service.serviceArea === 'BENEFITS')).toMatchObject({
+      commands: 1,
+      events: 1,
+    });
+    expect(summary.services.find((service) => service.serviceArea === 'ENGAGEMENT')).toMatchObject({
+      notifications: 1,
+      workflowTransitions: 1,
+    });
+    expect(summary.services.find((service) => service.serviceArea === 'DEI_ANALYTICS')).toMatchObject({
+      commands: 1,
+      events: 1,
+    });
+    expect(summary.services.find((service) => service.serviceArea === 'COUNTRY_POLICY')).toMatchObject({
+      commands: 1,
+    });
+    expect(summary.services.find((service) => service.serviceArea === 'REPORTING')).toBeUndefined();
+  });
 });

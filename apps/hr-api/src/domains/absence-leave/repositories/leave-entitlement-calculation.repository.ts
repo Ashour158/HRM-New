@@ -20,7 +20,7 @@ export class LeaveEntitlementCalculationRepository extends BaseRepository<'leave
 
   async findByWorker(workerId: Uuid): Promise<LeaveEntitlementCalculation[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['leave_entitlement_calculations']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['leave_entitlement_calculations']));
   }
 
   async save(entity: LeaveEntitlementCalculation): Promise<void> {

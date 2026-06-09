@@ -20,7 +20,7 @@ export class HrCaseSlaInstanceRepository extends BaseRepository<'hr_case_sla_ins
 
   async findByTenant(tenantId: Uuid): Promise<HrCaseSlaInstance[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_case_sla_instances']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_case_sla_instances']));
   }
 
 

@@ -25,7 +25,7 @@ export class HrServiceCaseRepository extends BaseRepository<'hr_service_cases', 
       .where('tenant_id', '=', tenantId.value)
       .orderBy('created_at', 'desc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_service_cases']));
   }
 
   async findByRequester(tenantId: Uuid, requesterWorkerId: Uuid): Promise<HrServiceCase[]> {
@@ -36,7 +36,7 @@ export class HrServiceCaseRepository extends BaseRepository<'hr_service_cases', 
       .where('requester_worker_id', '=', requesterWorkerId.value)
       .orderBy('created_at', 'desc')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['hr_service_cases']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_service_cases']));
   }
 
 

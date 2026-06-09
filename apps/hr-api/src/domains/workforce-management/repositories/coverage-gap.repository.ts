@@ -20,19 +20,19 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
 
   async findByTenant(tenantId: Uuid): Promise<CoverageGap[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['coverage_gaps']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['coverage_gaps']));
   }
 
   async findByTenantScoped(tenantId: Uuid, workplaceCode?: string): Promise<CoverageGap[]> {
     let query = this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value);
     if (workplaceCode) query = query.where('workplace_code', '=', workplaceCode);
     const rows = await query.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['coverage_gaps']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['coverage_gaps']));
   }
 
   async findByDepartment(departmentId: Uuid): Promise<CoverageGap[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('department_id', '=', departmentId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['coverage_gaps']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['coverage_gaps']));
   }
 
 

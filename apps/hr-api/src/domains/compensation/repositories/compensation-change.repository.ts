@@ -27,7 +27,7 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
       .selectAll()
       .where('worker_id', '=', workerId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['compensation_changes']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_changes']));
   }
 
   async findByTenant(tenantId: Uuid): Promise<CompensationChange[]> {
@@ -36,7 +36,7 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['compensation_changes']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_changes']));
   }
 
   async save(entity: CompensationChange): Promise<void> {

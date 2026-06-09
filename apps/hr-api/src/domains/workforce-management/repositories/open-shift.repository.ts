@@ -20,19 +20,19 @@ export class OpenShiftRepository extends BaseRepository<'open_shifts', OpenShift
 
   async findByTenant(tenantId: Uuid): Promise<OpenShift[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['open_shifts']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['open_shifts']));
   }
 
   async findByTenantScoped(tenantId: Uuid, workplaceCode?: string): Promise<OpenShift[]> {
     let query = this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value);
     if (workplaceCode) query = query.where('workplace_code', '=', workplaceCode);
     const rows = await query.execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['open_shifts']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['open_shifts']));
   }
 
   async findByDepartment(departmentId: Uuid): Promise<OpenShift[]> {
     const rows = await this.db.selectFrom(this.tableName).selectAll().where('department_id', '=', departmentId.value).execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['open_shifts']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['open_shifts']));
   }
 
 

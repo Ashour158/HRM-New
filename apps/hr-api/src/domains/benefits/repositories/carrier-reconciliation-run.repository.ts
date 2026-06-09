@@ -27,7 +27,7 @@ export class CarrierReconciliationRunRepository extends BaseRepository<'carrier_
       .selectAll()
       .where('carrier_id', '=', carrierId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['carrier_reconciliation_runs']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['carrier_reconciliation_runs']));
   }
 
   async save(entity: CarrierReconciliationRun): Promise<void> {

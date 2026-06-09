@@ -27,7 +27,7 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['compensation_plans']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_plans']));
   }
 
   async findActive(): Promise<CompensationPlan[]> {
@@ -36,7 +36,7 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
       .selectAll()
       .where('status', '=', 'ACTIVE')
       .execute();
-    return rows.map((r) => this.toAggregate(r as unknown as Database['compensation_plans']));
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_plans']));
   }
 
   async save(entity: CompensationPlan): Promise<void> {
