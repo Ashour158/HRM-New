@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
+import { buildOrganizationSetupJourney, type OrganizationSetupJourneyTone, type OrganizationSetupTab } from '@/lib/organization-setup-journey';
+import { cn } from '@/lib/utils';
 import { BarChart3, Brain, Building2, Calculator, GitBranch, Network, Save, Sparkles, UserCog } from 'lucide-react';
 
 type LegalEntity = {
@@ -219,6 +222,13 @@ const emptyLegalEntities: LegalEntity[] = [];
 const emptyManagerRelationships: ManagerRelationship[] = [];
 const emptyOrgChart: OrgUnit[] = [];
 
+const setupToneClasses: Record<OrganizationSetupJourneyTone, string> = {
+  attention: 'border-red-200 bg-red-50 text-red-700',
+  default: 'border-indigo-100 bg-indigo-50 text-indigo-700',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-orange-200 bg-orange-50 text-orange-700',
+};
+
 const moneyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -385,6 +395,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
   const [legalEntityForm, setLegalEntityForm] = React.useState<LegalEntityForm>(emptyLegalEntity);
   const [orgUnitForm, setOrgUnitForm] = React.useState<OrgUnitForm>(emptyOrgUnit);
   const [assignmentForm, setAssignmentForm] = React.useState<AssignmentForm>(emptyAssignment);
+  const [activeTab, setActiveTab] = React.useState<OrganizationSetupTab>(initialTab as OrganizationSetupTab);
   const [chartGroupBy, setChartGroupBy] = React.useState('department');
   const [scenarioForm, setScenarioForm] = React.useState<ScenarioForm>(emptyScenario);
   const [scenarioResult, setScenarioResult] = React.useState<ScenarioResult | null>(null);
@@ -530,6 +541,14 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     () => buildReportingTree(workers, managerRelationships),
     [workers, managerRelationships],
   );
+  const assignedWorkerCount = workers.filter((worker) => worker.departmentId || worker.legalEntityId).length;
+  const setupJourney = React.useMemo(() => buildOrganizationSetupJourney({
+    assignedWorkerCount,
+    legalEntityCount: legalEntities.length,
+    managerRelationshipCount: managerRelationships.length,
+    orgUnitCount: orgUnits.length,
+    workerCount: workers.length,
+  }), [assignedWorkerCount, legalEntities.length, managerRelationships.length, orgUnits.length, workers.length]);
 
   const legalEntityColumns = [
     { key: 'name', header: 'Entity', cell: (row: LegalEntity) => <span className="font-medium">{row.name}</span> },
@@ -642,6 +661,40 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
         </div>
       </div>
 
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {setupJourney.map((step, index) => {
+          const content = (
+            <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[1.5rem] border border-white/70 bg-white/65 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-md">
+              <div>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{index + 1}. {step.category}</p>
+                  <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-bold', setupToneClasses[step.tone])}>
+                    {step.status}
+                  </span>
+                </div>
+                <h3 className="mt-3 text-sm font-extrabold text-slate-950">{step.label}</h3>
+              </div>
+              <div className="mt-4 text-sm font-bold text-indigo-600">{step.actionLabel}</div>
+            </div>
+          );
+
+          if (step.href) {
+            return <Link key={step.label} to={step.href} className="group">{content}</Link>;
+          }
+
+          return (
+            <button
+              key={step.label}
+              type="button"
+              className="group"
+              onClick={() => step.targetTab && setActiveTab(step.targetTab)}
+            >
+              {content}
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-indigo-500 to-violet-500 p-5 text-white">
           <p className="text-sm font-medium text-white/85">Legal Entities</p>
@@ -653,7 +706,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
         </div>
         <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-teal-500 to-emerald-500 p-5 text-white">
           <p className="text-sm font-medium text-white/85">Assigned Workers</p>
-          <p className="mt-2 text-4xl font-extrabold">{workers.filter((worker) => worker.departmentId || worker.legalEntityId).length}</p>
+          <p className="mt-2 text-4xl font-extrabold">{assignedWorkerCount}</p>
         </div>
       </div>
 
@@ -678,7 +731,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
 
       <ErrorMessage error={summaryQuery.error ?? workersQuery.error ?? planningQuery.error ?? dynamicChartQuery.error ?? actionError} />
 
-      <Tabs defaultValue={initialTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OrganizationSetupTab)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="structure">Structure</TabsTrigger>
           <TabsTrigger value="planning">Workforce Planning</TabsTrigger>

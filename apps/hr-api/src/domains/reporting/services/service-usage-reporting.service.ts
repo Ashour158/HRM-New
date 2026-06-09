@@ -74,6 +74,36 @@ export interface ServiceUsageSummary {
   }>;
 }
 
+export interface HrReportDashboard {
+  tenantId: string;
+  generatedAt: string;
+  totals: {
+    reportGroups: number;
+    activeReportGroups: number;
+    totalActivity: number;
+    queueBacklog: number;
+    issues: number;
+  };
+  reports: Array<{
+    code: string;
+    title: string;
+    category: string;
+    services: string[];
+    activity: number;
+    commands: number;
+    events: number;
+    notifications: number;
+    workflowTransitions: number;
+    queueBacklog: number;
+    issues: number;
+    readiness: 'Live' | 'Attention' | 'No Data';
+    lastActivityAt?: string;
+    chartData: Array<{ label: string; value: number }>;
+  }>;
+  activityByReport: Array<{ label: string; activity: number; issues: number }>;
+  queueHealth: ServiceUsageSummary['queueHealth'];
+}
+
 interface ServiceUsageSqlRow {
   source: ServiceUsageMetricSource;
   service_area: string | null;
@@ -110,6 +140,22 @@ const SERVICE_AREA_PATTERNS: Array<[RegExp, string]> = [
   [/learning|course|certification/i, 'LEARNING'],
   [/engagement|survey|recognition|feedback/i, 'ENGAGEMENT'],
   [/skill|talent|succession|career/i, 'TALENT'],
+];
+
+const HR_REPORT_GROUPS: Array<{
+  code: string;
+  title: string;
+  category: string;
+  services: string[];
+}> = [
+  { code: 'ATTENDANCE', title: 'Attendance Report', category: 'Workforce', services: ['TIME_ATTENDANCE'] },
+  { code: 'LEAVE', title: 'Leave Report', category: 'Workforce', services: ['ABSENCE_LEAVE'] },
+  { code: 'PAYROLL', title: 'Payroll Report', category: 'Reward', services: ['PAYROLL', 'COMPENSATION'] },
+  { code: 'BENEFITS', title: 'Benefits Report', category: 'Reward', services: ['BENEFITS'] },
+  { code: 'PERFORMANCE', title: 'Performance Report', category: 'Talent', services: ['PERFORMANCE', 'LEARNING', 'TALENT'] },
+  { code: 'ENGAGEMENT', title: 'Engagement Report', category: 'People Experience', services: ['ENGAGEMENT'] },
+  { code: 'EMPLOYEE', title: 'Employee Master Report', category: 'Core HR', services: ['HR_CORE', 'ORGANIZATION', 'ONBOARDING', 'SERVICE_DELIVERY'] },
+  { code: 'GOVERNANCE', title: 'Governance Report', category: 'Governance', services: ['COMPLIANCE', 'POLICY_CENTER', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'DEI_ANALYTICS', 'REPORTING', 'SYSTEM_GOVERNANCE'] },
 ];
 
 export function normalizeServiceArea(raw: string | null | undefined): string {
@@ -236,6 +282,89 @@ export function buildServiceUsageSummary(
       const activity = (b.lastActivityAt ?? '').localeCompare(a.lastActivityAt ?? '');
       return activity || a.serviceArea.localeCompare(b.serviceArea);
     }),
+  };
+}
+
+export function buildHrReportsDashboard(summary: ServiceUsageSummary): HrReportDashboard {
+  const servicesByArea = new Map(summary.services.map((service) => [service.serviceArea, service]));
+  const reports = HR_REPORT_GROUPS.map((group) => {
+    const services = group.services
+      .map((serviceArea) => servicesByArea.get(serviceArea))
+      .filter((service): service is ServiceUsageSummary['services'][number] => Boolean(service));
+    const commands = services.reduce((total, service) => total + service.commands, 0);
+    const events = services.reduce((total, service) => total + service.events, 0);
+    const notifications = services.reduce((total, service) => total + service.notifications, 0);
+    const workflowTransitions = services.reduce((total, service) => total + service.workflowTransitions, 0);
+    const queueBacklog = services.reduce(
+      (total, service) => total
+        + service.pendingOutboxEvents
+        + service.exhaustedOutboxEvents
+        + service.inboxInProgressEvents
+        + service.inboxFailedRetryableEvents
+        + service.inboxFailedNonRetryableEvents,
+      0,
+    );
+    const issues = services.reduce(
+      (total, service) => total
+        + service.failedCommands
+        + service.pendingOutboxEvents
+        + service.exhaustedOutboxEvents
+        + service.inboxFailedRetryableEvents
+        + service.inboxFailedNonRetryableEvents,
+      0,
+    );
+    const activity = commands + events + notifications + workflowTransitions;
+    const lastActivityAt = services
+      .map((service) => service.lastActivityAt)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1);
+    const readiness: HrReportDashboard['reports'][number]['readiness'] = issues > 0
+      ? 'Attention'
+      : activity > 0
+        ? 'Live'
+        : 'No Data';
+
+    return {
+      code: group.code,
+      title: group.title,
+      category: group.category,
+      services: group.services,
+      activity,
+      commands,
+      events,
+      notifications,
+      workflowTransitions,
+      queueBacklog,
+      issues,
+      readiness,
+      ...(lastActivityAt ? { lastActivityAt } : {}),
+      chartData: [
+        { label: 'Commands', value: commands },
+        { label: 'Events', value: events },
+        { label: 'Notifications', value: notifications },
+        { label: 'Workflows', value: workflowTransitions },
+      ],
+    };
+  });
+
+  return {
+    tenantId: summary.tenantId,
+    generatedAt: summary.generatedAt,
+    totals: {
+      reportGroups: reports.length,
+      activeReportGroups: reports.filter((report) => report.activity > 0).length,
+      totalActivity: reports.reduce((total, report) => total + report.activity, 0),
+      queueBacklog: reports.reduce((total, report) => total + report.queueBacklog, 0),
+      issues: reports.reduce((total, report) => total + report.issues, 0),
+    },
+    reports,
+    activityByReport: reports.map((report) => ({
+      label: report.title,
+      activity: report.activity,
+      issues: report.issues,
+    })),
+    queueHealth: summary.queueHealth,
   };
 }
 
@@ -382,6 +511,11 @@ export class ServiceUsageReportingService {
         lastActivityAt: row.last_activity_at ? new Date(row.last_activity_at) : null,
       })),
     );
+  }
+
+  async getHrDashboard(tenantId: Uuid, options: ServiceUsageSummaryOptions = {}): Promise<HrReportDashboard> {
+    const summary = await this.getSummary(tenantId, options);
+    return buildHrReportsDashboard(summary);
   }
 }
 

@@ -125,7 +125,6 @@ export class PayrollInputOrchestrationService {
         <tr>
           <td>${escapeHtml(line.lineType)}</td>
           <td>${escapeHtml(line.description)}</td>
-          <td>${escapeHtml(line.explanation)}</td>
           <td class="amount">${escapeHtml(round(line.amount))}</td>
         </tr>
       `).join('');
@@ -165,11 +164,11 @@ export class PayrollInputOrchestrationService {
     </section>
     <table>
       <thead>
-        <tr><th>Type</th><th>Description</th><th>Explanation</th><th class="amount">Amount</th></tr>
+        <tr><th>Type</th><th>Description</th><th class="amount">Amount</th></tr>
       </thead>
       <tbody>${lines}</tbody>
     </table>
-    <footer>Generated from locked payroll result lines. Classification: HIGH_SENSITIVITY.</footer>
+    <footer>Generated from approved payroll records.</footer>
   </body>
 </html>`;
   }

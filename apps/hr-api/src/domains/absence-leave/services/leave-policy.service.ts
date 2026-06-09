@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { ValidationError } from '@hcm/shared-kernel';
-import type { AttendanceHolidayRule, HcmSetupConfig, LeavePolicy } from '../../hcm-setup/hcm-setup.types.js';
+import type {
+  AttendanceHolidayRule,
+  HcmSetupConfig,
+  LeaveApprovalWorkflow,
+  LeavePolicy,
+  PolicyRuleCondition,
+  PolicyRuleLedger,
+  PolicyRuleOutcome,
+} from '../../hcm-setup/hcm-setup.types.js';
 
 export interface LeaveDurationInput {
   absenceType: string;
@@ -29,6 +37,15 @@ export interface LeaveBalancePolicyResult {
   requestedAmount: number;
   availableAmount?: number;
   reason?: string;
+}
+
+export interface LeaveApprovalDecision {
+  policyCode: string;
+  approvalWorkflow: LeaveApprovalWorkflow;
+  requiresDocument: boolean;
+  requiredDocumentCodes: string[];
+  matchedRuleCodes: string[];
+  reasons: string[];
 }
 
 export interface LeavePeriodUsageRequest {
@@ -101,6 +118,79 @@ function normalizeHolidays(setup: HcmSetupConfig): AttendanceHolidayRule[] {
     ...(setup.attendancePolicy.holidayCalendars ?? []),
     ...(setup.attendancePolicy.holidays ?? []).map((holiday) => ({ ...holiday })),
   ];
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))].sort();
+}
+
+function effectiveOn(rule: PolicyRuleLedger, date?: Date): boolean {
+  if (!date) return true;
+  const target = asUtcDate(dateKey(date)).getTime();
+  if (rule.effectiveFrom && asUtcDate(rule.effectiveFrom).getTime() > target) return false;
+  if (rule.effectiveUntil && asUtcDate(rule.effectiveUntil).getTime() < target) return false;
+  return true;
+}
+
+function conditionMatches(condition: PolicyRuleCondition, context: Record<string, unknown>): boolean {
+  const actual = condition.field ? context[condition.field] : undefined;
+  const operator = condition.operator ?? 'EXISTS';
+  const expected = condition.value;
+
+  if (operator === 'EXISTS') return actual !== undefined && actual !== null && actual !== '';
+  if (operator === 'EQUALS') return actual === expected;
+  if (operator === 'NOT_EQUALS') return actual !== expected;
+  if (operator === 'IN') {
+    const expectedValues = Array.isArray(expected) ? expected : [expected];
+    return Array.isArray(actual)
+      ? actual.some((item) => expectedValues.includes(item))
+      : expectedValues.includes(actual);
+  }
+  if (operator === 'NOT_IN') {
+    const expectedValues = Array.isArray(expected) ? expected : [expected];
+    return Array.isArray(actual)
+      ? actual.every((item) => !expectedValues.includes(item))
+      : !expectedValues.includes(actual);
+  }
+
+  const actualNumber = typeof actual === 'number' ? actual : Number(actual);
+  const expectedNumber = typeof expected === 'number' ? expected : Number(expected);
+  if (!Number.isFinite(actualNumber) || !Number.isFinite(expectedNumber)) return false;
+
+  if (operator === 'GT') return actualNumber > expectedNumber;
+  if (operator === 'GTE') return actualNumber >= expectedNumber;
+  if (operator === 'LT') return actualNumber < expectedNumber;
+  if (operator === 'LTE') return actualNumber <= expectedNumber;
+  return false;
+}
+
+function ruleMatches(rule: PolicyRuleLedger, context: Record<string, unknown>, effectiveDate?: Date): boolean {
+  if (!rule.active || !effectiveOn(rule, effectiveDate)) return false;
+  return (rule.conditions ?? []).every((condition) => conditionMatches(condition, context));
+}
+
+function workflowFromOutcome(outcome: PolicyRuleOutcome): LeaveApprovalWorkflow | undefined {
+  const value = asRecord(outcome.value);
+  const workflow = value.workflow ?? value.approvalWorkflow;
+  return workflow === 'MANAGER'
+    || workflow === 'MANAGER_THEN_HR'
+    || workflow === 'HR_ONLY'
+    || workflow === 'AUTO_APPROVE'
+    ? workflow
+    : undefined;
+}
+
+function documentCodeFromOutcome(outcome: PolicyRuleOutcome): string {
+  const value = asRecord(outcome.value);
+  return typeof value.documentCode === 'string' && value.documentCode.trim()
+    ? value.documentCode.trim()
+    : 'SUPPORTING_DOCUMENT';
 }
 
 function holidayMatches(
@@ -230,6 +320,72 @@ export class LeavePolicyService {
     if (!result.allowed) {
       throw new ValidationError(result.reason ?? `${duration.policy.label} exceeds available balance`);
     }
+  }
+
+  resolveApprovalDecision(
+    duration: LeaveDurationResult,
+    context: { startDate?: Date; absenceType?: string } = {},
+  ): LeaveApprovalDecision {
+    let approvalWorkflow = duration.policy.approvalWorkflow;
+    let approvalWorkflowResolvedByRule = false;
+    const requiredDocumentCodes: string[] = [];
+    const matchedRuleCodes: string[] = [];
+    const reasons: string[] = [];
+    const decisionContext = {
+      absenceType: context.absenceType ?? duration.policy.code,
+      policyCode: duration.policy.code,
+      durationAmount: duration.durationAmount,
+      durationUnit: duration.durationUnit,
+      payrollImpact: duration.payrollImpact,
+      calendarDays: duration.calendarDays,
+      workingDays: duration.workingDays,
+      paid: duration.paid,
+      deductFromBalance: duration.deductFromBalance,
+    };
+
+    if (duration.policy.requiresDocumentAfter !== undefined && duration.durationAmount > duration.policy.requiresDocumentAfter) {
+      requiredDocumentCodes.push('SUPPORTING_DOCUMENT');
+      reasons.push(`${duration.policy.label} requires supporting evidence after ${duration.policy.requiresDocumentAfter} ${duration.durationUnit.toLowerCase()}.`);
+    }
+
+    const matchingRules = [...(duration.policy.approvalRules ?? []), ...(duration.policy.documentRules ?? [])]
+      .map((rule, index) => ({ rule, index }))
+      .filter(({ rule }) => ruleMatches(rule, decisionContext, context.startDate))
+      .sort((left, right) => {
+        const priorityDifference = (right.rule.priority ?? 0) - (left.rule.priority ?? 0);
+        return priorityDifference === 0 ? left.index - right.index : priorityDifference;
+      })
+      .map(({ rule }) => rule);
+
+    for (const rule of matchingRules) {
+      matchedRuleCodes.push(rule.code);
+
+      for (const outcome of rule.outcomes ?? []) {
+        if (outcome.action === 'BLOCK') {
+          throw new ValidationError(outcome.reason ?? `${rule.label} blocks this leave request`);
+        }
+        if (outcome.action === 'REQUIRE_APPROVAL') {
+          const workflow = workflowFromOutcome(outcome);
+          if (workflow && !approvalWorkflowResolvedByRule) {
+            approvalWorkflow = workflow;
+            approvalWorkflowResolvedByRule = true;
+          }
+        }
+        if (outcome.action === 'REQUIRE_DOCUMENT') {
+          requiredDocumentCodes.push(documentCodeFromOutcome(outcome));
+        }
+        if (outcome.reason) reasons.push(outcome.reason);
+      }
+    }
+
+    return {
+      policyCode: duration.policy.code,
+      approvalWorkflow,
+      requiresDocument: requiredDocumentCodes.length > 0,
+      requiredDocumentCodes: uniqueSorted(requiredDocumentCodes),
+      matchedRuleCodes: uniqueSorted(matchedRuleCodes),
+      reasons: uniqueSorted(reasons),
+    };
   }
 
   assertPeriodLimits(

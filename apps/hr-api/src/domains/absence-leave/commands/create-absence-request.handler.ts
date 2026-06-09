@@ -53,6 +53,10 @@ export class CreateAbsenceRequestHandler {
       request.tenantId.value === command.tenantId.value
     ));
     this.leavePolicyService.assertPeriodLimits(duration, existingRequests, payload.startDate);
+    const approvalDecision = this.leavePolicyService.resolveApprovalDecision(duration, {
+      absenceType: payload.absenceType,
+      startDate: payload.startDate,
+    });
     const ar = AbsenceRequest.create(
       {
         id: Uuid.generate(),
@@ -86,6 +90,10 @@ export class CreateAbsenceRequestHandler {
         durationAmount: ar.durationAmount,
         durationUnit: ar.durationUnit,
         payrollImpact: ar.payrollImpact,
+        approvalWorkflow: approvalDecision.approvalWorkflow,
+        requiresDocument: approvalDecision.requiresDocument,
+        requiredDocumentCodes: approvalDecision.requiredDocumentCodes,
+        policyDecision: approvalDecision,
       },
       commandId: command.commandId,
       correlationId: command.correlationId,

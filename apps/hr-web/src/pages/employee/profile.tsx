@@ -1,5 +1,6 @@
 
 import { useApiQuery } from '@/hooks/use-api';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,7 +10,7 @@ import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { useFieldAccess } from '@/hooks/use-field-access';
 import { formatDate } from '@/lib/utils';
-import { User, MapPin, Building, FileText } from 'lucide-react';
+import { User, MapPin, Building, FileText, MessageSquare, Star, Target, TrendingUp } from 'lucide-react';
 
 interface EmployeeProfileData {
   id: string;
@@ -29,6 +30,54 @@ interface EmployeeProfileData {
   manager: string;
   legalEntity: string;
   documents: Array<{ id: string; name: string; type: string; uploadedAt: string }>;
+}
+
+interface EmployeeProfilePerformance {
+  actionPlan?: {
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    currentPerformance?: {
+      latestRating: number | null;
+      averageGoalProgress: number;
+      peerAverageRating: number | null;
+      activeGoalCount: number;
+      openDevelopmentPlan: boolean;
+    };
+    progressTrend?: string;
+    checkInCadence?: string;
+    recommendedActions?: string[];
+  };
+  feedbackSummary?: {
+    averageRating: number | null;
+    responseCount: number;
+    anonymousResponseCount: number;
+    conciseFeedback: string;
+    dimensionAverages?: Record<string, number>;
+  };
+  nineBox?: {
+    performanceScore: number;
+    potentialScore: number;
+    performanceBand: string;
+    potentialBand: string;
+    box: string;
+  };
+  goals?: {
+    total: number;
+    active: number;
+    achieved: number;
+    atRisk: number;
+    averageProgress: number;
+  };
+}
+
+function formatScore(value: number | null | undefined, suffix = '') {
+  return value === null || value === undefined || Number.isNaN(value) ? '-' : `${Math.round(value * 10) / 10}${suffix}`;
+}
+
+function performanceRiskVariant(riskLevel?: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (riskLevel === 'HIGH') return 'destructive';
+  if (riskLevel === 'MEDIUM') return 'secondary';
+  if (riskLevel === 'LOW') return 'default';
+  return 'outline';
 }
 
 function ProfileField({
@@ -70,6 +119,17 @@ export function EmployeeProfile() {
   const { data: profile, isLoading, error, refetch } = useApiQuery<EmployeeProfileData>(
     ['employee-profile'],
     '/employee/profile'
+  );
+  const profileId = profile?.id ?? '';
+  const {
+    data: performanceImpact,
+    isLoading: isPerformanceLoading,
+    error: performanceError,
+    refetch: refetchPerformance,
+  } = useApiQuery<EmployeeProfilePerformance>(
+    ['employee-profile-performance', profileId],
+    `/performance/action-plans/worker/${profileId}`,
+    { enabled: Boolean(profileId) },
   );
 
   const displayProfile = profile;
@@ -116,6 +176,7 @@ export function EmployeeProfile() {
         <TabsList>
           <TabsTrigger value="personal">Personal Information</TabsTrigger>
           <TabsTrigger value="employment">Employment</TabsTrigger>
+          <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
         </TabsList>
 
@@ -225,6 +286,115 @@ export function EmployeeProfile() {
                   <p className="text-sm font-medium">{displayProfile.legalEntity}</p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="performance">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Star className="h-5 w-5" />
+                    Performance Impact
+                  </CardTitle>
+                  <CardDescription>Current goals, 360 feedback, and development signals.</CardDescription>
+                </div>
+                <Badge variant={performanceRiskVariant(performanceImpact?.actionPlan?.riskLevel)}>
+                  {performanceImpact?.actionPlan?.riskLevel ? `${performanceImpact.actionPlan.riskLevel} risk` : 'No risk signal'}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isPerformanceLoading ? (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-24 rounded-2xl" />)}
+                </div>
+              ) : performanceError ? (
+                <ErrorState
+                  title="Performance data could not be loaded"
+                  description="Try again in a moment."
+                  error={performanceError}
+                  onRetry={() => refetchPerformance()}
+                />
+              ) : performanceImpact ? (
+                <>
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <TrendingUp className="h-4 w-4" />
+                        Latest rating
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {formatScore(performanceImpact.actionPlan?.currentPerformance?.latestRating)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <Target className="h-4 w-4" />
+                        Goals
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {formatScore(performanceImpact.goals?.averageProgress ?? performanceImpact.actionPlan?.currentPerformance?.averageGoalProgress, '%')}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <MessageSquare className="h-4 w-4" />
+                        360 feedback
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">
+                        {formatScore(performanceImpact.feedbackSummary?.averageRating ?? performanceImpact.actionPlan?.currentPerformance?.peerAverageRating)}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">{performanceImpact.feedbackSummary?.responseCount ?? 0} peer responses</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <Star className="h-4 w-4" />
+                        Talent grid
+                      </div>
+                      <p className="mt-2 text-2xl font-bold text-slate-900">{performanceImpact.nineBox?.box ?? '-'}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {formatScore(performanceImpact.nineBox?.performanceScore, '%')} performance
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-[1fr_22rem]">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-semibold text-slate-900">360 feedback summary</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {performanceImpact.feedbackSummary?.conciseFeedback || 'No submitted feedback summary yet.'}
+                      </p>
+                      {performanceImpact.feedbackSummary?.dimensionAverages ? (
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                          {Object.entries(performanceImpact.feedbackSummary.dimensionAverages).map(([dimension, score]) => (
+                            <div key={dimension} className="rounded-xl bg-white px-3 py-2 text-sm">
+                              <span className="font-medium capitalize text-slate-800">{dimension}</span>
+                              <span className="float-right text-slate-600">{formatScore(score)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                      <p className="text-sm font-semibold text-slate-900">Development rhythm</p>
+                      <p className="mt-2 text-sm text-slate-600">{performanceImpact.actionPlan?.checkInCadence ?? 'Manager check-in cadence not set.'}</p>
+                      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-slate-500">Next focus</p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        {performanceImpact.actionPlan?.recommendedActions?.[0] ?? 'No action plan recommendation yet.'}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={Star}
+                  title="No performance signal yet"
+                  description="Reviews, goals, and 360 feedback will appear here after the active performance cycle starts."
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

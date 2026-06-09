@@ -77,4 +77,34 @@ describe('ReportingController service usage surface', () => {
       to: undefined,
     });
   });
+
+  it('returns the HR reports dashboard for the authenticated tenant', async () => {
+    const serviceUsage = {
+      getHrDashboard: vi.fn().mockResolvedValue({
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        reports: [{ code: 'ATTENDANCE', title: 'Attendance Report' }],
+      }),
+    } as unknown as ServiceUsageReportingService;
+    const controller = new ReportingController(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      serviceUsage,
+    );
+
+    await expect(controller.getHrDashboard(
+      request(),
+      '2026-06-01T00:00:00.000Z',
+      '2026-06-03T23:59:59.999Z',
+    )).resolves.toEqual({
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      reports: [{ code: 'ATTENDANCE', title: 'Attendance Report' }],
+    });
+    expect(serviceUsage.getHrDashboard).toHaveBeenCalledWith(new Uuid('00000000-0000-0000-0000-000000000001'), {
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: new Date('2026-06-03T23:59:59.999Z'),
+    });
+  });
 });

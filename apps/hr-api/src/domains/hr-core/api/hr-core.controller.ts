@@ -58,6 +58,17 @@ type EmployeeMassUpdateRow = {
   currency?: string;
 };
 
+type EmployeeMassUpdateValidationError = { row: number; field: string; message: string };
+
+type EmployeeMassUpdateValidationResult = {
+  accepted: boolean;
+  rowCount: number;
+  rows: EmployeeMassUpdateRow[];
+  workersByEmployeeId: Map<string, WorkerProfile>;
+  errors: EmployeeMassUpdateValidationError[];
+  events: string[];
+};
+
 type ProfileSectionCategory =
   | 'BASIC'
   | 'CONTACT'
@@ -589,32 +600,232 @@ export class HrCoreController {
   async employeeMassUpdatePreview(@Body() body: { rows?: EmployeeMassUpdateRow[] }, @Req() req: Request) {
     this.assertHrCoreAdminScope(req);
     const tenantId = this.getTenantId(req);
-    const rows = body.rows ?? [];
+    const validation = await this.validateEmployeeMassUpdateRows(body.rows ?? [], tenantId);
+
+    return {
+      accepted: validation.accepted,
+      rowCount: validation.rowCount,
+      errors: validation.errors,
+      events: validation.events,
+    };
+  }
+
+  @Post('workers/mass-update-apply')
+  async employeeMassUpdateApply(@Body() body: { rows?: EmployeeMassUpdateRow[] }, @Req() req: Request) {
+    this.assertHrCoreAdminScope(req);
+    const tenantId = this.getTenantId(req);
+    const validation = await this.validateEmployeeMassUpdateRows(body.rows ?? [], tenantId);
+
+    if (!validation.accepted) {
+      return {
+        accepted: false,
+        rowCount: validation.rowCount,
+        updatedCount: 0,
+        errors: validation.errors,
+        events: validation.events,
+        applied: [],
+      };
+    }
+
+    const applied: Array<{ employeeId: string; workerId: string; updatedFields: string[] }> = [];
+
+    for (const row of validation.rows) {
+      const employeeId = row.employeeId!;
+      const worker = validation.workersByEmployeeId.get(employeeId);
+      if (!worker) continue;
+
+      const updatedFields: string[] = [];
+      const personalPayload: Record<string, unknown> = { workerId: worker.id };
+      if (this.hasMassUpdateValue(row.firstName)) personalPayload.firstName = row.firstName;
+      if (this.hasMassUpdateValue(row.lastName)) personalPayload.lastName = row.lastName;
+      if (this.hasMassUpdateValue(row.workEmail)) personalPayload.email = row.workEmail;
+      if (this.hasMassUpdateValue(row.phoneNumber)) personalPayload.phoneNumber = row.phoneNumber;
+      if (Object.keys(personalPayload).length > 1) {
+        await this.executeCommand(this.buildCommand('UpdateWorkerPersonalData', 'WorkerProfile', personalPayload, req, {
+          aggregateId: worker.id,
+          expectedState: worker.status,
+          subjectWorkerId: worker.id,
+        }));
+        updatedFields.push(...Object.keys(personalPayload).filter((field) => field !== 'workerId'));
+      }
+
+      const basicFields = this.definedMassUpdateFields({
+        workEmail: row.workEmail,
+        personalEmail: row.personalEmail,
+        phoneNumber: row.phoneNumber,
+        workPhoneNumber: row.workPhoneNumber,
+      });
+      if (Object.keys(basicFields).length > 0) {
+        await this.executeCommand(this.buildCommand('UpsertWorkerProfileSection', 'WorkerProfile', {
+          workerId: worker.id,
+          dataCategory: 'BASIC',
+          fields: basicFields,
+        }, req, {
+          aggregateId: worker.id,
+          expectedState: worker.status,
+          subjectWorkerId: worker.id,
+        }));
+        updatedFields.push(...Object.keys(basicFields));
+      }
+
+      const contactFields = this.definedMassUpdateFields({
+        departmentName: row.department,
+        workLocation: this.hasMassUpdateValue(row.workLocationCode) ? { code: row.workLocationCode } : undefined,
+      });
+      if (Object.keys(contactFields).length > 0) {
+        await this.executeCommand(this.buildCommand('UpsertWorkerProfileSection', 'WorkerProfile', {
+          workerId: worker.id,
+          dataCategory: 'CONTACT',
+          fields: contactFields,
+        }, req, {
+          aggregateId: worker.id,
+          expectedState: worker.status,
+          subjectWorkerId: worker.id,
+        }));
+        updatedFields.push(...Object.keys(contactFields));
+      }
+
+      const compensationFields = this.definedMassUpdateFields({
+        grossSalaryAmount: row.grossSalary,
+        salaryAmount: row.grossSalary,
+        salaryCurrency: row.currency?.toUpperCase(),
+      });
+      if (Object.keys(compensationFields).length > 0) {
+        await this.executeCommand(this.buildCommand('UpsertWorkerProfileSection', 'WorkerProfile', {
+          workerId: worker.id,
+          dataCategory: 'COMPENSATION',
+          fields: compensationFields,
+        }, req, {
+          aggregateId: worker.id,
+          expectedState: worker.status,
+          subjectWorkerId: worker.id,
+        }));
+        updatedFields.push(...Object.keys(compensationFields));
+      }
+
+      if (this.hasMassUpdateValue(row.jobTitle)) {
+        await this.executeCommand(this.buildCommand('UpdateWorkerOrganizationAssignment', 'WorkerProfile', {
+          workerId: worker.id,
+          jobTitle: row.jobTitle,
+        }, req, {
+          aggregateId: worker.id,
+          expectedState: worker.status,
+          subjectWorkerId: worker.id,
+        }));
+        updatedFields.push('jobTitle');
+      }
+
+      applied.push({ employeeId, workerId: worker.id.value, updatedFields: Array.from(new Set(updatedFields)) });
+    }
+
+    return {
+      accepted: true,
+      rowCount: validation.rowCount,
+      updatedCount: applied.length,
+      errors: [],
+      events: ['EmployeeMassUpdateApplied'],
+      applied,
+    };
+  }
+
+  private async validateEmployeeMassUpdateRows(
+    rowsInput: EmployeeMassUpdateRow[],
+    tenantId: Uuid,
+  ): Promise<EmployeeMassUpdateValidationResult> {
+    const rows = rowsInput.map((row) => this.normalizeEmployeeMassUpdateRow(row));
     const seenEmployeeIds = new Set<string>();
     const seenEmails = new Set<string>();
-    const errors: Array<{ row: number; field: string; message: string }> = [];
+    const errors: EmployeeMassUpdateValidationError[] = [];
+    const workersByEmployeeId = new Map<string, WorkerProfile>();
 
     for (const [index, row] of rows.entries()) {
       if (!row.employeeId) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee ID is required' });
+      if (this.massUpdateEditableFields(row).length === 0) {
+        errors.push({ row: index + 1, field: 'row', message: 'At least one editable employee field is required' });
+      }
       if (row.employeeId && seenEmployeeIds.has(row.employeeId)) errors.push({ row: index + 1, field: 'employeeId', message: 'Duplicate employee ID in upload' });
       if (row.employeeId) {
         seenEmployeeIds.add(row.employeeId);
         const existing = await this.workerRepo.findByEmployeeNumberForTenant(row.employeeId, tenantId);
         if (!existing) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee does not exist for mass update' });
+        if (existing) workersByEmployeeId.set(row.employeeId, existing);
       }
-      const email = row.workEmail ?? row.personalEmail;
-      if (email && seenEmails.has(email.toLowerCase())) errors.push({ row: index + 1, field: 'email', message: 'Duplicate email in upload' });
-      if (email) seenEmails.add(email.toLowerCase());
+      for (const [field, email] of [
+        ['workEmail', row.workEmail],
+        ['personalEmail', row.personalEmail],
+      ] as const) {
+        if (!email) continue;
+        const normalizedEmail = email.toLowerCase();
+        if (seenEmails.has(normalizedEmail)) {
+          errors.push({ row: index + 1, field, message: 'Duplicate email in upload' });
+        }
+        seenEmails.add(normalizedEmail);
+      }
       if (row.grossSalary !== undefined && Number(row.grossSalary) < 0) errors.push({ row: index + 1, field: 'grossSalary', message: 'Gross salary cannot be negative' });
-      if (row.currency && row.currency.length !== 3) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
+      if (row.currency && !/^[A-Z]{3}$/.test(row.currency)) errors.push({ row: index + 1, field: 'currency', message: 'Currency must be a 3-letter ISO code' });
     }
 
     return {
       accepted: errors.length === 0,
       rowCount: rows.length,
+      rows,
+      workersByEmployeeId,
       errors,
       events: errors.length === 0 ? ['EmployeeMassUpdateValidated'] : ['EmployeeMassUpdateRejected'],
     };
+  }
+
+  private normalizeEmployeeMassUpdateRow(row: EmployeeMassUpdateRow): EmployeeMassUpdateRow {
+    const normalizeString = (value?: string): string | undefined => {
+      if (value === undefined || value === null) return undefined;
+      const trimmed = String(value).trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    };
+    const grossSalaryInput = row.grossSalary as unknown;
+    const grossSalary = grossSalaryInput === undefined || grossSalaryInput === null || grossSalaryInput === ''
+      ? undefined
+      : Number(grossSalaryInput);
+    return {
+      employeeId: normalizeString(row.employeeId),
+      firstName: normalizeString(row.firstName),
+      lastName: normalizeString(row.lastName),
+      workEmail: normalizeString(row.workEmail),
+      personalEmail: normalizeString(row.personalEmail),
+      phoneNumber: normalizeString(row.phoneNumber),
+      workPhoneNumber: normalizeString(row.workPhoneNumber),
+      department: normalizeString(row.department),
+      jobTitle: normalizeString(row.jobTitle),
+      workLocationCode: normalizeString(row.workLocationCode),
+      grossSalary,
+      currency: normalizeString(row.currency)?.toUpperCase(),
+    };
+  }
+
+  private massUpdateEditableFields(row: EmployeeMassUpdateRow): string[] {
+    return [
+      'firstName',
+      'lastName',
+      'workEmail',
+      'personalEmail',
+      'phoneNumber',
+      'workPhoneNumber',
+      'department',
+      'jobTitle',
+      'workLocationCode',
+      'grossSalary',
+      'currency',
+    ].filter((field) => this.hasMassUpdateValue(row[field as keyof EmployeeMassUpdateRow]));
+  }
+
+  private hasMassUpdateValue(value: unknown): boolean {
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    if (typeof value === 'number') return Number.isFinite(value);
+    return true;
+  }
+
+  private definedMassUpdateFields(fields: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(fields).filter(([, value]) => this.hasMassUpdateValue(value)));
   }
 
   @Get('workers/:id')

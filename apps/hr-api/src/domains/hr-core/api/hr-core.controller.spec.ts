@@ -224,6 +224,115 @@ describe('HrCoreController smoke test', () => {
     expect(result).toMatchObject({ success: true, allowedNextActions: ['TerminateWorker'] });
   });
 
+  it('applies validated employee mass updates through command envelopes', async () => {
+    const workerId = '550e8400-e29b-41d4-a716-446655440001';
+    const worker = new WorkerProfile({
+      id: new Uuid(workerId),
+      tenantId: new Uuid(testTenantId),
+      employeeNumber: 'EMP-001',
+      status: 'ACTIVE',
+      firstName: 'Mona',
+      lastName: 'Hassan',
+      email: new Email('mona.old@example.com'),
+      hireDate: new Date('2023-01-15'),
+      aggregateVersion: 3,
+    });
+    (workerRepo.findByEmployeeNumberForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(worker);
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    const result = await controller.employeeMassUpdateApply({
+      rows: [{
+        employeeId: 'EMP-001',
+        firstName: 'Mona',
+        lastName: 'Hassan',
+        workEmail: 'mona.hassan@example.com',
+        personalEmail: 'mona.personal@example.com',
+        phoneNumber: '+201000000000',
+        workPhoneNumber: '+202000000000',
+        department: 'FINANCE',
+        jobTitle: 'Payroll Specialist',
+        workLocationCode: 'CAIRO_HQ',
+        grossSalary: 10000,
+        currency: 'EGP',
+      }],
+    }, requestForTenant());
+
+    expect(result).toMatchObject({
+      accepted: true,
+      rowCount: 1,
+      updatedCount: 1,
+      errors: [],
+      events: ['EmployeeMassUpdateApplied'],
+    });
+    const sent = (commandBus.execute as ReturnType<typeof vi.fn>).mock.calls.map((call) => call[0]);
+    expect(sent.map((command) => command.commandName)).toEqual([
+      'UpdateWorkerPersonalData',
+      'UpsertWorkerProfileSection',
+      'UpsertWorkerProfileSection',
+      'UpsertWorkerProfileSection',
+      'UpdateWorkerOrganizationAssignment',
+    ]);
+    expect(sent[0].payload).toMatchObject({
+      workerId: worker.id,
+      firstName: 'Mona',
+      lastName: 'Hassan',
+      email: 'mona.hassan@example.com',
+      phoneNumber: '+201000000000',
+    });
+    expect(sent[1].payload).toMatchObject({
+      workerId: worker.id,
+      dataCategory: 'BASIC',
+      fields: {
+        workEmail: 'mona.hassan@example.com',
+        personalEmail: 'mona.personal@example.com',
+        phoneNumber: '+201000000000',
+        workPhoneNumber: '+202000000000',
+      },
+    });
+    expect(sent[2].payload).toMatchObject({
+      workerId: worker.id,
+      dataCategory: 'CONTACT',
+      fields: {
+        departmentName: 'FINANCE',
+        workLocation: { code: 'CAIRO_HQ' },
+      },
+    });
+    expect(sent[3].payload).toMatchObject({
+      workerId: worker.id,
+      dataCategory: 'COMPENSATION',
+      fields: {
+        grossSalaryAmount: 10000,
+        salaryAmount: 10000,
+        salaryCurrency: 'EGP',
+      },
+    });
+    expect(sent[4].payload).toMatchObject({
+      workerId: worker.id,
+      jobTitle: 'Payroll Specialist',
+    });
+  });
+
+  it('does not apply employee mass updates when validation fails', async () => {
+    (workerRepo.findByEmployeeNumberForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    const result = await controller.employeeMassUpdateApply({
+      rows: [{ employeeId: 'UNKNOWN', workEmail: 'missing@example.com' }],
+    }, requestForTenant());
+
+    expect(result).toMatchObject({
+      accepted: false,
+      rowCount: 1,
+      updatedCount: 0,
+      events: ['EmployeeMassUpdateRejected'],
+    });
+    expect(result.errors).toContainEqual(expect.objectContaining({
+      row: 1,
+      field: 'employeeId',
+      message: 'Employee does not exist for mass update',
+    }));
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
   it('listWorkers maps aggregates to Worker DTOs', async () => {
     const worker = new WorkerProfile({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),

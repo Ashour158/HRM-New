@@ -91,4 +91,54 @@ describe('AttendanceReportingService', () => {
     expect(report.totals.absent).toBe(1);
     expect(report.departments[0]?.payableHours).toBe(24);
   });
+
+  it('builds a policy-aware attendance period view with series and worker rollups', () => {
+    const firstDay = row('EMP-001', 'OUT', 'Finance');
+    firstDay.calculation.lateMinutes = 12;
+    firstDay.policyEvidence.flexibleRuleCode = 'FLEX_CORE_CAIRO';
+    firstDay.policyEvidence.schedule.source = 'WORKER_SCHEDULE';
+
+    const secondDay = row('EMP-001', 'ON_LEAVE', 'Finance');
+    secondDay.policyEvidence.leave = {
+      absenceRequestId: 'leave-1',
+      absenceType: 'ANNUAL',
+      paid: true,
+      startDate: '2026-05-26',
+      endDate: '2026-05-26',
+    };
+
+    const view = service.buildPeriodView({
+      periodStart: '2026-05-25',
+      periodEnd: '2026-05-26',
+      range: 'WEEKLY',
+      scope: 'SELF',
+      ledgers: [
+        ledger('2026-05-25', [firstDay]),
+        ledger('2026-05-26', [secondDay]),
+      ],
+    });
+
+    expect(view.range).toBe('WEEKLY');
+    expect(view.totals.employeeDays).toBe(2);
+    expect(view.totals.present).toBe(1);
+    expect(view.totals.onLeave).toBe(1);
+    expect(view.totals.lateMinutes).toBe(12);
+    expect(view.series).toEqual([
+      expect.objectContaining({ workDate: '2026-05-25', present: 1, lateMinutes: 12 }),
+      expect.objectContaining({ workDate: '2026-05-26', onLeave: 1 }),
+    ]);
+    expect(view.workers).toEqual([
+      expect.objectContaining({
+        workerId: 'EMP-001',
+        employeeId: 'EMP-001',
+        name: 'Employee EMP-001',
+        present: 1,
+        onLeave: 1,
+        payableHours: 16,
+      }),
+    ]);
+    expect(view.policyEvidence.scheduleSources).toEqual(['TENANT_DEFAULT', 'WORKER_SCHEDULE']);
+    expect(view.policyEvidence.flexibleRuleCodes).toEqual(['FLEX_CORE_CAIRO']);
+    expect(view.policyEvidence.leavePolicyTypes).toEqual(['ANNUAL']);
+  });
 });

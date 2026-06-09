@@ -200,6 +200,19 @@ export class ReportingController {
     return this.getServiceUsageSummary(req, from, to);
   }
 
+  @Get('hr-dashboard')
+  async getHrDashboard(
+    @Req() req: Request,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    this.assertReportingAdmin(req);
+    return this.serviceUsageReporting.getHrDashboard(this.getTenantId(req), {
+      from: this.parseOptionalDate('from', from),
+      to: this.parseOptionalDate('to', to),
+    });
+  }
+
   private getTenantId(req: Request): Uuid {
     const tenantId = req.tenantId as string | undefined;
     if (!tenantId || !Uuid.isValid(tenantId)) {

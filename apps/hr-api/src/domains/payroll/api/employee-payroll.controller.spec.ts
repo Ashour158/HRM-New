@@ -61,6 +61,41 @@ function publishedArtifact() {
     contentHash: 'f'.repeat(64),
     htmlContent: '<html><body>Published payslip</body></html>',
     dataClassification: 'HIGH_SENSITIVITY',
+    payslipPayload: {
+      id: `${cycleId.value}:${workerId.value}`,
+      workerId: workerId.value,
+      employeeId: 'EMP-100',
+      employeeName: 'Regular Employee',
+      payPeriodStart: '2026-05-01',
+      payPeriodEnd: '2026-05-31',
+      payDate: '2026-06-05',
+      grossPay: 12000,
+      netPay: 9700,
+      deductions: 1300,
+      taxes: 1000,
+      currency: 'EGP',
+      lines: [
+        {
+          id: 'line-tax',
+          workerId: workerId.value,
+          lineType: 'TAX',
+          description: 'Payroll tax',
+          amount: 1000,
+          currency: 'EGP',
+          status: 'LOCKED',
+        },
+        {
+          id: 'line-insurance',
+          workerId: workerId.value,
+          lineType: 'EMPLOYEE_INSURANCE',
+          description: 'Employee insurance',
+          amount: 300,
+          currency: 'EGP',
+          status: 'LOCKED',
+        },
+      ],
+      internalOnly: 'do-not-return',
+    },
     publishedBy: 'payroll-admin',
     publishedAt: new Date('2026-06-02T10:00:00.000Z'),
     createdAt: new Date('2026-06-01T10:00:00.000Z'),
@@ -155,12 +190,19 @@ describe('EmployeePayrollController payslip ownership', () => {
         payDate: '2026-06-05',
         grossPay: 12000,
         netPay: 9700,
+        deductions: 1300,
+        taxes: 1000,
         currency: 'EGP',
+        lines: expect.arrayContaining([
+          expect.objectContaining({ lineType: 'TAX', description: 'Payroll tax', amount: 1000 }),
+          expect.objectContaining({ lineType: 'EMPLOYEE_INSURANCE', description: 'Employee insurance', amount: 300 }),
+        ]),
         contentHash: 'f'.repeat(64),
         artifactStatus: 'PUBLISHED',
       }),
     ]);
     expect(resultLineRepo.findByWorker).not.toHaveBeenCalled();
+    expect(payslips[0]).not.toHaveProperty('internalOnly');
     expect(payrollCalculation.buildPayslipsFromResultLines).not.toHaveBeenCalled();
     expect(auditLedger.writeAuditOnAccess).toHaveBeenCalledWith(
       request().actor,

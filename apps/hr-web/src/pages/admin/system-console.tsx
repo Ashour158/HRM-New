@@ -586,7 +586,7 @@ export function AdminSystemConsole() {
     { label: 'Compliance Center', description: 'Policies, acknowledgements, legal holds, statutory reporting, and evidence.', group: 'Governance And Insights', path: '/admin/compliance', icon: ShieldCheck, tone: 'text-[#4f46e5]' },
     { label: 'Country Policy', description: 'Country packs, validations, simulations, approvals, publish, and rollback.', group: 'Governance And Insights', path: '/admin/country-policy', icon: Landmark, tone: 'text-[#6366f1]' },
     { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#8b5cf6]' },
-    { label: 'Reporting And Analytics', description: 'Report builder operations, scheduled reports, usage, and calculated fields.', group: 'Governance And Insights', path: '/admin/modules/reporting/operations', icon: FileText, tone: 'text-[#818cf8]' },
+    { label: 'Reporting And Analytics', description: 'Workforce, reward, talent, service, and governance reporting.', group: 'Governance And Insights', path: '/admin/reports', icon: FileText, tone: 'text-[#818cf8]' },
     { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#4f46e5]' },
     { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'not-configured' },
     { label: 'System Operations', description: 'Readiness, recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
@@ -783,7 +783,7 @@ export function AdminSystemConsole() {
       status: serviceUsageQuery.isSuccess ? 'live' : 'attention',
       statusLabel: serviceUsageQuery.isSuccess ? 'Ready' : 'Needs attention',
       icon: FileText,
-      link: '/admin/modules/reporting/operations',
+      link: '/admin/reports',
       linkLabel: 'Open Reporting',
       evidence: [
         `${usageTotals?.commands ?? 0} actions and ${usageTotals?.failedCommands ?? 0} failed actions`,

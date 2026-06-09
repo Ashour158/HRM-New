@@ -1,44 +1,47 @@
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AppLayout } from '@/layouts/app-layout';
 import { PortalLayout } from '@/layouts/portal-layout';
 import { useAuth } from '@/hooks/use-auth';
-import { LoginPage } from '@/pages/login';
-import { EmployeeAttendanceAction, EmployeeDashboard } from '@/pages/employee/dashboard';
-import { EmployeeProfile } from '@/pages/employee/profile';
-import { EmployeePayslip } from '@/pages/employee/payslip';
-import { EmployeeBenefits } from '@/pages/employee/benefits';
-import { EmployeeTimeOff } from '@/pages/employee/time-off';
-import { EmployeePerformance } from '@/pages/employee/performance';
-import { EmployeeOnboarding } from '@/pages/employee/onboarding';
-import { EmployeeServices } from '@/pages/employee/services';
-import { ManagerDashboard } from '@/pages/manager/dashboard';
-import { ManagerTeam } from '@/pages/manager/team';
-import { ManagerApprovals } from '@/pages/manager/approvals';
-import { AdminDashboard } from '@/pages/admin/dashboard';
-import { AdminWorkers } from '@/pages/admin/workers';
-import { AdminEmployeeCreate } from '@/pages/admin/employee-create';
-import { AdminEmployeeProfile } from '@/pages/admin/employee-profile';
-import { AdminOrganization } from '@/pages/admin/organization';
-import { AdminAttendance } from '@/pages/admin/attendance';
-import { AdminLeaveManagement } from '@/pages/admin/leave-management';
-import { AdminOnboarding } from '@/pages/admin/onboarding';
-import { AdminPayroll } from '@/pages/admin/payroll';
-import { AdminPerformance } from '@/pages/admin/performance';
-import { AdminPerformanceOperations } from '@/pages/admin/performance-operations';
-import { AdminModuleCatalog } from '@/pages/admin/module-catalog';
-import { AdminModuleWorkbench } from '@/pages/admin/module-workbench';
-import { AdminModuleOperations } from '@/pages/admin/module-operations';
-import { AdminCompliance } from '@/pages/admin/compliance';
-import { AdminCountryPolicy } from '@/pages/admin/country-policy';
-import { AdminPolicies } from '@/pages/admin/policies';
-import { AdminSettings } from '@/pages/admin/settings';
-import { AdminSystemConsole } from '@/pages/admin/system-console';
-import { AdminIntegrations } from '@/pages/admin/integrations';
-import { AdminAccessGovernance } from '@/pages/admin/access-governance';
-import { AdminDeadLetterEvents } from '@/pages/admin/dead-letter-events';
-import { AdminAuditConsole } from '@/pages/admin/audit-console';
-import { AdminEventContracts } from '@/pages/admin/event-contracts';
+
+const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
+const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
+const EmployeeAttendanceAction = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeAttendanceAction })));
+const EmployeeProfile = lazy(() => import('@/pages/employee/profile').then((module) => ({ default: module.EmployeeProfile })));
+const EmployeePayslip = lazy(() => import('@/pages/employee/payslip').then((module) => ({ default: module.EmployeePayslip })));
+const EmployeeBenefits = lazy(() => import('@/pages/employee/benefits').then((module) => ({ default: module.EmployeeBenefits })));
+const EmployeeTimeOff = lazy(() => import('@/pages/employee/time-off').then((module) => ({ default: module.EmployeeTimeOff })));
+const EmployeePerformance = lazy(() => import('@/pages/employee/performance').then((module) => ({ default: module.EmployeePerformance })));
+const EmployeeOnboarding = lazy(() => import('@/pages/employee/onboarding').then((module) => ({ default: module.EmployeeOnboarding })));
+const EmployeeServices = lazy(() => import('@/pages/employee/services').then((module) => ({ default: module.EmployeeServices })));
+const ManagerDashboard = lazy(() => import('@/pages/manager/dashboard').then((module) => ({ default: module.ManagerDashboard })));
+const ManagerTeam = lazy(() => import('@/pages/manager/team').then((module) => ({ default: module.ManagerTeam })));
+const ManagerApprovals = lazy(() => import('@/pages/manager/approvals').then((module) => ({ default: module.ManagerApprovals })));
+const AdminDashboard = lazy(() => import('@/pages/admin/dashboard').then((module) => ({ default: module.AdminDashboard })));
+const AdminWorkers = lazy(() => import('@/pages/admin/workers').then((module) => ({ default: module.AdminWorkers })));
+const AdminEmployeeCreate = lazy(() => import('@/pages/admin/employee-create').then((module) => ({ default: module.AdminEmployeeCreate })));
+const AdminEmployeeProfile = lazy(() => import('@/pages/admin/employee-profile').then((module) => ({ default: module.AdminEmployeeProfile })));
+const AdminOrganization = lazy(() => import('@/pages/admin/organization').then((module) => ({ default: module.AdminOrganization })));
+const AdminAttendance = lazy(() => import('@/pages/admin/attendance').then((module) => ({ default: module.AdminAttendance })));
+const AdminLeaveManagement = lazy(() => import('@/pages/admin/leave-management').then((module) => ({ default: module.AdminLeaveManagement })));
+const AdminOnboarding = lazy(() => import('@/pages/admin/onboarding').then((module) => ({ default: module.AdminOnboarding })));
+const AdminPayroll = lazy(() => import('@/pages/admin/payroll').then((module) => ({ default: module.AdminPayroll })));
+const AdminPerformance = lazy(() => import('@/pages/admin/performance').then((module) => ({ default: module.AdminPerformance })));
+const AdminPerformanceOperations = lazy(() => import('@/pages/admin/performance-operations').then((module) => ({ default: module.AdminPerformanceOperations })));
+const AdminReporting = lazy(() => import('@/pages/admin/reporting').then((module) => ({ default: module.AdminReporting })));
+const AdminModuleCatalog = lazy(() => import('@/pages/admin/module-catalog').then((module) => ({ default: module.AdminModuleCatalog })));
+const AdminModuleWorkbench = lazy(() => import('@/pages/admin/module-workbench').then((module) => ({ default: module.AdminModuleWorkbench })));
+const AdminModuleOperations = lazy(() => import('@/pages/admin/module-operations').then((module) => ({ default: module.AdminModuleOperations })));
+const AdminCompliance = lazy(() => import('@/pages/admin/compliance').then((module) => ({ default: module.AdminCompliance })));
+const AdminCountryPolicy = lazy(() => import('@/pages/admin/country-policy').then((module) => ({ default: module.AdminCountryPolicy })));
+const AdminPolicies = lazy(() => import('@/pages/admin/policies').then((module) => ({ default: module.AdminPolicies })));
+const AdminSettings = lazy(() => import('@/pages/admin/settings').then((module) => ({ default: module.AdminSettings })));
+const AdminSystemConsole = lazy(() => import('@/pages/admin/system-console').then((module) => ({ default: module.AdminSystemConsole })));
+const AdminIntegrations = lazy(() => import('@/pages/admin/integrations').then((module) => ({ default: module.AdminIntegrations })));
+const AdminAccessGovernance = lazy(() => import('@/pages/admin/access-governance').then((module) => ({ default: module.AdminAccessGovernance })));
+const AdminDeadLetterEvents = lazy(() => import('@/pages/admin/dead-letter-events').then((module) => ({ default: module.AdminDeadLetterEvents })));
+const AdminAuditConsole = lazy(() => import('@/pages/admin/audit-console').then((module) => ({ default: module.AdminAuditConsole })));
+const AdminEventContracts = lazy(() => import('@/pages/admin/event-contracts').then((module) => ({ default: module.AdminEventContracts })));
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation();
@@ -100,13 +103,22 @@ function RequireRoles({
   return <>{children}</>;
 }
 
+function RouteLoading() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#f8f9ff] text-sm font-semibold text-[#475569]">
+      Loading workspace...
+    </div>
+  );
+}
+
 /**
  * Application route definitions.
  * All portal routes are wrapped in AppLayout and PortalLayout for consistent navigation.
  */
 export function AppRoutes() {
   return (
-    <Routes>
+    <Suspense fallback={<RouteLoading />}>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
 
       {/* Employee Portal */}
@@ -250,6 +262,8 @@ export function AppRoutes() {
                     <Route path="leave" element={<AdminLeaveManagement />} />
                     <Route path="onboarding" element={<AdminOnboarding />} />
                     <Route path="payroll" element={<AdminPayroll />} />
+                    <Route path="reports" element={<AdminReporting />} />
+                    <Route path="reporting" element={<Navigate to="/admin/reports" replace />} />
                     <Route path="performance" element={<AdminPerformance />} />
                     <Route path="performance/operations" element={<AdminPerformanceOperations />} />
                     <Route path="compliance" element={<AdminCompliance />} />
@@ -285,6 +299,7 @@ export function AppRoutes() {
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/employee" replace />} />
       <Route path="*" element={<Navigate to="/employee" replace />} />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

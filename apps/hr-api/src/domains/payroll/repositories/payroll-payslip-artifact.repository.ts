@@ -1,9 +1,50 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { PayrollPayslipArtifactRecord } from '../services/payroll-artifact.service.js';
+import type { PayrollPayslip } from '../services/payroll-cycle-calculation.service.js';
+
+function toPayslipPayload(value: unknown): PayrollPayslip | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const candidate = value as Partial<PayrollPayslip>;
+  const validDate = (date?: string): date is string => (
+    typeof date === 'string'
+    && date.trim().length > 0
+    && Number.isFinite(Date.parse(date))
+  );
+  const validNumber = (amount?: number): amount is number => typeof amount === 'number' && Number.isFinite(amount);
+  const linesValid = Array.isArray(candidate.lines)
+    && candidate.lines.every((line) => (
+      line
+      && typeof line === 'object'
+      && typeof (line as PayrollPayslip['lines'][number]).id === 'string'
+      && typeof (line as PayrollPayslip['lines'][number]).workerId === 'string'
+      && typeof (line as PayrollPayslip['lines'][number]).lineType === 'string'
+      && typeof (line as PayrollPayslip['lines'][number]).description === 'string'
+      && validNumber((line as PayrollPayslip['lines'][number]).amount)
+      && typeof (line as PayrollPayslip['lines'][number]).currency === 'string'
+    ));
+  if (
+    typeof candidate.id === 'string'
+    && typeof candidate.workerId === 'string'
+    && typeof candidate.employeeId === 'string'
+    && typeof candidate.employeeName === 'string'
+    && validDate(candidate.payPeriodStart)
+    && validDate(candidate.payPeriodEnd)
+    && validDate(candidate.payDate)
+    && validNumber(candidate.grossPay)
+    && validNumber(candidate.netPay)
+    && validNumber(candidate.deductions)
+    && validNumber(candidate.taxes)
+    && typeof candidate.currency === 'string'
+    && linesValid
+  ) {
+    return candidate as PayrollPayslip;
+  }
+  return undefined;
+}
 
 @Injectable()
 export class PayrollPayslipArtifactRepository {
@@ -26,6 +67,7 @@ export class PayrollPayslipArtifactRepository {
           currency: row.currency,
           content_hash: row.content_hash,
           html_content: row.html_content,
+          payslip_payload: row.payslip_payload,
           data_classification: row.data_classification,
           published_by: row.published_by,
           published_at: row.published_at,
@@ -63,9 +105,13 @@ export class PayrollPayslipArtifactRepository {
   }
 
   private toRow(record: PayrollPayslipArtifactRecord): Insertable<Database['payroll_payslip_artifacts']> {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context is required to save payroll payslip artifacts');
+    }
     return {
       id: record.id,
-      tenant_id: record.tenantId,
+      tenant_id: tenantId.value,
       payroll_cycle_id: record.payrollCycleId,
       worker_id: record.workerId,
       employee_id: record.employeeId,
@@ -76,6 +122,7 @@ export class PayrollPayslipArtifactRepository {
       currency: record.currency,
       content_hash: record.contentHash,
       html_content: record.htmlContent,
+      payslip_payload: record.payslipPayload ?? {},
       data_classification: record.dataClassification,
       published_by: record.publishedBy ?? null,
       published_at: record.publishedAt ?? null,
@@ -98,6 +145,7 @@ export class PayrollPayslipArtifactRepository {
       currency: row.currency,
       contentHash: row.content_hash,
       htmlContent: row.html_content,
+      payslipPayload: toPayslipPayload(row.payslip_payload),
       dataClassification: row.data_classification as PayrollPayslipArtifactRecord['dataClassification'],
       publishedBy: row.published_by ?? undefined,
       publishedAt: row.published_at ?? undefined,

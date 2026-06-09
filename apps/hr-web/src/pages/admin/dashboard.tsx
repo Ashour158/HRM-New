@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { buildAdminJourneyItems, type AdminJourneyTone } from '@/lib/admin-journey';
 import { cn, formatNumber } from '@/lib/utils';
 import {
   Activity,
@@ -31,8 +32,6 @@ import {
   ChevronRight,
   Clock,
   Clock3,
-  CloudSun,
-  Droplets,
   Eye,
   FileText,
   FolderOpen,
@@ -48,7 +47,6 @@ import {
   UserCircle,
   UserPlus,
   Users,
-  Wind,
   Zap,
 } from 'lucide-react';
 
@@ -155,6 +153,13 @@ const moduleIcon: Record<string, string> = {
   rose: 'bg-rose-100 text-rose-600',
 };
 
+const adminJourneyToneClasses: Record<AdminJourneyTone, string> = {
+  attention: 'border-red-200 bg-red-50 text-red-700',
+  default: 'border-indigo-100 bg-indigo-50 text-indigo-700',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-orange-200 bg-orange-50 text-orange-700',
+};
+
 function KpiTile({
   label,
   helper,
@@ -218,6 +223,13 @@ export function AdminDashboard() {
 
   const alerts = data?.alerts ?? [];
   const recentActivity = data?.recentActivity ?? [];
+  const adminJourneyItems = buildAdminJourneyItems({
+    alertsCount: alerts.length,
+    headcount: data?.headcount,
+    highSeverityAlerts: alerts.filter((alert) => alert.severity === 'high').length,
+    newHiresThisMonth: data?.newHiresThisMonth,
+    openPositions: data?.openPositions,
+  });
 
   const operatingFlow = [
     {
@@ -296,36 +308,53 @@ export function AdminDashboard() {
           </p>
         </div>
 
-        {/* Weather — decorative card */}
-        <div className="relative w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-violet-300 via-purple-400 to-slate-400 p-6 text-white shadow-xl shadow-black/10 lg:w-[420px]">
-          <div className="absolute -right-10 -top-10 h-48 w-48 rounded-full bg-violet-200/50 blur-2xl" aria-hidden="true" />
-          <div className="relative z-10 flex items-stretch gap-6">
-            <div className="flex min-w-0 flex-1 flex-col justify-between">
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-white/80">Today</p>
-                  <p className="truncate text-lg font-bold leading-tight">London</p>
-                </div>
-                <CloudSun size={48} strokeWidth={1.75} className="fusion-float shrink-0" />
-              </div>
-              <div className="mt-3 flex items-end gap-2.5">
-                <span className="text-5xl font-extrabold leading-none tracking-tighter">18°</span>
-                <div className="pb-1">
-                  <p className="text-sm font-bold leading-tight">Partly cloudy</p>
-                  <p className="text-[11px] font-semibold text-white/80">H:21° · L:12°</p>
-                </div>
-              </div>
-              <div className="mt-3 flex items-center gap-4 text-xs font-semibold text-white/85">
-                <span className="flex items-center gap-1.5">
-                  <Droplets size={14} /> 64%
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <Wind size={14} /> 11 km/h
-                </span>
-              </div>
+        <div className="relative w-full shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-slate-700 p-6 text-white shadow-xl shadow-black/10 lg:w-[420px]">
+          <div className="absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/15 blur-2xl" aria-hidden="true" />
+          <div className="relative z-10">
+            <p className="text-xs font-bold uppercase tracking-wider text-white/75">Admin Command Center</p>
+            <h2 className="mt-2 font-headline text-2xl font-extrabold leading-tight">Control setup, policy, people, and payroll from one place.</h2>
+            <p className="mt-3 text-sm font-medium leading-relaxed text-white/80">
+              Start with governed setup work, then use reports to confirm the business impact.
+            </p>
+            <div className="mt-5 grid gap-2">
+              {adminJourneyItems.slice(0, 2).map((item) => (
+                <Link
+                  key={item.label}
+                  to={item.href}
+                  className="flex items-center justify-between rounded-2xl border border-white/20 bg-white/15 px-4 py-3 text-sm font-bold backdrop-blur transition-colors hover:bg-white/25"
+                >
+                  <span>{item.label}</span>
+                  <span className="flex items-center gap-2 text-white/80">
+                    {item.status}
+                    <ArrowRight className="h-4 w-4" />
+                  </span>
+                </Link>
+              ))}
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {adminJourneyItems.map((item) => (
+          <Link key={item.label} to={item.href} className="group">
+            <div className="flex h-full min-h-[142px] flex-col justify-between rounded-[1.5rem] border border-white/70 bg-white/65 p-5 shadow-sm transition-all group-hover:-translate-y-0.5 group-hover:bg-white/90 group-hover:shadow-md">
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{item.category}</p>
+                  <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-bold', adminJourneyToneClasses[item.tone])}>
+                    {item.status}
+                  </span>
+                </div>
+                <h2 className="mt-3 text-base font-extrabold text-slate-950">{item.label}</h2>
+              </div>
+              <div className="mt-5 flex items-center justify-between text-sm font-bold text-indigo-600">
+                <span>{item.actionLabel}</span>
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </div>
+            </div>
+          </Link>
+        ))}
       </div>
 
       {/* Vivid bento KPI tiles */}

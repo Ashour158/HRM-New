@@ -234,6 +234,66 @@ describe('EmployeeLeaveController employee leave actions', () => {
     }, makeRequest(['EMPLOYEE']))).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('returns the create-command policy decision after employee leave submission', async () => {
+    const worker = {
+      id: workerId,
+      firstName: 'Mona',
+      lastName: 'Saleh',
+      employeeNumber: 'E-100',
+    };
+    const absence = AbsenceRequest.create({
+      id: requestId,
+      tenantId,
+      workerId,
+      absenceType: 'VACATION',
+      startDate: new Date('2026-06-08T00:00:00.000Z'),
+      endDate: new Date('2026-06-09T00:00:00.000Z'),
+      durationUnit: 'DAYS',
+      durationAmount: 2,
+    }, Uuid.generate());
+    const { controller } = makeController({
+      commandBus: {
+        execute: vi.fn()
+          .mockResolvedValueOnce({
+            success: true,
+            data: {
+              absenceRequestId: requestId.value,
+              approvalWorkflow: 'MANAGER_THEN_HR',
+              requiredDocumentCodes: ['HANDOVER_PLAN'],
+              policyDecision: {
+                policyCode: 'VACATION',
+                matchedRuleCodes: ['LONG_LEAVE_HR_REVIEW'],
+              },
+            },
+          })
+          .mockResolvedValueOnce({ success: true, data: { absenceRequestId: requestId.value } }),
+      },
+      workerRepo: {
+        findById: vi.fn().mockResolvedValue(worker),
+        findByEmail: vi.fn().mockResolvedValue(worker),
+        findByManager: vi.fn(),
+      },
+      absenceRequestRepo: {
+        findById: vi.fn().mockResolvedValue(absence),
+      },
+    });
+
+    const result = await controller.createEmployeeAbsence({
+      type: 'VACATION',
+      startDate: new Date('2026-06-08T00:00:00.000Z'),
+      endDate: new Date('2026-06-09T00:00:00.000Z'),
+    }, makeRequest(['EMPLOYEE']));
+
+    expect(result).toMatchObject({
+      approvalWorkflow: 'MANAGER_THEN_HR',
+      requiredDocumentCodes: ['HANDOVER_PLAN'],
+      policyDecision: {
+        policyCode: 'VACATION',
+        matchedRuleCodes: ['LONG_LEAVE_HR_REVIEW'],
+      },
+    });
+  });
+
   it('serializes leave date keys from UTC ISO dates', () => {
     const { controller } = makeController();
     const dto = (controller as unknown as {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildServiceUsageSummary, type ServiceUsageMetricRow } from './service-usage-reporting.service.js';
+import { buildHrReportsDashboard, buildServiceUsageSummary, type ServiceUsageMetricRow } from './service-usage-reporting.service.js';
 
 describe('service usage reporting summary', () => {
   it('combines command, outbox, notification, and workflow usage into service rows', () => {
@@ -177,5 +177,63 @@ describe('service usage reporting summary', () => {
       commands: 1,
     });
     expect(summary.services.find((service) => service.serviceArea === 'REPORTING')).toBeUndefined();
+  });
+
+  it('builds business HR report groups from cross-module service usage evidence', () => {
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+    const rows: ServiceUsageMetricRow[] = [
+      { source: 'COMMAND', serviceArea: 'AttendanceLedger', total: 8, failed: 1, lastActivityAt: new Date('2026-06-03T08:00:00.000Z') },
+      { source: 'OUTBOX', serviceArea: 'AttendanceLedger', total: 5, pending: 2, oldestQueueBacklogAt: new Date('2026-06-03T08:01:00.000Z') },
+      { source: 'COMMAND', serviceArea: 'AbsenceRequest', total: 4 },
+      { source: 'NOTIFICATION', serviceArea: 'AbsenceRequest', total: 6 },
+      { source: 'COMMAND', serviceArea: 'PayrollCycle', total: 3 },
+      { source: 'WORKFLOW', serviceArea: 'PerformanceReview', total: 7 },
+      { source: 'COMMAND', serviceArea: 'BenefitsEnrollment', total: 2 },
+      { source: 'NOTIFICATION', serviceArea: 'EngagementSurvey', total: 9 },
+    ];
+    const usage = buildServiceUsageSummary(tenantId, rows, new Date('2026-06-03T09:00:00.000Z'));
+
+    const dashboard = buildHrReportsDashboard(usage);
+
+    expect(dashboard.totals).toMatchObject({
+      reportGroups: 8,
+      activeReportGroups: 6,
+      totalActivity: 44,
+      queueBacklog: 2,
+      issues: 3,
+    });
+    expect(dashboard.reports.find((report) => report.code === 'ATTENDANCE')).toMatchObject({
+      title: 'Attendance Report',
+      category: 'Workforce',
+      services: ['TIME_ATTENDANCE'],
+      activity: 13,
+      issues: 3,
+      readiness: 'Attention',
+    });
+    expect(dashboard.reports.find((report) => report.code === 'LEAVE')).toMatchObject({
+      title: 'Leave Report',
+      activity: 10,
+      readiness: 'Live',
+    });
+    expect(dashboard.reports.find((report) => report.code === 'PAYROLL')).toMatchObject({
+      title: 'Payroll Report',
+      activity: 3,
+    });
+    expect(dashboard.reports.find((report) => report.code === 'PERFORMANCE')).toMatchObject({
+      title: 'Performance Report',
+      activity: 7,
+    });
+    expect(dashboard.reports.find((report) => report.code === 'BENEFITS')).toMatchObject({
+      title: 'Benefits Report',
+      activity: 2,
+    });
+    expect(dashboard.reports.find((report) => report.code === 'ENGAGEMENT')).toMatchObject({
+      title: 'Engagement Report',
+      activity: 9,
+    });
+    expect(dashboard.activityByReport).toEqual(expect.arrayContaining([
+      { label: 'Attendance Report', activity: 13, issues: 3 },
+      { label: 'Leave Report', activity: 10, issues: 0 },
+    ]));
   });
 });

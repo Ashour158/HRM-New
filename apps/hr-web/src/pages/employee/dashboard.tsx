@@ -14,6 +14,7 @@ import {
   type CoordinateEvidence,
   type GeolocationFailureReason,
 } from '@/lib/attendance-location';
+import { buildEmployeeJourneyItems, type EmployeeJourneyTone } from '@/lib/employee-journey';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -78,14 +79,42 @@ interface DashboardData {
   absenceBalance: Array<{ type: string; balance: number; unit: string }>;
 }
 
-interface AttendanceSummaryResponse {
-  workerId: string;
-  summary: {
-    payableMinutes: number;
-    lateMinutes: number;
-    undertimeMinutes: number;
-    overtimeMinutes: number;
-    geofenceViolations: number;
+type AttendancePeriodRange = 'DAILY' | 'MONTHLY' | 'NINETY_DAYS' | 'WEEKLY';
+
+interface AttendancePeriodMetrics {
+  employeeDays: number;
+  present: number;
+  absent: number;
+  onLeave: number;
+  exceptions: number;
+  payableHours: number;
+  deductionHours: number;
+  overtimeHours: number;
+  geofenceViolations: number;
+  lateMinutes: number;
+  missingCheckout: number;
+  payrollReady: number;
+  undertimeMinutes: number;
+}
+
+const journeyToneClasses: Record<EmployeeJourneyTone, string> = {
+  attention: 'border-amber-200 bg-amber-50 text-amber-800',
+  default: 'border-slate-200 bg-white text-slate-700',
+  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warning: 'border-orange-200 bg-orange-50 text-orange-800',
+};
+
+interface AttendancePeriodView {
+  periodStart: string;
+  periodEnd: string;
+  range: AttendancePeriodRange;
+  scope: 'SELF' | 'TEAM' | 'TENANT';
+  totals: AttendancePeriodMetrics;
+  series: Array<AttendancePeriodMetrics & { workDate: string }>;
+  policyEvidence: {
+    flexibleRuleCodes: string[];
+    leavePolicyTypes: string[];
+    scheduleSources: string[];
   };
 }
 
@@ -252,6 +281,12 @@ const statusCopy: Record<AttendanceClockStatus, { label: string; tone: string; h
 };
 
 const GEOLOCATION_CAPTURE_TIMEOUT_MS = 2500;
+const attendanceRangeOptions: Array<{ value: AttendancePeriodRange; label: string }> = [
+  { value: 'DAILY', label: 'Daily' },
+  { value: 'WEEKLY', label: 'Weekly' },
+  { value: 'MONTHLY', label: 'Monthly' },
+  { value: 'NINETY_DAYS', label: '90 days' },
+];
 
 interface GeolocationCapture {
   evidence: Pick<ClockPayload, 'accuracyMeters' | 'latitude' | 'longitude'>;
@@ -319,6 +354,10 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat(undefined, { weekday: 'short', day: '2-digit' }).format(value);
 }
 
+function formatDateLabel(value: string) {
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: '2-digit' }).format(new Date(`${value}T00:00:00.000Z`));
+}
+
 function dateKey(value = new Date()) {
   return value.toISOString().slice(0, 10);
 }
@@ -338,6 +377,10 @@ function apiErrorMessage(error: unknown, fallback: string) {
     if (response?.status) return `Request failed with status code ${response.status}`;
   }
   return error instanceof Error ? error.message : fallback;
+}
+
+function rangeLabel(range: AttendancePeriodRange) {
+  return attendanceRangeOptions.find((option) => option.value === range)?.label ?? 'Weekly';
 }
 
 function currentWeekDays(today: Date) {
@@ -367,14 +410,13 @@ export function EmployeeDashboard() {
   const [clockPendingDirection, setClockPendingDirection] = React.useState<'in' | 'out' | null>(null);
   const [manualPunchDirection, setManualPunchDirection] = React.useState<'in' | 'out' | null>(null);
   const [manualPunchReason, setManualPunchReason] = React.useState('');
+  const [attendanceRange, setAttendanceRange] = React.useState<AttendancePeriodRange>('WEEKLY');
   const [pendingClockCommand, setPendingClockCommand] = React.useState<'in' | 'out' | null>(() => {
     const stored = window.localStorage.getItem('pending-attendance-clock');
     return stored === 'in' || stored === 'out' ? stored : null;
   });
 
   const today = React.useMemo(() => new Date(), []);
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth() + 1;
 
   const data = React.useMemo<DashboardData>(() => ({
     upcomingEvents: [],
@@ -420,9 +462,9 @@ export function EmployeeDashboard() {
     return () => window.clearInterval(interval);
   }, [todayState?.activeCheckInAt]);
 
-  const { data: attendanceSummary } = useApiQuery<AttendanceSummaryResponse>(
-    ['employee-attendance-summary', selectedWorkerId, currentYear, currentMonth],
-    `/time/attendance/workers/${selectedWorkerId}/monthly-summary?year=${currentYear}&month=${currentMonth}`,
+  const { data: attendancePeriodView } = useApiQuery<AttendancePeriodView>(
+    ['employee-attendance-period-view', selectedWorkerId, attendanceRange, dateKey(today)],
+    `/time/attendance/reports/period-view?scope=SELF&range=${attendanceRange}&date=${dateKey(today)}&workerId=${selectedWorkerId}`,
     { enabled: Boolean(selectedWorkerId) },
   );
   const { data: correctionRequests = [] } = useApiQuery<AttendanceCorrectionRequest[]>(
@@ -433,7 +475,7 @@ export function EmployeeDashboard() {
 
   const invalidateAttendanceKeys = [
     ['employee-attendance-state'],
-    ['employee-attendance-summary'],
+    ['employee-attendance-period-view'],
     ['employee-attendance-corrections'],
   ];
   const checkInMutation = useApiMutation<unknown, ClockPayload>('/time/attendance/check-in', 'post', invalidateAttendanceKeys);
@@ -456,24 +498,49 @@ export function EmployeeDashboard() {
     : Math.max((todayState?.elapsedMinutes ?? 0) * 60, 0);
   const [hours, minutes, seconds] = formatDuration(activeSeconds + tick * 0);
 
-  const weekDays = React.useMemo(() => currentWeekDays(today), [today]);
-
-  const standardDailyHours = (setup.attendancePolicy.standardDailyMinutes ?? 480) / 60;
-  const workedTodayHours = Math.max((todayState?.totalWorkedMinutes ?? 0) / 60, 0);
   const attendanceSeries = React.useMemo(() => {
-    const pattern = [7.6, 8.2, 7.9, 8.4, 8.0, 0, 0];
-    return weekDays.map((date, index) => {
-      const isToday = date.toDateString() === today.toDateString();
-      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-      const baseline = isWeekend ? 0 : pattern[index] ?? standardDailyHours;
-      return {
-        day: formatDate(date),
-        hours: Number((isToday ? workedTodayHours : baseline).toFixed(1)),
-      };
-    });
-  }, [weekDays, today, standardDailyHours, workedTodayHours]);
+    if (!attendancePeriodView?.series.length) {
+      return [{ day: formatDate(today), hours: Math.max((todayState?.totalWorkedMinutes ?? 0) / 60, 0) }];
+    }
+    return attendancePeriodView.series.map((day) => ({
+      day: formatDateLabel(day.workDate),
+      hours: day.payableHours,
+      overtime: day.overtimeHours,
+      lateMinutes: day.lateMinutes,
+    }));
+  }, [attendancePeriodView?.series, today, todayState?.totalWorkedMinutes]);
+  const attendanceSummary = React.useMemo(() => ({
+    summary: {
+      payableMinutes: Math.round((attendancePeriodView?.totals.payableHours ?? 0) * 60),
+      lateMinutes: attendancePeriodView?.totals.lateMinutes ?? 0,
+      undertimeMinutes: attendancePeriodView?.totals.undertimeMinutes ?? 0,
+      overtimeMinutes: Math.round((attendancePeriodView?.totals.overtimeHours ?? 0) * 60),
+      geofenceViolations: attendancePeriodView?.totals.geofenceViolations ?? 0,
+    },
+  }), [attendancePeriodView?.totals]);
 
   const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
+  const journeyItems = React.useMemo(() => buildEmployeeJourneyItems({
+    attendance: {
+      canCheckIn: todayState?.canCheckIn,
+      canCheckOut: todayState?.canCheckOut,
+      statusLabel: statusMeta.label,
+      workedTodayMinutes: todayState?.totalWorkedMinutes,
+    },
+    hasRecentPayslip: true,
+    leaveBalances: data.absenceBalance,
+    pendingTaskCount: data.pendingTasks.length,
+    profileComplete: Boolean(activeWorker?.employeeId && activeWorker?.jobTitle),
+  }), [
+    activeWorker?.employeeId,
+    activeWorker?.jobTitle,
+    data.absenceBalance,
+    data.pendingTasks.length,
+    statusMeta.label,
+    todayState?.canCheckIn,
+    todayState?.canCheckOut,
+    todayState?.totalWorkedMinutes,
+  ]);
 
   const buildClockPayload = async (): Promise<{ payload: ClockPayload; failureReason?: GeolocationFailureReason } | null> => {
     if (!selectedWorkerId) return null;
@@ -704,6 +771,7 @@ export function EmployeeDashboard() {
   const isRecording = clockPendingDirection !== null || checkInMutation.isPending || checkOutMutation.isPending;
   const canCheckInNow = Boolean(todayState?.canCheckIn) && !isRecording && Boolean(activeWorker);
   const canCheckOutNow = Boolean(todayState?.canCheckOut) && !isRecording && Boolean(activeWorker);
+  const weekDays = React.useMemo(() => currentWeekDays(today), [today]);
 
   return (
     <div className="relative z-10 mx-auto max-w-[1740px] space-y-6 px-4 py-7 lg:px-6">
@@ -771,19 +839,32 @@ export function EmployeeDashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
-        <KpiTile icon={Clock3} value={formatMinutes(todayState?.totalWorkedMinutes)} label="Worked Today · Logged hours" gradient="from-indigo-400 to-violet-500" shadow="shadow-indigo-500/15" />
-        <KpiTile icon={CalendarDays} value={formatMinutes(attendanceSummary?.summary.payableMinutes)} label="Payable · Month to date" gradient="from-violet-400 to-purple-500" shadow="shadow-violet-500/15" />
-        <KpiTile icon={TrendingUp} value={formatMinutes(attendanceSummary?.summary.overtimeMinutes)} label="Overtime · Month to date" gradient="from-teal-400 to-emerald-500" shadow="shadow-emerald-500/15" />
-        <KpiTile icon={AlertTriangle} value={`${attendanceSummary?.summary.lateMinutes ?? 0} min`} label="Late · Month to date" gradient="from-amber-400 to-orange-500" shadow="shadow-orange-500/15" />
+        <KpiTile icon={Clock3} value={formatMinutes(todayState?.totalWorkedMinutes)} label="Worked today" gradient="from-indigo-400 to-violet-500" shadow="shadow-indigo-500/15" />
+        <KpiTile icon={CalendarDays} value={formatMinutes(attendanceSummary.summary.payableMinutes)} label={`Payable - ${rangeLabel(attendanceRange)}`} gradient="from-violet-400 to-purple-500" shadow="shadow-violet-500/15" />
+        <KpiTile icon={TrendingUp} value={formatMinutes(attendanceSummary.summary.overtimeMinutes)} label={`Overtime - ${rangeLabel(attendanceRange)}`} gradient="from-teal-400 to-emerald-500" shadow="shadow-emerald-500/15" />
+        <KpiTile icon={AlertTriangle} value={`${attendanceSummary.summary.lateMinutes} min`} label={`Late - ${rangeLabel(attendanceRange)}`} gradient="from-amber-400 to-orange-500" shadow="shadow-orange-500/15" />
       </div>
-
       <div className="fusion-glass rounded-[2rem] p-6 lg:p-8">
-        <div className="mb-6 flex items-center justify-between">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="flex items-center gap-2 text-xl font-bold">
             <TrendingUp className="h-5 w-5 text-indigo-500" />
             Attendance Hours
           </h2>
-          <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">This week</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+              {rangeLabel(attendanceRange)}
+            </span>
+            <Select value={attendanceRange} onValueChange={(value) => setAttendanceRange(value as AttendancePeriodRange)}>
+              <SelectTrigger className="h-9 w-[132px] rounded-xl bg-white/80">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {attendanceRangeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="-ml-2 h-64">
           <ResponsiveContainer width="100%" height="100%">
@@ -855,12 +936,37 @@ export function EmployeeDashboard() {
                   <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                     <div>
                       <Badge variant="secondary" className="mb-2">Employee Self-Service</Badge>
-                      <h2 className="text-lg font-semibold text-slate-950">My HCM Workspace</h2>
+                      <h2 className="text-lg font-semibold text-slate-950">My Journey</h2>
                       <p className="mt-1 text-sm text-slate-600">
-                        The same modules appear here as employee actions: workforce, payroll and reward, people, and talent.
+                        Start with today&apos;s required actions, then continue into the right HR module.
                       </p>
                     </div>
                     <Link className="text-sm font-medium text-[#6366f1]" to="/employee/time-off">Start a leave request</Link>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {journeyItems.map((item) => (
+                      <Link key={item.label} to={item.href} className="group">
+                        <div className="flex h-full min-h-[128px] flex-col justify-between rounded-2xl border border-white/70 bg-white/60 p-4 transition-all group-hover:-translate-y-0.5 group-hover:bg-white/90">
+                          <div>
+                            <div className="flex items-start justify-between gap-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">{item.category}</p>
+                              <Badge variant="outline" className={cn('border text-[11px]', journeyToneClasses[item.tone])}>{item.status}</Badge>
+                            </div>
+                            <h3 className="mt-2 text-sm font-semibold text-slate-950">{item.label}</h3>
+                          </div>
+                          <div className="mt-4 flex items-center justify-between text-sm font-semibold text-[#4f46e5]">
+                            <span>{item.actionLabel}</span>
+                            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                  <div className="mt-6 border-t border-white/70 pt-4">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <h3 className="text-sm font-semibold text-slate-950">All employee modules</h3>
+                      <p className="text-xs text-slate-500">Workforce, reward, people, talent, and support.</p>
+                    </div>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                     {selfServiceModules.map((module) => {
@@ -1139,7 +1245,7 @@ export function EmployeeDashboard() {
                     </div>
 
                     <div className="fusion-glass rounded-2xl p-4">
-                      <h3 className="font-semibold">This Month</h3>
+                      <h3 className="font-semibold">{rangeLabel(attendanceRange)} Summary</h3>
                       <div className="mt-4 grid gap-3 text-sm">
                         <EvidenceMetric label="Payable" value={formatMinutes(attendanceSummary?.summary.payableMinutes)} />
                         <EvidenceMetric label="Late" value={`${attendanceSummary?.summary.lateMinutes ?? 0} min`} />

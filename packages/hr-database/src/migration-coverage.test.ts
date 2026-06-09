@@ -72,6 +72,13 @@ describe('migration coverage', () => {
     expect(migrationTextContains('20240524000034000_admin_module_operations_native_sources.js', 'admin_module_operation_records_native_unique')).toBe(true);
   });
 
+  it('contains governance controls for commercial operation workspaces', () => {
+    expect(existsSync(join(migrationsDir, '20240524000043000_admin_module_operation_controls.js'))).toBe(true);
+
+    expect(migrationContains('20240524000043000_admin_module_operation_controls.js', 'admin_module_operation_controls')).toBe(true);
+    expect(migrationTextContains('20240524000043000_admin_module_operation_controls.js', 'admin_module_operation_controls_tenant_module_name_unique')).toBe(true);
+  });
+
   it('contains compensation tables required by compensation repositories and operations sync', () => {
     expect(existsSync(join(migrationsDir, '20240524000035000_compensation_tables.js'))).toBe(true);
 
@@ -102,6 +109,14 @@ describe('migration coverage', () => {
     expect(migrationTextContains(migrationName, 'personal_data_records')).toBe(true);
     expect(migrationTextContains(migrationName, 'grossSalaryAmount')).toBe(true);
     expect(migrationTextContains(migrationName, 'DEMO-EMPLOYEE')).toBe(true);
+  });
+
+  it('stores structured payslip payloads for published payroll artifacts', () => {
+    const migrationName = '20240524000044000_payroll_payslip_payload.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationTextContains(migrationName, 'payroll_payslip_artifacts')).toBe(true);
+    expect(migrationTextContains(migrationName, 'payslip_payload')).toBe(true);
   });
 
   it('backfills canonical outbox topics for historical replay safety', () => {

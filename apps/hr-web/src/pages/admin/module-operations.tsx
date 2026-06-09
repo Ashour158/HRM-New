@@ -6,7 +6,9 @@ import {
   BellRing,
   CheckCircle2,
   Database,
+  Download,
   ExternalLink,
+  FileSpreadsheet,
   GitBranch,
   LockKeyhole,
   PlayCircle,
@@ -14,6 +16,7 @@ import {
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Upload,
   Users,
   Workflow,
 } from 'lucide-react';
@@ -85,10 +88,71 @@ type OperationWorkflowApi = {
   updatedAt: string;
 };
 
+type GovernanceControl = {
+  id: string;
+  name: string;
+  type: string;
+  owner: string;
+  status: 'Draft' | 'In Review' | 'Approved' | 'Applied';
+  lastEvent: string;
+};
+
+type OperationControlApi = {
+  id: string;
+  controlName: string;
+  controlType: string;
+  ownerRole: string;
+  status: GovernanceControl['status'];
+  lastEvent: string;
+  payload?: unknown;
+  aggregateVersion: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type ModuleDepthCapabilityApi = {
+  code: 'records' | 'workflows' | 'nativeWiring' | 'ownership' | 'riskControls' | 'governanceControls';
+  label: string;
+  status: 'Ready' | 'Needs Work' | 'Blocked';
+  evidence: string;
+};
+
+type ModuleDepthApi = {
+  score: number;
+  status: 'Ready' | 'Needs Work' | 'Blocked';
+  capabilities: ModuleDepthCapabilityApi[];
+  blockers: string[];
+  nextActions: string[];
+};
+
 type OperationWorkspaceApi = {
   moduleId: string;
   records: OperationRecordApi[];
   workflows: OperationWorkflowApi[];
+  controls?: OperationControlApi[];
+  moduleDepth?: ModuleDepthApi;
+};
+
+type OperationImportRow = {
+  objectType?: string;
+  ownerRole?: string;
+  workflowName?: string;
+  status?: OperationalRecord['status'];
+  risk?: OperationalRecord['risk'];
+  lastEvent?: string;
+  payload?: unknown;
+};
+
+type OperationImportPreview = {
+  accepted: boolean;
+  rowCount: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+  events?: string[];
+};
+
+type OperationImportApplyResult = OperationImportPreview & {
+  createdCount: number;
+  created: OperationRecordApi[];
 };
 
 type CreateRecordVariables = {
@@ -112,6 +176,15 @@ type UpdateWorkflowVariables = {
   workflow: WorkflowItem;
   state?: WorkflowItem['state'];
   lastEvent?: string;
+};
+
+type UpdateControlVariables = {
+  control: GovernanceControl;
+  ownerRole: string;
+};
+
+type AdvanceControlVariables = {
+  control: GovernanceControl;
 };
 
 type DomainProfile = {
@@ -280,6 +353,76 @@ function unwrap<T>(response: { data: unknown }) {
   return apiData<T>(response.data);
 }
 
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function parseCsvTable(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    const next = text.charAt(index + 1);
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === ',' && !inQuotes) {
+      row.push(cell);
+      cell = '';
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !inQuotes) {
+      row.push(cell);
+      if (row.some((value) => value.trim().length > 0)) rows.push(row);
+      row = [];
+      cell = '';
+      if (char === '\r' && next === '\n') index += 1;
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some((value) => value.trim().length > 0)) rows.push(row);
+  return rows;
+}
+
+function parseOperationsCsv(text: string): OperationImportRow[] {
+  const [headers = [], ...rows] = parseCsvTable(text);
+  const normalizedHeaders = headers.map((item) => item.trim());
+  if (normalizedHeaders.length === 0) return [];
+  return rows.map((values) => normalizedHeaders.reduce<OperationImportRow>((row, header, index) => {
+    const value = values[index]?.trim();
+    if (!value) return row;
+    if (header === 'payload') {
+      try {
+        return { ...row, payload: JSON.parse(value) as unknown };
+      } catch {
+        return { ...row, payload: value };
+      }
+    }
+    return { ...row, [header]: value };
+  }, {}));
+}
+
 function mutationErrorMessage(error: unknown): string {
   const responseData = (error as { response?: { data?: unknown } }).response?.data;
   if (typeof responseData === 'object' && responseData !== null) {
@@ -319,6 +462,17 @@ function mapWorkflow(workflow: OperationWorkflowApi): WorkflowItem {
   };
 }
 
+function mapControl(control: OperationControlApi): GovernanceControl {
+  return {
+    id: control.id,
+    name: control.controlName,
+    type: control.controlType,
+    owner: control.ownerRole,
+    status: control.status,
+    lastEvent: control.lastEvent,
+  };
+}
+
 function statusTone(status: OperationalRecord['status'] | WorkflowItem['state']) {
   if (status === 'Blocked' || status === 'Needs Approval') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
   if (status === 'Ready' || status === 'Active' || status === 'Closed') return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
@@ -329,6 +483,26 @@ function statusTone(status: OperationalRecord['status'] | WorkflowItem['state'])
 function riskTone(risk: OperationalRecord['risk']) {
   if (risk === 'High') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
   if (risk === 'Medium') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
+  return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
+}
+
+function controlTone(status: GovernanceControl['status']) {
+  if (status === 'Applied') return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
+  if (status === 'Approved') return 'border-[#6366f1]/25 bg-[#6366f1]/10 text-[#6366f1]';
+  if (status === 'In Review') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
+  return 'border-[#e2e8f0] bg-white text-[#475569]';
+}
+
+function nextControlAction(control: GovernanceControl): { label: string; command: string } | undefined {
+  if (control.status === 'Draft') return { label: 'Submit Review', command: 'submit-review' };
+  if (control.status === 'In Review') return { label: 'Approve', command: 'approve' };
+  if (control.status === 'Approved') return { label: 'Apply', command: 'apply' };
+  return undefined;
+}
+
+function readinessTone(status: ModuleDepthApi['status'] | ModuleDepthCapabilityApi['status']) {
+  if (status === 'Blocked') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
+  if (status === 'Needs Work') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
   return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
 }
 
@@ -400,12 +574,18 @@ export function AdminModuleOperations() {
   const [recordStatus, setRecordStatus] = React.useState('all');
   const [search, setSearch] = React.useState('');
   const [activityLog, setActivityLog] = React.useState<string[]>([]);
+  const [importRows, setImportRows] = React.useState<OperationImportRow[]>([]);
+  const [importPreview, setImportPreview] = React.useState<OperationImportPreview | null>(null);
+  const [importApplyResult, setImportApplyResult] = React.useState<OperationImportApplyResult | null>(null);
 
   React.useEffect(() => {
     if (module) {
       setActivityLog([]);
       setRecordStatus('all');
       setSearch('');
+      setImportRows([]);
+      setImportPreview(null);
+      setImportApplyResult(null);
     }
   }, [module]);
 
@@ -423,11 +603,46 @@ export function AdminModuleOperations() {
     () => (workspaceQuery.data?.workflows ?? []).map((workflow) => mapWorkflow(workflow)),
     [workspaceQuery.data?.workflows],
   );
+  const governanceControls = React.useMemo(
+    () => (workspaceQuery.data?.controls ?? []).map((control) => mapControl(control)),
+    [workspaceQuery.data?.controls],
+  );
+  const moduleDepth = workspaceQuery.data?.moduleDepth;
   const profile = React.useMemo(() => (module ? mergeProfile(module) : null), [module]);
+  const controlBlueprints = React.useMemo(() => {
+    if (!module || !profile) return [];
+    const names = Array.from(new Set([...module.governance, ...profile.sensitiveControls]));
+    return names.map((name) => ({
+      name,
+      type: name.toLowerCase().includes('approval') ? 'Approval control' : 'Policy control',
+    }));
+  }, [module, profile]);
 
   const pushActivity = (message: string) => {
     const timestamp = new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' }).format(new Date());
     setActivityLog((current) => [`${timestamp} - ${message}`, ...current].slice(0, 5));
+  };
+
+  const downloadModuleCsv = async (path: string, filename: string) => {
+    try {
+      const response = await apiClient.get(path, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, filename);
+    } catch (error) {
+      addNotification({ title: 'Download failed', message: mutationErrorMessage(error), type: 'error', read: false });
+    }
+  };
+
+  const handleImportUpload = async (file: File | undefined) => {
+    if (!file) return;
+    const rows = parseOperationsCsv(await file.text());
+    setImportRows(rows);
+    setImportApplyResult(null);
+    importPreviewMutation.mutate(rows);
+  };
+
+  const applyImportedRecords = () => {
+    if (!importPreview?.accepted || importRows.length === 0) return;
+    importApplyMutation.mutate(importRows);
   };
 
   const createRecord = useMutation({
@@ -462,6 +677,50 @@ export function AdminModuleOperations() {
     onError: (error, variables) => {
       pushActivity(`${variables.action} failed: ${mutationErrorMessage(error)}`);
       addNotification({ title: 'Something went wrong', message: `${variables.action} failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
+    },
+  });
+
+  const importPreviewMutation = useMutation({
+    mutationFn: async (rows: OperationImportRow[]) => {
+      if (!module) throw new Error('Module is required');
+      return unwrap<OperationImportPreview>(await apiClient.post(`/admin/module-operations/${module.id}/records/import-preview`, { rows }));
+    },
+    onSuccess: (result) => {
+      setImportPreview(result);
+      setImportApplyResult(null);
+      addNotification({
+        title: result.accepted ? 'Import file validated' : 'Import needs correction',
+        message: result.accepted ? `${result.rowCount} records are ready to apply.` : `${result.errors.length} issue(s) need correction.`,
+        type: result.accepted ? 'success' : 'warning',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Import validation failed', message: mutationErrorMessage(error), type: 'error', read: false });
+    },
+  });
+
+  const importApplyMutation = useMutation({
+    mutationFn: async (rows: OperationImportRow[]) => {
+      if (!module) throw new Error('Module is required');
+      return unwrap<OperationImportApplyResult>(await apiClient.post(`/admin/module-operations/${module.id}/records/import-apply`, { rows }));
+    },
+    onSuccess: (result) => {
+      setImportApplyResult(result);
+      setImportPreview({ accepted: result.accepted, rowCount: result.rowCount, errors: result.errors, events: result.events });
+      if (module) {
+        queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
+      }
+      pushActivity(result.accepted ? `${result.createdCount} records imported` : 'Import apply rejected');
+      addNotification({
+        title: result.accepted ? 'Imported records applied' : 'Import not applied',
+        message: result.accepted ? `${result.createdCount} operational records created.` : `${result.errors.length} issue(s) need correction.`,
+        type: result.accepted ? 'success' : 'warning',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      addNotification({ title: 'Import apply failed', message: mutationErrorMessage(error), type: 'error', read: false });
     },
   });
 
@@ -540,6 +799,85 @@ export function AdminModuleOperations() {
     },
   });
 
+  const syncControls = useMutation({
+    mutationFn: async () => {
+      if (!module) throw new Error('Module is required');
+      const existingNames = new Set(governanceControls.map((control) => control.name));
+      const missingControls = controlBlueprints.filter((control) => !existingNames.has(control.name));
+      return Promise.all(missingControls.map(async (control) => (
+        unwrap<OperationControlApi>(await apiClient.post(`/admin/module-operations/${module.id}/controls`, {
+          controlName: control.name,
+          controlType: control.type,
+          ownerRole: module.personas[0] ?? 'HR Admin',
+          lastEvent: 'Control drafted',
+          payload: {
+            source: 'admin-module-operations',
+            category: module.category,
+            backendRoot: module.backendRoot,
+          },
+        }))
+      )));
+    },
+    onSuccess: (created) => {
+      if (module) {
+        queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
+      }
+      pushActivity(created.length > 0 ? `${created.length} governance controls synced` : 'Governance controls already synced');
+      addNotification({
+        title: 'Governance controls synced',
+        message: created.length > 0 ? `${created.length} controls created for this module.` : 'All expected controls already exist.',
+        type: 'success',
+        read: false,
+      });
+    },
+    onError: (error) => {
+      pushActivity(`Governance control sync failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `Governance control sync failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
+    },
+  });
+
+  const updateControlOwner = useMutation({
+    mutationFn: async (variables: UpdateControlVariables) => {
+      if (!module) throw new Error('Module is required');
+      return unwrap<OperationControlApi>(await apiClient.patch(`/admin/module-operations/${module.id}/controls/${variables.control.id}`, {
+        ownerRole: variables.ownerRole,
+        lastEvent: 'Control owner updated',
+      }));
+    },
+    onSuccess: (_control, variables) => {
+      if (module) {
+        queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
+      }
+      pushActivity(`${variables.control.name} owner updated`);
+      addNotification({ title: 'Control updated', message: `${variables.control.name} owner changed.`, type: 'success', read: false });
+    },
+    onError: (error, variables) => {
+      pushActivity(`${variables.control.name} owner update failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `${variables.control.name} update failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
+    },
+  });
+
+  const advanceControl = useMutation({
+    mutationFn: async (variables: AdvanceControlVariables) => {
+      if (!module) throw new Error('Module is required');
+      const action = nextControlAction(variables.control);
+      if (!action) return undefined;
+      return unwrap<OperationControlApi>(await apiClient.post(`/admin/module-operations/${module.id}/controls/${variables.control.id}/commands/${action.command}`, {}));
+    },
+    onSuccess: (_control, variables) => {
+      if (module) {
+        queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
+      }
+      const action = nextControlAction(variables.control);
+      pushActivity(`${variables.control.name} ${action?.label.toLowerCase() ?? 'updated'}`);
+      addNotification({ title: 'Control advanced', message: `${variables.control.name} moved to the next lifecycle step.`, type: 'success', read: false });
+    },
+    onError: (error, variables) => {
+      pushActivity(`${variables.control.name} lifecycle update failed: ${mutationErrorMessage(error)}`);
+      addNotification({ title: 'Something went wrong', message: `${variables.control.name} lifecycle update failed: ${mutationErrorMessage(error)}`, type: 'error', read: false });
+    },
+  });
+
   if (!module || !profile) {
     return <Navigate to="/admin/modules" replace />;
   }
@@ -556,7 +894,6 @@ export function AdminModuleOperations() {
   const blockedCount = records.filter((record) => record.status === 'Blocked').length;
   const eventTriggers = domainOverrides[module.id]?.eventTriggers ?? profile.eventTriggers ?? defaultEventTriggers;
   const integrationPoints = domainOverrides[module.id]?.integrationPoints ?? profile.integrationPoints ?? defaultIntegrationPoints;
-  const sensitiveControls = profile.sensitiveControls.length > 0 ? profile.sensitiveControls : module.governance;
 
   const advanceFirstQueueItem = () => {
     const [firstWorkflow] = queue;
@@ -719,6 +1056,27 @@ export function AdminModuleOperations() {
                       <SelectItem value="Closed">Closed</SelectItem>
                     </SelectContent>
                   </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadModuleCsv(`/admin/module-operations/${module.id}/records/export.csv`, `${module.id}-records.csv`)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Export
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => downloadModuleCsv(`/admin/module-operations/${module.id}/records/import-template.csv`, `${module.id}-import-template.csv`)}
+                  >
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                    Template
+                  </Button>
+                  <label className="inline-flex cursor-pointer items-center rounded-md border border-input bg-background px-3 py-2 text-sm font-medium shadow-sm hover:bg-accent hover:text-accent-foreground">
+                    <Upload className="mr-2 h-4 w-4" />
+                    Upload CSV
+                    <Input className="hidden" type="file" accept=".csv,text/csv" aria-label="Upload module operation CSV" onChange={(event) => handleImportUpload(event.target.files?.[0])} />
+                  </label>
                 </div>
               </CardHeader>
               <CardContent>
@@ -733,6 +1091,31 @@ export function AdminModuleOperations() {
                   <ErrorState error={workspaceQuery.error} onRetry={() => workspaceQuery.refetch()} />
                 ) : (
                 <>
+                {importPreview ? (
+                  <div className="mb-4 rounded-2xl border border-[#e2e8f0] bg-white/70 p-4 text-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <Badge variant="outline" className={cn('border', importPreview.accepted ? 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]' : 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]')}>
+                        {importApplyResult?.accepted
+                          ? `${importApplyResult.createdCount} records applied`
+                          : importPreview.accepted
+                            ? `${importPreview.rowCount} records validated`
+                            : `${importPreview.errors.length} validation issues`}
+                      </Badge>
+                      {importPreview.accepted && !importApplyResult?.accepted ? (
+                        <Button size="sm" onClick={applyImportedRecords} disabled={importApplyMutation.isPending || importRows.length === 0}>
+                          {importApplyMutation.isPending ? 'Applying...' : 'Apply Imported Records'}
+                        </Button>
+                      ) : null}
+                    </div>
+                    {importPreview.errors.length > 0 ? (
+                      <div className="mt-3 space-y-1 text-[#9f1239]">
+                        {importPreview.errors.slice(0, 6).map((error) => (
+                          <p key={`${error.row}-${error.field}-${error.message}`}>Row {error.row}: {error.field} - {error.message}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -891,18 +1274,69 @@ export function AdminModuleOperations() {
 
           <TabsContent value="governance" className="grid gap-4 xl:grid-cols-3">
             <Card className="xl:col-span-2 border-transparent fusion-glass rounded-2xl">
-              <CardHeader>
-                <CardTitle>Policy Controls</CardTitle>
-                <CardDescription>Controls that keep this module connected to security, approvals, audit, and business rules.</CardDescription>
+              <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
+                <div>
+                  <CardTitle>Governance Controls</CardTitle>
+                  <CardDescription>Create, assign, approve, and apply the controls protecting this module.</CardDescription>
+                </div>
+                <Button type="button" disabled={syncControls.isPending} onClick={() => syncControls.mutate()}>
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                  Sync Controls
+                </Button>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
-                {[...new Set([...module.governance, ...sensitiveControls])].map((control) => (
-                  <div key={control} className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-                    <LockKeyhole className="mb-3 h-5 w-5 text-[#4f46e5]" />
-                    <p className="font-semibold text-[#0f172a]">{control}</p>
-                    <p className="mt-1 text-sm leading-5 text-[#475569]">Linked to access control, allowed actions, and audit evidence for this domain.</p>
+              <CardContent className="space-y-4">
+                {governanceControls.length === 0 ? (
+                  <EmptyState label="No governance controls are active for this module yet. Sync controls to start the review and apply flow." />
+                ) : (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {governanceControls.map((control) => {
+                      const action = nextControlAction(control);
+                      return (
+                        <div key={control.id} className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <LockKeyhole className="mb-3 h-5 w-5 text-[#4f46e5]" />
+                              <p className="font-semibold text-[#0f172a]">{control.name}</p>
+                              <p className="mt-1 text-sm leading-5 text-[#475569]">{control.type}</p>
+                            </div>
+                            <Badge variant="outline" className={cn('border', controlTone(control.status))}>
+                              {control.status}
+                            </Badge>
+                          </div>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                            <div>
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Owner</p>
+                              <Select
+                                value={control.owner}
+                                onValueChange={(ownerRole) => updateControlOwner.mutate({ control, ownerRole })}
+                                disabled={updateControlOwner.isPending || control.status === 'Applied'}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Owner" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {module.personas.map((persona) => (
+                                    <SelectItem key={persona} value={persona}>{persona}</SelectItem>
+                                  ))}
+                                  <SelectItem value="HR Admin">HR Admin</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant={action?.command === 'apply' ? 'default' : 'outline'}
+                              disabled={!action || advanceControl.isPending}
+                              onClick={() => advanceControl.mutate({ control })}
+                            >
+                              {action?.label ?? 'Applied'}
+                            </Button>
+                          </div>
+                          <p className="mt-3 text-xs text-[#64748b]">{control.lastEvent}</p>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </CardContent>
             </Card>
 
@@ -924,6 +1358,79 @@ export function AdminModuleOperations() {
           </TabsContent>
 
           <TabsContent value="wiring" className="grid gap-4 xl:grid-cols-2">
+            <Card className="xl:col-span-2 border-transparent fusion-glass rounded-2xl">
+              <CardHeader className="gap-3 lg:flex-row lg:items-center lg:justify-between lg:space-y-0">
+                <div>
+                  <CardTitle>Module Readiness</CardTitle>
+                  <CardDescription>Records, workflows, ownership, native links, and open risks from the live operations workspace.</CardDescription>
+                </div>
+                {moduleDepth ? (
+                  <div className="flex items-center gap-3">
+                    <Badge variant="outline" className={cn('border px-3 py-1', readinessTone(moduleDepth.status))}>
+                      {moduleDepth.status}
+                    </Badge>
+                    <div className="text-right">
+                      <p className="lumina-label">Readiness</p>
+                      <p className="font-headline text-2xl font-bold text-[#0f172a]">{moduleDepth.score}%</p>
+                    </div>
+                  </div>
+                ) : null}
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {workspaceQuery.isLoading ? (
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-24 w-full" />
+                  </div>
+                ) : moduleDepth ? (
+                  <>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                      {moduleDepth.capabilities.map((capability) => (
+                        <div key={capability.code} className="rounded-lg border border-[#e2e8f0]/70 bg-white/70 p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-[#0f172a]">{capability.label}</p>
+                            <Badge variant="outline" className={cn('border', readinessTone(capability.status))}>
+                              {capability.status}
+                            </Badge>
+                          </div>
+                          <p className="mt-3 text-sm leading-5 text-[#475569]">{capability.evidence}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {moduleDepth.blockers.length > 0 || moduleDepth.nextActions.length > 0 ? (
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                          <p className="font-semibold text-[#0f172a]">Blockers</p>
+                          {moduleDepth.blockers.length > 0 ? (
+                            <ul className="mt-3 space-y-2 text-sm text-[#475569]">
+                              {moduleDepth.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+                            </ul>
+                          ) : (
+                            <p className="mt-3 text-sm text-[#475569]">No hard blockers are open.</p>
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                          <p className="font-semibold text-[#0f172a]">Next Actions</p>
+                          {moduleDepth.nextActions.length > 0 ? (
+                            <ul className="mt-3 space-y-2 text-sm text-[#475569]">
+                              {moduleDepth.nextActions.map((action) => <li key={action}>{action}</li>)}
+                            </ul>
+                          ) : (
+                            <p className="mt-3 text-sm text-[#475569]">This module is ready for the next workflow smoke.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <EmptyState label="Module readiness has not been returned yet. Refresh the workspace after syncing records or workflows." />
+                )}
+              </CardContent>
+            </Card>
+
             <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
                 <CardTitle>Integration Map</CardTitle>

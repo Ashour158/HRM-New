@@ -57,6 +57,9 @@ type ClockLocationPayload = {
   trustReasons?: string[];
 };
 
+type AttendancePeriodViewRange = 'DAILY' | 'MONTHLY' | 'NINETY_DAYS' | 'WEEKLY';
+type AttendancePeriodViewScope = 'SELF' | 'TEAM' | 'TENANT';
+
 function parseClockLocation(value?: string): ClockLocationPayload {
   if (!value) return {};
   try {
@@ -78,6 +81,20 @@ function enumerateDateKeys(periodStart: string, periodEnd: string): string[] {
     days.push(dateKey(cursor));
   }
   return days;
+}
+
+function dateOnlyUtc(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function monthStartUtc(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
 function csvCell(value: string | number | boolean | null | undefined): string {
@@ -383,6 +400,61 @@ export class TimeAttendanceController {
       throw new BadRequestException('periodStart must be before or equal to periodEnd');
     }
     return { periodStart, periodEnd, year, month };
+  }
+
+  private resolveAttendanceViewPeriod(rangeValue?: string, dateValue?: string): {
+    periodStart: string;
+    periodEnd: string;
+    range: AttendancePeriodViewRange;
+  } {
+    const range = (rangeValue ?? 'WEEKLY').toUpperCase() as AttendancePeriodViewRange;
+    if (!['DAILY', 'WEEKLY', 'MONTHLY', 'NINETY_DAYS'].includes(range)) {
+      throw new BadRequestException('range must be DAILY, WEEKLY, MONTHLY, or NINETY_DAYS');
+    }
+
+    const anchor = dateValue ? new Date(`${dateValue}T00:00:00.000Z`) : new Date();
+    if (Number.isNaN(anchor.getTime())) throw new BadRequestException('date must be a valid YYYY-MM-DD value');
+    const periodEnd = dateOnlyUtc(anchor);
+    const periodStart = range === 'DAILY'
+      ? periodEnd
+      : range === 'WEEKLY'
+        ? dateOnlyUtc(addUtcDays(anchor, -6))
+        : range === 'MONTHLY'
+          ? dateOnlyUtc(monthStartUtc(anchor))
+          : dateOnlyUtc(addUtcDays(anchor, -89));
+    return { periodStart, periodEnd, range };
+  }
+
+  private resolveAttendanceViewScope(scopeValue?: string): AttendancePeriodViewScope {
+    const scope = (scopeValue ?? 'SELF').toUpperCase() as AttendancePeriodViewScope;
+    if (!['SELF', 'TEAM', 'TENANT'].includes(scope)) {
+      throw new BadRequestException('scope must be SELF, TEAM, or TENANT');
+    }
+    return scope;
+  }
+
+  private async scopedAttendanceViewFilters(
+    req: Request,
+    scope: AttendancePeriodViewScope,
+    date: string,
+    filters: { managerId?: string; workerId?: string; workplaceCode?: string },
+  ) {
+    if (scope === 'TENANT') {
+      if (!this.hasAttendanceAdminScope(req)) throw new ForbiddenException('Only HR or payroll administrators can view tenant attendance');
+      return { date, workplaceCode: filters.workplaceCode };
+    }
+
+    if (scope === 'TEAM') {
+      if (!this.hasAttendanceAdminScope(req) && !this.hasManagerScope(req)) {
+        throw new ForbiddenException('Only managers, HR, or payroll administrators can view team attendance');
+      }
+      return this.scopedLedgerFilters(req, { date, managerId: filters.managerId, workplaceCode: filters.workplaceCode });
+    }
+
+    const workerId = filters.workerId ?? await this.resolveSelfWorkerId(req);
+    if (!workerId) throw new ForbiddenException('No employee profile is linked to the authenticated user');
+    await this.assertCanAccessWorker(req, workerId, { managerAllowed: true });
+    return { date, workerId, workplaceCode: filters.workplaceCode };
   }
 
   private async buildPeriodCloseContext(
@@ -798,6 +870,34 @@ export class TimeAttendanceController {
       workDate: ledger.workDate,
       reminders: this.reminderService.buildReminders({ ledger, policy: setup.attendancePolicy }),
     };
+  }
+
+  @Get('reports/period-view')
+  async getAttendancePeriodView(
+    @Query('range') rangeValue: string | undefined,
+    @Query('scope') scopeValue: string | undefined,
+    @Query('date') dateValue: string | undefined,
+    @Query('workerId') workerId: string | undefined,
+    @Query('managerId') managerId: string | undefined,
+    @Query('workplaceCode') workplaceCode: string | undefined,
+    @Req() req: Request,
+  ) {
+    const tenantId = this.getTenantId(req);
+    const period = this.resolveAttendanceViewPeriod(rangeValue, dateValue);
+    const scope = this.resolveAttendanceViewScope(scopeValue);
+    const days = enumerateDateKeys(period.periodStart, period.periodEnd);
+    const ledgers = await Promise.all(days.map(async (date) => {
+      const filters = await this.scopedAttendanceViewFilters(req, scope, date, { managerId, workerId, workplaceCode });
+      return this.attendanceLedgerBuilder.buildDailyLedger(tenantId, filters);
+    }));
+
+    return this.reportingService.buildPeriodView({
+      periodStart: period.periodStart,
+      periodEnd: period.periodEnd,
+      range: period.range,
+      scope,
+      ledgers,
+    });
   }
 
   @Get('reports/summary')
