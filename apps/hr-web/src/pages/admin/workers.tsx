@@ -300,7 +300,7 @@ export function AdminWorkers() {
           <div>
             <h3 className="font-semibold text-slate-900">Employee Data Migration</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Upload CSV files using the downloadable template. Validation checks create/update rows, email uniqueness, salary, and currency before changes are accepted.
+              Upload CSV files using the downloadable template. Validation checks create/update rows, hierarchy assignment, email uniqueness, salary, and currency before changes are accepted.
             </p>
           </div>
           <Badge variant={uploadPreview?.accepted ? 'default' : uploadPreview ? 'destructive' : 'secondary'}>
@@ -318,7 +318,7 @@ export function AdminWorkers() {
           </div>
           <div className="rounded-xl bg-slate-50 p-3">
             <p className="font-medium text-slate-900">Template columns</p>
-            <p className="mt-1">name, email, phone, department, job title, work location, salary, currency.</p>
+            <p className="mt-1">name, email, phone, entity, department, manager employee ID, job title, work location, salary, currency.</p>
           </div>
         </div>
       </section>

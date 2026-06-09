@@ -73,6 +73,9 @@ export interface EmployeeMassUpdateRow {
   phoneNumber?: string;
   workPhoneNumber?: string;
   department?: string;
+  legalEntityId?: string;
+  departmentId?: string;
+  managerEmployeeId?: string;
   jobTitle?: string;
   workLocationCode?: string;
   grossSalary?: number;

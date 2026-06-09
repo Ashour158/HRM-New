@@ -52,6 +52,9 @@ type EmployeeMassUpdateRow = {
   phoneNumber?: string;
   workPhoneNumber?: string;
   department?: string;
+  legalEntityId?: string;
+  departmentId?: string;
+  managerEmployeeId?: string;
   jobTitle?: string;
   workLocationCode?: string;
   grossSalary?: number;
@@ -65,6 +68,7 @@ type EmployeeMassUpdateValidationResult = {
   rowCount: number;
   rows: EmployeeMassUpdateRow[];
   workersByEmployeeId: Map<string, WorkerProfile>;
+  managersByEmployeeId: Map<string, WorkerProfile>;
   createEmployeeIds: Set<string>;
   updateEmployeeIds: Set<string>;
   errors: EmployeeMassUpdateValidationError[];
@@ -588,6 +592,9 @@ export class HrCoreController {
       phoneNumber: '+201000000000',
       workPhoneNumber: '+202000000000',
       department: 'FINANCE',
+      legalEntityId: '22222222-2222-4222-8222-222222222222',
+      departmentId: '33333333-3333-4333-8333-333333333333',
+      managerEmployeeId: 'MGR-001',
       jobTitle: 'PAYROLL_SPECIALIST',
       workLocationCode: 'CAIRO_HQ',
       grossSalary: 10000,
@@ -639,6 +646,7 @@ export class HrCoreController {
     for (const row of validation.rows) {
       const employeeId = row.employeeId!;
       const worker = validation.workersByEmployeeId.get(employeeId);
+      const manager = validation.managersByEmployeeId.get(employeeId);
       if (!worker) {
         const commandResult = await this.executeCommand(this.buildCommand('CreateWorker', 'WorkerProfile', {
           workerId: Uuid.generate().value,
@@ -650,6 +658,9 @@ export class HrCoreController {
           phoneNumber: row.phoneNumber,
           workPhoneNumber: row.workPhoneNumber,
           departmentName: row.department,
+          legalEntityId: row.legalEntityId,
+          departmentId: row.departmentId,
+          managerId: manager?.id.value,
           jobTitle: row.jobTitle,
           workLocation: this.hasMassUpdateValue(row.workLocationCode) ? { code: row.workLocationCode } : undefined,
           salaryAmount: row.grossSalary,
@@ -713,6 +724,18 @@ export class HrCoreController {
         organizationAssignment.jobTitle = row.jobTitle;
         updatedFields.push('jobTitle');
       }
+      if (this.hasMassUpdateValue(row.legalEntityId)) {
+        organizationAssignment.legalEntityId = row.legalEntityId;
+        updatedFields.push('legalEntityId');
+      }
+      if (this.hasMassUpdateValue(row.departmentId)) {
+        organizationAssignment.departmentId = row.departmentId;
+        updatedFields.push('departmentId');
+      }
+      if (manager) {
+        organizationAssignment.managerId = manager.id.value;
+        updatedFields.push('managerEmployeeId');
+      }
 
       const uniqueUpdatedFields = Array.from(new Set(updatedFields));
       await this.executeCommand(this.buildCommand('ApplyWorkerMassUpdate', 'WorkerProfile', {
@@ -753,6 +776,7 @@ export class HrCoreController {
     const seenEmails = new Set<string>();
     const errors: EmployeeMassUpdateValidationError[] = [];
     const workersByEmployeeId = new Map<string, WorkerProfile>();
+    const managersByEmployeeId = new Map<string, WorkerProfile>();
     const createEmployeeIds = new Set<string>();
     const updateEmployeeIds = new Set<string>();
 
@@ -773,6 +797,24 @@ export class HrCoreController {
           if (!row.firstName) errors.push({ row: index + 1, field: 'firstName', message: 'First name is required for new employees' });
           if (!row.lastName) errors.push({ row: index + 1, field: 'lastName', message: 'Last name is required for new employees' });
           if (!row.workEmail) errors.push({ row: index + 1, field: 'workEmail', message: 'Work email is required for new employees' });
+        }
+      }
+      for (const field of ['legalEntityId', 'departmentId'] as const) {
+        const value = row[field];
+        if (value && !Uuid.isValid(value)) {
+          errors.push({ row: index + 1, field, message: `${field} must be a valid UUID` });
+        }
+      }
+      if (row.managerEmployeeId) {
+        if (row.managerEmployeeId === row.employeeId) {
+          errors.push({ row: index + 1, field: 'managerEmployeeId', message: 'Manager cannot be the same employee' });
+        } else {
+          const manager = await this.workerRepo.findByEmployeeNumberForTenant(row.managerEmployeeId, tenantId);
+          if (!manager) {
+            errors.push({ row: index + 1, field: 'managerEmployeeId', message: 'Manager employee ID was not found' });
+          } else if (row.employeeId) {
+            managersByEmployeeId.set(row.employeeId, manager);
+          }
         }
       }
       for (const [field, email] of [
@@ -800,6 +842,7 @@ export class HrCoreController {
       rowCount: rows.length,
       rows,
       workersByEmployeeId,
+      managersByEmployeeId,
       createEmployeeIds,
       updateEmployeeIds,
       errors,
@@ -826,6 +869,9 @@ export class HrCoreController {
       phoneNumber: normalizeString(row.phoneNumber),
       workPhoneNumber: normalizeString(row.workPhoneNumber),
       department: normalizeString(row.department),
+      legalEntityId: normalizeString(row.legalEntityId)?.toLowerCase(),
+      departmentId: normalizeString(row.departmentId)?.toLowerCase(),
+      managerEmployeeId: normalizeString(row.managerEmployeeId),
       jobTitle: normalizeString(row.jobTitle),
       workLocationCode: normalizeString(row.workLocationCode),
       grossSalary,
@@ -842,6 +888,9 @@ export class HrCoreController {
       'phoneNumber',
       'workPhoneNumber',
       'department',
+      'legalEntityId',
+      'departmentId',
+      'managerEmployeeId',
       'jobTitle',
       'workLocationCode',
       'grossSalary',
