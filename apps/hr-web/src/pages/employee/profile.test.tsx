@@ -191,4 +191,26 @@ describe('EmployeeProfile', () => {
       type: 'success',
     }));
   });
+
+  it('opens an employee document request from the documents tab', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({ caseNumber: 'HR-20260609-DCBA4321' });
+    useApiMutationMock.mockReturnValue({ mutateAsync, isPending: false });
+    render(<EmployeeProfile />);
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+    await userEvent.selectOptions(screen.getByLabelText('Document type'), 'PASSPORT');
+    await userEvent.type(screen.getByLabelText('Document details'), 'I need to upload a renewed passport expiring in July.');
+    await userEvent.click(screen.getByRole('button', { name: 'Submit document request' }));
+
+    expect(mutateAsync).toHaveBeenCalledWith({
+      caseType: 'EMPLOYEE_DOCUMENT_UPDATE',
+      priority: 'MEDIUM',
+      description: expect.stringContaining('Passport'),
+    });
+    expect(mutateAsync.mock.calls[0][0].description).toContain('renewed passport');
+    expect(addNotificationMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Document request submitted',
+      type: 'success',
+    }));
+  });
 });
