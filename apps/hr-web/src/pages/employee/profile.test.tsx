@@ -4,9 +4,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmployeeProfile } from './profile';
 
 const useApiQueryMock = vi.fn();
+const useApiMutationMock = vi.fn();
+const addNotificationMock = vi.fn();
 
 vi.mock('@/hooks/use-api', () => ({
   useApiQuery: (...args: unknown[]) => useApiQueryMock(...args),
+  useApiMutation: (...args: unknown[]) => useApiMutationMock(...args),
+}));
+
+vi.mock('@/stores/ui-store', () => ({
+  useUIStore: (selector: (state: { addNotification: typeof addNotificationMock }) => unknown) => selector({ addNotification: addNotificationMock }),
 }));
 
 vi.mock('@/hooks/use-field-access', () => ({
@@ -77,6 +84,11 @@ const performanceImpact = {
 
 describe('EmployeeProfile', () => {
   beforeEach(() => {
+    addNotificationMock.mockReset();
+    useApiMutationMock.mockReturnValue({
+      mutateAsync: vi.fn().mockResolvedValue({ caseNumber: 'HR-20260609-ABCD1234' }),
+      isPending: false,
+    });
     useApiQueryMock.mockImplementation((queryKey: unknown) => {
       const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
       if (key === 'employee-profile') {
@@ -152,5 +164,31 @@ describe('EmployeeProfile', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'Performance' }));
 
     expect(screen.getByText('Performance data could not be loaded')).toBeInTheDocument();
+  });
+
+  it('opens a profile data change service case from self service', async () => {
+    const mutateAsync = vi.fn().mockResolvedValue({ caseNumber: 'HR-20260609-ABCD1234' });
+    useApiMutationMock.mockReturnValue({ mutateAsync, isPending: false });
+    render(<EmployeeProfile />);
+
+    await userEvent.selectOptions(screen.getByLabelText('What needs changing'), 'PHONE');
+    await userEvent.type(screen.getByLabelText('Details'), 'Please update my mobile number to +20 100 000 0000.');
+    await userEvent.click(screen.getByRole('button', { name: 'Submit change request' }));
+
+    expect(useApiMutationMock).toHaveBeenCalledWith(
+      '/hr-service-delivery/cases',
+      'post',
+      [['employee-services-cases']],
+    );
+    expect(mutateAsync).toHaveBeenCalledWith({
+      caseType: 'PROFILE_DATA_CHANGE',
+      priority: 'MEDIUM',
+      description: expect.stringContaining('Phone'),
+    });
+    expect(mutateAsync.mock.calls[0][0].description).toContain('Please update my mobile number');
+    expect(addNotificationMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Profile change requested',
+      type: 'success',
+    }));
   });
 });

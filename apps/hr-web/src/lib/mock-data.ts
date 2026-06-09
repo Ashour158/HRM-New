@@ -620,7 +620,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     { id: 'ci3', title: 'Report IT Equipment Issue', category: 'IT Support', sla: '4 hours' },
     { id: 'ci4', title: 'Request Salary Certificate', category: 'Payroll', sla: '3 business days' },
   ]),
-  'POST /hr-service-delivery/cases': () => ok({ id: 'case-new' }),
+  'POST /hr-service-delivery/cases': () => ok({ id: 'case-new', caseNumber: 'HR-20260609-ABCD1234' }),
 
   // ── Compliance ────────────────────────────────────────────────────────────
   'GET /compliance/summary': () => ok({
