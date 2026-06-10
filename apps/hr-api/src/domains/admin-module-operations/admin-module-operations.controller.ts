@@ -27,7 +27,7 @@ import {
   type OperationRisk,
   type OperationWorkflowState,
 } from './admin-module-operations.repository.js';
-import { NativeModuleOperationAdapterService } from './native-module-operation-adapter.service.js';
+import { NativeModuleOperationAdapterService, type NativeOperationAction } from './native-module-operation-adapter.service.js';
 
 type CreateRecordDto = {
   objectType?: string;
@@ -39,7 +39,9 @@ type CreateRecordDto = {
   payload?: unknown;
 };
 
-type UpdateRecordDto = Partial<CreateRecordDto>;
+type UpdateRecordDto = Partial<CreateRecordDto> & {
+  operationAction?: NativeOperationAction;
+};
 
 type CreateWorkflowDto = {
   workflowName?: string;
@@ -165,6 +167,7 @@ const RECORD_STATUSES: OperationRecordStatus[] = ['Draft', 'Active', 'In Review'
 const RISKS: OperationRisk[] = ['Low', 'Medium', 'High'];
 const WORKFLOW_STATES: OperationWorkflowState[] = ['Queued', 'In Progress', 'Needs Approval', 'Ready'];
 const CONTROL_STATUSES: OperationControlStatus[] = ['Draft', 'In Review', 'Approved', 'Applied'];
+const NATIVE_OPERATION_ACTIONS: NativeOperationAction[] = ['advance', 'approve', 'process', 'terminate', 'reject'];
 
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -397,17 +400,28 @@ export class AdminModuleOperationsController {
         throw new BadRequestException('Native operation records can only be advanced by status through this workspace');
       }
       const status = optionalEnum(dto.status, RECORD_STATUSES, 'status');
+      const operationAction = optionalEnum(dto.operationAction, NATIVE_OPERATION_ACTIONS, 'operationAction');
       if (!existingRecord.native_source || !existingRecord.native_record_id || !status) {
         throw new BadRequestException('Native operation record is missing source linkage');
       }
-      const applied = await this.nativeAdapter.applyRecordStatusUpdate(
-        tenantId,
-        moduleId,
-        existingRecord.native_source,
-        existingRecord.native_record_id,
-        status,
-        req.actor,
-      );
+      const applied = operationAction === undefined
+        ? await this.nativeAdapter.applyRecordStatusUpdate(
+          tenantId,
+          moduleId,
+          existingRecord.native_source,
+          existingRecord.native_record_id,
+          status,
+          req.actor,
+        )
+        : await this.nativeAdapter.applyRecordStatusUpdate(
+          tenantId,
+          moduleId,
+          existingRecord.native_source,
+          existingRecord.native_record_id,
+          status,
+          req.actor,
+          operationAction,
+        );
       if (!applied) {
         throw new BadRequestException('Native operation status cannot be updated through this workspace for this source');
       }

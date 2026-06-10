@@ -27,6 +27,7 @@ import { ActivateCalculatedFieldHandler } from './commands/activate-calculated-f
 import { DeprecateCalculatedFieldHandler } from './commands/deprecate-calculated-field.handler.js';
 import { ReportingEventsPublisher } from './events/reporting-events.publisher.js';
 import { ServiceUsageReportingService } from './services/service-usage-reporting.service.js';
+import { HrAnalyticsReportingService } from './services/hr-analytics-reporting.service.js';
 
 @Module({
   imports: [PlatformModule],
@@ -38,8 +39,8 @@ import { ServiceUsageReportingService } from './services/service-usage-reporting
     CreateReportExecutionHandler, QueueReportExecutionHandler, StartReportExecutionHandler, CompleteReportExecutionHandler, FailReportExecutionHandler, CancelReportExecutionHandler,
     CreateReportScheduleHandler, ActivateReportScheduleHandler, PauseReportScheduleHandler, ExpireReportScheduleHandler,
     CreateCalculatedFieldHandler, ActivateCalculatedFieldHandler, DeprecateCalculatedFieldHandler,
-    ReportingEventsPublisher, ServiceUsageReportingService,
+    ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService,
   ],
-  exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService],
+  exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService, HrAnalyticsReportingService],
 })
 export class ReportingModule {}

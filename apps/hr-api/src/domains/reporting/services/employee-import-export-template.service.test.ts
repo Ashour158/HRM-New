@@ -73,6 +73,7 @@ describe('employee import/export reporting templates', () => {
         outbox: { pendingEvents: 2, exhaustedEvents: 0 },
         inbox: { inProgressEvents: 0, failedRetryableEvents: 0, failedNonRetryableEvents: 0, skippedEvents: 0 },
       },
+      catalog: [],
     };
 
     const csv = buildHrDashboardExportCsv(dashboard);
@@ -83,7 +84,17 @@ describe('employee import/export reporting templates', () => {
   });
 
   it('renders accepted import templates for every major HR module', () => {
-    expect(migrationTemplateModules).toEqual(['employees', 'attendance', 'leave', 'payroll', 'performance', 'benefits']);
+    expect(migrationTemplateModules).toEqual([
+      'employees',
+      'attendance',
+      'leave',
+      'payroll',
+      'performance',
+      'benefits',
+      'headcount-org',
+      'compliance',
+      'services',
+    ]);
 
     for (const module of migrationTemplateModules) {
       const csv = buildModuleImportTemplateCsv(module);
@@ -97,6 +108,9 @@ describe('employee import/export reporting templates', () => {
     expect(buildModuleImportTemplateCsv('payroll')).toContain('salaryComponentCode,componentType,amount,currency,taxTreatment,insuranceTreatment');
     expect(buildModuleImportTemplateCsv('performance')).toContain('cycleCode,revieweeEmployeeNumber,reviewerEmployeeNumber,relationshipType');
     expect(buildModuleImportTemplateCsv('benefits')).toContain('benefitsProgramCode,planCode,enrollmentWindowCode,coverageTier,dependentCount,lifeEventCode');
+    expect(buildModuleImportTemplateCsv('headcount-org')).toContain('positionCode,title,departmentCode,legalEntityCode,jobFamily,jobLevel');
+    expect(buildModuleImportTemplateCsv('compliance')).toContain('policyCode,documentType,version,effectiveFrom,acknowledgementDueDate');
+    expect(buildModuleImportTemplateCsv('services')).toContain('serviceCode,serviceName,serviceType,category,slaHours');
   });
 
   it('renders a migration manifest that points admins to each module template', () => {
@@ -106,5 +120,8 @@ describe('employee import/export reporting templates', () => {
     expect(csv).toContain('employees,Employee master data,https://hcm.example/api/v1/reporting/module-import-template.csv?module=employees');
     expect(csv).toContain('attendance,Attendance ledger,https://hcm.example/api/v1/reporting/module-import-template.csv?module=attendance');
     expect(csv).toContain('benefits,Benefits enrollments,https://hcm.example/api/v1/reporting/module-import-template.csv?module=benefits');
+    expect(csv).toContain('headcount-org,Headcount and organization,https://hcm.example/api/v1/reporting/module-import-template.csv?module=headcount-org');
+    expect(csv).toContain('compliance,Compliance evidence,https://hcm.example/api/v1/reporting/module-import-template.csv?module=compliance');
+    expect(csv).toContain('services,HR services,https://hcm.example/api/v1/reporting/module-import-template.csv?module=services');
   });
 });

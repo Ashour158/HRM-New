@@ -17,11 +17,41 @@ function request() {
   } as never;
 }
 
+function requestWithRoles(roles: string[]) {
+  return {
+    tenantId: '00000000-0000-0000-0000-000000000001',
+    actor: {
+      actorType: 'USER',
+      actorId: new Uuid('00000000-0000-0000-0000-000000000101'),
+      roles,
+      permissions: [],
+      mfaAuthenticated: true,
+      email: 'user@example.com',
+    },
+  } as never;
+}
+
 function response() {
   return {
     setHeader: vi.fn(),
     send: vi.fn(),
   };
+}
+
+function controller(
+  serviceUsage: ServiceUsageReportingService = {} as ServiceUsageReportingService,
+  analyticsReporting = {} as never,
+  reportDefinitionRepo = {} as never,
+) {
+  return new ReportingController(
+    {} as never,
+    reportDefinitionRepo,
+    {} as never,
+    {} as never,
+    {} as never,
+    serviceUsage,
+    analyticsReporting,
+  );
 }
 
 describe('ReportingController service usage surface', () => {
@@ -32,16 +62,9 @@ describe('ReportingController service usage surface', () => {
         services: [],
       }),
     } as unknown as ServiceUsageReportingService;
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      serviceUsage,
-    );
+    const reporting = controller(serviceUsage);
 
-    await expect(controller.getServiceUsageSummary(
+    await expect(reporting.getServiceUsageSummary(
       request(),
       '2026-06-01T00:00:00.000Z',
       '2026-06-03T23:59:59.999Z',
@@ -62,16 +85,9 @@ describe('ReportingController service usage surface', () => {
         services: [{ module: 'leave', actionCount: 2 }],
       }),
     } as unknown as ServiceUsageReportingService;
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      serviceUsage,
-    );
+    const reporting = controller(serviceUsage);
 
-    await expect(controller.getServiceUsage(
+    await expect(reporting.getServiceUsage(
       request(),
       '2026-06-01T00:00:00.000Z',
       undefined,
@@ -92,16 +108,9 @@ describe('ReportingController service usage surface', () => {
         reports: [{ code: 'ATTENDANCE', title: 'Attendance Report' }],
       }),
     } as unknown as ServiceUsageReportingService;
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      serviceUsage,
-    );
+    const reporting = controller(serviceUsage);
 
-    await expect(controller.getHrDashboard(
+    await expect(reporting.getHrDashboard(
       request(),
       '2026-06-01T00:00:00.000Z',
       '2026-06-03T23:59:59.999Z',
@@ -115,18 +124,59 @@ describe('ReportingController service usage surface', () => {
     });
   });
 
-  it('downloads an employee import template for reporting admins', async () => {
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as ServiceUsageReportingService,
+  it('returns the HR analytics dashboard for the authenticated tenant', async () => {
+    const analyticsReporting = {
+      getDashboard: vi.fn().mockResolvedValue({
+        tenantId: '00000000-0000-0000-0000-000000000001',
+        modules: [{ code: 'PAYROLL', title: 'Payroll Net Pay' }],
+      }),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, analyticsReporting as never);
+
+    await expect(reporting.getHrAnalyticsDashboard(
+      request(),
+      { from: '2026-06-01T00:00:00.000Z', to: '2026-06-03T23:59:59.999Z' },
+    )).resolves.toEqual({
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      modules: [{ code: 'PAYROLL', title: 'Payroll Net Pay' }],
+    });
+    expect(analyticsReporting.getDashboard).toHaveBeenCalledWith(new Uuid('00000000-0000-0000-0000-000000000001'), {
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: new Date('2026-06-03T23:59:59.999Z'),
+    });
+  });
+
+  it('lists report definitions through tenant-scoped reads for reporting admins', async () => {
+    const reportDefinitionRepo = {
+      findByStatusForTenant: vi.fn().mockResolvedValue([{ id: 'report-1' }]),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, reportDefinitionRepo as never);
+
+    await expect(reporting.listReportDefinitions(request(), 'PUBLISHED')).resolves.toEqual([{ id: 'report-1' }]);
+
+    expect(reportDefinitionRepo.findByStatusForTenant).toHaveBeenCalledWith(
+      'PUBLISHED',
+      new Uuid('00000000-0000-0000-0000-000000000001'),
     );
+  });
+
+  it('blocks report definition reads for non-reporting roles', async () => {
+    const reportDefinitionRepo = {
+      findByStatusForTenant: vi.fn(),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, reportDefinitionRepo as never);
+
+    await expect(reporting.listReportDefinitions(requestWithRoles(['EMPLOYEE']), 'PUBLISHED')).rejects.toThrow(
+      'Only reporting administrators can access service usage reporting',
+    );
+    expect(reportDefinitionRepo.findByStatusForTenant).not.toHaveBeenCalled();
+  });
+
+  it('downloads an employee import template for reporting admins', async () => {
+    const reporting = controller();
     const res = response();
 
-    await controller.getEmployeeImportTemplate(request(), res as never);
+    await reporting.getEmployeeImportTemplate(request(), res as never);
 
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
     expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="employee-import-template.csv"');
@@ -135,17 +185,10 @@ describe('ReportingController service usage surface', () => {
   });
 
   it('downloads a module import template for major module migrations', async () => {
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as ServiceUsageReportingService,
-    );
+    const reporting = controller();
     const res = response();
 
-    await controller.getModuleImportTemplate(request(), res as never, 'payroll');
+    await reporting.getModuleImportTemplate(request(), res as never, 'payroll');
 
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
     expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="payroll-import-template.csv"');
@@ -153,30 +196,16 @@ describe('ReportingController service usage surface', () => {
   });
 
   it('rejects unknown module import templates', async () => {
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as ServiceUsageReportingService,
-    );
+    const reporting = controller();
 
-    await expect(controller.getModuleImportTemplate(request(), response() as never, 'unknown')).rejects.toThrow('Unknown migration module');
+    await expect(reporting.getModuleImportTemplate(request(), response() as never, 'unknown')).rejects.toThrow('Unknown migration module');
   });
 
   it('downloads the module migration manifest', async () => {
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as ServiceUsageReportingService,
-    );
+    const reporting = controller();
     const res = response();
 
-    await controller.exportMigrationManifestCsv(request(), res as never);
+    await reporting.exportMigrationManifestCsv(request(), res as never);
 
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
     expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="hr-migration-manifest.csv"');
@@ -212,17 +241,10 @@ describe('ReportingController service usage surface', () => {
         },
       }),
     } as unknown as ServiceUsageReportingService;
-    const controller = new ReportingController(
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      serviceUsage,
-    );
+    const reporting = controller(serviceUsage);
     const res = response();
 
-    await controller.exportHrDashboardCsv(request(), res as never, '2026-06-01T00:00:00.000Z');
+    await reporting.exportHrDashboardCsv(request(), res as never, '2026-06-01T00:00:00.000Z');
 
     expect(serviceUsage.getHrDashboard).toHaveBeenCalledWith(new Uuid('00000000-0000-0000-0000-000000000001'), {
       from: new Date('2026-06-01T00:00:00.000Z'),

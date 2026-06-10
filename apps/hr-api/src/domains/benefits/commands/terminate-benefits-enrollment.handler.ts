@@ -4,17 +4,13 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { BenefitsEnrollmentRepository } from '../repositories/benefits-enrollment.repository.js';
-import { BenefitsEnrollment, type DependentEntry } from '../aggregates/benefits-enrollment.aggregate.js';
 import { BenefitsEnrollmentFsm } from '../fsm/benefits-enrollment.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
-/**
- * Command handler for creating a new BenefitsEnrollment.
- */
 @Injectable()
-@CommandHandler('CreateBenefitsEnrollment')
-export class CreateBenefitsEnrollmentHandler implements ICommandHandler {
-  commandName = 'CreateBenefitsEnrollment' as const;
+@CommandHandler('TerminateBenefitsEnrollment')
+export class TerminateBenefitsEnrollmentHandler implements ICommandHandler {
+  commandName = 'TerminateBenefitsEnrollment' as const;
 
   constructor(
     private readonly repo: BenefitsEnrollmentRepository,
@@ -23,27 +19,11 @@ export class CreateBenefitsEnrollmentHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as {
-      enrollmentId: Uuid;
-      workerId: Uuid;
-      programId: Uuid;
-      coverageLevel: string;
-      dependents: DependentEntry[];
-      effectiveDate: Date;
-    };
+    const payload = command.payload as { enrollmentId: Uuid; reason?: string };
+    const enrollment = await this.repo.findById(payload.enrollmentId);
+    if (!enrollment) throw new Error('BenefitsEnrollment not found');
 
-    const enrollment = BenefitsEnrollment.create({
-      id: payload.enrollmentId,
-      tenantId: command.tenantId,
-      workerId: payload.workerId,
-      programId: payload.programId,
-      coverageLevel: payload.coverageLevel,
-      dependents: payload.dependents,
-      effectiveDate: payload.effectiveDate,
-      correlationId: command.correlationId,
-    });
-    enrollment.submit(command.correlationId);
-
+    enrollment.terminate(command.correlationId);
     await this.repo.save(enrollment);
     const eventsEmitted = enrollment.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(enrollment, command);
@@ -54,6 +34,7 @@ export class CreateBenefitsEnrollmentHandler implements ICommandHandler {
         enrollmentId: enrollment.id.value,
         workerId: enrollment.workerId.value,
         programId: enrollment.programId.value,
+        reason: payload.reason,
         status: enrollment.status,
       },
       commandId: command.commandId,

@@ -26,8 +26,10 @@ import { PayrollGlPostingRepository } from '../repositories/payroll-gl-posting.r
 import {
   PayrollCycleCalculationService,
   type PayrollBankAccount,
+  type PayrollBankTransferRow,
   type PayrollCycleEmployeeInput,
   type PayrollCyclePreview,
+  type PayrollCycleRow,
 } from '../services/payroll-cycle-calculation.service.js';
 import {
   PayrollCycleGovernanceService,
@@ -671,28 +673,118 @@ export class PayrollController {
     return countryPack?.glAccountMapping;
   }
 
+  private persistedBankRowsFromPaymentBatch(
+    paymentBatch: Awaited<ReturnType<PayrollPaymentBatchRepository['findByPayrollCycle']>>,
+  ): PayrollBankTransferRow[] {
+    return Array.isArray(paymentBatch?.payload?.rows) ? paymentBatch.payload.rows : [];
+  }
+
+  private buildPersistedCycleRows(input: {
+    resultLines: Awaited<ReturnType<PayrollResultLineRepository['findByPayrollCycle']>>;
+    paymentBatch: Awaited<ReturnType<PayrollPaymentBatchRepository['findByPayrollCycle']>>;
+    payslipArtifacts: Awaited<ReturnType<PayrollPayslipArtifactRepository['findByPayrollCycle']>>;
+  }): PayrollCycleRow[] {
+    const lockedLines = input.resultLines.filter((line) => line.status === 'LOCKED');
+    const linesByWorkerId = new Map<string, typeof lockedLines>();
+    for (const line of lockedLines) {
+      const workerId = line.workerId.value;
+      linesByWorkerId.set(workerId, [...(linesByWorkerId.get(workerId) ?? []), line]);
+    }
+
+    const bankRowsByWorkerId = new Map(this.persistedBankRowsFromPaymentBatch(input.paymentBatch).map((row) => [row.workerId, row]));
+    const artifactsByWorkerId = new Map(input.payslipArtifacts.map((artifact) => [artifact.workerId, artifact]));
+
+    return [...linesByWorkerId.entries()].map(([workerId, lines]) => {
+      const bankRow = bankRowsByWorkerId.get(workerId);
+      const artifact = artifactsByWorkerId.get(workerId);
+      const currency = lines[0]?.currency ?? bankRow?.currency ?? artifact?.currency ?? 'EGP';
+      const grossLines = lines.filter((line) => (
+        line.lineType === 'GROSS'
+        || line.ruleSetId === 'EARNING'
+        || line.lineType === 'OFF_CYCLE_EARNING'
+        || line.lineType === 'RETRO_ADJUSTMENT'
+      ));
+      const taxLines = lines.filter((line) => line.lineType === 'TAX' || line.ruleSetId === 'TAX' || (line.explanation ?? '').toLowerCase().includes('taxable base'));
+      const employeeInsuranceLines = lines.filter((line) => line.lineType === 'EMPLOYEE_INSURANCE');
+      const employerInsuranceLines = lines.filter((line) => line.lineType === 'EMPLOYER_INSURANCE');
+      const netLines = lines.filter((line) => line.lineType === 'NET_PAY');
+      const deductionLines = lines.filter((line) => (
+        !grossLines.includes(line)
+        && !taxLines.includes(line)
+        && !employeeInsuranceLines.includes(line)
+        && !employerInsuranceLines.includes(line)
+        && !netLines.includes(line)
+      ));
+      const grossSalary = roundMoney(grossLines.reduce((total, line) => total + line.amount, 0));
+      const taxAmount = roundMoney(taxLines.reduce((total, line) => total + line.amount, 0));
+      const employeeInsuranceAmount = roundMoney(employeeInsuranceLines.reduce((total, line) => total + line.amount, 0));
+      const employerInsuranceAmount = roundMoney(employerInsuranceLines.reduce((total, line) => total + line.amount, 0));
+      const netSalary = roundMoney(
+        netLines.length > 0
+          ? netLines.reduce((total, line) => total + line.amount, 0)
+          : artifact?.netPay ?? bankRow?.netSalary ?? Math.max(grossSalary - taxAmount - employeeInsuranceAmount, 0),
+      );
+      const policyDeductionAmount = roundMoney(deductionLines.length > 0
+        ? deductionLines.reduce((total, line) => total + line.amount, 0)
+        : Math.max(grossSalary - taxAmount - employeeInsuranceAmount - netSalary, 0));
+
+      return {
+        workerId,
+        employeeId: bankRow?.employeeId ?? artifact?.employeeId ?? workerId,
+        name: bankRow?.name ?? artifact?.payslipPayload?.employeeName ?? artifact?.employeeId ?? workerId,
+        email: bankRow?.workEmail ?? '',
+        baseGrossSalary: grossSalary,
+        earningAmount: roundMoney(grossLines.filter((line) => line.lineType !== 'GROSS').reduce((total, line) => total + line.amount, 0)),
+        taxableEarningAmount: null,
+        nonTaxableEarningAmount: null,
+        grossSalary,
+        taxAmount,
+        employeeInsuranceAmount,
+        employerInsuranceAmount,
+        policyDeductionAmount,
+        netSalary,
+        currency,
+        explainability: lines
+          .filter((line) => line.lineType !== 'NET_PAY')
+          .map((line) => ({
+            code: line.lineType,
+            label: line.description,
+            amount: line.amount,
+            source: line.ruleSetId === 'EARNING' ? 'EARNING' : line.ruleSetId === 'ATTENDANCE' ? 'ATTENDANCE' : 'POLICY',
+            formula: line.explanation ?? line.description,
+          })),
+      };
+    });
+  }
+
   private async buildPersistedCyclePreview(req: Request, payrollCycleId: string): Promise<PayrollCyclePreview> {
     const cycle = await this.payrollCycleRepo.findById(new Uuid(payrollCycleId));
     if (!cycle) throw new BadRequestException('Payroll cycle not found');
-    const resultLines = (await this.resultLineRepo.findByPayrollCycle(new Uuid(payrollCycleId)))
-      .filter((line) => line.status === 'LOCKED');
-    const paymentBatch = await this.paymentBatchRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(payrollCycleId));
-    const gross = roundMoney(resultLines
+    const payrollCycleUuid = new Uuid(payrollCycleId);
+    const tenantId = this.getTenantId(req);
+    const [allResultLines, paymentBatch, payslipArtifacts] = await Promise.all([
+      this.resultLineRepo.findByPayrollCycle(payrollCycleUuid),
+      this.paymentBatchRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+      this.payslipArtifactRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+    ]);
+    const resultLines = allResultLines.filter((line) => line.status === 'LOCKED');
+    const rows = this.buildPersistedCycleRows({ resultLines, paymentBatch, payslipArtifacts });
+    const gross = roundMoney(rows.length > 0 ? rows.reduce((total, row) => total + (row.grossSalary ?? 0), 0) : resultLines
       .filter((line) => line.lineType === 'GROSS' || line.ruleSetId === 'EARNING' || line.lineType === 'OFF_CYCLE_EARNING' || line.lineType === 'RETRO_ADJUSTMENT')
       .reduce((total, line) => total + line.amount, 0));
-    const tax = roundMoney(resultLines
+    const tax = roundMoney(rows.length > 0 ? rows.reduce((total, row) => total + (row.taxAmount ?? 0), 0) : resultLines
       .filter((line) => line.lineType === 'TAX' || (line.explanation ?? '').toLowerCase().includes('taxable base'))
       .reduce((total, line) => total + line.amount, 0));
-    const employeeInsurance = roundMoney(resultLines
+    const employeeInsurance = roundMoney(rows.length > 0 ? rows.reduce((total, row) => total + (row.employeeInsuranceAmount ?? 0), 0) : resultLines
       .filter((line) => line.lineType === 'EMPLOYEE_INSURANCE')
       .reduce((total, line) => total + line.amount, 0));
-    const employerInsurance = roundMoney(resultLines
+    const employerInsurance = roundMoney(rows.length > 0 ? rows.reduce((total, row) => total + (row.employerInsuranceAmount ?? 0), 0) : resultLines
       .filter((line) => line.lineType === 'EMPLOYER_INSURANCE')
       .reduce((total, line) => total + line.amount, 0));
-    const net = roundMoney(paymentBatch?.totalNet ?? resultLines
+    const net = roundMoney(rows.length > 0 ? rows.reduce((total, row) => total + (row.netSalary ?? 0), 0) : paymentBatch?.totalNet ?? resultLines
       .filter((line) => line.lineType === 'NET_PAY')
       .reduce((total, line) => total + line.amount, 0));
-    const deductions = roundMoney(Math.max(gross + employerInsurance - tax - employeeInsurance - employerInsurance - net, 0));
+    const deductions = roundMoney(rows.length > 0 ? rows.reduce((total, row) => total + (row.policyDeductionAmount ?? 0), 0) : Math.max(gross - tax - employeeInsurance - net, 0));
     return {
       id: `${cycle.payPeriodStart.getUTCFullYear()}-${String(cycle.payPeriodStart.getUTCMonth() + 1).padStart(2, '0')}`,
       name: cycle.cycleName,
@@ -702,7 +794,7 @@ export class PayrollController {
       periodStart: cycle.payPeriodStart.toISOString().slice(0, 10),
       periodEnd: cycle.payPeriodEnd.toISOString().slice(0, 10),
       payDate: (cycle.payDate ?? cycle.payPeriodEnd).toISOString().slice(0, 10),
-      employeeCount: new Set(resultLines.map((line) => line.workerId.value)).size,
+      employeeCount: rows.length > 0 ? rows.length : new Set(resultLines.map((line) => line.workerId.value)).size,
       totalGross: gross,
       totalTax: tax,
       totalEmployeeInsurance: employeeInsurance,
@@ -710,7 +802,7 @@ export class PayrollController {
       totalPolicyDeductions: deductions,
       totalNet: net,
       currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? 'EGP',
-      rows: [],
+      rows,
     };
   }
 
@@ -764,7 +856,7 @@ export class PayrollController {
 
     return this.payrollGovernance.evaluateCloseToPayReadiness({
       preview,
-      bankRows: [],
+      bankRows: this.persistedBankRowsFromPaymentBatch(paymentBatch),
       existingCycles: [],
       setup,
       closeEvidence: {
@@ -1052,8 +1144,6 @@ export class PayrollController {
       month?: number;
       workLocationCode?: string;
       closeCycle?: boolean;
-      overrideReadiness?: boolean;
-      overrideReason?: string;
       massUpdateRows?: PayrollCsvRow[];
     },
     @Req() req: Request,
@@ -1090,15 +1180,10 @@ export class PayrollController {
       setup,
     }), await this.buildAttendanceLockIssues(projectedReadinessPreview, req));
     if (!readiness.canClose) {
-      if (!body.overrideReadiness) {
-        throw new BadRequestException({
-          message: 'Payroll cycle has blocking readiness issues',
-          readiness,
-        });
-      }
-      if (!body.overrideReason?.trim()) {
-        throw new BadRequestException('Override reason is required when bypassing payroll readiness blockers');
-      }
+      throw new BadRequestException({
+        message: 'Payroll cycle has blocking readiness issues',
+        readiness,
+      });
     }
 
     const cycleResult = await this.executeOrThrow(this.buildCommand('CreatePayrollCycle', 'PayrollCycle', {
@@ -1212,8 +1297,25 @@ export class PayrollController {
     });
     await this.paymentBatchRepo.save(paymentBatchRecord);
 
+    const glPosting = this.payrollGlPosting.buildPosting({
+      tenantId: this.getTenantId(req).value,
+      payrollCycleId,
+      preview: calculationPreview,
+      createdBy: this.getActorUuidString(req),
+      accountMapping: this.resolvePayrollGlAccountMapping(setup, calculationPreview, body.workLocationCode),
+    });
+    await this.glPostingRepo.save(glPosting);
+
     let finalCycleStatus = 'REVIEW';
+    let finalReadiness = readiness;
     if (body.closeCycle ?? true) {
+      finalReadiness = await this.buildPersistedCycleCloseReadiness(req, payrollCycleId);
+      if (!finalReadiness.canClose) {
+        throw new BadRequestException({
+          message: 'Payroll cycle has blocking readiness issues',
+          readiness: finalReadiness,
+        });
+      }
       await this.advancePayrollCycle('ApprovePayrollCycle', payrollCycleId, req);
       const closeResult = await this.advancePayrollCycle('ClosePayrollCycle', payrollCycleId, req);
       finalCycleStatus = String(closeResult.newState ?? 'CLOSED');
@@ -1223,6 +1325,7 @@ export class PayrollController {
       payrollCycleId,
       payrollCalculationRunId,
       paymentBatchId: paymentBatchRecord.id,
+      glPostingId: glPosting.id,
       status: finalCycleStatus,
       employeeCount: calculationPreview.employeeCount,
       payrollInputCount,
@@ -1236,8 +1339,8 @@ export class PayrollController {
       currency: calculationPreview.currency,
       bankReadyCount: calculationBankRows.filter((row) => row.bankReady).length,
       bankMissingCount: calculationBankRows.filter((row) => !row.bankReady).length,
-      readiness,
-      events: ['PayrollCycleClosedToPay', 'PayrollInputsApproved', 'PayrollResultLinesLocked', 'PaymentBatchPersisted', 'PayslipArtifactsGenerated'],
+      readiness: finalReadiness,
+      events: ['PayrollCycleClosedToPay', 'PayrollInputsApproved', 'PayrollResultLinesLocked', 'PaymentBatchPersisted', 'PayslipArtifactsGenerated', 'PayrollGlPostingBuilt', 'PayrollCloseReadinessEvaluated'],
     };
   }
 

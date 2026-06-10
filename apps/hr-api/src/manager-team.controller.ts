@@ -6,6 +6,13 @@ import { AuthGuard } from './guards/auth.guard.js';
 import type { WorkerProfile } from './domains/hr-core/aggregates/worker-profile.aggregate.js';
 import { PersonalDataRecordRepository } from './domains/hr-core/repositories/personal-data-record.repository.js';
 import { WorkerRepository } from './domains/hr-core/repositories/worker.repository.js';
+import { PerformanceReviewRepository } from './domains/performance/repositories/performance-review.repository.js';
+import { GoalRepository } from './domains/performance/repositories/goal.repository.js';
+import { Feedback360CycleRepository } from './domains/performance/repositories/feedback-360-cycle.repository.js';
+import { Feedback360ResponseRepository } from './domains/performance/repositories/feedback-360-response.repository.js';
+import { DevelopmentPlanRepository } from './domains/performance/repositories/development-plan.repository.js';
+import { PerformanceImprovementPlanRepository } from './domains/performance/repositories/performance-improvement-plan.repository.js';
+import { PerformanceAnalyticsService } from './domains/performance/services/performance-analytics.service.js';
 
 type PayloadByCategory = Record<string, Record<string, unknown>>;
 
@@ -29,6 +36,7 @@ type ManagerTeamWorker = {
 
 type ManagerTeamMember = {
   worker: ManagerTeamWorker;
+  sourceWorker: WorkerProfile;
   compensationBand?: string;
 };
 
@@ -39,6 +47,13 @@ export class ManagerTeamController {
   constructor(
     private readonly workerRepo: WorkerRepository,
     private readonly personalDataRepo: PersonalDataRecordRepository,
+    private readonly reviewRepo: PerformanceReviewRepository,
+    private readonly goalRepo: GoalRepository,
+    private readonly feedback360ResponseRepo: Feedback360ResponseRepository,
+    private readonly developmentPlanRepo: DevelopmentPlanRepository,
+    private readonly pipRepo: PerformanceImprovementPlanRepository,
+    private readonly performanceAnalyticsService: PerformanceAnalyticsService,
+    private readonly feedback360CycleRepo: Feedback360CycleRepository,
   ) {}
 
   @Get('team')
@@ -72,7 +87,7 @@ export class ManagerTeamController {
       selectedMember: {
         ...selected.worker,
         compensationBand: selected.compensationBand,
-        goals: [],
+        ...(await this.performanceDetail(selected.sourceWorker)),
       },
     };
   }
@@ -131,6 +146,7 @@ export class ManagerTeamController {
     const contact = payloadByCategory.CONTACT ?? {};
     const compensation = payloadByCategory.COMPENSATION ?? {};
     return {
+      sourceWorker: worker,
       worker: {
         id: worker.id.value,
         employeeId: worker.employeeNumber,
@@ -158,6 +174,96 @@ export class ManagerTeamController {
     };
   }
 
+  private async performanceDetail(worker: WorkerProfile) {
+    const [reviews, goals, feedbackResponses, developmentPlans, improvementPlans] = await Promise.all([
+      this.reviewRepo.findByWorker(worker.id),
+      this.goalRepo.findByWorker(worker.id),
+      this.feedback360ResponseRepo.findByReviewee(worker.id),
+      this.developmentPlanRepo.findByWorker(worker.id),
+      this.pipRepo.findByWorker(worker.id),
+    ]);
+    const anonymityThreshold = await this.sourceFeedbackThreshold(feedbackResponses, worker.tenantId);
+    const analytics = this.performanceAnalyticsService.buildCycleAnalytics({
+      cycleId: `manager-team:${worker.id.value}`,
+      anonymityThreshold,
+      workers: [worker],
+      reviews,
+      goals,
+      objectives: [],
+      keyResults: [],
+      feedbackResponses,
+      developmentPlans,
+      improvementPlans,
+    });
+    const latestReview = this.latestRatedReview(reviews);
+
+    return {
+      performanceRating: latestReview ? this.reviewRating(latestReview) : undefined,
+      lastReviewDate: latestReview ? dateOnly(latestReview.updatedAt ?? latestReview.createdAt) : undefined,
+      goals: goals.map((goal) => ({
+        id: goal.id.value,
+        title: goal.title,
+        status: goal.status,
+        progress: this.goalProgress(goal),
+      })),
+      performanceImpact: {
+        actionPlan: analytics.actionPlans[0],
+        feedbackSummary: analytics.feedbackSummaries[worker.id.value],
+        nineBox: analytics.nineBox[0],
+        goals: analytics.goalMetrics,
+      },
+    };
+  }
+
+  private feedbackCycleId(response: { cycleId?: unknown }): string | undefined {
+    const cycleId = response.cycleId;
+    if (cycleId instanceof Uuid) return cycleId.value;
+    if (typeof cycleId === 'string' && Uuid.isValid(cycleId)) return cycleId;
+    if (cycleId && typeof cycleId === 'object') {
+      const value = (cycleId as { value?: unknown }).value;
+      if (typeof value === 'string' && Uuid.isValid(value)) return value;
+    }
+    return undefined;
+  }
+
+  private async sourceFeedbackThreshold(
+    feedbackResponses: Array<{ cycleId?: unknown }>,
+    tenantId: Uuid,
+  ): Promise<number | undefined> {
+    const cycleIds = Array.from(new Set(
+      feedbackResponses
+        .map((response) => this.feedbackCycleId(response))
+        .filter((cycleId): cycleId is string => Boolean(cycleId)),
+    ));
+    const feedbackCycles = (await Promise.all(
+      cycleIds.map((cycleId) => this.feedback360CycleRepo.findById(new Uuid(cycleId))),
+    ))
+      .filter((cycle): cycle is NonNullable<typeof cycle> => Boolean(cycle));
+    const thresholds = feedbackCycles
+      .filter((cycle) => cycle.tenantId.value === tenantId.value)
+      .map((cycle) => cycle.minPeerReviews)
+      .filter((threshold): threshold is number => typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0);
+    return thresholds.length ? Math.max(...thresholds) : undefined;
+  }
+
+  private latestRatedReview(
+    reviews: Array<{ finalRating?: number; calibratedRating?: number; updatedAt?: Date; createdAt?: Date }>,
+  ) {
+    return reviews
+      .filter((review) => typeof this.reviewRating(review) === 'number')
+      .sort((a, b) => timestamp(b.updatedAt ?? b.createdAt) - timestamp(a.updatedAt ?? a.createdAt))[0];
+  }
+
+  private reviewRating(review: { finalRating?: number; calibratedRating?: number }): number | undefined {
+    return typeof review.finalRating === 'number' ? review.finalRating : review.calibratedRating;
+  }
+
+  private goalProgress(goal: { targetValue?: number; currentValue?: number; status: string }): number {
+    if (goal.status === 'ACHIEVED') return 100;
+    if (!goal.targetValue || goal.targetValue <= 0) return 0;
+    return Math.round(Math.min(Math.max(((goal.currentValue ?? 0) / goal.targetValue) * 100, 0), 100) * 100) / 100;
+  }
+
   private async payloadByCategory(workerId: Uuid, tenantId: Uuid): Promise<PayloadByCategory> {
     const records = await this.personalDataRepo.findByWorkerForTenant(workerId, tenantId);
     return Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as PayloadByCategory;
@@ -177,4 +283,10 @@ function displayName(worker: WorkerProfile): string {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function timestamp(value: Date | string | undefined | null): number {
+  if (!value) return 0;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 }

@@ -33,6 +33,8 @@ type NativeStatusCommand = {
   payload: Record<string, unknown>;
 };
 
+export type NativeOperationAction = 'advance' | 'approve' | 'process' | 'terminate' | 'reject';
+
 const DEFAULT_LIMIT_PER_SOURCE = 10;
 
 function schemaTable(schema: string, name: string): string {
@@ -231,7 +233,7 @@ function mapNativeStatus(status: string | null): OperationRecordStatus {
   if (value.includes('DRAFT')) return 'Draft';
   if (['PENDING', 'QUEUED', 'SUBMITTED', 'REQUESTED', 'IN_REVIEW', 'PROCESSING'].some((token) => value.includes(token))) return 'In Review';
   if (['REJECTED', 'FAILED', 'CANCELLED', 'CANCELED', 'BLOCKED', 'SUSPENDED', 'DECLINED'].some((token) => value.includes(token))) return 'Blocked';
-  if (['CLOSED', 'COMPLETED', 'RESOLVED', 'ARCHIVED', 'EXPIRED', 'PAID', 'PUBLISHED'].some((token) => value.includes(token))) return 'Closed';
+  if (['CLOSED', 'COMPLETED', 'RESOLVED', 'ARCHIVED', 'EXPIRED', 'PAID', 'PUBLISHED', 'TERMINATED', 'PROCESSED'].some((token) => value.includes(token))) return 'Closed';
   return 'Active';
 }
 
@@ -248,12 +250,13 @@ function nativeRouteFor(config: NativeSourceConfig, row: NativeOperationRow): st
   return config.nativeRoute;
 }
 
-function nativeStatusCommand(
+export function nativeStatusCommandForOperation(
   moduleId: string,
   nativeSource: string,
   nativeRecordId: string,
   status: OperationRecordStatus,
   actor?: HrActor,
+  operationAction?: NativeOperationAction,
 ): NativeStatusCommand | undefined {
   if (!Uuid.isValid(nativeRecordId)) return undefined;
 
@@ -274,6 +277,64 @@ function nativeStatusCommand(
       aggregateType: 'CompensationChange',
       aggregateId: changeId,
       payload: { changeId, approvedBy: actor.actorId },
+    };
+  }
+
+  if (moduleId === 'benefits' && nativeSource === 'benefits_enrollments' && (operationAction === 'reject' || status === 'Blocked')) {
+    const enrollmentId = new Uuid(nativeRecordId);
+    return {
+      commandName: 'RejectBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      aggregateId: enrollmentId,
+      payload: {
+        enrollmentId,
+        rejectedBy: actor?.actorId,
+        reason: 'Rejected via admin module operations',
+      },
+    };
+  }
+
+  if (moduleId === 'benefits' && nativeSource === 'benefits_life_events' && (operationAction === 'reject' || status === 'Blocked')) {
+    const lifeEventId = new Uuid(nativeRecordId);
+    return {
+      commandName: 'RejectBenefitsLifeEvent',
+      aggregateType: 'BenefitsLifeEvent',
+      aggregateId: lifeEventId,
+      payload: {
+        lifeEventId,
+        rejectedBy: actor?.actorId,
+        reason: 'Rejected via admin module operations',
+      },
+    };
+  }
+
+  if (moduleId === 'benefits' && nativeSource === 'benefits_enrollments' && (operationAction === 'approve' || status === 'Active')) {
+    const enrollmentId = new Uuid(nativeRecordId);
+    return {
+      commandName: 'ApproveBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      aggregateId: enrollmentId,
+      payload: { enrollmentId, approvedBy: actor?.actorId },
+    };
+  }
+
+  if (moduleId === 'benefits' && nativeSource === 'benefits_enrollments' && (operationAction === 'terminate' || status === 'Closed')) {
+    const enrollmentId = new Uuid(nativeRecordId);
+    return {
+      commandName: 'TerminateBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      aggregateId: enrollmentId,
+      payload: { enrollmentId, reason: 'Closed via admin module operations' },
+    };
+  }
+
+  if (moduleId === 'benefits' && nativeSource === 'benefits_life_events' && (operationAction === 'process' || status === 'Closed')) {
+    const lifeEventId = new Uuid(nativeRecordId);
+    return {
+      commandName: 'ProcessBenefitsLifeEvent',
+      aggregateType: 'BenefitsLifeEvent',
+      aggregateId: lifeEventId,
+      payload: { lifeEventId, processedBy: actor?.actorId },
     };
   }
 
@@ -335,9 +396,10 @@ export class NativeModuleOperationAdapterService {
     nativeRecordId: string,
     status: OperationRecordStatus,
     actor?: HrActor,
+    operationAction?: NativeOperationAction,
   ): Promise<boolean> {
     if (!actor) return false;
-    const command = nativeStatusCommand(moduleId, nativeSource, nativeRecordId, status, actor);
+    const command = nativeStatusCommandForOperation(moduleId, nativeSource, nativeRecordId, status, actor, operationAction);
     if (!command) return false;
 
     try {

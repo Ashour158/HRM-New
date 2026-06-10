@@ -37,6 +37,18 @@ type HrReportGroup = {
   code: string;
   title: string;
   category: string;
+  services?: string[];
+  serviceUsageLinks?: string[];
+  analyticsOutputs?: string[];
+  template?: {
+    module: string;
+    columns: string[];
+    exportArtifact: string;
+  };
+  brain?: {
+    engine: string;
+    nervousSystem: string;
+  };
   activity: number;
   commands: number;
   events: number;
@@ -62,6 +74,46 @@ type HrReportsDashboard = {
   activityByReport: Array<{ label: string; activity: number; issues: number }>;
 };
 
+type HrAnalyticsMetric = {
+  label: string;
+  value: number;
+  unit?: 'days' | 'hours' | 'currency' | 'rating';
+  currency?: string;
+};
+
+type HrAnalyticsModule = {
+  code: string;
+  title: string;
+  category: string;
+  primary: HrAnalyticsMetric;
+  secondary: HrAnalyticsMetric;
+  risk: HrAnalyticsMetric;
+  chart: {
+    type: 'bar';
+    data: Array<{ label: string; value: number; secondaryValue?: number }>;
+  };
+  lastActivityAt?: string;
+};
+
+type HrAnalyticsDashboard = {
+  generatedAt: string;
+  totals: {
+    activeModules: number;
+    riskSignals: number;
+    attendanceEmployeeDays: number;
+    leaveRequests: number;
+    payrollNetPay: number;
+    performanceReviews: number;
+    benefitsEnrollments: number;
+    headcountPositions?: number;
+    complianceAcknowledgements?: number;
+    serviceCases?: number;
+  };
+  headlineMetrics: HrAnalyticsMetric[];
+  modules: HrAnalyticsModule[];
+  riskSignals: Array<{ label: string; value: number }>;
+};
+
 function unwrapApiData<T>(payload: unknown): T {
   const response = payload as { success?: boolean; data?: T };
   return response?.success === true && response.data !== undefined ? response.data : payload as T;
@@ -73,6 +125,15 @@ function readinessTone(readiness: HrReportReadiness) {
   return 'border-[#cbd5e1] bg-white text-[#475569]';
 }
 
+function formatMetricValue(metric: HrAnalyticsMetric) {
+  const value = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(metric.value);
+  if (metric.unit === 'currency') return `${metric.currency ?? 'USD'} ${value}`;
+  if (metric.unit === 'hours') return `${value}h`;
+  if (metric.unit === 'days') return `${value}d`;
+  if (metric.unit === 'rating') return value;
+  return value;
+}
+
 const chartColors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899'];
 
 const migrationTemplates = [
@@ -82,6 +143,9 @@ const migrationTemplates = [
   { module: 'payroll', title: 'Payroll', owner: 'Payroll Administration' },
   { module: 'performance', title: 'Performance', owner: 'Talent Management' },
   { module: 'benefits', title: 'Benefits', owner: 'Reward Operations' },
+  { module: 'headcount-org', title: 'Headcount & Org', owner: 'People Operations' },
+  { module: 'compliance', title: 'Compliance', owner: 'Compliance Operations' },
+  { module: 'services', title: 'HR Services', owner: 'HR Service Delivery' },
 ] as const;
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -99,6 +163,10 @@ export function AdminReporting() {
     queryKey: ['hr-reports-dashboard'],
     queryFn: async () => unwrapApiData<HrReportsDashboard>((await apiClient.get('/reporting/hr-dashboard')).data),
   });
+  const analyticsQuery = useQuery({
+    queryKey: ['hr-analytics-dashboard'],
+    queryFn: async () => unwrapApiData<HrAnalyticsDashboard>((await apiClient.get('/reporting/hr-analytics')).data),
+  });
 
   const downloadCsv = async (path: string, filename: string) => {
     try {
@@ -110,6 +178,7 @@ export function AdminReporting() {
   };
 
   const dashboard = dashboardQuery.data;
+  const analytics = analyticsQuery.data;
   const topReports = [...(dashboard?.reports ?? [])].sort((a, b) => b.activity - a.activity).slice(0, 5);
   const attentionReports = (dashboard?.reports ?? []).filter((report) => report.readiness === 'Attention');
 
@@ -122,7 +191,14 @@ export function AdminReporting() {
         icon={BarChart3}
         actions={(
           <>
-            <Button variant="outline" onClick={() => dashboardQuery.refetch()} disabled={dashboardQuery.isFetching}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                void dashboardQuery.refetch();
+                void analyticsQuery.refetch();
+              }}
+              disabled={dashboardQuery.isFetching || analyticsQuery.isFetching}
+            >
               <RefreshCcw className="mr-2 h-4 w-4" />
               Refresh
             </Button>
@@ -204,6 +280,133 @@ export function AdminReporting() {
             </Card>
           </div>
 
+          {analyticsQuery.isLoading ? (
+            <div className="grid gap-4 md:grid-cols-4">
+              {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-24 rounded-2xl" />)}
+            </div>
+          ) : analyticsQuery.isError ? (
+            <ErrorState title="Unable to load analytics" error={analyticsQuery.error} onRetry={() => analyticsQuery.refetch()} />
+          ) : analytics ? (
+            <>
+              <SectionHeading title="Cross-Module Analytics" />
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {analytics.headlineMetrics.map((metric) => (
+                  <BusinessMetric
+                    key={metric.label}
+                    label={metric.label}
+                    value={formatMetricValue(metric)}
+                    tone={metric.label === 'Risk Signals' && metric.value > 0 ? 'warning' : 'default'}
+                  />
+                ))}
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
+                <Card className="rounded-2xl border-[#e2e8f0]">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5 text-[#4f46e5]" />
+                      Analytics Mix
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[280px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={analytics.modules.map((module) => ({
+                          label: module.code,
+                          value: module.primary.value,
+                          risk: module.risk.value,
+                        }))}
+                        margin={{ top: 10, right: 16, left: 0, bottom: 12 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#10b981" radius={[6, 6, 0, 0]} />
+                        <Bar dataKey="risk" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-[#e2e8f0]">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ShieldAlert className="h-5 w-5 text-[#f59e0b]" />
+                      Analytics Signals
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {analytics.riskSignals.length > 0 ? analytics.riskSignals.map((signal) => (
+                      <div key={signal.label} className="flex items-center justify-between rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3">
+                        <span className="text-sm font-medium text-[#0f172a]">{signal.label}</span>
+                        <Badge variant="outline" className="border-[#f59e0b]/35 bg-[#fef3c7] text-[#92400e]">{signal.value}</Badge>
+                      </div>
+                    )) : (
+                      <div className="rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm text-[#166534]">
+                        No analytics signals for the selected period.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                {analytics.modules.map((module) => (
+                  <Card key={module.code} className="rounded-2xl border-[#e2e8f0]">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <CardTitle className="text-lg">{module.title}</CardTitle>
+                          <p className="mt-1 text-sm text-[#64748b]">{module.category}</p>
+                        </div>
+                        <Badge variant="outline" className={module.risk.value > 0 ? 'border-[#f59e0b]/35 bg-[#fef3c7] text-[#92400e]' : 'border-[#10b981]/25 bg-[#d1fae5] text-[#065f46]'}>
+                          {module.risk.value > 0 ? `${module.risk.value} signal(s)` : 'Clear'}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div>
+                          <p className="text-[#64748b]">{module.primary.label}</p>
+                          <p className="text-lg font-bold text-[#0f172a]">{formatMetricValue(module.primary)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[#64748b]">{module.secondary.label}</p>
+                          <p className="text-lg font-bold text-[#0f172a]">{formatMetricValue(module.secondary)}</p>
+                        </div>
+                        <div>
+                          <p className="text-[#64748b]">{module.risk.label}</p>
+                          <p className={cn('text-lg font-bold', module.risk.value > 0 ? 'text-[#b45309]' : 'text-[#047857]')}>{formatMetricValue(module.risk)}</p>
+                        </div>
+                      </div>
+                      <div className="h-40">
+                        {module.chart.data.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={module.chart.data} margin={{ top: 8, right: 8, left: 0, bottom: 28 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                              <XAxis dataKey="label" angle={-20} textAnchor="end" interval={0} height={50} tick={{ fontSize: 10 }} />
+                              <YAxis allowDecimals={false} />
+                              <Tooltip />
+                              <Bar dataKey="value" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[#cbd5e1] text-sm text-[#64748b]">
+                            No analytics data yet.
+                          </div>
+                        )}
+                      </div>
+                      {module.lastActivityAt ? (
+                        <p className="text-xs text-[#64748b]">Last activity: {new Date(module.lastActivityAt).toLocaleString()}</p>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          ) : null}
+
           <SectionHeading title="Report Library" />
           <Card className="rounded-2xl border-[#e2e8f0]">
             <CardHeader>
@@ -279,6 +482,21 @@ export function AdminReporting() {
                     <div className="col-span-2 text-[#64748b]">
                       Last activity: {report.lastActivityAt ? new Date(report.lastActivityAt).toLocaleString() : 'No activity yet'}
                     </div>
+                    {report.template ? (
+                      <p className="col-span-2 text-xs font-medium text-[#475569]">Template: {report.template.module}</p>
+                    ) : null}
+                    {report.brain ? (
+                      <p className="col-span-2 text-xs font-medium text-[#475569]">Engine: {report.brain.engine}</p>
+                    ) : null}
+                    {report.analyticsOutputs && report.analyticsOutputs.length > 0 ? (
+                      <div className="col-span-2 flex flex-wrap gap-2">
+                        {report.analyticsOutputs.slice(0, 4).map((output) => (
+                          <Badge key={output} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
+                            {output}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>

@@ -59,6 +59,32 @@ export class CreateBenefitsEnrollmentDto {
   @ApiProperty() effectiveDate!: Date;
 }
 
+export class ApproveBenefitsEnrollmentDto {
+  static zodSchema = z.object({
+    approvedBy: z.string().uuid().optional(),
+  });
+
+  @ApiPropertyOptional() approvedBy?: string;
+}
+
+export class RejectBenefitsEnrollmentDto {
+  static zodSchema = z.object({
+    rejectedBy: z.string().uuid().optional(),
+    reason: z.string().optional(),
+  });
+
+  @ApiPropertyOptional() rejectedBy?: string;
+  @ApiPropertyOptional() reason?: string;
+}
+
+export class TerminateBenefitsEnrollmentDto {
+  static zodSchema = z.object({
+    reason: z.string().optional(),
+  });
+
+  @ApiPropertyOptional() reason?: string;
+}
+
 /* ------------------------------------------------------------------ */
 /*  BenefitsLifeEvent DTOs                                             */
 /* ------------------------------------------------------------------ */
@@ -77,6 +103,24 @@ export class CreateBenefitsLifeEventDto {
   @ApiProperty() eventType!: string;
   @ApiProperty() eventDate!: Date;
   @ApiPropertyOptional() description?: string;
+}
+
+export class ProcessBenefitsLifeEventDto {
+  static zodSchema = z.object({
+    processedBy: z.string().uuid().optional(),
+  });
+
+  @ApiPropertyOptional() processedBy?: string;
+}
+
+export class RejectBenefitsLifeEventDto {
+  static zodSchema = z.object({
+    rejectedBy: z.string().uuid().optional(),
+    reason: z.string().optional(),
+  });
+
+  @ApiPropertyOptional() rejectedBy?: string;
+  @ApiPropertyOptional() reason?: string;
 }
 
 /* ------------------------------------------------------------------ */

@@ -187,4 +187,124 @@ describe('PerformanceAnalyticsService', () => {
     }));
     expect(summary.feedbackSummaries['worker-a'].conciseFeedback).toContain('anonymous threshold');
   });
+
+  it('projects persisted improvement action plans while keeping submitted 360 outcomes current', () => {
+    const service = new PerformanceAnalyticsService();
+
+    const summary = service.buildCycleAnalytics({
+      cycleId: 'employee-profile:worker-a',
+      anonymityThreshold: 1,
+      workers: [
+        { id: 'worker-a', firstName: 'Amina', lastName: 'Nour' },
+      ],
+      reviews: [
+        { id: 'review-a', workerId: 'worker-a', finalRating: 3.4, status: 'FINALIZED' },
+      ],
+      goals: [
+        { id: 'goal-a', workerId: 'worker-a', targetValue: 100, currentValue: 55, status: 'IN_PROGRESS' },
+      ],
+      objectives: [],
+      keyResults: [],
+      feedbackResponses: [
+        {
+          id: 'feedback-a',
+          revieweeId: 'worker-a',
+          reviewerId: 'peer-1',
+          relationshipType: 'PEER',
+          dimensionScores: { communication: 4, teamwork: 5 },
+          areaComments: { communication: 'Clearer launch updates this month' },
+          overallRating: 4.5,
+          strengths: 'Strong partner in launch planning',
+          improvements: 'Earlier risk escalation',
+          comments: 'Good momentum',
+          isAnonymous: false,
+          status: 'SUBMITTED',
+        },
+      ],
+      developmentPlans: [],
+      improvementPlans: [
+        {
+          id: 'pip-a',
+          workerId: 'worker-a',
+          status: 'ACTIVE',
+          objectives: ['Raise goal delivery above 75%', 'Keep peer handoffs predictable'],
+          planDurationDays: 45,
+          checkInCadence: 'Twice-weekly manager action-plan check-in',
+          trackingMetrics: [
+            { metric: 'Goal recovery', current: 55, target: 75, unit: '%' },
+          ],
+          successCriteria: ['Two consecutive launch milestones land on time'],
+        },
+      ],
+    });
+
+    expect(summary.feedbackSummaries['worker-a']).toEqual(expect.objectContaining({
+      averageRating: 4.5,
+      responseCount: 1,
+      dimensionAverages: { communication: 4, teamwork: 5 },
+    }));
+    expect(summary.actionPlans[0]).toEqual(expect.objectContaining({
+      riskLevel: 'MEDIUM',
+      checkInCadence: 'Twice-weekly manager action-plan check-in',
+      timeline: expect.objectContaining({ durationDays: 45 }),
+      currentPerformance: expect.objectContaining({
+        peerAverageRating: 4.5,
+        averageGoalProgress: 55,
+        openDevelopmentPlan: true,
+      }),
+      trackingMetrics: [
+        { metric: 'Goal recovery', current: 55, target: 75, unit: '%' },
+      ],
+      successCriteria: ['Two consecutive launch milestones land on time'],
+      recommendedActions: expect.arrayContaining([
+        'Advance action plan objective: Raise goal delivery above 75%',
+      ]),
+    }));
+  });
+
+  it('chooses the active current improvement plan deterministically when multiple plans are open', () => {
+    const service = new PerformanceAnalyticsService();
+
+    const summary = service.buildCycleAnalytics({
+      cycleId: 'employee-profile:worker-a',
+      anonymityThreshold: 1,
+      workers: [
+        { id: 'worker-a', firstName: 'Amina', lastName: 'Nour' },
+      ],
+      reviews: [],
+      goals: [
+        { id: 'goal-a', workerId: 'worker-a', targetValue: 100, currentValue: 70, status: 'IN_PROGRESS' },
+      ],
+      objectives: [],
+      keyResults: [],
+      feedbackResponses: [],
+      developmentPlans: [],
+      improvementPlans: [
+        {
+          id: 'pip-draft',
+          workerId: 'worker-a',
+          status: 'DRAFT',
+          objectives: ['Do not choose draft plan'],
+          planDurationDays: 90,
+          checkInCadence: 'Monthly draft check-in',
+        },
+        {
+          id: 'pip-active',
+          workerId: 'worker-a',
+          status: 'ACTIVE',
+          objectives: ['Use active plan first'],
+          planDurationDays: 30,
+          checkInCadence: 'Weekly active check-in',
+        },
+      ],
+    });
+
+    expect(summary.actionPlans[0]).toEqual(expect.objectContaining({
+      checkInCadence: 'Weekly active check-in',
+      timeline: expect.objectContaining({ durationDays: 30 }),
+      recommendedActions: expect.arrayContaining([
+        'Advance action plan objective: Use active plan first',
+      ]),
+    }));
+  });
 });

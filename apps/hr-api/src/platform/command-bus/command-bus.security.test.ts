@@ -58,6 +58,23 @@ function commandBusWith(overrides: Record<string, unknown> = {}) {
   }) as Record<string, (...args: unknown[]) => Promise<unknown>>;
 }
 
+function commandResult(overrides: Record<string, unknown> = {}) {
+  return {
+    success: true,
+    data: { workerId: workerId.value, status: 'SUBMITTED' },
+    commandId: new Uuid('550e8400-e29b-41d4-a716-446655440011'),
+    correlationId: new Uuid('550e8400-e29b-41d4-a716-446655440013'),
+    aggregateId: workerId,
+    newState: 'SUBMITTED',
+    newVersion: 3,
+    allowedNextActions: [],
+    fieldAccessDecisions: {},
+    eventsEmitted: ['AbsenceRequestSubmitted'],
+    auditRecordId: new Uuid('550e8400-e29b-41d4-a716-446655440014'),
+    ...overrides,
+  };
+}
+
 function readCommandHandlerNames(): string[] {
   const root = join(process.cwd(), 'src', 'domains');
   const files: string[] = [];
@@ -598,7 +615,69 @@ describe('CommandBus security gates', () => {
       commandName,
       aggregateType,
       payload: { workerId },
-    }))).resolves.toBeUndefined();
+    }))).resolves.toMatchObject({
+      serviceArea: area,
+      policyRevisionId: `policy-${area}`,
+      decision: 'ALLOWED',
+      commandName,
+      aggregateType,
+      subjectWorkerId: workerId.value,
+    });
+  });
+
+  it.each([
+    ['attendance', 'ATTENDANCE', 'RecordTimeClockEvent', 'TimeClockEvent'],
+    ['leave approval', 'LEAVE', 'ApproveAbsenceRequest', 'AbsenceRequest'],
+    ['payroll deduction', 'PAYROLL', 'CorrectPayrollInput', 'PayrollInput'],
+    ['payroll approval', 'PAYROLL', 'ApprovePayrollCycle', 'PayrollCycle'],
+    ['benefits', 'BENEFITS', 'SubmitBenefitsEnrollment', 'BenefitsEnrollment'],
+  ])('fails closed for conflicting applied %s policy evidence', async (
+    _domain,
+    area,
+    commandName,
+    aggregateType,
+  ) => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [
+            {
+              area,
+              revisionId: `${area}-revision-a`,
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+            {
+              area,
+              revisionId: `${area}-revision-b`,
+              status: 'APPLIED',
+              appliedAt: '2026-06-08T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+          ],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName,
+      aggregateType,
+      payload: { workerId, deductionAmount: 25 },
+    }))).rejects.toMatchObject({
+      errorCode: 'CONFLICTING_POLICY_REVISIONS_APPLIED',
+      errorDetails: {
+        policyDecisionEvidence: expect.objectContaining({
+          serviceArea: area,
+          decision: 'DENIED',
+          commandName,
+          aggregateType,
+          conflictingPolicyRevisionIds: [`${area}-revision-a`, `${area}-revision-b`],
+        }),
+      },
+    });
   });
 
   it.each([
@@ -655,7 +734,108 @@ describe('CommandBus security gates', () => {
       commandName,
       aggregateType,
       payload: {},
-    }))).resolves.toBeUndefined();
+    }))).resolves.toMatchObject({
+      serviceArea: area,
+      policyRevisionId: `policy-${area}`,
+      decision: 'ALLOWED',
+      commandName,
+      aggregateType,
+    });
+  });
+
+  it('writes the same applied policy decision evidence to audit and the Policy Center evidence ledger', async () => {
+    const inserted: Array<{ table: string; row: Record<string, unknown> }> = [];
+    const tx = {
+      insertInto: (table: string) => ({
+        values: (row: Record<string, unknown>) => ({
+          execute: async () => {
+            inserted.push({ table, row });
+          },
+        }),
+      }),
+    };
+    const evidence = {
+      serviceArea: 'LEAVE',
+      policyRevisionId: '550e8400-e29b-41d4-a716-446655440099',
+      engineName: 'PolicyApplicationEngine',
+      engineVersion: '1.0.0',
+      scopeMatch: { tenantId: tenantId.value },
+      decision: 'ALLOWED',
+      reason: 'Applied policy revision authorizes SubmitAbsenceRequest.',
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      subjectWorkerId: workerId.value,
+      sourceRecordId: workerId.value,
+    };
+    const bus = commandBusWith();
+
+    await bus.stepWriteAuditRecord(tx, makeCommand({
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      payload: { workerId },
+    }), commandResult(), evidence);
+    await bus.stepWritePolicyDecisionEvidence(tx, makeCommand({
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      payload: { workerId },
+    }), commandResult(), evidence);
+
+    expect(inserted).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table: 'audit_log',
+        row: expect.objectContaining({
+          payload: expect.objectContaining({
+            policyDecisionEvidence: [evidence],
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        table: 'hr_platform.admin_policy_decision_evidence',
+        row: expect.objectContaining({
+          tenant_id: tenantId.value,
+          policy_revision_id: evidence.policyRevisionId,
+          service_area: 'LEAVE',
+          decision: 'ALLOWED',
+          subject_worker_id: workerId.value,
+          source_record_id: workerId.value,
+        }),
+      }),
+    ]));
+  });
+
+  it('keeps bootstrap policy decision evidence in command/audit payloads without writing invalid FK rows', async () => {
+    const inserted: Array<{ table: string; row: Record<string, unknown> }> = [];
+    const tx = {
+      insertInto: (table: string) => ({
+        values: (row: Record<string, unknown>) => ({
+          execute: async () => {
+            inserted.push({ table, row });
+          },
+        }),
+      }),
+    };
+    const evidence = {
+      serviceArea: 'BENEFITS',
+      policyRevisionId: 'SYSTEM_BOOTSTRAP_BENEFITS',
+      engineName: 'BootstrapPolicyRuntime',
+      engineVersion: '1.0.0',
+      scopeMatch: { tenantId: tenantId.value },
+      decision: 'ALLOWED',
+      reason: 'Bootstrap runtime policy authorizes SubmitBenefitsEnrollment.',
+      commandName: 'SubmitBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      subjectWorkerId: workerId.value,
+      sourceRecordId: workerId.value,
+    };
+    const bus = commandBusWith();
+
+    await bus.stepWritePolicyDecisionEvidence(tx, makeCommand({
+      commandName: 'SubmitBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      payload: { workerId },
+    }), commandResult(), evidence);
+
+    expect(inserted).toEqual([]);
   });
 
   it('blocks command payload writes when applied field-access overrides deny the written field', async () => {
@@ -728,6 +908,20 @@ describe('CommandBus security gates', () => {
     };
     const bus = commandBusWith();
 
+    const evidence = {
+      serviceArea: 'LEAVE',
+      policyRevisionId: '550e8400-e29b-41d4-a716-446655440099',
+      engineName: 'PolicyApplicationEngine',
+      engineVersion: '1.0.0',
+      scopeMatch: { tenantId: tenantId.value },
+      decision: 'ALLOWED',
+      reason: 'Applied policy revision authorizes SubmitAbsenceRequest.',
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      subjectWorkerId: workerId.value,
+      sourceRecordId: workerId.value,
+    };
+
     await bus.stepWriteOutbox(tx, makeCommand({
       subjectWorkerId: undefined,
       payload: { workerId },
@@ -744,13 +938,14 @@ describe('CommandBus security gates', () => {
       fieldAccessDecisions: {},
       eventsEmitted: ['AbsenceRequestSubmitted'],
       auditRecordId: new Uuid('550e8400-e29b-41d4-a716-446655440014'),
-    });
+    }, evidence);
 
     expect(inserted[0]?.row.metadata).toMatchObject({
       privacy: {
         piiClassification: 'LOW',
         subjectWorkerId: workerId.value,
       },
+      policyDecisionEvidence: [evidence],
     });
   });
 });

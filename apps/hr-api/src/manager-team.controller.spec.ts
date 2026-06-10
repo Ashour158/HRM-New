@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
 import { ManagerTeamController } from './manager-team.controller.js';
+import { PerformanceAnalyticsService } from './domains/performance/services/performance-analytics.service.js';
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const otherTenantId = new Uuid('00000000-0000-0000-0000-000000000999');
@@ -45,6 +46,13 @@ function worker(overrides: Record<string, unknown> = {}) {
 function makeController(options?: {
   workerRepo?: Record<string, ReturnType<typeof vi.fn>>;
   personalDataRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  reviewRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  goalRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  feedback360CycleRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  feedback360ResponseRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  developmentPlanRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  pipRepo?: Record<string, ReturnType<typeof vi.fn>>;
+  performanceAnalyticsService?: PerformanceAnalyticsService;
 }) {
   const manager = worker({
     id: managerId,
@@ -79,10 +87,33 @@ function makeController(options?: {
       },
     ]),
   };
+  const reviewRepo = options?.reviewRepo ?? { findByWorker: vi.fn(async () => []) };
+  const goalRepo = options?.goalRepo ?? { findByWorker: vi.fn(async () => []) };
+  const feedback360CycleRepo = options?.feedback360CycleRepo ?? { findById: vi.fn(async () => undefined) };
+  const feedback360ResponseRepo = options?.feedback360ResponseRepo ?? { findByReviewee: vi.fn(async () => []) };
+  const developmentPlanRepo = options?.developmentPlanRepo ?? { findByWorker: vi.fn(async () => []) };
+  const pipRepo = options?.pipRepo ?? { findByWorker: vi.fn(async () => []) };
+  const performanceAnalyticsService = options?.performanceAnalyticsService ?? new PerformanceAnalyticsService();
   return {
-    controller: new ManagerTeamController(workerRepo as never, personalDataRepo as never),
+    controller: new ManagerTeamController(
+      workerRepo as never,
+      personalDataRepo as never,
+      reviewRepo as never,
+      goalRepo as never,
+      feedback360ResponseRepo as never,
+      developmentPlanRepo as never,
+      pipRepo as never,
+      performanceAnalyticsService as never,
+      feedback360CycleRepo as never,
+    ),
     workerRepo,
     personalDataRepo,
+    reviewRepo,
+    goalRepo,
+    feedback360CycleRepo,
+    feedback360ResponseRepo,
+    developmentPlanRepo,
+    pipRepo,
   };
 }
 
@@ -136,6 +167,133 @@ describe('ManagerTeamController', () => {
       compensationBand: 'P3',
       goals: [],
     }));
+  });
+
+  it('projects selected member performance impact from reviews, 360 feedback, goals, and action plans', async () => {
+    const goalId = new Uuid('00000000-0000-0000-0000-000000000301');
+    const reviewRepo = {
+      findByWorker: vi.fn(async () => [{
+        id: new Uuid('00000000-0000-0000-0000-000000000201'),
+        workerId: directReportId,
+        finalRating: 4.2,
+        status: 'FINALIZED',
+        updatedAt: new Date('2026-06-05T10:00:00.000Z'),
+      }]),
+    };
+    const goalRepo = {
+      findByWorker: vi.fn(async () => [{
+        id: goalId,
+        workerId: directReportId,
+        title: 'Launch readiness',
+        targetValue: 100,
+        currentValue: 55,
+        status: 'IN_PROGRESS',
+      }]),
+    };
+    const feedback360ResponseRepo = {
+      findByReviewee: vi.fn(async () => [{
+        id: new Uuid('00000000-0000-0000-0000-000000000401'),
+        revieweeId: directReportId,
+        reviewerId: peerId,
+        relationshipType: 'PEER',
+        status: 'SUBMITTED',
+        overallRating: 4.5,
+        strengths: 'Keeps peers aligned',
+        improvements: 'Escalate delivery risks earlier',
+        isAnonymous: false,
+      }]),
+    };
+    const pipRepo = {
+      findByWorker: vi.fn(async () => [{
+        id: new Uuid('00000000-0000-0000-0000-000000000501'),
+        workerId: directReportId,
+        status: 'ACTIVE',
+        objectives: ['Raise launch goal delivery above 75%'],
+        planDurationDays: 45,
+        checkInCadence: 'Twice-weekly manager action-plan check-in',
+        trackingMetrics: [{ metric: 'Launch readiness', current: 55, target: 75, unit: '%' }],
+        successCriteria: ['Two consecutive launch milestones land on time'],
+      }]),
+    };
+    const { controller } = makeController({
+      reviewRepo,
+      goalRepo,
+      feedback360ResponseRepo,
+      pipRepo,
+    });
+
+    const result = await controller.getTeam(request(), directReportId.value);
+
+    expect(reviewRepo.findByWorker).toHaveBeenCalledWith(directReportId);
+    expect(goalRepo.findByWorker).toHaveBeenCalledWith(directReportId);
+    expect(feedback360ResponseRepo.findByReviewee).toHaveBeenCalledWith(directReportId);
+    expect(pipRepo.findByWorker).toHaveBeenCalledWith(directReportId);
+    expect(result.selectedMember).toEqual(expect.objectContaining({
+      performanceRating: 4.2,
+      lastReviewDate: '2026-06-05',
+      goals: [{
+        id: goalId.value,
+        title: 'Launch readiness',
+        status: 'IN_PROGRESS',
+        progress: 55,
+      }],
+      performanceImpact: expect.objectContaining({
+        feedbackSummary: expect.objectContaining({
+          averageRating: 4.5,
+          responseCount: 1,
+        }),
+        actionPlan: expect.objectContaining({
+          riskLevel: 'MEDIUM',
+          checkInCadence: 'Twice-weekly manager action-plan check-in',
+          recommendedActions: expect.arrayContaining([
+            'Advance action plan objective: Raise launch goal delivery above 75%',
+          ]),
+        }),
+      }),
+    }));
+  });
+
+  it('suppresses selected-member 360 summaries until the source cycle threshold is met', async () => {
+    const feedbackCycleId = new Uuid('00000000-0000-0000-0000-000000000701');
+    const feedback360CycleRepo = {
+      findById: vi.fn(async () => ({
+        id: feedbackCycleId,
+        tenantId,
+        minPeerReviews: 5,
+      })),
+    };
+    const feedback360ResponseRepo = {
+      findByReviewee: vi.fn(async () => Array.from({ length: 4 }, (_, index) => ({
+        id: new Uuid(`00000000-0000-0000-0000-00000000080${index}`),
+        tenantId,
+        cycleId: feedbackCycleId,
+        revieweeId: directReportId,
+        reviewerId: peerId,
+        relationshipType: 'PEER',
+        status: 'SUBMITTED',
+        overallRating: 2,
+        strengths: `Strength ${index}`,
+        improvements: `Improve ${index}`,
+        isAnonymous: true,
+      }))),
+    };
+    const { controller } = makeController({
+      feedback360CycleRepo,
+      feedback360ResponseRepo,
+    });
+
+    const result = await controller.getTeam(request(), directReportId.value);
+
+    expect(feedback360CycleRepo.findById).toHaveBeenCalledWith(feedbackCycleId);
+    expect(result.selectedMember.performanceImpact.feedbackSummary).toEqual(expect.objectContaining({
+      responseCount: 4,
+      anonymousResponseCount: 4,
+      averageRating: null,
+      strengths: [],
+      improvements: [],
+      anonymitySuppressionApplied: true,
+    }));
+    expect(result.selectedMember.performanceImpact.feedbackSummary.conciseFeedback).toContain('5 submitted responses');
   });
 
   it('rejects employee users before resolving manager team data', async () => {

@@ -1,4 +1,3 @@
-
 import { useSearchParams } from 'react-router-dom';
 import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
@@ -6,23 +5,111 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
+import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
-import { Users, Star, DollarSign } from 'lucide-react';
+import {
+  ArrowLeft,
+  Users,
+  Star,
+  DollarSign,
+  MessageSquare,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
 import type { Worker } from '@/types';
+
+interface TeamMemberPerformanceImpact {
+  actionPlan?: {
+    riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    checkInCadence?: string;
+    recommendedActions?: string[];
+    currentPerformance?: {
+      latestRating: number | null;
+      averageGoalProgress: number;
+      peerAverageRating: number | null;
+      activeGoalCount: number;
+      openDevelopmentPlan: boolean;
+    };
+  };
+  feedbackSummary?: {
+    averageRating: number | null;
+    responseCount: number;
+    anonymousResponseCount: number;
+    conciseFeedback: string;
+  };
+  nineBox?: {
+    performanceScore: number;
+    potentialScore: number;
+    box: string;
+  };
+}
 
 interface TeamMemberDetail extends Worker {
   performanceRating?: number;
   compensationBand?: string;
   lastReviewDate?: string;
   goals: Array<{ id: string; title: string; status: string; progress: number }>;
+  performanceImpact?: TeamMemberPerformanceImpact;
 }
 
 interface ManagerTeamData {
   directReports: Worker[];
   selectedMember?: TeamMemberDetail;
+}
+
+function formatLabel(value?: string) {
+  if (!value) return 'Not assigned';
+  return value
+    .split('_')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function formatScore(
+  value: number | null | undefined,
+  suffix = '',
+  emptyLabel = 'Not available',
+) {
+  return value === null || value === undefined || Number.isNaN(value)
+    ? emptyLabel
+    : `${Math.round(value * 10) / 10}${suffix}`;
+}
+
+function isOpenGoal(status: string) {
+  return ['OPEN', 'DRAFT', 'ACTIVE', 'IN_PROGRESS'].includes(status);
+}
+
+function clampPercent(value: number) {
+  return Math.min(100, Math.max(0, value));
+}
+
+function performanceRiskVariant(
+  riskLevel?: string,
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (riskLevel === 'HIGH') return 'destructive';
+  if (riskLevel === 'MEDIUM') return 'secondary';
+  if (riskLevel === 'LOW') return 'default';
+  return 'outline';
+}
+
+function performanceRiskLabel(riskLevel?: string) {
+  if (riskLevel === 'HIGH') return 'High attention';
+  if (riskLevel === 'MEDIUM') return 'Medium attention';
+  if (riskLevel === 'LOW') return 'On track';
+  return 'No attention flag';
+}
+
+function workerStatusVariant(
+  status?: string,
+): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (status === 'ACTIVE') return 'default';
+  if (status === 'TERMINATED' || status === 'INACTIVE') return 'destructive';
+  if (status) return 'secondary';
+  return 'outline';
 }
 
 /**
@@ -32,10 +119,11 @@ export function ManagerTeam() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedWorkerId = searchParams.get('worker');
 
-  const { data, isLoading, isError, error, refetch } = useApiQuery<ManagerTeamData>(
-    ['manager-team', selectedWorkerId],
-    `/manager/team${selectedWorkerId ? `?workerId=${selectedWorkerId}` : ''}`
-  );
+  const { data, isLoading, isError, error, refetch } =
+    useApiQuery<ManagerTeamData>(
+      ['manager-team', selectedWorkerId],
+      `/manager/team${selectedWorkerId ? `?workerId=${selectedWorkerId}` : ''}`,
+    );
 
   const reportColumns = [
     {
@@ -50,13 +138,23 @@ export function ManagerTeam() {
         </button>
       ),
     },
-    { key: 'jobTitle', header: 'Job Title', cell: (row: Worker) => row.jobTitle || '-' },
-    { key: 'department', header: 'Department', cell: (row: Worker) => row.departmentName || '-' },
+    {
+      key: 'jobTitle',
+      header: 'Job Title',
+      cell: (row: Worker) => row.jobTitle || 'Not assigned',
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      cell: (row: Worker) => row.departmentName || 'Not assigned',
+    },
     {
       key: 'status',
       header: 'Status',
       cell: (row: Worker) => (
-        <Badge variant={row.status === 'ACTIVE' ? 'default' : 'secondary'}>{row.status}</Badge>
+        <Badge variant={workerStatusVariant(row.status)}>
+          {formatLabel(row.status)}
+        </Badge>
       ),
     },
     {
@@ -86,24 +184,41 @@ export function ManagerTeam() {
   // Show individual member detail if selected
   if (selectedWorkerId && data?.selectedMember) {
     const member = data.selectedMember;
+    const performanceImpact = member.performanceImpact;
+    const actionPlan = performanceImpact?.actionPlan;
+    const feedbackSummary = performanceImpact?.feedbackSummary;
+    const openGoalCount = member.goals.filter((goal) =>
+      isOpenGoal(goal.status),
+    ).length;
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => setSearchParams({})}>
-              ← Back to Team
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSearchParams({})}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to team
             </Button>
             <div>
               <h1 className="font-headline text-2xl font-extrabold tracking-tight md:text-3xl">
-                <span className="fusion-gradient-text">{member.firstName} {member.lastName}</span>
+                <span className="fusion-gradient-text">
+                  {member.firstName} {member.lastName}
+                </span>
               </h1>
-              <p className="text-slate-500">{member.jobTitle} • {member.departmentName}</p>
+              <p className="text-slate-500">
+                {member.jobTitle || 'Role not assigned'} -{' '}
+                {member.departmentName || 'Department not assigned'}
+              </p>
             </div>
           </div>
           <AllowedActions
             aggregateType="WORKER"
             aggregateId={member.id}
             context={{ managerView: true }}
+            readOnlyReason="This team action is available when the request flow is connected for managers."
           />
         </div>
 
@@ -124,23 +239,33 @@ export function ManagerTeam() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">Hire Date</p>
-                  <p className="text-sm font-medium">{formatDate(member.hireDate)}</p>
+                  <p className="text-sm font-medium">
+                    {formatDate(member.hireDate)}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">Status</p>
-                  <Badge variant={member.status === 'ACTIVE' ? 'default' : 'secondary'}>{member.status}</Badge>
+                  <Badge variant={workerStatusVariant(member.status)}>
+                    {formatLabel(member.status)}
+                  </Badge>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">Department</p>
-                  <p className="text-sm font-medium">{member.departmentName}</p>
+                  <p className="text-sm font-medium">
+                    {member.departmentName || 'Not assigned'}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">Manager</p>
-                  <p className="text-sm font-medium">{member.managerName}</p>
+                  <p className="text-sm font-medium">
+                    {member.managerName || 'Not assigned'}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">Legal Entity</p>
-                  <p className="text-sm font-medium">{member.legalEntityName}</p>
+                  <p className="text-sm font-medium">
+                    {member.legalEntityName || 'Not assigned'}
+                  </p>
                 </div>
               </div>
             </div>
@@ -155,9 +280,14 @@ export function ManagerTeam() {
               <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="fusion-glass rounded-2xl p-4">
-                    <p className="text-xs text-slate-500">Latest Rating</p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <TrendingUp className="h-4 w-4" />
+                      Latest Rating
+                    </div>
                     <div className="mt-1 flex items-center gap-2">
-                      <span className="text-2xl font-bold">{member.performanceRating ?? 'N/A'}</span>
+                      <span className="text-2xl font-bold">
+                        {formatScore(member.performanceRating, '', 'Not rated')}
+                      </span>
                       {member.lastReviewDate && (
                         <span className="text-xs text-slate-500">
                           ({formatDate(member.lastReviewDate)})
@@ -166,35 +296,124 @@ export function ManagerTeam() {
                     </div>
                   </div>
                   <div className="fusion-glass rounded-2xl p-4">
-                    <p className="text-xs text-slate-500">Open Goals</p>
-                    <p className="text-2xl font-bold">{member.goals.filter((g) => g.status === 'OPEN').length}</p>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <Target className="h-4 w-4" />
+                      Open Goals
+                    </div>
+                    <p className="mt-1 text-2xl font-bold">{openGoalCount}</p>
+                  </div>
+                  <div className="fusion-glass rounded-2xl p-4">
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <MessageSquare className="h-4 w-4" />
+                      360 feedback
+                    </div>
+                    <p className="mt-1 text-2xl font-bold">
+                      {formatScore(
+                        feedbackSummary?.averageRating ??
+                          actionPlan?.currentPerformance?.peerAverageRating,
+                      )}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {feedbackSummary?.responseCount ?? 0} responses
+                    </p>
+                  </div>
+                  <div className="fusion-glass rounded-2xl p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-slate-500">Support plan</p>
+                      <Badge
+                        variant={performanceRiskVariant(actionPlan?.riskLevel)}
+                      >
+                        {performanceRiskLabel(actionPlan?.riskLevel)}
+                      </Badge>
+                    </div>
+                    <p className="mt-2 text-sm font-medium text-slate-800">
+                      {actionPlan?.checkInCadence ??
+                        'No check-in rhythm set yet.'}
+                    </p>
                   </div>
                 </div>
 
-                {member.goals.length > 0 && (
+                {performanceImpact && (
+                  <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+                    <div className="fusion-glass rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        360 feedback summary
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        {feedbackSummary?.conciseFeedback ??
+                          'No submitted 360 feedback summary yet.'}
+                      </p>
+                    </div>
+                    <div className="fusion-glass rounded-2xl p-4">
+                      <p className="text-sm font-semibold text-slate-900">
+                        {performanceImpact.nineBox?.box ??
+                          'Talent grid pending'}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {performanceImpact.nineBox?.performanceScore ===
+                        undefined
+                          ? 'No performance score yet'
+                          : `${formatScore(performanceImpact.nineBox.performanceScore, '%')} performance`}
+                      </p>
+                      <p className="mt-4 text-xs font-medium uppercase text-slate-500">
+                        Next focus
+                      </p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        {actionPlan?.recommendedActions?.[0] ??
+                          'Keep regular check-ins on active goals.'}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {!performanceImpact && (
+                  <EmptyState
+                    icon={Star}
+                    title="No performance summary yet"
+                    description="Reviews, 360 feedback, and talent grid context will appear after the active cycle has data."
+                  />
+                )}
+
+                {member.goals.length > 0 ? (
                   <div className="space-y-3">
                     <h4 className="text-sm font-medium">Goals</h4>
                     {member.goals.map((goal) => (
-                      <div key={goal.id} className="fusion-glass rounded-2xl p-3">
+                      <div
+                        key={goal.id}
+                        className="fusion-glass rounded-2xl p-3"
+                      >
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium">{goal.title}</span>
-                          <Badge variant="outline">{goal.status}</Badge>
+                          <span className="text-sm font-medium">
+                            {goal.title}
+                          </span>
+                          <Badge variant="outline">
+                            {formatLabel(goal.status)}
+                          </Badge>
                         </div>
                         <div className="mt-2 h-2 rounded-full bg-[#e0e7ff]">
                           <div
                             className="h-2 rounded-full bg-primary"
-                            style={{ width: `${goal.progress}%` }}
+                            style={{ width: `${clampPercent(goal.progress)}%` }}
                           />
                         </div>
-                        <p className="mt-1 text-xs text-slate-500">{goal.progress}% complete</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {clampPercent(goal.progress)}% complete
+                        </p>
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <EmptyState
+                    icon={Target}
+                    title="No goals on this profile yet"
+                    description="Assigned goals and progress will appear here when the current cycle is ready."
+                  />
                 )}
 
                 <AllowedActions
                   aggregateType="PERFORMANCE"
                   aggregateId={member.id}
+                  readOnlyReason="Performance actions will appear when the review workflow is ready for this team member."
                 />
               </div>
             </div>
@@ -206,15 +425,20 @@ export function ManagerTeam() {
                 <DollarSign className="h-5 w-5 text-emerald-500" />
                 Compensation
               </div>
-              <p className="text-sm text-slate-500">Compensation band and recommendations</p>
+              <p className="text-sm text-slate-500">
+                Compensation band and recommendations
+              </p>
               <div className="mt-4 space-y-4">
                 <div className="fusion-glass rounded-2xl p-4">
                   <p className="text-xs text-slate-500">Compensation Band</p>
-                  <p className="text-lg font-medium">{member.compensationBand || 'Not set'}</p>
+                  <p className="text-lg font-medium">
+                    {member.compensationBand || 'Not assigned yet'}
+                  </p>
                 </div>
                 <AllowedActions
                   aggregateType="COMPENSATION"
                   aggregateId={member.id}
+                  readOnlyReason="Compensation actions will appear when a review flow is available for this team member."
                 />
               </div>
             </div>
@@ -229,33 +453,40 @@ export function ManagerTeam() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
-            Team workspace · live
-          </div>
           <h1 className="flex items-center gap-3 font-headline text-3xl font-extrabold tracking-tight md:text-4xl">
             <Users className="h-7 w-7 text-indigo-500" />
             <span className="fusion-gradient-text">Team</span>
           </h1>
-          <p className="mt-1 text-slate-500">Manage your direct reports</p>
+          <p className="mt-1 text-slate-500">
+            Review direct reports, performance context, and next actions.
+          </p>
         </div>
         <AllowedActions
           aggregateType="TEAM"
+          readOnlyReason="Team actions will appear when a manager request flow is available."
         />
       </div>
 
       <div className="fusion-glass rounded-[2rem] p-6">
         <div className="mb-1 text-lg font-bold">Direct Reports</div>
-        <p className="mb-4 text-sm text-slate-500">Click on a team member to view details</p>
-        <DataTable
-          columns={reportColumns}
-          data={data?.directReports ?? []}
-          keyExtractor={(row) => row.id}
-          emptyMessage="No direct reports found"
-        />
+        <p className="mb-4 text-sm text-slate-500">
+          Select a team member to review profile, performance, and compensation
+          context.
+        </p>
+        {(data?.directReports ?? []).length > 0 ? (
+          <DataTable
+            columns={reportColumns}
+            data={data?.directReports ?? []}
+            keyExtractor={(row) => row.id}
+            emptyMessage="No direct reports assigned"
+          />
+        ) : (
+          <EmptyState
+            icon={Users}
+            title="No direct reports assigned"
+            description="When your reporting line is updated, team members will appear here."
+          />
+        )}
       </div>
     </div>
   );

@@ -30,6 +30,7 @@ import type {
   HcmPolicyScope,
   HcmSetupConfig,
   PolicyGovernanceConfig,
+  RuntimePolicyRevisionEvidence,
   RuntimePolicyArea,
 } from '../../domains/hcm-setup/hcm-setup.types.js';
 import { COMMAND_HANDLER_METADATA } from './command-handler.decorator.js';
@@ -37,6 +38,22 @@ import { COMMAND_HANDLER_METADATA } from './command-handler.decorator.js';
 export interface CommandHandler {
   commandName: string;
   handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>>;
+}
+
+interface CommandPolicyDecisionEvidence {
+  serviceArea: string;
+  policyRevisionId?: string;
+  engineName: string;
+  engineVersion: string;
+  scopeMatch: Record<string, unknown>;
+  decision: 'ALLOWED' | 'DENIED';
+  reason: string;
+  commandName: string;
+  aggregateType: string;
+  subjectWorkerId?: string;
+  sourceRecordId?: string;
+  evaluatedPolicyRevisionIds?: string[];
+  conflictingPolicyRevisionIds?: string[];
 }
 
 /** Minimal aggregate shell used by stepLoadAggregate for FSM checks. */
@@ -368,6 +385,7 @@ export class CommandBus implements OnModuleInit {
   ): Promise<CommandOutcome<TResult>> {
     const trx = await this.db.transaction().execute(async (_tx) => {
       let step = CommandPipelineStep.AUTHENTICATE_ACTOR;
+      let policyDecisionEvidence: CommandPolicyDecisionEvidence | undefined;
       try {
         step = CommandPipelineStep.AUTHENTICATE_ACTOR;
         await this.stepAuthenticateActor(command);
@@ -409,7 +427,7 @@ export class CommandBus implements OnModuleInit {
         await this.stepEvaluateRuntimeAccessGovernance(command);
 
         step = CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE;
-        await this.stepEnforceAppliedPolicyRevision(command);
+        policyDecisionEvidence = await this.stepEnforceAppliedPolicyRevision(command);
 
         step = CommandPipelineStep.EVALUATE_MANAGER_HRBP_RELATIONSHIP;
         await this.stepEvaluateManagerRelationship(command);
@@ -438,6 +456,7 @@ export class CommandBus implements OnModuleInit {
           );
         }
         const result = await runWithTransaction(_tx, () => handler.handle(command as HrCommandEnvelope<unknown>));
+        const completedPolicyDecisionEvidence = this.completePolicyDecisionEvidence(policyDecisionEvidence, result);
 
         step = CommandPipelineStep.WRITE_AUTHORITATIVE_STATE;
         await this.stepWriteState(_tx, command, result);
@@ -446,21 +465,25 @@ export class CommandBus implements OnModuleInit {
         await this.stepWriteTransitionLedger(_tx, command, result);
 
         step = CommandPipelineStep.WRITE_HR_AUDIT_RECORD;
-        const auditRecordId = await this.stepWriteAuditRecord(_tx, command, result);
+        const auditRecordId = await this.stepWriteAuditRecord(_tx, command, result, completedPolicyDecisionEvidence);
 
         step = CommandPipelineStep.WRITE_OUTBOX_EVENT;
-        await this.stepWriteOutbox(_tx, command, result);
+        await this.stepWriteOutbox(_tx, command, result, completedPolicyDecisionEvidence);
+
+        await this.stepWritePolicyDecisionEvidence(_tx, command, result, completedPolicyDecisionEvidence);
+
+        const enriched = {
+          ...result,
+          auditRecordId,
+          policyDecisionEvidence: completedPolicyDecisionEvidence ? [completedPolicyDecisionEvidence] : [],
+        } as unknown as CommandResult<TResult>;
 
         step = CommandPipelineStep.STORE_IDEMPOTENCY_RESULT;
-        await this.stepStoreIdempotencyResult(_tx, command, result);
+        await this.stepStoreIdempotencyResult(_tx, command, enriched);
 
         step = CommandPipelineStep.COMMIT_TRANSACTION;
 
         step = CommandPipelineStep.RETURN_COMMAND_RESULT_WITH_ALLOWED_NEXT_ACTIONS_AND_FIELD_FILTERED_DATA;
-        const enriched = {
-          ...result,
-          auditRecordId,
-        } as unknown as CommandResult<TResult>;
         return enriched as CommandOutcome<TResult>;
       } catch (err) {
         const originalError = err instanceof Error ? err.message : String(err);
@@ -498,11 +521,13 @@ export class CommandBus implements OnModuleInit {
     errorCode: string,
     errorMessage: string,
     retryable: boolean,
+    errorDetails?: CommandError['errorDetails'],
   ): CommandError {
     return {
       success: false,
       errorCode,
       errorMessage,
+      errorDetails,
       commandId: command.commandId,
       correlationId: command.correlationId,
       stepFailed: step,
@@ -794,27 +819,124 @@ export class CommandBus implements OnModuleInit {
     await this.stepEvaluateRuntimeFieldAccessOverrides(command);
   }
 
-  private async stepEnforceAppliedPolicyRevision(command: HrCommandEnvelope<unknown>): Promise<void> {
-    if (command.actor.actorType === 'SYSTEM') return;
+  private async stepEnforceAppliedPolicyRevision(command: HrCommandEnvelope<unknown>): Promise<CommandPolicyDecisionEvidence | undefined> {
+    if (command.actor.actorType === 'SYSTEM') return undefined;
 
     const requiredArea = requiredPolicyAreaForCommand(command);
-    if (!requiredArea) return;
+    if (!requiredArea) return undefined;
 
     const setup = await this.getRuntimeSetup(command);
-    const evidence = setup?.runtimePolicyRevisions?.find((candidate) => (
+    const revisions = setup?.runtimePolicyRevisions ?? [];
+    const matching = revisions.filter((candidate) => (
       candidate.area === requiredArea
       && candidate.status === 'APPLIED'
       && this.policyScopeMatches(candidate.scope, command)
     ));
-    if (evidence) return;
+    if (matching.length === 1) {
+      return this.buildAllowedPolicyDecisionEvidence(command, requiredArea, matching[0]);
+    }
 
+    if (matching.length > 1) {
+      const conflictingPolicyRevisionIds = matching.map((candidate) => candidate.revisionId);
+      const reason = `${requiredArea} command ${command.commandName} has conflicting applied Policy Center revisions: ${conflictingPolicyRevisionIds.join(', ')}.`;
+      throw this.makeError(
+        command,
+        CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE,
+        'CONFLICTING_POLICY_REVISIONS_APPLIED',
+        reason,
+        false,
+        {
+          policyDecisionEvidence: this.buildDeniedPolicyDecisionEvidence(
+            command,
+            requiredArea,
+            reason,
+            revisions,
+            matching,
+          ),
+        },
+      );
+    }
+
+    const sameAreaRevisions = revisions.filter((candidate) => candidate.area === requiredArea);
+    const reason = `${requiredArea} commands require an applied Policy Center revision before ${command.commandName} can execute.`;
     throw this.makeError(
       command,
       CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE,
       'REQUIRED_POLICY_REVISION_NOT_APPLIED',
-      `${requiredArea} commands require an applied Policy Center revision before ${command.commandName} can execute.`,
+      reason,
       false,
+      {
+        policyDecisionEvidence: this.buildDeniedPolicyDecisionEvidence(command, requiredArea, reason, sameAreaRevisions),
+      },
     );
+  }
+
+  private buildAllowedPolicyDecisionEvidence(
+    command: HrCommandEnvelope<unknown>,
+    serviceArea: RuntimePolicyArea,
+    revision: RuntimePolicyRevisionEvidence,
+  ): CommandPolicyDecisionEvidence {
+    const subjectWorkerId = this.resolveSubjectWorkerId(command)?.value;
+    return {
+      serviceArea,
+      policyRevisionId: revision.revisionId,
+      engineName: revision.engineName,
+      engineVersion: revision.engineVersion,
+      scopeMatch: this.policyScopeEvidence(revision.scope, command),
+      decision: 'ALLOWED',
+      reason: `Applied Policy Center revision ${revision.revisionId} authorizes ${command.commandName}.`,
+      commandName: command.commandName,
+      aggregateType: command.aggregateType,
+      subjectWorkerId,
+      sourceRecordId: command.aggregateId?.value ?? subjectWorkerId,
+      evaluatedPolicyRevisionIds: [revision.revisionId],
+    };
+  }
+
+  private buildDeniedPolicyDecisionEvidence(
+    command: HrCommandEnvelope<unknown>,
+    serviceArea: RuntimePolicyArea,
+    reason: string,
+    evaluatedRevisions: RuntimePolicyRevisionEvidence[],
+    conflictingRevisions: RuntimePolicyRevisionEvidence[] = [],
+  ): CommandPolicyDecisionEvidence {
+    const subjectWorkerId = this.resolveSubjectWorkerId(command)?.value;
+    const firstRevision = conflictingRevisions[0] ?? evaluatedRevisions[0];
+    return {
+      serviceArea,
+      engineName: firstRevision?.engineName ?? 'PolicyApplicationEngine',
+      engineVersion: firstRevision?.engineVersion ?? 'unapplied',
+      scopeMatch: this.policyScopeEvidence(firstRevision?.scope, command),
+      decision: 'DENIED',
+      reason,
+      commandName: command.commandName,
+      aggregateType: command.aggregateType,
+      subjectWorkerId,
+      sourceRecordId: command.aggregateId?.value ?? subjectWorkerId,
+      evaluatedPolicyRevisionIds: evaluatedRevisions.map((candidate) => candidate.revisionId),
+      conflictingPolicyRevisionIds: conflictingRevisions.map((candidate) => candidate.revisionId),
+    };
+  }
+
+  private completePolicyDecisionEvidence(
+    evidence: CommandPolicyDecisionEvidence | undefined,
+    result: CommandResult<unknown>,
+  ): CommandPolicyDecisionEvidence | undefined {
+    if (!evidence) return undefined;
+    return {
+      ...evidence,
+      sourceRecordId: evidence.sourceRecordId ?? result.aggregateId.value,
+    };
+  }
+
+  private policyScopeEvidence(
+    scope: HcmPolicyScope | undefined,
+    command: HrCommandEnvelope<unknown>,
+  ): Record<string, unknown> {
+    return {
+      tenantId: command.tenantId.value,
+      ...(scope ?? {}),
+    };
   }
 
   private async stepEvaluateRuntimeAllowedActionOverrides(command: HrCommandEnvelope<unknown>): Promise<void> {
@@ -1403,8 +1525,9 @@ export class CommandBus implements OnModuleInit {
     tx: Transaction<Database>,
     command: HrCommandEnvelope<unknown>,
     result: CommandResult<unknown>,
+    policyDecisionEvidence?: CommandPolicyDecisionEvidence,
   ): Promise<Uuid> {
-    const auditId = crypto.randomUUID() as unknown as Uuid;
+    const auditId = Uuid.generate();
     await tx
       .insertInto('audit_log')
       .values({
@@ -1420,6 +1543,7 @@ export class CommandBus implements OnModuleInit {
           newState: result.newState,
           newVersion: result.newVersion,
           correlationId: command.correlationId.value,
+          policyDecisionEvidence: policyDecisionEvidence ? [policyDecisionEvidence] : [],
         } as unknown as Record<string, never>,
         occurred_at: new Date(),
         correlation_id: command.correlationId.value,
@@ -1432,6 +1556,7 @@ export class CommandBus implements OnModuleInit {
     tx: Transaction<Database>,
     command: HrCommandEnvelope<unknown>,
     result: CommandResult<unknown>,
+    policyDecisionEvidence?: CommandPolicyDecisionEvidence,
   ): Promise<void> {
     const eventNames = result.eventsEmitted?.length
       ? result.eventsEmitted
@@ -1466,7 +1591,10 @@ export class CommandBus implements OnModuleInit {
         occurredAt: new Date(),
         version: result.newVersion,
       };
-      const metadata = outboxMetadataForEvent(event);
+      const metadata = {
+        ...outboxMetadataForEvent(event),
+        ...(policyDecisionEvidence ? { policyDecisionEvidence: [policyDecisionEvidence] } : {}),
+      };
 
       await tx
         .insertInto('outbox_events')
@@ -1489,6 +1617,44 @@ export class CommandBus implements OnModuleInit {
         })
         .execute();
     }
+  }
+
+  private async stepWritePolicyDecisionEvidence(
+    tx: Transaction<Database>,
+    command: HrCommandEnvelope<unknown>,
+    result: CommandResult<unknown>,
+    evidence?: CommandPolicyDecisionEvidence,
+  ): Promise<void> {
+    if (!evidence?.policyRevisionId || !this.isUuid(evidence.policyRevisionId)) return;
+
+    const dynamicTx = tx as unknown as {
+      insertInto: (table: string) => {
+        values: (row: Record<string, unknown>) => {
+          execute: () => Promise<unknown>;
+        };
+      };
+    };
+    await dynamicTx
+      .insertInto('hr_platform.admin_policy_decision_evidence')
+      .values({
+        id: Uuid.generate().value,
+        tenant_id: command.tenantId.value,
+        policy_revision_id: evidence.policyRevisionId,
+        service_area: evidence.serviceArea,
+        engine_name: evidence.engineName,
+        engine_version: evidence.engineVersion,
+        scope_match: evidence.scopeMatch,
+        decision: evidence.decision,
+        reason: evidence.reason,
+        subject_worker_id: evidence.subjectWorkerId ?? null,
+        source_record_id: evidence.sourceRecordId ?? result.aggregateId.value,
+        created_at: new Date(),
+      })
+      .execute();
+  }
+
+  private isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
   }
 
   private async stepStoreIdempotencyResult(

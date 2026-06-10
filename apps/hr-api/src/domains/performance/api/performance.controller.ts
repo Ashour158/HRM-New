@@ -185,6 +185,44 @@ export class PerformanceController {
     return typeof value === 'string' ? value : undefined;
   }
 
+  private strictestFeedbackCycleThreshold(
+    feedbackCycles: Array<{ minPeerReviews?: number; tenantId?: Uuid }>,
+    tenantId?: Uuid,
+  ): number | undefined {
+    const thresholds = feedbackCycles
+      .filter((cycle) => !tenantId || cycle.tenantId?.value === tenantId.value)
+      .map((cycle) => cycle.minPeerReviews)
+      .filter((threshold): threshold is number => typeof threshold === 'number' && Number.isFinite(threshold) && threshold > 0);
+    return thresholds.length ? Math.max(...thresholds) : undefined;
+  }
+
+  private feedbackCycleId(response: { cycleId?: unknown }): string | undefined {
+    const cycleId = response.cycleId;
+    if (cycleId instanceof Uuid) return cycleId.value;
+    if (typeof cycleId === 'string' && Uuid.isValid(cycleId)) return cycleId;
+    if (cycleId && typeof cycleId === 'object') {
+      const value = (cycleId as { value?: unknown }).value;
+      if (typeof value === 'string' && Uuid.isValid(value)) return value;
+    }
+    return undefined;
+  }
+
+  private async sourceFeedbackThreshold(
+    feedbackResponses: Array<{ cycleId?: unknown }>,
+    tenantId: Uuid,
+  ): Promise<number | undefined> {
+    const cycleIds = Array.from(new Set(
+      feedbackResponses
+        .map((response) => this.feedbackCycleId(response))
+        .filter((cycleId): cycleId is string => Boolean(cycleId)),
+    ));
+    const feedbackCycles = (await Promise.all(
+      cycleIds.map((cycleId) => this.feedback360CycleRepo.findById(new Uuid(cycleId))),
+    ))
+      .filter((cycle): cycle is NonNullable<typeof cycle> => Boolean(cycle));
+    return this.strictestFeedbackCycleThreshold(feedbackCycles, tenantId);
+  }
+
   private requireActor(req: Request) {
     if (!req.actor) {
       throw new ForbiddenException('Authenticated actor is required');
@@ -409,9 +447,7 @@ export class PerformanceController {
 
     return this.performanceAnalyticsService.buildCycleAnalytics({
       cycleId,
-      anonymityThreshold: feedbackCycles.length
-        ? Math.max(1, Math.min(...feedbackCycles.map((feedbackCycle) => feedbackCycle.minPeerReviews ?? 3)))
-        : 3,
+      anonymityThreshold: this.strictestFeedbackCycleThreshold(feedbackCycles, cycle.tenantId) ?? 3,
       workers,
       reviews,
       goals,
@@ -441,8 +477,10 @@ export class PerformanceController {
     const keyResults = (await Promise.all(objectives.map((objective) => this.keyResultRepo.findByObjective(objective.id)))).flat();
     const feedbackResponses = (await Promise.all(reports.map((worker) => this.feedback360ResponseRepo.findByReviewee(worker.id)))).flat();
     const developmentPlans = (await Promise.all(reports.map((worker) => this.developmentPlanRepo.findByWorker(worker.id)))).flat();
+    const anonymityThreshold = await this.sourceFeedbackThreshold(feedbackResponses, manager.tenantId);
     const analytics = this.performanceAnalyticsService.buildCycleAnalytics({
       cycleId: `manager-dashboard:${managerId}`,
+      anonymityThreshold,
       workers: reports,
       reviews,
       goals,
@@ -471,8 +509,11 @@ export class PerformanceController {
     const keyResults = (await Promise.all(objectives.map((objective) => this.keyResultRepo.findByObjective(objective.id)))).flat();
     const feedbackResponses = await this.feedback360ResponseRepo.findByReviewee(worker.id);
     const developmentPlans = await this.developmentPlanRepo.findByWorker(worker.id);
+    const improvementPlans = await this.pipRepo.findByWorker(worker.id);
+    const anonymityThreshold = await this.sourceFeedbackThreshold(feedbackResponses, worker.tenantId);
     const analytics = this.performanceAnalyticsService.buildCycleAnalytics({
-      cycleId: 'employee-action-plan',
+      cycleId: `employee-action-plan:${workerId}`,
+      anonymityThreshold,
       workers: [worker],
       reviews,
       goals,
@@ -480,6 +521,7 @@ export class PerformanceController {
       keyResults,
       feedbackResponses,
       developmentPlans,
+      improvementPlans,
     });
     return {
       workerId,

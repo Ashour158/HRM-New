@@ -580,4 +580,492 @@ describe('PayrollController salary governance', () => {
     });
     expect(commandBus.execute).not.toHaveBeenCalled();
   });
+
+  it('does not accept client readiness overrides on close-to-pay blockers', async () => {
+    const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440601');
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
+    const preview = {
+      id: '2026-05',
+      name: 'May 2026 Payroll',
+      year: 2026,
+      month: 5,
+      calendarDays: 31,
+      periodStart: '2026-05-01',
+      periodEnd: '2026-05-31',
+      payDate: '2026-05-31',
+      employeeCount: 1,
+      totalGross: 0,
+      totalTax: 0,
+      totalEmployeeInsurance: 0,
+      totalEmployerInsurance: 0,
+      totalPolicyDeductions: 0,
+      totalNet: 0,
+      currency: 'EGP',
+      rows: [{
+        workerId: workerId.value,
+        employeeId: 'EMP-BLOCK-001',
+        name: 'Blocked Worker',
+        email: 'blocked.worker@example.com',
+        grossSalary: 0,
+        netSalary: 0,
+        currency: 'EGP',
+        explainability: [],
+      }],
+    };
+    const controller = new PayrollController(
+      commandBus as never,
+      { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }] }) } as never,
+      { findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
+      {} as never,
+      {} as never,
+      {
+        findByWorker: vi.fn(async () => [{
+          workDate: '2026-05-01',
+          locked: true,
+          readyForPayroll: true,
+        }]),
+      } as never,
+      {} as never,
+      {
+        buildMonthlyCycle: vi.fn(() => preview),
+        buildBankTransferRows: vi.fn(() => [{
+          employeeId: 'EMP-BLOCK-001',
+          workerId: workerId.value,
+          name: 'Blocked Worker',
+          workEmail: 'blocked.worker@example.com',
+          bankName: 'National Bank',
+          accountHolderName: 'Blocked Worker',
+          accountNumber: '123',
+          iban: '',
+          routingNumber: '',
+          swiftCode: '',
+          netSalary: 0,
+          currency: 'EGP',
+          bankReady: true,
+          readinessReason: 'READY',
+        }]),
+        maskRowForActor: (row: unknown) => row,
+      } as never,
+      new PayrollCycleGovernanceService() as never,
+      { findByTenant: vi.fn(async () => []) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { applyApprovedInputs: vi.fn((cycle) => cycle) } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const req = {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    let response: unknown;
+    try {
+      await controller.closeMonthlyCycleToPay({
+        year: 2026,
+        month: 5,
+        overrideReadiness: true,
+        overrideReason: 'client says close anyway',
+      } as never, req);
+      throw new Error('Expected payroll close-to-pay to fail readiness');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      response = (error as BadRequestException).getResponse();
+    }
+
+    expect(response).toMatchObject({
+      message: 'Payroll cycle has blocking readiness issues',
+      readiness: {
+        canClose: false,
+        issues: expect.arrayContaining([
+          expect.objectContaining({ code: 'MISSING_PAYROLL_COMPENSATION' }),
+          expect.objectContaining({ code: 'ZERO_OR_NEGATIVE_NET_PAY' }),
+        ]),
+      },
+    });
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('uses persisted enterprise evidence before final close-to-pay dispatch', async () => {
+    const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
+    const payrollCycleId = '550e8400-e29b-41d4-a716-446655440701';
+    const calculationRunId = '550e8400-e29b-41d4-a716-446655440702';
+    const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440703');
+    const commandNames: string[] = [];
+    const cycle = {
+      id: new Uuid(payrollCycleId),
+      tenantId,
+      cycleName: 'May 2026 Payroll',
+      payPeriodStart: new Date('2026-05-01T00:00:00.000Z'),
+      payPeriodEnd: new Date('2026-05-31T00:00:00.000Z'),
+      payDate: new Date('2026-05-31T00:00:00.000Z'),
+      status: 'DRAFT',
+      aggregateVersion: 0,
+    };
+    const run = {
+      id: new Uuid(calculationRunId),
+      status: 'PENDING',
+      aggregateVersion: 0,
+    };
+    const commandBus = {
+      execute: vi.fn(async (command: { commandName: string }) => {
+        commandNames.push(command.commandName);
+        if (command.commandName === 'CreatePayrollCycle') {
+          cycle.status = 'DRAFT';
+          return { success: true, data: { payrollCycleId }, newState: cycle.status };
+        }
+        if (command.commandName === 'OpenPayrollCycle') cycle.status = 'OPEN';
+        if (command.commandName === 'StartPayrollInputCollection') cycle.status = 'INPUT_COLLECTION';
+        if (command.commandName === 'StartPayrollValidation') cycle.status = 'VALIDATION';
+        if (command.commandName === 'StartPayrollCalculation') cycle.status = 'CALCULATION';
+        if (command.commandName === 'StartPayrollReview') cycle.status = 'REVIEW';
+        if (command.commandName === 'ApprovePayrollCycle') cycle.status = 'APPROVED';
+        if (command.commandName === 'ClosePayrollCycle') cycle.status = 'CLOSED';
+        if (command.commandName === 'StartPayrollCalculationRun') {
+          run.status = 'PENDING';
+          return { success: true, data: { payrollCalculationRunId: calculationRunId }, newState: run.status };
+        }
+        if (command.commandName === 'ValidatePayrollCalculationRun') run.status = 'VALIDATED';
+        if (command.commandName === 'FinalizePayrollCalculationRun') run.status = 'FINALIZED';
+        return { success: true, data: {}, newState: cycle.status };
+      }),
+    };
+    const preview = {
+      id: '2026-05',
+      name: 'May 2026 Payroll',
+      year: 2026,
+      month: 5,
+      calendarDays: 31,
+      periodStart: '2026-05-01',
+      periodEnd: '2026-05-31',
+      payDate: '2026-05-31',
+      employeeCount: 1,
+      totalGross: 10000,
+      totalTax: 1000,
+      totalEmployeeInsurance: 500,
+      totalEmployerInsurance: 700,
+      totalPolicyDeductions: 0,
+      totalNet: 8500,
+      currency: 'EGP',
+      rows: [{
+        workerId: workerId.value,
+        employeeId: 'EMP-TRUST-001',
+        name: 'Trusted Worker',
+        email: 'trusted.worker@example.com',
+        grossSalary: 10000,
+        netSalary: 8500,
+        currency: 'EGP',
+        explainability: [],
+      }],
+    };
+    let storedPaymentBatch: unknown;
+    const controller = new PayrollController(
+      commandBus as never,
+      {
+        getSetup: async () => ({
+          locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+          statutoryPayrollPacks: [{
+            code: 'EG_STAT',
+            label: 'Egypt statutory payroll',
+            active: true,
+            countryCode: 'EG',
+            locationCodes: ['CAIRO_HQ'],
+            calculationPolicy: {
+              taxRatePercent: 10,
+              employeeInsuranceRatePercent: 5,
+            },
+          }],
+        }),
+      } as never,
+      { findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
+      {} as never,
+      {} as never,
+      {
+        findByWorker: vi.fn(async () => [{
+          workDate: '2026-05-01',
+          locked: true,
+          readyForPayroll: true,
+        }]),
+      } as never,
+      {} as never,
+      {
+        buildMonthlyCycle: vi.fn(() => preview),
+        buildBankTransferRows: vi.fn(() => [{
+          employeeId: 'EMP-TRUST-001',
+          workerId: workerId.value,
+          name: 'Trusted Worker',
+          workEmail: 'trusted.worker@example.com',
+          bankName: 'National Bank',
+          accountHolderName: 'Trusted Worker',
+          accountNumber: '123',
+          iban: '',
+          routingNumber: '',
+          swiftCode: '',
+          netSalary: 8500,
+          currency: 'EGP',
+          bankReady: true,
+          readinessReason: 'READY',
+        }]),
+        buildResultLineDrafts: vi.fn(() => []),
+        buildPayslipsFromResultLines: vi.fn(() => []),
+        maskRowForActor: (row: unknown) => row,
+      } as never,
+      new PayrollCycleGovernanceService() as never,
+      {
+        findById: vi.fn(async () => cycle),
+        findByTenant: vi.fn(async () => []),
+      } as never,
+      { findByPayrollCycle: vi.fn(async () => []) } as never,
+      { findById: vi.fn(async () => run) } as never,
+      { findByPayrollCycle: vi.fn(async () => []) } as never,
+      {
+        save: vi.fn(async (record) => { storedPaymentBatch = record; }),
+        findByPayrollCycle: vi.fn(async () => storedPaymentBatch),
+      } as never,
+      { saveMany: vi.fn(async () => undefined), findByPayrollCycle: vi.fn(async () => []) } as never,
+      {} as never,
+      { findByPayrollCycle: vi.fn(async () => undefined), save: vi.fn(async () => undefined) } as never,
+      {
+        buildInputDrafts: vi.fn(() => []),
+        buildPaymentBatch: vi.fn((cyclePreview, rows) => ({
+          batchId: `PAYMENT-${cyclePreview.id}`,
+          payrollCycleId: cyclePreview.id,
+          periodStart: cyclePreview.periodStart,
+          periodEnd: cyclePreview.periodEnd,
+          payDate: cyclePreview.payDate,
+          ready: true,
+          readyCount: rows.length,
+          blockedCount: 0,
+          totalNet: 8500,
+          currency: 'EGP',
+          rows,
+        })),
+        renderPayslipHtml: vi.fn(() => '<html></html>'),
+      } as never,
+      { applyApprovedInputs: vi.fn((cyclePreview) => cyclePreview) } as never,
+      {
+        buildPaymentBatchRecord: vi.fn(({ payrollCycleId, batch }) => ({
+          id: 'batch-1',
+          tenantId: tenantId.value,
+          payrollCycleId,
+          batchNumber: batch.batchId,
+          status: batch.ready ? 'READY' : 'BLOCKED',
+          periodStart: batch.periodStart,
+          periodEnd: batch.periodEnd,
+          payDate: batch.payDate,
+          currency: batch.currency,
+          readyCount: batch.readyCount,
+          blockedCount: batch.blockedCount,
+          totalNet: batch.totalNet,
+          fileHash: 'hash',
+          payload: batch,
+          reconciliationSummary: {},
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        })),
+      } as never,
+      {} as never,
+      {} as never,
+      new PayrollGlPostingService() as never,
+    );
+    const req = {
+      tenantId: tenantId.value,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    let response: unknown;
+    try {
+      await controller.closeMonthlyCycleToPay({ year: 2026, month: 5 }, req);
+      throw new Error('Expected persisted enterprise evidence to block final close');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      response = (error as BadRequestException).getResponse();
+    }
+
+    expect(response).toMatchObject({
+      message: 'Payroll cycle has blocking readiness issues',
+      readiness: {
+        canClose: false,
+        issues: expect.arrayContaining([
+          expect.objectContaining({ code: 'MISSING_GL_MAPPING' }),
+          expect.objectContaining({ code: 'MISSING_PAYMENT_BATCH_CONFIG' }),
+        ]),
+      },
+    });
+    expect(commandNames).not.toContain('ApprovePayrollCycle');
+    expect(commandNames).not.toContain('ClosePayrollCycle');
+  });
+
+  it('rebuilds persisted calculation rows before direct close readiness passes', async () => {
+    const payrollCycleId = '550e8400-e29b-41d4-a716-446655440801';
+    const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
+    const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440802');
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
+    const payrollCycle = {
+      id: new Uuid(payrollCycleId),
+      tenantId,
+      cycleName: 'May 2026 Payroll',
+      payPeriodStart: new Date('2026-05-01T00:00:00.000Z'),
+      payPeriodEnd: new Date('2026-05-31T00:00:00.000Z'),
+      payDate: new Date('2026-05-31T00:00:00.000Z'),
+      status: 'APPROVED',
+      aggregateVersion: 4,
+    };
+    const controller = new PayrollController(
+      commandBus as never,
+      {
+        getSetup: async () => ({
+          locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+          statutoryPayrollPacks: [{
+            code: 'EG_STAT',
+            label: 'Egypt statutory payroll',
+            active: true,
+            countryCode: 'EG',
+            locationCodes: ['CAIRO_HQ'],
+            bankFileFormats: ['CSV'],
+            calculationPolicy: {
+              taxRatePercent: 10,
+              employeeInsuranceRatePercent: 5,
+            },
+            glAccountMapping: {
+              salaryExpenseAccount: '6100',
+              employerInsuranceExpenseAccount: '6110',
+              taxPayableAccount: '2150',
+              insurancePayableAccount: '2160',
+              deductionPayableAccount: '2250',
+              bankClearingAccount: '1050',
+            },
+          }],
+        }),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { buildBankTransferRows: vi.fn(() => []) } as never,
+      new PayrollCycleGovernanceService() as never,
+      {
+        findById: vi.fn(async () => payrollCycle),
+        findByTenant: vi.fn(async () => [payrollCycle]),
+      } as never,
+      {} as never,
+      {} as never,
+      {
+        findByPayrollCycle: vi.fn(async () => [{
+          id: new Uuid('550e8400-e29b-41d4-a716-446655440803'),
+          workerId,
+          lineType: 'NET_PAY',
+          description: 'Net pay',
+          amount: 0,
+          currency: 'EGP',
+          ruleSetId: 'SYSTEM',
+          explanation: 'gross - deductions',
+          status: 'LOCKED',
+        }]),
+      } as never,
+      {
+        findByPayrollCycle: vi.fn(async () => ({
+          status: 'READY',
+          readyCount: 1,
+          blockedCount: 0,
+          totalNet: 0,
+          currency: 'EGP',
+          payload: {
+            rows: [{
+              employeeId: 'EMP-ZERO-001',
+              workerId: workerId.value,
+              name: 'Zero Net',
+              workEmail: 'zero.net@example.com',
+              bankName: 'National Bank',
+              accountHolderName: 'Zero Net',
+              accountNumber: '123',
+              iban: '',
+              routingNumber: '',
+              swiftCode: '',
+              netSalary: 0,
+              currency: 'EGP',
+              bankReady: true,
+              readinessReason: 'READY',
+            }],
+          },
+          reconciliationSummary: {},
+        })),
+      } as never,
+      {
+        findByPayrollCycle: vi.fn(async () => [{
+          workerId: workerId.value,
+          employeeId: 'EMP-ZERO-001',
+          status: 'GENERATED',
+          contentHash: 'hash',
+          htmlContent: '<html>ready</html>',
+        }]),
+      } as never,
+      {} as never,
+      {
+        findByPayrollCycle: vi.fn(async () => ({
+          status: 'DRAFT',
+          totalDebits: 0,
+          totalCredits: 0,
+          lines: [{ accountCode: '1050', description: 'Zero net', debit: 0, credit: 0, currency: 'EGP' }],
+        })),
+      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const req = {
+      tenantId: tenantId.value,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    let response: unknown;
+    try {
+      await controller.closePayrollCycle(payrollCycleId, req);
+      throw new Error('Expected persisted result lines to block direct close');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      response = (error as BadRequestException).getResponse();
+    }
+
+    expect(response).toMatchObject({
+      message: 'Payroll cycle has blocking readiness issues',
+      readiness: {
+        canClose: false,
+        issues: expect.arrayContaining([
+          expect.objectContaining({ code: 'ZERO_OR_NEGATIVE_NET_PAY', workerId: workerId.value }),
+        ]),
+      },
+    });
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
 });

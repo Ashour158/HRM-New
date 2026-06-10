@@ -19,6 +19,7 @@ import {
   Upload,
   Users,
   Workflow,
+  XCircle,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -169,6 +170,7 @@ type CreateRecordVariables = {
 type UpdateRecordVariables = {
   record: OperationalRecord;
   status?: OperationalRecord['status'];
+  operationAction?: NativeRecordAction;
   lastEvent?: string;
 };
 
@@ -185,6 +187,19 @@ type UpdateControlVariables = {
 
 type AdvanceControlVariables = {
   control: GovernanceControl;
+};
+
+type NativeRecordAction = 'advance' | 'approve' | 'process' | 'terminate' | 'reject';
+
+type RecordAction = {
+  label: string;
+  status: OperationalRecord['status'];
+  lastEvent: string;
+  title: string;
+  operationAction?: NativeRecordAction;
+  variant?: 'default' | 'outline';
+  className?: string;
+  Icon: React.ComponentType<{ className?: string }>;
 };
 
 type DomainProfile = {
@@ -506,14 +521,16 @@ function readinessTone(status: ModuleDepthApi['status'] | ModuleDepthCapabilityA
   return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
 }
 
-function canAdvanceRecordInOperations(record: OperationalRecord): boolean {
-  if (record.source !== 'native') return true;
-  return record.nativeSource === 'compensation_plans' && record.status === 'Draft';
-}
-
 function nextRecordStatus(record: OperationalRecord): OperationalRecord['status'] {
   if (record.source === 'native' && record.nativeSource === 'compensation_plans' && record.status === 'Draft') {
     return 'Active';
+  }
+  if (record.source === 'native' && record.nativeSource === 'benefits_enrollments') {
+    if (record.status === 'In Review') return 'Active';
+    if (record.status === 'Active') return 'Closed';
+  }
+  if (record.source === 'native' && record.nativeSource === 'benefits_life_events' && (record.status === 'In Review' || record.status === 'Active')) {
+    return 'Closed';
   }
   const status = record.status;
   if (status === 'Draft') return 'In Review';
@@ -521,6 +538,89 @@ function nextRecordStatus(record: OperationalRecord): OperationalRecord['status'
   if (status === 'Blocked') return 'In Review';
   if (status === 'Active') return 'Closed';
   return 'Active';
+}
+
+function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
+  if (record.source === 'native') {
+    if (record.nativeSource === 'compensation_plans' && record.status === 'Draft') {
+      return [{
+        label: 'Advance',
+        status: 'Active',
+        lastEvent: `${record.object} status advanced`,
+        title: 'Advance through operations command mapping',
+        Icon: CheckCircle2,
+      }];
+    }
+
+    if (record.nativeSource === 'benefits_enrollments') {
+      if (record.status === 'In Review') {
+        return [
+          {
+            label: 'Approve',
+            status: 'Active',
+            operationAction: 'approve',
+            lastEvent: `${record.object} approved`,
+            title: 'Approve benefits enrollment',
+            Icon: CheckCircle2,
+          },
+          {
+            label: 'Reject',
+            status: 'Blocked',
+            operationAction: 'reject',
+            lastEvent: `${record.object} rejected`,
+            title: 'Reject benefits enrollment',
+            variant: 'outline',
+            className: 'border-[#fecdd3] bg-[#fff1f2] text-[#be123c] hover:bg-[#ffe4e6] hover:text-[#9f1239]',
+            Icon: XCircle,
+          },
+        ];
+      }
+      if (record.status === 'Active') {
+        return [{
+          label: 'Terminate',
+          status: 'Closed',
+          operationAction: 'terminate',
+          lastEvent: `${record.object} terminated`,
+          title: 'Terminate benefits enrollment',
+          Icon: CheckCircle2,
+        }];
+      }
+      return [];
+    }
+
+    if (record.nativeSource === 'benefits_life_events' && (record.status === 'In Review' || record.status === 'Active')) {
+      return [
+        {
+          label: 'Process',
+          status: 'Closed',
+          operationAction: 'process',
+          lastEvent: `${record.object} processed`,
+          title: 'Process benefits life event',
+          Icon: CheckCircle2,
+        },
+        {
+          label: 'Reject',
+          status: 'Blocked',
+          operationAction: 'reject',
+          lastEvent: `${record.object} rejected`,
+          title: 'Reject benefits life event',
+          variant: 'outline',
+          className: 'border-[#fecdd3] bg-[#fff1f2] text-[#be123c] hover:bg-[#ffe4e6] hover:text-[#9f1239]',
+          Icon: XCircle,
+        },
+      ];
+    }
+
+    return [];
+  }
+
+  return [{
+    label: 'Advance',
+    status: nextRecordStatus(record),
+    lastEvent: `${record.object} status advanced`,
+    title: 'Advance through operations status flow',
+    Icon: CheckCircle2,
+  }];
 }
 
 function MetricCard({ label, value, detail, icon: Icon }: {
@@ -727,17 +827,25 @@ export function AdminModuleOperations() {
   const updateRecord = useMutation({
     mutationFn: async (variables: UpdateRecordVariables) => {
       if (!module) throw new Error('Module is required');
-      return unwrap<OperationRecordApi>(await apiClient.patch(`/admin/module-operations/${module.id}/records/${variables.record.id}`, {
+      const payload: {
+        status: OperationalRecord['status'];
+        lastEvent: string;
+        operationAction?: NativeRecordAction;
+      } = {
         status: variables.status ?? nextRecordStatus(variables.record),
         lastEvent: variables.lastEvent ?? `${variables.record.object} status advanced`,
-      }));
+      };
+      if (variables.operationAction) {
+        payload.operationAction = variables.operationAction;
+      }
+      return unwrap<OperationRecordApi>(await apiClient.patch(`/admin/module-operations/${module.id}/records/${variables.record.id}`, payload));
     },
     onSuccess: (_record, variables) => {
       if (module) {
         queryClient.invalidateQueries({ queryKey: ['admin-module-operations', module.id] });
       }
       pushActivity(`${variables.record.object} updated`);
-      addNotification({ title: 'Record advanced', message: `${variables.record.object} status updated.`, type: 'success', read: false });
+      addNotification({ title: 'Record updated', message: `${variables.record.object} status updated.`, type: 'success', read: false });
     },
     onError: (error, variables) => {
       pushActivity(`${variables.record.object} update failed: ${mutationErrorMessage(error)}`);
@@ -1131,7 +1239,7 @@ export function AdminModuleOperations() {
                   </TableHeader>
                   <TableBody>
                     {filteredRecords.map((record) => {
-                      const canAdvance = canAdvanceRecordInOperations(record);
+                      const actions = recordActionsForOperations(record);
                       return (
                         <TableRow key={record.id}>
                           <TableCell>
@@ -1163,23 +1271,44 @@ export function AdminModuleOperations() {
                           </TableCell>
                           <TableCell className="text-[#475569]">{record.lastEvent}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              disabled={updateRecord.isPending || !canAdvance}
-                              title={canAdvance ? 'Advance through operations command mapping' : 'Edit this native record in its native module workspace'}
-                              onClick={() => updateRecord.mutate({ record })}
-                            >
-                              {canAdvance ? 'Advance' : 'Native Only'}
-                            </Button>
-                            {record.nativeRoute ? (
-                              <Button asChild size="sm" variant="ghost" className="ml-2">
-                                <Link to={record.nativeRoute}>
-                                  <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                                  Native
-                                </Link>
-                              </Button>
-                            ) : null}
+                            <div className="flex flex-wrap justify-end gap-2">
+                              {actions.length > 0 ? actions.map((action) => (
+                                <Button
+                                  key={`${record.id}-${action.label}`}
+                                  size="sm"
+                                  variant={action.variant ?? 'outline'}
+                                  className={action.className}
+                                  disabled={updateRecord.isPending}
+                                  title={action.title}
+                                  onClick={() => updateRecord.mutate({
+                                    record,
+                                    status: action.status,
+                                    operationAction: action.operationAction,
+                                    lastEvent: action.lastEvent,
+                                  })}
+                                >
+                                  <action.Icon className="mr-1 h-3.5 w-3.5" />
+                                  {action.label}
+                                </Button>
+                              )) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled
+                                  title="Edit this native record in its native module workspace"
+                                >
+                                  Native Only
+                                </Button>
+                              )}
+                              {record.nativeRoute ? (
+                                <Button asChild size="sm" variant="ghost">
+                                  <Link to={record.nativeRoute}>
+                                    <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                                    Native
+                                  </Link>
+                                </Button>
+                              ) : null}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );

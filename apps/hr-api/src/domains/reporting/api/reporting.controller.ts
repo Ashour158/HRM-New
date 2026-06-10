@@ -14,9 +14,10 @@ import { CalculatedFieldRepository } from '../repositories/calculated-field.repo
 import type * as dtos from './dtos.js';
 import {
   CreateReportDefinitionDtoSchema, CreateReportExecutionDtoSchema, CompleteReportExecutionDtoSchema,
-  FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, ZodValidationPipe,
+  FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, HrAnalyticsQueryDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 import { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
+import { HrAnalyticsReportingService } from '../services/hr-analytics-reporting.service.js';
 import {
   buildEmployeeImportTemplateCsv,
   buildHrDashboardExportCsv,
@@ -38,6 +39,7 @@ export class ReportingController {
     private readonly reportScheduleRepo: ReportScheduleRepository,
     private readonly calculatedFieldRepo: CalculatedFieldRepository,
     private readonly serviceUsageReporting: ServiceUsageReportingService,
+    private readonly hrAnalyticsReporting: HrAnalyticsReportingService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -76,12 +78,14 @@ export class ReportingController {
     return this.commandBus.execute(this.buildCommand('ArchiveReportDefinition', 'ReportDefinition', { reportDefinitionId: id }, req, { aggregateId: new Uuid(id), expectedState: doc.status, expectedVersion: doc.aggregateVersion }));
   }
   @Get('report-definitions')
-  async listReportDefinitions(@Query('status') status?: string) {
-    return this.reportDefinitionRepo.findByStatus(status ?? 'DRAFT');
+  async listReportDefinitions(@Req() req: Request, @Query('status') status?: string) {
+    this.assertReportingAdmin(req);
+    return this.reportDefinitionRepo.findByStatusForTenant(status ?? 'DRAFT', this.getTenantId(req));
   }
   @Get('report-definitions/:id')
-  async getReportDefinition(@Param('id') id: string) {
-    return this.reportDefinitionRepo.findById(new Uuid(id));
+  async getReportDefinition(@Req() req: Request, @Param('id') id: string) {
+    this.assertReportingAdmin(req);
+    return this.reportDefinitionRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
   }
 
   @Post('report-executions')
@@ -217,6 +221,18 @@ export class ReportingController {
     return this.serviceUsageReporting.getHrDashboard(this.getTenantId(req), {
       from: this.parseOptionalDate('from', from),
       to: this.parseOptionalDate('to', to),
+    });
+  }
+
+  @Get('hr-analytics')
+  async getHrAnalyticsDashboard(
+    @Req() req: Request,
+    @Query(new ZodValidationPipe(HrAnalyticsQueryDtoSchema)) query: dtos.HrAnalyticsQueryDto = {},
+  ) {
+    this.assertReportingAdmin(req);
+    return this.hrAnalyticsReporting.getDashboard(this.getTenantId(req), {
+      from: this.parseOptionalDate('from', query.from),
+      to: this.parseOptionalDate('to', query.to),
     });
   }
 

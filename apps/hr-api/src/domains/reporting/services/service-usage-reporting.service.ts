@@ -25,6 +25,38 @@ export interface ServiceUsageSummaryOptions {
   to?: Date;
 }
 
+export interface RawSqlLoaderContract {
+  name: string;
+  tables: Array<{
+    schema: string;
+    table: string;
+    columns: string[];
+  }>;
+}
+
+export const SERVICE_USAGE_RAW_SQL_LOADERS: RawSqlLoaderContract[] = [
+  {
+    name: 'service-usage.commands',
+    tables: [{ schema: 'hr_platform', table: 'idempotency_keys', columns: ['tenant_id', 'aggregate_type', 'status', 'created_at'] }],
+  },
+  {
+    name: 'service-usage.outbox',
+    tables: [{ schema: 'hr_platform', table: 'outbox_events', columns: ['tenant_id', 'aggregate_type', 'published_at', 'publish_attempt_count', 'metadata', 'created_at'] }],
+  },
+  {
+    name: 'service-usage.inbox',
+    tables: [{ schema: 'hr_platform', table: 'inbox_events', columns: ['tenant_id', 'aggregate_type', 'processing_status', 'created_at'] }],
+  },
+  {
+    name: 'service-usage.notifications',
+    tables: [{ schema: 'hr_platform', table: 'platform_notifications', columns: ['tenant_id', 'related_aggregate_type', 'created_at'] }],
+  },
+  {
+    name: 'service-usage.workflows',
+    tables: [{ schema: 'hr_platform', table: 'transition_ledgers', columns: ['tenant_id', 'aggregate_type', 'occurred_at'] }],
+  },
+];
+
 export interface ServiceUsageSummary {
   tenantId: string;
   generatedAt: string;
@@ -89,6 +121,10 @@ export interface HrReportDashboard {
     title: string;
     category: string;
     services: string[];
+    serviceUsageLinks?: string[];
+    analyticsOutputs?: string[];
+    template?: ReportCatalogTemplate;
+    brain?: ReportCatalogBrain;
     activity: number;
     commands: number;
     events: number;
@@ -102,6 +138,29 @@ export interface HrReportDashboard {
   }>;
   activityByReport: Array<{ label: string; activity: number; issues: number }>;
   queueHealth: ServiceUsageSummary['queueHealth'];
+  catalog: ReportCatalogEntry[];
+}
+
+export interface ReportCatalogTemplate {
+  module: string;
+  columns: string[];
+  exportArtifact: string;
+}
+
+export interface ReportCatalogBrain {
+  engine: string;
+  nervousSystem: string;
+}
+
+export interface ReportCatalogEntry {
+  code: string;
+  title: string;
+  category: string;
+  services: string[];
+  serviceUsageLinks: string[];
+  analyticsOutputs: string[];
+  template: ReportCatalogTemplate;
+  brain: ReportCatalogBrain;
 }
 
 interface ServiceUsageSqlRow {
@@ -142,21 +201,160 @@ const SERVICE_AREA_PATTERNS: Array<[RegExp, string]> = [
   [/skill|talent|succession|career/i, 'TALENT'],
 ];
 
-const HR_REPORT_GROUPS: Array<{
-  code: string;
-  title: string;
-  category: string;
-  services: string[];
-}> = [
-  { code: 'ATTENDANCE', title: 'Attendance Report', category: 'Workforce', services: ['TIME_ATTENDANCE'] },
-  { code: 'LEAVE', title: 'Leave Report', category: 'Workforce', services: ['ABSENCE_LEAVE'] },
-  { code: 'PAYROLL', title: 'Payroll Report', category: 'Reward', services: ['PAYROLL', 'COMPENSATION'] },
-  { code: 'BENEFITS', title: 'Benefits Report', category: 'Reward', services: ['BENEFITS'] },
-  { code: 'PERFORMANCE', title: 'Performance Report', category: 'Talent', services: ['PERFORMANCE', 'LEARNING', 'TALENT'] },
-  { code: 'ENGAGEMENT', title: 'Engagement Report', category: 'People Experience', services: ['ENGAGEMENT'] },
-  { code: 'EMPLOYEE', title: 'Employee Master Report', category: 'Core HR', services: ['HR_CORE', 'ORGANIZATION', 'ONBOARDING', 'SERVICE_DELIVERY'] },
-  { code: 'SERVICE_USAGE', title: 'Service Usage Report', category: 'Operations', services: ['REPORTING', 'SYSTEM_GOVERNANCE'] },
-  { code: 'GOVERNANCE', title: 'Governance Report', category: 'Governance', services: ['COMPLIANCE', 'POLICY_CENTER', 'ACCESS_GOVERNANCE', 'COUNTRY_POLICY', 'DEI_ANALYTICS', 'REPORTING', 'SYSTEM_GOVERNANCE'] },
+export const HR_REPORT_CATALOG: ReportCatalogEntry[] = [
+  {
+    code: 'ATTENDANCE',
+    title: 'Attendance Report',
+    category: 'Workforce',
+    services: ['TIME_ATTENDANCE'],
+    serviceUsageLinks: ['TIME_ATTENDANCE'],
+    analyticsOutputs: ['employeeDays', 'overtimeHours', 'exceptionSignals', 'readyForPayrollDays'],
+    template: {
+      module: 'attendance',
+      columns: ['externalReference', 'employeeNumber', 'attendanceDate', 'checkInAt', 'checkOutAt', 'workLocationCode', 'policyCode'],
+      exportArtifact: 'attendance-ledger.csv',
+    },
+    brain: {
+      engine: 'attendance-finalization',
+      nervousSystem: 'Time events, attendance ledgers, and payroll readiness events feed the reporting graph.',
+    },
+  },
+  {
+    code: 'LEAVE',
+    title: 'Leave Report',
+    category: 'Workforce',
+    services: ['ABSENCE_LEAVE'],
+    serviceUsageLinks: ['ABSENCE_LEAVE'],
+    analyticsOutputs: ['requestCount', 'requestedDays', 'openRequests'],
+    template: {
+      module: 'leave',
+      columns: ['externalReference', 'employeeNumber', 'leaveTypeCode', 'startDate', 'endDate', 'amount', 'policyCode'],
+      exportArtifact: 'leave-pipeline.csv',
+    },
+    brain: {
+      engine: 'absence-policy',
+      nervousSystem: 'Absence commands, approvals, and policy events feed leave pipeline reporting.',
+    },
+  },
+  {
+    code: 'PAYROLL',
+    title: 'Payroll Report',
+    category: 'Reward',
+    services: ['PAYROLL', 'COMPENSATION'],
+    serviceUsageLinks: ['PAYROLL', 'COMPENSATION'],
+    analyticsOutputs: ['netPay', 'grossPay', 'workersPaid', 'attentionRuns'],
+    template: {
+      module: 'payroll',
+      columns: ['externalReference', 'employeeNumber', 'effectiveFrom', 'salaryComponentCode', 'componentType', 'amount', 'currency'],
+      exportArtifact: 'payroll-net-pay.csv',
+    },
+    brain: {
+      engine: 'payroll-validation',
+      nervousSystem: 'Payroll cycles, calculation runs, compensation changes, and outbox events feed reward reporting.',
+    },
+  },
+  {
+    code: 'PERFORMANCE',
+    title: 'Performance Report',
+    category: 'Talent',
+    services: ['PERFORMANCE', 'LEARNING', 'TALENT'],
+    serviceUsageLinks: ['PERFORMANCE', 'LEARNING', 'TALENT'],
+    analyticsOutputs: ['reviewCount', 'averageRating', 'openReviews', 'ratingBands'],
+    template: {
+      module: 'performance',
+      columns: ['externalReference', 'cycleCode', 'revieweeEmployeeNumber', 'reviewerEmployeeNumber', 'relationshipType', 'rating'],
+      exportArtifact: 'performance-ratings.csv',
+    },
+    brain: {
+      engine: 'performance-analytics',
+      nervousSystem: 'Reviews, goals, feedback, and calibration transitions feed talent reporting.',
+    },
+  },
+  {
+    code: 'BENEFITS',
+    title: 'Benefits Report',
+    category: 'Reward',
+    services: ['BENEFITS'],
+    serviceUsageLinks: ['BENEFITS'],
+    analyticsOutputs: ['enrollments', 'dependentsCovered', 'pendingEnrollments', 'programMix'],
+    template: {
+      module: 'benefits',
+      columns: ['externalReference', 'employeeNumber', 'benefitsProgramCode', 'planCode', 'coverageTier', 'dependentCount'],
+      exportArtifact: 'benefits-coverage.csv',
+    },
+    brain: {
+      engine: 'benefits-lifecycle',
+      nervousSystem: 'Enrollment, life-event, carrier, and payroll-bridge events feed benefits reporting.',
+    },
+  },
+  {
+    code: 'HEADCOUNT_ORG',
+    title: 'Headcount and Org Report',
+    category: 'Organization',
+    services: ['ORGANIZATION', 'HR_CORE'],
+    serviceUsageLinks: ['ORGANIZATION', 'HR_CORE'],
+    analyticsOutputs: ['positions', 'filledPositions', 'vacantPositions', 'headcountRequests'],
+    template: {
+      module: 'headcount-org',
+      columns: ['externalReference', 'positionCode', 'title', 'departmentCode', 'legalEntityCode', 'jobFamily', 'jobLevel'],
+      exportArtifact: 'headcount-org.csv',
+    },
+    brain: {
+      engine: 'position-headcount',
+      nervousSystem: 'Position, headcount request, worker, and manager relationship events feed org reporting.',
+    },
+  },
+  {
+    code: 'COMPLIANCE',
+    title: 'Compliance Report',
+    category: 'Governance',
+    services: ['COMPLIANCE', 'POLICY_CENTER', 'COUNTRY_POLICY', 'ACCESS_GOVERNANCE', 'DEI_ANALYTICS'],
+    serviceUsageLinks: ['COMPLIANCE', 'POLICY_CENTER', 'COUNTRY_POLICY', 'ACCESS_GOVERNANCE', 'DEI_ANALYTICS'],
+    analyticsOutputs: ['acknowledgements', 'overdueAcknowledgements', 'statutoryReports', 'draftReports'],
+    template: {
+      module: 'compliance',
+      columns: ['externalReference', 'policyCode', 'documentType', 'version', 'effectiveFrom', 'acknowledgementDueDate'],
+      exportArtifact: 'compliance-evidence.csv',
+    },
+    brain: {
+      engine: 'policy-acknowledgement-compliance',
+      nervousSystem: 'Policy documents, acknowledgement events, statutory filings, and country packs feed compliance reporting.',
+    },
+  },
+  {
+    code: 'SERVICES',
+    title: 'HR Services Report',
+    category: 'Service Delivery',
+    services: ['SERVICE_DELIVERY'],
+    serviceUsageLinks: ['SERVICE_DELIVERY'],
+    analyticsOutputs: ['cases', 'activeCatalogItems', 'slaBreaches', 'openTasks'],
+    template: {
+      module: 'services',
+      columns: ['externalReference', 'serviceCode', 'serviceName', 'serviceType', 'category', 'slaHours'],
+      exportArtifact: 'hr-services.csv',
+    },
+    brain: {
+      engine: 'hr-service-delivery',
+      nervousSystem: 'Service cases, tasks, catalog items, SLA instances, and notifications feed services reporting.',
+    },
+  },
+  {
+    code: 'ENGAGEMENT',
+    title: 'Engagement Report',
+    category: 'People Experience',
+    services: ['ENGAGEMENT'],
+    serviceUsageLinks: ['ENGAGEMENT'],
+    analyticsOutputs: ['surveyActivity', 'recognitionEvents', 'feedbackSignals'],
+    template: {
+      module: 'engagement',
+      columns: ['externalReference', 'employeeNumber', 'surveyCode', 'recognitionCode'],
+      exportArtifact: 'engagement-signals.csv',
+    },
+    brain: {
+      engine: 'engagement-signals',
+      nervousSystem: 'Survey, recognition, and feedback events feed people experience reporting.',
+    },
+  },
 ];
 
 export function normalizeServiceArea(raw: string | null | undefined): string {
@@ -288,7 +486,7 @@ export function buildServiceUsageSummary(
 
 export function buildHrReportsDashboard(summary: ServiceUsageSummary): HrReportDashboard {
   const servicesByArea = new Map(summary.services.map((service) => [service.serviceArea, service]));
-  const reports = HR_REPORT_GROUPS.map((group) => {
+  const reports = HR_REPORT_CATALOG.map((group) => {
     const services = group.services
       .map((serviceArea) => servicesByArea.get(serviceArea))
       .filter((service): service is ServiceUsageSummary['services'][number] => Boolean(service));
@@ -331,6 +529,10 @@ export function buildHrReportsDashboard(summary: ServiceUsageSummary): HrReportD
       title: group.title,
       category: group.category,
       services: group.services,
+      serviceUsageLinks: group.serviceUsageLinks,
+      analyticsOutputs: group.analyticsOutputs,
+      template: group.template,
+      brain: group.brain,
       activity,
       commands,
       events,
@@ -366,6 +568,7 @@ export function buildHrReportsDashboard(summary: ServiceUsageSummary): HrReportD
       issues: report.issues,
     })),
     queueHealth: summary.queueHealth,
+    catalog: HR_REPORT_CATALOG,
   };
 }
 

@@ -4,17 +4,13 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { BenefitsLifeEventRepository } from '../repositories/benefits-life-event.repository.js';
-import { BenefitsLifeEvent } from '../aggregates/benefits-life-event.aggregate.js';
 import { BenefitsLifeEventFsm } from '../fsm/benefits-life-event.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
-/**
- * Command handler for creating a new BenefitsLifeEvent.
- */
 @Injectable()
-@CommandHandler('CreateBenefitsLifeEvent')
-export class CreateBenefitsLifeEventHandler implements ICommandHandler {
-  commandName = 'CreateBenefitsLifeEvent' as const;
+@CommandHandler('ProcessBenefitsLifeEvent')
+export class ProcessBenefitsLifeEventHandler implements ICommandHandler {
+  commandName = 'ProcessBenefitsLifeEvent' as const;
 
   constructor(
     private readonly repo: BenefitsLifeEventRepository,
@@ -23,24 +19,11 @@ export class CreateBenefitsLifeEventHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as {
-      lifeEventId: Uuid;
-      workerId: Uuid;
-      eventType: string;
-      eventDate: Date;
-      description?: string;
-    };
+    const payload = command.payload as { lifeEventId: Uuid; processedBy?: Uuid };
+    const event = await this.repo.findById(payload.lifeEventId);
+    if (!event) throw new Error('BenefitsLifeEvent not found');
 
-    const event = BenefitsLifeEvent.create({
-      id: payload.lifeEventId,
-      tenantId: command.tenantId,
-      workerId: payload.workerId,
-      eventType: payload.eventType,
-      eventDate: payload.eventDate,
-      description: payload.description,
-      correlationId: command.correlationId,
-    });
-
+    event.process(command.correlationId);
     await this.repo.save(event);
     const eventsEmitted = event.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(event, command);
@@ -50,9 +33,8 @@ export class CreateBenefitsLifeEventHandler implements ICommandHandler {
       data: {
         lifeEventId: event.id.value,
         workerId: event.workerId.value,
-        lifeEventTypeId: event.id.value,
-        recordedBy: command.actor.actorId.value,
         eventType: event.eventType,
+        processedBy: payload.processedBy?.value,
         status: event.status,
       },
       commandId: command.commandId,

@@ -28,6 +28,11 @@ import {
   CreateBenefitsProgramDto,
   CreateBenefitsEnrollmentDto,
   CreateBenefitsLifeEventDto,
+  ApproveBenefitsEnrollmentDto,
+  RejectBenefitsEnrollmentDto,
+  TerminateBenefitsEnrollmentDto,
+  ProcessBenefitsLifeEventDto,
+  RejectBenefitsLifeEventDto,
   CreateSpendingAccountDto,
   CreateCarrierReconciliationRunDto,
 } from './dtos.js';
@@ -53,6 +58,7 @@ export class BenefitsController {
     aggregateType: string,
     aggregateId: string | undefined,
     payload: TPayload,
+    options?: { subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -69,6 +75,7 @@ export class BenefitsController {
       commandSchemaVersion: 1,
       tenantId: new Uuid(tenantId),
       actor,
+      subjectWorkerId: options?.subjectWorkerId,
       aggregateType,
       aggregateId: aggregateId ? new Uuid(aggregateId) : undefined,
       idempotencyKey: crypto.randomUUID(),
@@ -78,6 +85,7 @@ export class BenefitsController {
       metadata: {
         requestHash: computeRequestHash(payload),
         clientType: 'HR_ADMIN',
+        hrDataSensitivity: 'LOW',
       },
     };
   }
@@ -121,13 +129,65 @@ export class BenefitsController {
 
   @Post('enrollments')
   async createEnrollment(@Body() dto: CreateBenefitsEnrollmentDto, @Req() req: Request) {
+    const workerId = new Uuid(dto.workerId);
     const command = this.buildCommand(req, 'CreateBenefitsEnrollment', 'BenefitsEnrollment', undefined, {
       enrollmentId: new Uuid(dto.enrollmentId),
-      workerId: new Uuid(dto.workerId),
+      workerId,
       programId: new Uuid(dto.programId),
       coverageLevel: dto.coverageLevel,
       dependents: dto.dependents,
       effectiveDate: dto.effectiveDate,
+    }, {
+      subjectWorkerId: workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('enrollments/:id/commands/approve')
+  async approveEnrollment(@Param('id') id: string, @Body() dto: ApproveBenefitsEnrollmentDto = {}, @Req() req: Request) {
+    const enrollment = await this.getEnrollmentForCommand(id);
+    const approvedBy = dto.approvedBy ? new Uuid(dto.approvedBy) : this.actorId(req);
+    const command = this.buildCommand(req, 'ApproveBenefitsEnrollment', 'BenefitsEnrollment', id, {
+      enrollmentId: new Uuid(id),
+      approvedBy,
+    }, {
+      subjectWorkerId: enrollment.workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('enrollments/:id/commands/reject')
+  async rejectEnrollment(@Param('id') id: string, @Body() dto: RejectBenefitsEnrollmentDto = {}, @Req() req: Request) {
+    const enrollment = await this.getEnrollmentForCommand(id);
+    const command = this.buildCommand(req, 'RejectBenefitsEnrollment', 'BenefitsEnrollment', id, {
+      enrollmentId: new Uuid(id),
+      rejectedBy: dto.rejectedBy ? new Uuid(dto.rejectedBy) : this.actorId(req),
+      reason: dto.reason,
+    }, {
+      subjectWorkerId: enrollment.workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('enrollments/:id/commands/make-effective')
+  async makeEnrollmentEffective(@Param('id') id: string, @Req() req: Request) {
+    const enrollment = await this.getEnrollmentForCommand(id);
+    const command = this.buildCommand(req, 'MakeEffectiveBenefitsEnrollment', 'BenefitsEnrollment', id, {
+      enrollmentId: new Uuid(id),
+    }, {
+      subjectWorkerId: enrollment.workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('enrollments/:id/commands/terminate')
+  async terminateEnrollment(@Param('id') id: string, @Body() dto: TerminateBenefitsEnrollmentDto = {}, @Req() req: Request) {
+    const enrollment = await this.getEnrollmentForCommand(id);
+    const command = this.buildCommand(req, 'TerminateBenefitsEnrollment', 'BenefitsEnrollment', id, {
+      enrollmentId: new Uuid(id),
+      reason: dto.reason,
+    }, {
+      subjectWorkerId: enrollment.workerId,
     });
     return this.commandBus.execute(command);
   }
@@ -144,18 +204,62 @@ export class BenefitsController {
     return this.enrollmentRepo.findByProgram(new Uuid(programId));
   }
 
+  @Get('enrollments/:id/allowed-actions')
+  async getEnrollmentAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
+    const enrollment = await this.getEnrollmentForCommand(id);
+    const actionsByState: Record<string, string[]> = {
+      DRAFT: ['Submit'],
+      SUBMITTED: ['Approve', 'Reject'],
+      PENDING_APPROVAL: ['Approve', 'Reject'],
+      APPROVED: ['MakeEffective', 'Terminate'],
+      EFFECTIVE: ['Terminate'],
+      TERMINATED: [],
+      REJECTED: [],
+    };
+    return { allowedActions: actionsByState[enrollment.status] ?? [] };
+  }
+
   /* ---------------------------------------------------------------- */
   /*  Benefits Life Events                                              */
   /* ---------------------------------------------------------------- */
 
   @Post('life-events')
   async createLifeEvent(@Body() dto: CreateBenefitsLifeEventDto, @Req() req: Request) {
+    const workerId = new Uuid(dto.workerId);
     const command = this.buildCommand(req, 'CreateBenefitsLifeEvent', 'BenefitsLifeEvent', undefined, {
       lifeEventId: new Uuid(dto.lifeEventId),
-      workerId: new Uuid(dto.workerId),
+      workerId,
       eventType: dto.eventType,
       eventDate: dto.eventDate,
       description: dto.description,
+    }, {
+      subjectWorkerId: workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('life-events/:id/commands/process')
+  async processLifeEvent(@Param('id') id: string, @Body() dto: ProcessBenefitsLifeEventDto = {}, @Req() req: Request) {
+    const event = await this.getLifeEventForCommand(id);
+    const command = this.buildCommand(req, 'ProcessBenefitsLifeEvent', 'BenefitsLifeEvent', id, {
+      lifeEventId: new Uuid(id),
+      processedBy: dto.processedBy ? new Uuid(dto.processedBy) : this.actorId(req),
+    }, {
+      subjectWorkerId: event.workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('life-events/:id/commands/reject')
+  async rejectLifeEvent(@Param('id') id: string, @Body() dto: RejectBenefitsLifeEventDto = {}, @Req() req: Request) {
+    const event = await this.getLifeEventForCommand(id);
+    const command = this.buildCommand(req, 'RejectBenefitsLifeEvent', 'BenefitsLifeEvent', id, {
+      lifeEventId: new Uuid(id),
+      rejectedBy: dto.rejectedBy ? new Uuid(dto.rejectedBy) : this.actorId(req),
+      reason: dto.reason,
+    }, {
+      subjectWorkerId: event.workerId,
     });
     return this.commandBus.execute(command);
   }
@@ -164,6 +268,13 @@ export class BenefitsController {
   async getLifeEventsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertBenefitsAdminScope(req);
     return this.lifeEventRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('life-events/:id/allowed-actions')
+  async getLifeEventAllowedActions(@Param('id') id: string, @Req() req: Request) {
+    this.assertBenefitsAdminScope(req);
+    const event = await this.getLifeEventForCommand(id);
+    return { allowedActions: event.status === 'RECORDED' || event.status === 'PENDING_PROCESSING' ? ['Process', 'Reject'] : [] };
   }
 
   /* ---------------------------------------------------------------- */
@@ -217,5 +328,27 @@ export class BenefitsController {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => BENEFITS_ADMIN_ROLES.has(role))) return;
     throw new ForbiddenException('Only HR or benefits administrators can access benefits administration');
+  }
+
+  private async getEnrollmentForCommand(id: string) {
+    const enrollment = await this.enrollmentRepo.findById(new Uuid(id));
+    if (!enrollment) throw new NotFoundException('BenefitsEnrollment not found');
+    return enrollment;
+  }
+
+  private async getLifeEventForCommand(id: string) {
+    const event = await this.lifeEventRepo.findById(new Uuid(id));
+    if (!event) throw new NotFoundException('BenefitsLifeEvent not found');
+    return event;
+  }
+
+  private actorId(req: Request): Uuid {
+    const actorId = req.actor?.actorId;
+    if (actorId instanceof Uuid) return actorId;
+    const actorIdLike = actorId as { value?: unknown } | undefined;
+    if (typeof actorIdLike?.value === 'string' && Uuid.isValid(actorIdLike.value)) {
+      return new Uuid(actorIdLike.value);
+    }
+    throw new BadRequestException('Actor missing');
   }
 }

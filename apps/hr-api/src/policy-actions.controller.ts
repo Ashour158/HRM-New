@@ -69,6 +69,12 @@ const ACTION_FALLBACKS: Record<string, AllowedActionDto[]> = {
     { id: 'benefits-enrollment-submit', action: 'SUBMIT', label: 'Submit' },
     { id: 'benefits-enrollment-approve', action: 'APPROVE', label: 'Approve' },
     { id: 'benefits-enrollment-reject', action: 'REJECT', label: 'Reject' },
+    { id: 'benefits-enrollment-effective', action: 'MAKE_EFFECTIVE', label: 'Make Effective' },
+    { id: 'benefits-enrollment-terminate', action: 'TERMINATE', label: 'Terminate' },
+  ],
+  BENEFITS_LIFE_EVENT: [
+    { id: 'benefits-life-event-process', action: 'PROCESS', label: 'Process' },
+    { id: 'benefits-life-event-reject', action: 'REJECT', label: 'Reject' },
   ],
   ORG: [
     { id: 'org-create-unit', action: 'CREATE_UNIT', label: 'Create Unit' },
@@ -120,6 +126,7 @@ const AGGREGATE_ALIASES: Record<string, string> = {
   BENEFITS: 'BenefitsEnrollment',
   BENEFITS_PROGRAM: 'BenefitsProgram',
   BENEFITS_ENROLLMENT: 'BenefitsEnrollment',
+  BENEFITS_LIFE_EVENT: 'BenefitsLifeEvent',
   PAYROLL: 'PayrollCycle',
   PERFORMANCE: 'PerformanceReview',
   COUNTRY_POLICY: 'CountryPolicyPack',

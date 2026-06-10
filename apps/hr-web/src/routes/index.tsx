@@ -132,7 +132,7 @@ export function AppRoutes() {
                   <Route index element={<EmployeeDashboard />} />
                   <Route path="profile" element={<EmployeeProfile />} />
                   <Route path="payslip" element={<EmployeePayslip />} />
-                  <Route path="benefits" element={<EmployeeBenefits />} />
+                  <Route path="benefits/*" element={<EmployeeBenefits />} />
                   <Route path="time-off" element={<EmployeeTimeOff />} />
                   <Route path="attendance/:direction" element={<EmployeeAttendanceAction />} />
                   <Route path="onboarding" element={<EmployeeOnboarding />} />

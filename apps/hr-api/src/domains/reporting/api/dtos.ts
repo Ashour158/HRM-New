@@ -84,6 +84,15 @@ export class CreateCalculatedFieldDto {
   @ApiPropertyOptional() sourceFields?: string[];
 }
 
+export const HrAnalyticsQueryDtoSchema = z.object({
+  from: z.string().optional(),
+  to: z.string().optional(),
+});
+export class HrAnalyticsQueryDto {
+  @ApiPropertyOptional() from?: string;
+  @ApiPropertyOptional() to?: string;
+}
+
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
   constructor(private schema: z.ZodTypeAny) {}

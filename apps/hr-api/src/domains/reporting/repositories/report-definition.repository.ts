@@ -15,8 +15,28 @@ export class ReportDefinitionRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<ReportDefinition | undefined> {
+    const row = await this.db
+      .selectFrom('hr_reporting.report_definitions')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row) : undefined;
+  }
+
   async findByStatus(status: string): Promise<ReportDefinition[]> {
     const rows = await this.db.selectFrom('hr_reporting.report_definitions').selectAll().where('status', '=', status).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  async findByStatusForTenant(status: string, tenantId: Uuid): Promise<ReportDefinition[]> {
+    const rows = await this.db
+      .selectFrom('hr_reporting.report_definitions')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('status', '=', status)
+      .execute();
     return rows.map((r: any) => this.toAggregate(r));
   }
 

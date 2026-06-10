@@ -1,5 +1,21 @@
 import type { Uuid } from '@hcm/shared-kernel';
 
+export interface CommandPolicyDecisionEvidence {
+  serviceArea: string;
+  policyRevisionId?: string;
+  engineName: string;
+  engineVersion: string;
+  scopeMatch: Record<string, unknown>;
+  decision: 'ALLOWED' | 'DENIED';
+  reason: string;
+  commandName: string;
+  aggregateType: string;
+  subjectWorkerId?: string;
+  sourceRecordId?: string;
+  evaluatedPolicyRevisionIds?: string[];
+  conflictingPolicyRevisionIds?: string[];
+}
+
 /**
  * Successful result of executing a command.
  *
@@ -17,6 +33,7 @@ export interface CommandResult<TData> {
   fieldAccessDecisions: Record<string, 'VISIBLE' | 'MASKED' | 'HIDDEN' | 'DENIED'>;
   eventsEmitted: string[];
   auditRecordId: Uuid;
+  policyDecisionEvidence?: CommandPolicyDecisionEvidence[];
 }
 
 /**
@@ -26,7 +43,9 @@ export interface CommandError {
   success: false;
   errorCode: string;
   errorMessage: string;
-  errorDetails?: Record<string, unknown>;
+  errorDetails?: Record<string, unknown> & {
+    policyDecisionEvidence?: CommandPolicyDecisionEvidence;
+  };
   commandId: Uuid;
   correlationId: Uuid;
   stepFailed: number;

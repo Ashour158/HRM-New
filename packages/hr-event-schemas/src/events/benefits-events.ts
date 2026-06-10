@@ -33,28 +33,143 @@ export function isBenefitsEnrollmentOpenedEvent(event: unknown): event is Benefi
 }
 
 // ------------------------------------------------------------------
-// BenefitsEnrollmentFinalized
+// BenefitsEnrollmentSubmitted
 // ------------------------------------------------------------------
 
-export interface BenefitsEnrollmentFinalizedPayload {
+export interface BenefitsEnrollmentSubmittedPayload {
   enrollmentId: Uuid;
   workerId: Uuid;
-  finalizedBy: Uuid;
+  programId: Uuid;
 }
 
-export const BenefitsEnrollmentFinalizedPayloadSchema = z.object({
+export const BenefitsEnrollmentSubmittedPayloadSchema = z.object({
   enrollmentId: z.string().uuid(),
   workerId: z.string().uuid(),
-  finalizedBy: z.string().uuid(),
+  programId: z.string().uuid(),
 });
 
-export const BENEFITS_ENROLLMENT_FINALIZED = 'BenefitsEnrollmentFinalized';
+export const BENEFITS_ENROLLMENT_SUBMITTED = 'BenefitsEnrollmentSubmitted';
 
-export type BenefitsEnrollmentFinalizedEvent = HrEventEnvelope<BenefitsEnrollmentFinalizedPayload>;
+export type BenefitsEnrollmentSubmittedEvent = HrEventEnvelope<BenefitsEnrollmentSubmittedPayload>;
+
+export function isBenefitsEnrollmentSubmittedEvent(event: unknown): event is BenefitsEnrollmentSubmittedEvent {
+  const parsed = HrEventEnvelopeSchema(BenefitsEnrollmentSubmittedPayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === BENEFITS_ENROLLMENT_SUBMITTED;
+}
+
+// ------------------------------------------------------------------
+// BenefitsEnrollmentApproved
+// ------------------------------------------------------------------
+
+export interface BenefitsEnrollmentApprovedPayload {
+  enrollmentId: Uuid;
+  workerId: Uuid;
+  approvedBy?: Uuid;
+}
+
+export const BenefitsEnrollmentApprovedPayloadSchema = z.object({
+  enrollmentId: z.string().uuid(),
+  workerId: z.string().uuid(),
+  approvedBy: z.string().uuid().optional(),
+});
+
+export const BENEFITS_ENROLLMENT_APPROVED = 'BenefitsEnrollmentApproved';
+
+export type BenefitsEnrollmentApprovedEvent = HrEventEnvelope<BenefitsEnrollmentApprovedPayload>;
+
+export function isBenefitsEnrollmentApprovedEvent(event: unknown): event is BenefitsEnrollmentApprovedEvent {
+  const parsed = HrEventEnvelopeSchema(BenefitsEnrollmentApprovedPayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === BENEFITS_ENROLLMENT_APPROVED;
+}
+
+// ------------------------------------------------------------------
+// BenefitsEnrollmentTerminated
+// ------------------------------------------------------------------
+
+export interface BenefitsEnrollmentTerminatedPayload {
+  enrollmentId: Uuid;
+  workerId: Uuid;
+  reason?: string;
+}
+
+export const BenefitsEnrollmentTerminatedPayloadSchema = z.object({
+  enrollmentId: z.string().uuid(),
+  workerId: z.string().uuid(),
+  reason: z.string().optional(),
+});
+
+export const BENEFITS_ENROLLMENT_TERMINATED = 'BenefitsEnrollmentTerminated';
+
+export type BenefitsEnrollmentTerminatedEvent = HrEventEnvelope<BenefitsEnrollmentTerminatedPayload>;
+
+export function isBenefitsEnrollmentTerminatedEvent(event: unknown): event is BenefitsEnrollmentTerminatedEvent {
+  const parsed = HrEventEnvelopeSchema(BenefitsEnrollmentTerminatedPayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === BENEFITS_ENROLLMENT_TERMINATED;
+}
+
+// ------------------------------------------------------------------
+// BenefitsEnrollmentRejected
+// ------------------------------------------------------------------
+
+export interface BenefitsEnrollmentRejectedPayload {
+  enrollmentId: Uuid;
+  workerId: Uuid;
+  rejectedBy?: Uuid;
+  reason?: string;
+}
+
+export const BenefitsEnrollmentRejectedPayloadSchema = z.object({
+  enrollmentId: z.string().uuid(),
+  workerId: z.string().uuid(),
+  rejectedBy: z.string().uuid().optional(),
+  reason: z.string().optional(),
+});
+
+export const BENEFITS_ENROLLMENT_REJECTED = 'BenefitsEnrollmentRejected';
+
+export type BenefitsEnrollmentRejectedEvent = HrEventEnvelope<BenefitsEnrollmentRejectedPayload>;
+
+export function isBenefitsEnrollmentRejectedEvent(event: unknown): event is BenefitsEnrollmentRejectedEvent {
+  const parsed = HrEventEnvelopeSchema(BenefitsEnrollmentRejectedPayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === BENEFITS_ENROLLMENT_REJECTED;
+}
+
+// ------------------------------------------------------------------
+// BenefitsEnrollmentEffective
+// ------------------------------------------------------------------
+
+export interface BenefitsEnrollmentEffectivePayload {
+  enrollmentId: Uuid;
+  workerId: Uuid;
+  programId?: Uuid;
+  status?: string;
+  finalizedBy?: Uuid;
+}
+
+export const BenefitsEnrollmentEffectivePayloadSchema = z.object({
+  enrollmentId: z.string().uuid(),
+  workerId: z.string().uuid(),
+  programId: z.string().uuid().optional(),
+  status: z.string().optional(),
+  finalizedBy: z.string().uuid().optional(),
+});
+
+export const BENEFITS_ENROLLMENT_EFFECTIVE = 'BenefitsEnrollmentEffective';
+export const BENEFITS_ENROLLMENT_FINALIZED = BENEFITS_ENROLLMENT_EFFECTIVE;
+
+export type BenefitsEnrollmentEffectiveEvent = HrEventEnvelope<BenefitsEnrollmentEffectivePayload>;
+export type BenefitsEnrollmentFinalizedPayload = BenefitsEnrollmentEffectivePayload;
+export type BenefitsEnrollmentFinalizedEvent = BenefitsEnrollmentEffectiveEvent;
+
+export function isBenefitsEnrollmentEffectiveEvent(event: unknown): event is BenefitsEnrollmentEffectiveEvent {
+  const parsed = HrEventEnvelopeSchema(BenefitsEnrollmentEffectivePayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === BENEFITS_ENROLLMENT_EFFECTIVE;
+}
+
+export const BenefitsEnrollmentFinalizedPayloadSchema = BenefitsEnrollmentEffectivePayloadSchema;
 
 export function isBenefitsEnrollmentFinalizedEvent(event: unknown): event is BenefitsEnrollmentFinalizedEvent {
-  const parsed = HrEventEnvelopeSchema(BenefitsEnrollmentFinalizedPayloadSchema).safeParse(event);
-  return parsed.success && parsed.data.eventName === BENEFITS_ENROLLMENT_FINALIZED;
+  return isBenefitsEnrollmentEffectiveEvent(event);
 }
 
 // ------------------------------------------------------------------
@@ -184,4 +299,31 @@ export type LifeEventProcessedEvent = HrEventEnvelope<LifeEventProcessedPayload>
 export function isLifeEventProcessedEvent(event: unknown): event is LifeEventProcessedEvent {
   const parsed = HrEventEnvelopeSchema(LifeEventProcessedPayloadSchema).safeParse(event);
   return parsed.success && parsed.data.eventName === LIFE_EVENT_PROCESSED;
+}
+
+// ------------------------------------------------------------------
+// LifeEventRejected
+// ------------------------------------------------------------------
+
+export interface LifeEventRejectedPayload {
+  lifeEventId: Uuid;
+  workerId: Uuid;
+  rejectedBy?: Uuid;
+  reason?: string;
+}
+
+export const LifeEventRejectedPayloadSchema = z.object({
+  lifeEventId: z.string().uuid(),
+  workerId: z.string().uuid(),
+  rejectedBy: z.string().uuid().optional(),
+  reason: z.string().optional(),
+});
+
+export const LIFE_EVENT_REJECTED = 'LifeEventRejected';
+
+export type LifeEventRejectedEvent = HrEventEnvelope<LifeEventRejectedPayload>;
+
+export function isLifeEventRejectedEvent(event: unknown): event is LifeEventRejectedEvent {
+  const parsed = HrEventEnvelopeSchema(LifeEventRejectedPayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === LIFE_EVENT_REJECTED;
 }

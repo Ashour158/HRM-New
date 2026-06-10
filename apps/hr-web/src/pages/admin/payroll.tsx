@@ -332,7 +332,6 @@ export function AdminPayroll() {
   const [uploadPreview, setUploadPreview] = React.useState<PayrollMassUpdatePreview | null>(null);
   const [closeResult, setCloseResult] = React.useState<CloseToPayResult | null>(null);
   const [readiness, setReadiness] = React.useState<PayrollReadiness | null>(null);
-  const [overrideReason, setOverrideReason] = React.useState('');
   const [activePayrollTab, setActivePayrollTab] = React.useState<PayrollTab>('cycle');
   const [selectedWorkerId, setSelectedWorkerId] = React.useState('');
   const [persistedBatch, setPersistedBatch] = React.useState<PayrollPaymentBatch | null>(null);
@@ -422,8 +421,6 @@ export function AdminPayroll() {
     month: number;
     workLocationCode?: string;
     massUpdateRows?: PayrollMassUpdateRow[];
-    overrideReadiness?: boolean;
-    overrideReason?: string;
   }>(
     '/payroll/monthly-cycle/close-to-pay',
     'post',
@@ -661,15 +658,13 @@ export function AdminPayroll() {
     setWorkflowMessage('Off-cycle and retro preview calculated.');
   };
 
-  const closeToPay = async (overrideReadiness = false) => {
+  const closeToPay = async () => {
     try {
       const result = await closeToPayMutation.mutateAsync({
         year: Number(year),
         month: Number(month),
         workLocationCode: workLocationCode !== 'ALL' ? workLocationCode : undefined,
         massUpdateRows: uploadPreview?.accepted ? uploadedRows : undefined,
-        overrideReadiness,
-        overrideReason: overrideReadiness ? overrideReason : undefined,
       });
       setCloseResult(result);
       setReadiness(result.readiness ?? null);
@@ -677,8 +672,8 @@ export function AdminPayroll() {
       addNotification({ title: 'Payroll closed to pay', message: 'Payroll closed and artifacts generated.', type: 'success', read: false });
       await hydratePayrollArtifacts(result.payrollCycleId);
     } catch (error) {
-      const response = (error as { response?: { data?: { message?: { readiness?: PayrollReadiness } } } }).response;
-      setReadiness(response?.data?.message?.readiness ?? null);
+      const response = (error as { response?: { data?: { readiness?: PayrollReadiness; message?: { readiness?: PayrollReadiness } } } }).response;
+      setReadiness(response?.data?.readiness ?? response?.data?.message?.readiness ?? null);
     }
   };
 
@@ -737,7 +732,7 @@ export function AdminPayroll() {
           subtitle="Run payroll, review exceptions, prepare payments, and publish payslips."
           actions={(
             <>
-              <Button onClick={() => closeToPay(false)} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
+              <Button onClick={() => closeToPay()} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 {closeToPayMutation.isPending ? 'Closing...' : 'Close to Pay'}
               </Button>
@@ -925,23 +920,8 @@ export function AdminPayroll() {
             <div>
               <p className="font-semibold text-destructive">Payroll readiness blockers</p>
               <p className="text-sm text-muted-foreground">
-                {readiness.blockingIssueCount} blocking issues must be fixed before close-to-pay, or overridden with a reason.
+                {readiness.blockingIssueCount} blocking issues must be fixed before close-to-pay.
               </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                className="min-w-[18rem]"
-                value={overrideReason}
-                onChange={(event) => setOverrideReason(event.target.value)}
-                placeholder="Override reason"
-              />
-              <Button
-                variant="outline"
-                onClick={() => closeToPay(true)}
-                disabled={!overrideReason.trim() || closeToPayMutation.isPending}
-              >
-                Override Close
-              </Button>
             </div>
           </div>
           <div className="grid gap-2 md:grid-cols-2">

@@ -418,6 +418,231 @@ describe('PerformanceController', () => {
     }));
   });
 
+  it('uses the strictest linked 360 cycle threshold for review-cycle analytics', async () => {
+    const reviewCycleId = '00000000-0000-0000-0000-000000000100';
+    const standardFeedbackCycleId = '00000000-0000-0000-0000-000000000200';
+    const highThresholdFeedbackCycleId = '00000000-0000-0000-0000-000000000201';
+    const reviewCycle = {
+      id: new Uuid(reviewCycleId),
+      tenantId: new Uuid(tenantId),
+    };
+    const worker = {
+      id: new Uuid(workerId),
+      tenantId: new Uuid(tenantId),
+      firstName: 'Mona',
+      lastName: 'Khaled',
+    };
+    (cycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(reviewCycle);
+    (workerRepo.findActive as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+    (reviewRepo.findByReviewCycle as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (goalRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (objectiveRepo.findByReviewCycle as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (feedback360CycleRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([
+      {
+        id: new Uuid(standardFeedbackCycleId),
+        tenantId: new Uuid(tenantId),
+        reviewCycleId: new Uuid(reviewCycleId),
+        minPeerReviews: 3,
+      },
+      {
+        id: new Uuid(highThresholdFeedbackCycleId),
+        tenantId: new Uuid(tenantId),
+        reviewCycleId: new Uuid(reviewCycleId),
+        minPeerReviews: 5,
+      },
+    ]);
+    (feedback360ResponseRepo.findByCycle as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (developmentPlanRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (performanceAnalyticsService.buildCycleAnalytics as ReturnType<typeof vi.fn>).mockReturnValue({
+      feedbackSummaries: {},
+      actionPlans: [],
+      nineBox: [],
+      goalMetrics: { total: 0 },
+    });
+
+    await controller.getCycleAnalytics(reviewCycleId, requestWithActor(actor()));
+
+    expect(performanceAnalyticsService.buildCycleAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      cycleId: reviewCycleId,
+      anonymityThreshold: 5,
+    }));
+  });
+
+  it('passes source 360 cycle thresholds into manager dashboard analytics', async () => {
+    const managerId = '00000000-0000-0000-0000-000000000030';
+    const feedbackCycleId = '00000000-0000-0000-0000-000000000200';
+    const manager = {
+      id: new Uuid(managerId),
+      tenantId: new Uuid(tenantId),
+      firstName: 'Nader',
+      lastName: 'Hassan',
+      email: { value: 'manager@example.com' },
+    };
+    const report = {
+      id: new Uuid(workerId),
+      tenantId: new Uuid(tenantId),
+      firstName: 'Mona',
+      lastName: 'Khaled',
+      managerId: new Uuid(managerId),
+    };
+    const feedback = {
+      id: new Uuid('00000000-0000-0000-0000-000000000301'),
+      tenantId: new Uuid(tenantId),
+      cycleId: new Uuid(feedbackCycleId),
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid('00000000-0000-0000-0000-000000000302'),
+      relationshipType: 'PEER',
+      status: 'SUBMITTED',
+      overallRating: 4.4,
+      isAnonymous: true,
+    };
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(manager);
+    (workerRepo.findByEmail as ReturnType<typeof vi.fn>).mockResolvedValue(manager);
+    (workerRepo.findByManager as ReturnType<typeof vi.fn>).mockResolvedValue([report]);
+    (reviewRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (goalRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (objectiveRepo.findByOwner as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (feedback360ResponseRepo.findByReviewee as ReturnType<typeof vi.fn>).mockResolvedValue([feedback]);
+    (feedback360CycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(feedbackCycleId),
+      tenantId: new Uuid(tenantId),
+      minPeerReviews: 5,
+    });
+    (developmentPlanRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (performanceAnalyticsService.buildCycleAnalytics as ReturnType<typeof vi.fn>).mockReturnValue({
+      ratingDistribution: [],
+      reviewCompletion: { total: 0 },
+      goalMetrics: { total: 0 },
+      peerFeedback: { submitted: 1 },
+      calibrationHeatmap: [],
+      nineBox: [{ workerId, box: 'Core contributor' }],
+      recognitions: [],
+      feedbackSummaries: {},
+      actionPlans: [],
+    });
+
+    await controller.getManagerPerformanceDashboard(managerId, requestWithActor(actor({
+      roles: ['MANAGER'],
+      permissions: ['PERFORMANCE_READ', 'PERFORMANCE_WRITE'],
+      email: 'manager@example.com',
+    })));
+
+    expect(feedback360CycleRepo.findById).toHaveBeenCalledWith(new Uuid(feedbackCycleId));
+    expect(performanceAnalyticsService.buildCycleAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      cycleId: `manager-dashboard:${managerId}`,
+      feedbackResponses: [feedback],
+      anonymityThreshold: 5,
+    }));
+  });
+
+  it('passes persisted improvement plans into employee action-plan projections', async () => {
+    const worker = {
+      id: new Uuid(workerId),
+      tenantId: new Uuid(tenantId),
+      firstName: 'Mona',
+      lastName: 'Khaled',
+    };
+    const feedback = {
+      id: new Uuid('00000000-0000-0000-0000-000000000301'),
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid('00000000-0000-0000-0000-000000000302'),
+      relationshipType: 'PEER',
+      status: 'SUBMITTED',
+      overallRating: 4.4,
+      isAnonymous: false,
+    };
+    const improvementPlan = {
+      id: new Uuid('00000000-0000-0000-0000-000000000401'),
+      workerId: new Uuid(workerId),
+      status: 'ACTIVE',
+      checkInCadence: 'Twice-weekly manager action-plan check-in',
+    };
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(worker);
+    (reviewRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (goalRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (objectiveRepo.findByOwner as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (feedback360ResponseRepo.findByReviewee as ReturnType<typeof vi.fn>).mockResolvedValue([feedback]);
+    (developmentPlanRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (pipRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([improvementPlan]);
+    (performanceAnalyticsService.buildCycleAnalytics as ReturnType<typeof vi.fn>).mockReturnValue({
+      actionPlans: [{
+        workerId,
+        riskLevel: 'LOW',
+        checkInCadence: 'Twice-weekly manager action-plan check-in',
+      }],
+      feedbackSummaries: {
+        [workerId]: { averageRating: 4.4, responseCount: 1 },
+      },
+      nineBox: [{ workerId, box: 'Core contributor' }],
+      goalMetrics: { total: 0, active: 0, achieved: 0, atRisk: 0, averageProgress: 0 },
+    });
+
+    const result = await controller.getEmployeeActionPlan(workerId, requestWithActor(actor()));
+
+    expect(pipRepo.findByWorker).toHaveBeenCalledWith(new Uuid(workerId));
+    expect(performanceAnalyticsService.buildCycleAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      cycleId: `employee-action-plan:${workerId}`,
+      workers: [worker],
+      feedbackResponses: [feedback],
+      improvementPlans: [improvementPlan],
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      workerId,
+      actionPlan: expect.objectContaining({
+        checkInCadence: 'Twice-weekly manager action-plan check-in',
+      }),
+      feedbackSummary: expect.objectContaining({ averageRating: 4.4 }),
+    }));
+  });
+
+  it('passes source 360 cycle thresholds into employee action-plan projections', async () => {
+    const feedbackCycleId = '00000000-0000-0000-0000-000000000200';
+    const worker = {
+      id: new Uuid(workerId),
+      tenantId: new Uuid(tenantId),
+      firstName: 'Mona',
+      lastName: 'Khaled',
+    };
+    const feedback = {
+      id: new Uuid('00000000-0000-0000-0000-000000000301'),
+      tenantId: new Uuid(tenantId),
+      cycleId: new Uuid(feedbackCycleId),
+      revieweeId: new Uuid(workerId),
+      reviewerId: new Uuid('00000000-0000-0000-0000-000000000302'),
+      relationshipType: 'PEER',
+      status: 'SUBMITTED',
+      overallRating: 4.4,
+      isAnonymous: true,
+    };
+    (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(worker);
+    (reviewRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (goalRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (objectiveRepo.findByOwner as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (feedback360ResponseRepo.findByReviewee as ReturnType<typeof vi.fn>).mockResolvedValue([feedback]);
+    (feedback360CycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(feedbackCycleId),
+      tenantId: new Uuid(tenantId),
+      minPeerReviews: 5,
+    });
+    (developmentPlanRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (pipRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (performanceAnalyticsService.buildCycleAnalytics as ReturnType<typeof vi.fn>).mockReturnValue({
+      actionPlans: [],
+      feedbackSummaries: {},
+      nineBox: [],
+      goalMetrics: { total: 0, active: 0, achieved: 0, atRisk: 0, averageProgress: 0 },
+    });
+
+    await controller.getEmployeeActionPlan(workerId, requestWithActor(actor()));
+
+    expect(feedback360CycleRepo.findById).toHaveBeenCalledWith(new Uuid(feedbackCycleId));
+    expect(performanceAnalyticsService.buildCycleAnalytics).toHaveBeenCalledWith(expect.objectContaining({
+      cycleId: `employee-action-plan:${workerId}`,
+      feedbackResponses: [feedback],
+      anonymityThreshold: 5,
+    }));
+  });
+
   it('blocks employee key result creation for another worker objective', async () => {
     (objectiveRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: new Uuid('00000000-0000-0000-0000-000000000040'),

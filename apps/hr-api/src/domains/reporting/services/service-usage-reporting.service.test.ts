@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildHrReportsDashboard, buildServiceUsageSummary, type ServiceUsageMetricRow } from './service-usage-reporting.service.js';
+import {
+  buildHrReportsDashboard,
+  buildServiceUsageSummary,
+  HR_REPORT_CATALOG,
+  type ServiceUsageMetricRow,
+} from './service-usage-reporting.service.js';
 
 describe('service usage reporting summary', () => {
   it('combines command, outbox, notification, and workflow usage into service rows', () => {
@@ -157,6 +162,8 @@ describe('service usage reporting summary', () => {
       { source: 'COMMAND', serviceArea: 'DeiReport', total: 1 },
       { source: 'OUTBOX', serviceArea: 'PayEquityReview', total: 1 },
       { source: 'COMMAND', serviceArea: 'WorkAuthorizationCase', total: 1 },
+      { source: 'COMMAND', serviceArea: 'Position', total: 1 },
+      { source: 'WORKFLOW', serviceArea: 'HrServiceCase', total: 1 },
     ];
 
     const summary = buildServiceUsageSummary(tenantId, rows, new Date('2026-06-03T09:00:00.000Z'));
@@ -176,7 +183,45 @@ describe('service usage reporting summary', () => {
     expect(summary.services.find((service) => service.serviceArea === 'COUNTRY_POLICY')).toMatchObject({
       commands: 1,
     });
+    expect(summary.services.find((service) => service.serviceArea === 'ORGANIZATION')).toMatchObject({
+      commands: 1,
+    });
+    expect(summary.services.find((service) => service.serviceArea === 'SERVICE_DELIVERY')).toMatchObject({
+      workflowTransitions: 1,
+    });
     expect(summary.services.find((service) => service.serviceArea === 'REPORTING')).toBeUndefined();
+  });
+
+  it('publishes report catalog templates for operational HR reporting domains', () => {
+    expect(HR_REPORT_CATALOG.map((report) => report.code)).toEqual(expect.arrayContaining([
+      'ATTENDANCE',
+      'LEAVE',
+      'PAYROLL',
+      'PERFORMANCE',
+      'BENEFITS',
+      'HEADCOUNT_ORG',
+      'COMPLIANCE',
+      'SERVICES',
+    ]));
+
+    for (const report of HR_REPORT_CATALOG.filter((item) => [
+      'ATTENDANCE',
+      'LEAVE',
+      'PAYROLL',
+      'PERFORMANCE',
+      'BENEFITS',
+      'HEADCOUNT_ORG',
+      'COMPLIANCE',
+      'SERVICES',
+    ].includes(item.code))) {
+      expect(report.template.columns.length, `${report.code} template columns`).toBeGreaterThanOrEqual(4);
+      expect(report.analyticsOutputs.length, `${report.code} analytics outputs`).toBeGreaterThan(0);
+      expect(report.serviceUsageLinks.length, `${report.code} service usage links`).toBeGreaterThan(0);
+      expect(report.brain).toMatchObject({
+        engine: expect.any(String),
+        nervousSystem: expect.any(String),
+      });
+    }
   });
 
   it('builds business HR report groups from cross-module service usage evidence', () => {
@@ -196,7 +241,7 @@ describe('service usage reporting summary', () => {
     const dashboard = buildHrReportsDashboard(usage);
 
     expect(dashboard.totals).toMatchObject({
-      reportGroups: 9,
+      reportGroups: HR_REPORT_CATALOG.length,
       activeReportGroups: 6,
       totalActivity: 44,
       queueBacklog: 2,
@@ -227,10 +272,10 @@ describe('service usage reporting summary', () => {
       title: 'Benefits Report',
       activity: 2,
     });
-    expect(dashboard.reports.find((report) => report.code === 'SERVICE_USAGE')).toMatchObject({
-      title: 'Service Usage Report',
-      category: 'Operations',
-      services: ['REPORTING', 'SYSTEM_GOVERNANCE'],
+    expect(dashboard.reports.find((report) => report.code === 'SERVICES')).toMatchObject({
+      title: 'HR Services Report',
+      category: 'Service Delivery',
+      services: ['SERVICE_DELIVERY'],
       activity: 0,
       readiness: 'No Data',
     });

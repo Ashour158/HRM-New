@@ -74,6 +74,24 @@ export interface PerformanceAnalyticsDevelopmentPlan {
   status: string;
 }
 
+export interface PerformanceAnalyticsImprovementPlan {
+  id: IdLike;
+  workerId: IdLike;
+  status: string;
+  objectives?: string[];
+  currentPerformance?: {
+    summary?: string;
+    latestRating?: number;
+    goalProgress?: number;
+    peerFeedbackRating?: number;
+  };
+  planDurationDays?: number;
+  milestones?: Array<{ day: number; title: string; target: string; status?: string }>;
+  trackingMetrics?: Array<{ metric: string; current?: number; target: number; unit?: string }>;
+  checkInCadence?: string;
+  successCriteria?: string[];
+}
+
 export interface BuildPerformanceAnalyticsInput {
   cycleId: string;
   anonymityThreshold?: number;
@@ -84,6 +102,7 @@ export interface BuildPerformanceAnalyticsInput {
   keyResults: PerformanceAnalyticsKeyResult[];
   feedbackResponses: PerformanceAnalyticsFeedback[];
   developmentPlans: PerformanceAnalyticsDevelopmentPlan[];
+  improvementPlans?: PerformanceAnalyticsImprovementPlan[];
 }
 
 export interface PerformanceFeedbackSummary {
@@ -175,10 +194,15 @@ export class PerformanceAnalyticsService {
       id: this.id(plan.id),
       workerId: this.id(plan.workerId),
     }));
+    const improvementPlans = (input.improvementPlans ?? []).map((plan) => ({
+      ...plan,
+      id: this.id(plan.id),
+      workerId: this.id(plan.workerId),
+    }));
 
     const feedbackSummaries = this.buildFeedbackSummaries(workers, feedbackResponses, input.anonymityThreshold ?? 3);
     const nineBox = workers.map((worker) => this.placeWorkerInNineBox(worker, reviews, goals, objectives, keyResults, feedbackSummaries));
-    const actionPlans = this.actionPlans(workers, reviews, goals, feedbackSummaries, developmentPlans);
+    const actionPlans = this.actionPlans(workers, reviews, goals, feedbackSummaries, developmentPlans, improvementPlans);
     const recognitions = nineBox
       .filter((placement) => placement.performanceBand === 'HIGH')
       .sort((a, b) => b.performanceScore - a.performanceScore)
@@ -264,6 +288,7 @@ export class PerformanceAnalyticsService {
     goals: Array<PerformanceAnalyticsGoal & { workerId: string; progress: number }>,
     summaries: Record<string, PerformanceFeedbackSummary>,
     developmentPlans: Array<PerformanceAnalyticsDevelopmentPlan & { workerId: string }>,
+    improvementPlans: Array<PerformanceAnalyticsImprovementPlan & { workerId: string }>,
   ): PerformanceActionPlan[] {
     return workers.map((worker) => {
       const workerGoals = goals.filter((goal) => goal.workerId === worker.id);
@@ -271,46 +296,91 @@ export class PerformanceAnalyticsService {
       const rating = this.workerRating(worker.id, reviews);
       const feedback = summaries[worker.id];
       const openDevelopmentPlan = developmentPlans.some((plan) => plan.workerId === worker.id && ['DRAFT', 'ACTIVE', 'IN_PROGRESS'].includes(plan.status));
-      const durationDays = this.actionPlanDuration(rating, averageGoalProgress, feedback?.averageRating);
+      const openImprovementPlan = this.currentOpenImprovementPlan(improvementPlans, worker.id);
+      const hasOpenActionPlan = openDevelopmentPlan || Boolean(openImprovementPlan);
+      const effectiveRating = openImprovementPlan?.currentPerformance?.latestRating ?? rating ?? null;
+      const effectiveGoalProgress = openImprovementPlan?.currentPerformance?.goalProgress ?? averageGoalProgress;
+      const effectivePeerRating = openImprovementPlan?.currentPerformance?.peerFeedbackRating ?? feedback?.averageRating ?? null;
+      const durationDays = openImprovementPlan?.planDurationDays ?? this.actionPlanDuration(effectiveRating ?? undefined, effectiveGoalProgress, effectivePeerRating);
       const recommendedActions: string[] = [];
+      const persistedObjectives = (openImprovementPlan?.objectives ?? [])
+        .map((objective) => objective.trim())
+        .filter(Boolean);
 
-      if (averageGoalProgress < 60) recommendedActions.push(`Improve goal progress from ${Math.round(averageGoalProgress)}% with weekly manager check-ins.`);
-      if ((rating ?? 5) < 3) recommendedActions.push('Create a manager-owned action plan for the low review rating.');
-      if ((feedback?.averageRating ?? 5) < 3) recommendedActions.push('Schedule feedback coaching using peer review themes.');
-      if (!openDevelopmentPlan && recommendedActions.length > 0) recommendedActions.push('Create or activate a development plan with measurable milestones.');
+      for (const objective of persistedObjectives) {
+        recommendedActions.push(`Advance action plan objective: ${objective}`);
+      }
+      if (effectiveGoalProgress < 60) recommendedActions.push(`Improve goal progress from ${Math.round(effectiveGoalProgress)}% with weekly manager check-ins.`);
+      if ((effectiveRating ?? 5) < 3) recommendedActions.push('Create a manager-owned action plan for the low review rating.');
+      if ((effectivePeerRating ?? 5) < 3) recommendedActions.push('Schedule feedback coaching using peer review themes.');
+      if (!hasOpenActionPlan && recommendedActions.length > 0) recommendedActions.push('Create or activate a development plan with measurable milestones.');
       if (recommendedActions.length === 0) recommendedActions.push('Maintain current performance rhythm and consider recognition or stretch goals.');
-      const riskLevel = recommendedActions.some((item) => item.includes('low review') || item.includes('peer review')) ? 'HIGH' : averageGoalProgress < 60 ? 'MEDIUM' : 'LOW';
+      const riskLevel = recommendedActions.some((item) => item.includes('low review') || item.includes('peer review')) ? 'HIGH' : effectiveGoalProgress < 60 ? 'MEDIUM' : 'LOW';
+      const generatedTrackingMetrics = [
+        { metric: 'Goal progress', current: this.round(effectiveGoalProgress), target: 80, unit: '%' },
+        { metric: 'Peer feedback rating', current: effectivePeerRating, target: 3.5, unit: '/5' },
+        { metric: 'Latest review rating', current: effectiveRating, target: 3, unit: '/5' },
+      ];
+      const persistedTrackingMetrics = (openImprovementPlan?.trackingMetrics ?? []).map((metric) => ({
+        metric: metric.metric,
+        current: typeof metric.current === 'number' ? metric.current : null,
+        target: typeof metric.target === 'number' ? metric.target : null,
+        unit: metric.unit ?? 'value',
+      }));
+      const persistedSuccessCriteria = (openImprovementPlan?.successCriteria ?? [])
+        .map((criterion) => criterion.trim())
+        .filter(Boolean);
 
       return {
         workerId: worker.id,
         employeeName: worker.employeeName,
         riskLevel,
         currentPerformance: {
-          latestRating: rating ?? null,
-          averageGoalProgress: this.round(averageGoalProgress),
-          peerAverageRating: feedback?.averageRating ?? null,
+          latestRating: effectiveRating,
+          averageGoalProgress: this.round(effectiveGoalProgress),
+          peerAverageRating: effectivePeerRating,
           activeGoalCount: workerGoals.filter((goal) => ['DRAFT', 'ACTIVE', 'IN_PROGRESS'].includes(goal.status)).length,
-          openDevelopmentPlan,
+          openDevelopmentPlan: hasOpenActionPlan,
         },
         timeline: {
           durationDays,
           reviewCheckpoints: durationDays <= 30 ? [15, 30] : durationDays <= 60 ? [30, 60] : [30, 60, 90],
         },
-        checkInCadence: riskLevel === 'HIGH' ? 'Weekly manager check-in' : riskLevel === 'MEDIUM' ? 'Bi-weekly manager check-in' : 'Monthly performance conversation',
-        trackingMetrics: [
-          { metric: 'Goal progress', current: this.round(averageGoalProgress), target: 80, unit: '%' },
-          { metric: 'Peer feedback rating', current: feedback?.averageRating ?? null, target: 3.5, unit: '/5' },
-          { metric: 'Latest review rating', current: rating ?? null, target: 3, unit: '/5' },
-        ],
-        successCriteria: [
+        checkInCadence: openImprovementPlan?.checkInCadence ?? (riskLevel === 'HIGH' ? 'Weekly manager check-in' : riskLevel === 'MEDIUM' ? 'Bi-weekly manager check-in' : 'Monthly performance conversation'),
+        trackingMetrics: persistedTrackingMetrics.length ? persistedTrackingMetrics : generatedTrackingMetrics,
+        successCriteria: persistedSuccessCriteria.length ? persistedSuccessCriteria : [
           'Goal progress reaches at least 80%',
           'Peer feedback average is 3.5 or higher',
           'Manager confirms sustained behavior improvement at checkpoint review',
         ],
-        progressTrend: this.progressTrend(rating, averageGoalProgress, feedback?.averageRating),
+        progressTrend: this.progressTrend(effectiveRating ?? undefined, effectiveGoalProgress, effectivePeerRating),
         recommendedActions,
       };
     });
+  }
+
+  private isOpenActionPlanStatus(status: string): boolean {
+    return ['DRAFT', 'ACTIVE', 'IN_PROGRESS', 'REVIEW_PENDING', 'EXTENDED'].includes(status);
+  }
+
+  private currentOpenImprovementPlan(
+    improvementPlans: Array<PerformanceAnalyticsImprovementPlan & { workerId: string }>,
+    workerId: string,
+  ): (PerformanceAnalyticsImprovementPlan & { workerId: string }) | undefined {
+    const statusPriority: Record<string, number> = {
+      ACTIVE: 0,
+      IN_PROGRESS: 1,
+      REVIEW_PENDING: 2,
+      EXTENDED: 3,
+      DRAFT: 4,
+    };
+    return improvementPlans
+      .filter((plan) => plan.workerId === workerId && this.isOpenActionPlanStatus(plan.status))
+      .sort((left, right) => {
+        const statusDelta = (statusPriority[left.status] ?? 99) - (statusPriority[right.status] ?? 99);
+        if (statusDelta !== 0) return statusDelta;
+        return this.id(left.id).localeCompare(this.id(right.id));
+      })[0];
   }
 
   private placeWorkerInNineBox(

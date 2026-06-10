@@ -6,7 +6,17 @@ export interface EmployeeImportTemplateOptions {
   locationCode?: string;
 }
 
-export const migrationTemplateModules = ['employees', 'attendance', 'leave', 'payroll', 'performance', 'benefits'] as const;
+export const migrationTemplateModules = [
+  'employees',
+  'attendance',
+  'leave',
+  'payroll',
+  'performance',
+  'benefits',
+  'headcount-org',
+  'compliance',
+  'services',
+] as const;
 export type MigrationTemplateModule = typeof migrationTemplateModules[number];
 
 const EMPLOYEE_IMPORT_TEMPLATE_HEADERS = [
@@ -167,6 +177,71 @@ const TEMPLATE_DEFINITIONS: Record<MigrationTemplateModule, TemplateDefinition> 
       payrollDeductionCode: 'BEN-MEDICAL',
       policyCode: 'EG-BENEFITS',
       notes: 'Benefits enrollment import row',
+    },
+  },
+  'headcount-org': {
+    title: 'Headcount and organization',
+    owner: 'People Operations',
+    notes: 'Imports position catalog, headcount planning requests, legal-entity links, and organization coverage evidence.',
+    headers: ['externalReference', 'positionCode', 'title', 'departmentCode', 'legalEntityCode', 'jobFamily', 'jobLevel', 'employmentType', 'status', 'filledByEmployeeNumber', 'headcountRequestNumber', 'positionsRequested', 'positionsApproved', 'policyCode', 'notes'],
+    sample: {
+      externalReference: 'headcount-org-import-001',
+      positionCode: 'FIN-MGR-01',
+      title: 'Finance Manager',
+      departmentCode: 'FINANCE',
+      legalEntityCode: 'EG-LEGAL-01',
+      jobFamily: 'Finance',
+      jobLevel: 'M3',
+      employmentType: 'FULL_TIME',
+      status: 'OPEN',
+      filledByEmployeeNumber: '',
+      headcountRequestNumber: 'HC-2026-001',
+      positionsRequested: 1,
+      positionsApproved: 1,
+      policyCode: 'POSITION-CONTROL',
+      notes: 'Position and headcount import row',
+    },
+  },
+  compliance: {
+    title: 'Compliance evidence',
+    owner: 'Compliance Operations',
+    notes: 'Imports policy documents, acknowledgement due dates, statutory report metadata, and legal hold references.',
+    headers: ['externalReference', 'policyCode', 'documentType', 'version', 'effectiveFrom', 'acknowledgementDueDate', 'effectiveUntil', 'employeeNumber', 'acknowledgedAt', 'statutoryReportType', 'countryCode', 'legalEntityCode', 'status', 'notes'],
+    sample: {
+      externalReference: 'compliance-import-001',
+      policyCode: 'CODE-OF-CONDUCT',
+      documentType: 'POLICY',
+      version: '2026.1',
+      effectiveFrom: '2026-07-01',
+      effectiveUntil: '',
+      employeeNumber: 'EMP-1001',
+      acknowledgementDueDate: '2026-07-15',
+      acknowledgedAt: '',
+      statutoryReportType: '',
+      countryCode: 'EG',
+      legalEntityCode: 'EG-LEGAL-01',
+      status: 'PENDING',
+      notes: 'Compliance evidence import row',
+    },
+  },
+  services: {
+    title: 'HR services',
+    owner: 'HR Service Delivery',
+    notes: 'Imports service catalog items, case routing metadata, SLA targets, and fulfillment ownership.',
+    headers: ['externalReference', 'serviceCode', 'serviceName', 'serviceType', 'category', 'slaHours', 'fulfillmentProcess', 'caseType', 'priority', 'ownerRole', 'status', 'notes'],
+    sample: {
+      externalReference: 'services-import-001',
+      serviceCode: 'HR_LETTER',
+      serviceName: 'Employment letter request',
+      serviceType: 'DOCUMENT',
+      category: 'Documents',
+      slaHours: 24,
+      fulfillmentProcess: 'HR verifies worker data, prepares letter, and publishes the signed document.',
+      caseType: 'HR_LETTER',
+      priority: 'MEDIUM',
+      ownerRole: 'HR_OPERATIONS',
+      status: 'ACTIVE',
+      notes: 'HR service catalog import row',
     },
   },
 };

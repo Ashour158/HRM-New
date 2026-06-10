@@ -19,6 +19,12 @@ import { BenefitsEventsPublisher } from './events/benefits-events.publisher.js';
 import { CreateBenefitsProgramHandler } from './commands/create-benefits-program.handler.js';
 import { CreateBenefitsEnrollmentHandler } from './commands/create-benefits-enrollment.handler.js';
 import { CreateBenefitsLifeEventHandler } from './commands/create-benefits-life-event.handler.js';
+import { ApproveBenefitsEnrollmentHandler } from './commands/approve-benefits-enrollment.handler.js';
+import { RejectBenefitsEnrollmentHandler } from './commands/reject-benefits-enrollment.handler.js';
+import { MakeEffectiveBenefitsEnrollmentHandler } from './commands/make-effective-benefits-enrollment.handler.js';
+import { TerminateBenefitsEnrollmentHandler } from './commands/terminate-benefits-enrollment.handler.js';
+import { ProcessBenefitsLifeEventHandler } from './commands/process-benefits-life-event.handler.js';
+import { RejectBenefitsLifeEventHandler } from './commands/reject-benefits-life-event.handler.js';
 import { CreateSpendingAccountHandler } from './commands/create-spending-account.handler.js';
 import { CreateCarrierReconciliationRunHandler } from './commands/create-carrier-reconciliation-run.handler.js';
 
@@ -46,6 +52,12 @@ import { CreateCarrierReconciliationRunHandler } from './commands/create-carrier
     CreateBenefitsProgramHandler,
     CreateBenefitsEnrollmentHandler,
     CreateBenefitsLifeEventHandler,
+    ApproveBenefitsEnrollmentHandler,
+    RejectBenefitsEnrollmentHandler,
+    MakeEffectiveBenefitsEnrollmentHandler,
+    TerminateBenefitsEnrollmentHandler,
+    ProcessBenefitsLifeEventHandler,
+    RejectBenefitsLifeEventHandler,
     CreateSpendingAccountHandler,
     CreateCarrierReconciliationRunHandler,
   ],
