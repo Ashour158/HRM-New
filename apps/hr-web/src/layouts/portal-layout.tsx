@@ -98,15 +98,16 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
     description: 'Full administrative access to all HR domains',
     theme: 'admin',
     navItems: [
-      { label: 'Admin Panel', path: '/admin/system-console', systemOnly: true },
-      { label: 'Dashboard', path: '/employee' },
-      { label: 'Profile', path: '/employee/profile' },
-      { label: 'Payroll', path: '/employee/payslip' },
-      { label: 'Benefits', path: '/employee/benefits' },
-      { label: 'Onboarding', path: '/employee/onboarding' },
-      { label: 'Leave', path: '/employee/time-off' },
-      { label: 'Performance', path: '/employee/performance' },
-      { label: 'Services', path: '/employee/services' },
+      { label: 'Dashboard', path: '/admin' },
+      { label: 'Employees', path: '/admin/employees' },
+      { label: 'Organization', path: '/admin/organization' },
+      { label: 'Attendance', path: '/admin/attendance' },
+      { label: 'Leave', path: '/admin/leave-management' },
+      { label: 'Payroll', path: '/admin/payroll' },
+      { label: 'Performance', path: '/admin/performance/operations' },
+      { label: 'Modules', path: '/admin/modules' },
+      { label: 'Reports', path: '/admin/reports' },
+      { label: 'System Console', path: '/admin/system-console', systemOnly: true },
     ],
   },
 };
@@ -130,16 +131,16 @@ const managerRailItems: PortalRailItem[] = [
 ];
 
 const adminRailItems: PortalRailItem[] = [
-  { label: 'Admin Panel', path: '/admin/system-console', icon: Network, systemOnly: true },
-  { label: 'Dashboard', path: '/employee', icon: Home },
-  { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
-  { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
-  { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
-  { label: 'Payslips', path: '/employee/payslip', icon: FileText },
-  { label: 'Benefits', path: '/employee/benefits', icon: Heart },
-  { label: 'Onboarding', path: '/employee/onboarding', icon: UserRoundCheck },
-  { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
-  { label: 'Services', path: '/employee/services', icon: LifeBuoy },
+  { label: 'Dashboard', path: '/admin', icon: Home },
+  { label: 'Employees', path: '/admin/employees', icon: Users },
+  { label: 'Organization', path: '/admin/organization', icon: Network },
+  { label: 'Attendance', path: '/admin/attendance', icon: Clock3 },
+  { label: 'Leave', path: '/admin/leave-management', icon: Umbrella },
+  { label: 'Payroll', path: '/admin/payroll', icon: FileText },
+  { label: 'Performance', path: '/admin/performance/operations', icon: TrendingUp },
+  { label: 'Modules', path: '/admin/modules', icon: UserRoundCheck },
+  { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
+  { label: 'System Console', path: '/admin/system-console', icon: Settings, systemOnly: true },
 ];
 
 function portalRailItems(portalType: PortalType) {
@@ -174,6 +175,8 @@ function WorkspaceShell({
   const canSeeSystemConsole = hasSystemAdminRole(roleNames);
   const railItems = portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole);
   const notificationPath = portalType === 'admin' ? '/notifications/hr-operations' : '/notifications/me';
+  const primaryActionPath = portalType === 'admin' ? '/admin/system-console' : '/employee/services';
+  const primaryActionLabel = portalType === 'admin' ? 'Admin Panel' : 'New Request';
   const { data: notificationsRaw } = useApiQuery<PlatformNotification[]>(
     ['platform-notifications', portalType],
     notificationPath,
@@ -218,9 +221,9 @@ function WorkspaceShell({
 
         <div className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
           <Button asChild className="w-full rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 font-bold text-white shadow-lg shadow-indigo-500/25 hover:shadow-xl hover:shadow-indigo-500/30">
-            <Link to="/employee/services">
+            <Link to={primaryActionPath}>
               <span className="mr-2 text-lg leading-none">+</span>
-              New Request
+              {primaryActionLabel}
             </Link>
           </Button>
 
@@ -333,9 +336,9 @@ function WorkspaceShell({
 
             <div className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
               <Button asChild className="w-full rounded-2xl bg-gradient-to-r from-indigo-500 to-violet-600 font-bold text-white shadow-lg shadow-indigo-500/25">
-                <Link to="/employee/services">
+                <Link to={primaryActionPath}>
                   <span className="mr-2 text-lg leading-none">+</span>
-                  New Request
+                  {primaryActionLabel}
                 </Link>
               </Button>
 

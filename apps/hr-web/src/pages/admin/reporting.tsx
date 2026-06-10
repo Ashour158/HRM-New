@@ -75,6 +75,15 @@ function readinessTone(readiness: HrReportReadiness) {
 
 const chartColors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899'];
 
+const migrationTemplates = [
+  { module: 'employees', title: 'Employees', owner: 'People Operations' },
+  { module: 'attendance', title: 'Attendance', owner: 'Workforce Operations' },
+  { module: 'leave', title: 'Leave', owner: 'Absence Administration' },
+  { module: 'payroll', title: 'Payroll', owner: 'Payroll Administration' },
+  { module: 'performance', title: 'Performance', owner: 'Talent Management' },
+  { module: 'benefits', title: 'Benefits', owner: 'Reward Operations' },
+] as const;
+
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -120,6 +129,10 @@ export function AdminReporting() {
             <Button variant="outline" onClick={() => downloadCsv('/reporting/employee-import-template.csv', 'employee-import-template.csv')}>
               <FileSpreadsheet className="mr-2 h-4 w-4" />
               Employee Template
+            </Button>
+            <Button variant="outline" onClick={() => downloadCsv('/reporting/migration-manifest/export.csv', 'hr-migration-manifest.csv')}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              Migration Manifest
             </Button>
             <Button variant="outline" onClick={() => downloadCsv('/reporting/hr-dashboard/export.csv', 'hr-reporting-dashboard.csv')}>
               <Download className="mr-2 h-4 w-4" />
@@ -192,6 +205,37 @@ export function AdminReporting() {
           </div>
 
           <SectionHeading title="Report Library" />
+          <Card className="rounded-2xl border-[#e2e8f0]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-[#10b981]" />
+                Migration Templates
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {migrationTemplates.map((template) => (
+                  <div key={template.module} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-[#0f172a]">{template.title}</p>
+                        <p className="mt-1 text-sm text-[#64748b]">{template.owner}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => downloadCsv(`/reporting/module-import-template.csv?module=${template.module}`, `${template.module}-import-template.csv`)}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Template
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 lg:grid-cols-2">
             {dashboard.reports.map((report) => (
               <Card key={report.code} className="rounded-2xl border-[#e2e8f0]">

@@ -20,6 +20,9 @@ import { ServiceUsageReportingService } from '../services/service-usage-reportin
 import {
   buildEmployeeImportTemplateCsv,
   buildHrDashboardExportCsv,
+  buildModuleImportTemplateCsv,
+  buildModuleMigrationManifestCsv,
+  isMigrationTemplateModule,
 } from '../services/employee-import-export-template.service.js';
 
 const REPORTING_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP', 'REPORTING_ADMIN', 'HR_ANALYST']);
@@ -223,6 +226,32 @@ export class ReportingController {
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="employee-import-template.csv"');
     return res.send(buildEmployeeImportTemplateCsv());
+  }
+
+  @Get('module-import-template.csv')
+  async getModuleImportTemplate(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Query('module') module = 'employees',
+  ) {
+    this.assertReportingAdmin(req);
+    if (!isMigrationTemplateModule(module)) {
+      throw new BadRequestException(`Unknown migration module: ${module}`);
+    }
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${module}-import-template.csv"`);
+    return res.send(buildModuleImportTemplateCsv(module));
+  }
+
+  @Get('migration-manifest/export.csv')
+  async exportMigrationManifestCsv(@Req() req: Request, @Res() res: Response) {
+    this.assertReportingAdmin(req);
+    const protocol = req.protocol ?? 'http';
+    const host = req.get?.('host');
+    const apiBaseUrl = host ? `${protocol}://${host}` : '';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="hr-migration-manifest.csv"');
+    return res.send(buildModuleMigrationManifestCsv(apiBaseUrl));
   }
 
   @Get('hr-dashboard/export.csv')

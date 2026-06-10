@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   buildEmployeeImportTemplateCsv,
   buildHrDashboardExportCsv,
+  buildModuleImportTemplateCsv,
+  buildModuleMigrationManifestCsv,
+  migrationTemplateModules,
   type EmployeeImportTemplateOptions,
 } from './employee-import-export-template.service.js';
 import type { HrReportDashboard } from './service-usage-reporting.service.js';
@@ -77,5 +80,31 @@ describe('employee import/export reporting templates', () => {
     expect(csv).toContain('code,title,category,services,readiness,activity,commands,events,notifications,workflowTransitions,queueBacklog,issues,lastActivityAt');
     expect(csv).toContain('ATTENDANCE,Attendance Report,Workforce,TIME_ATTENDANCE,Attention,13,8,5,0,0,2,3,');
     expect(csv).toContain('BENEFITS,Benefits Report,Reward,BENEFITS,Live,6,2,1,1,2,0,0,2026-06-03T08:00:00.000Z');
+  });
+
+  it('renders accepted import templates for every major HR module', () => {
+    expect(migrationTemplateModules).toEqual(['employees', 'attendance', 'leave', 'payroll', 'performance', 'benefits']);
+
+    for (const module of migrationTemplateModules) {
+      const csv = buildModuleImportTemplateCsv(module);
+
+      expect(csv).toContain('externalReference');
+      expect(csv).toContain(module);
+      expect(csv).not.toMatch(/(^|,)=/m);
+    }
+    expect(buildModuleImportTemplateCsv('attendance')).toContain('checkInAt,checkOutAt,workLocationCode,geofenceEvidence');
+    expect(buildModuleImportTemplateCsv('leave')).toContain('leaveTypeCode,startDate,endDate,amount,unit,approvalRouteCode');
+    expect(buildModuleImportTemplateCsv('payroll')).toContain('salaryComponentCode,componentType,amount,currency,taxTreatment,insuranceTreatment');
+    expect(buildModuleImportTemplateCsv('performance')).toContain('cycleCode,revieweeEmployeeNumber,reviewerEmployeeNumber,relationshipType');
+    expect(buildModuleImportTemplateCsv('benefits')).toContain('benefitsProgramCode,planCode,enrollmentWindowCode,coverageTier,dependentCount,lifeEventCode');
+  });
+
+  it('renders a migration manifest that points admins to each module template', () => {
+    const csv = buildModuleMigrationManifestCsv('https://hcm.example/api/v1');
+
+    expect(csv).toContain('module,title,templateUrl,exportUrl,owner,notes');
+    expect(csv).toContain('employees,Employee master data,https://hcm.example/api/v1/reporting/module-import-template.csv?module=employees');
+    expect(csv).toContain('attendance,Attendance ledger,https://hcm.example/api/v1/reporting/module-import-template.csv?module=attendance');
+    expect(csv).toContain('benefits,Benefits enrollments,https://hcm.example/api/v1/reporting/module-import-template.csv?module=benefits');
   });
 });

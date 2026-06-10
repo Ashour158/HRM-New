@@ -6,6 +6,9 @@ export interface EmployeeImportTemplateOptions {
   locationCode?: string;
 }
 
+export const migrationTemplateModules = ['employees', 'attendance', 'leave', 'payroll', 'performance', 'benefits'] as const;
+export type MigrationTemplateModule = typeof migrationTemplateModules[number];
+
 const EMPLOYEE_IMPORT_TEMPLATE_HEADERS = [
   'employeeNumber',
   'firstName',
@@ -27,20 +30,32 @@ const EMPLOYEE_IMPORT_TEMPLATE_HEADERS = [
   'notes',
 ];
 
-export function buildEmployeeImportTemplateCsv(options: EmployeeImportTemplateOptions = {}): string {
-  return toCsv([
-    {
+type TemplateDefinition = {
+  title: string;
+  owner: string;
+  notes: string;
+  headers: string[];
+  sample: Record<string, unknown>;
+};
+
+const TEMPLATE_DEFINITIONS: Record<MigrationTemplateModule, TemplateDefinition> = {
+  employees: {
+    title: 'Employee master data',
+    owner: 'People Operations',
+    notes: 'Creates or updates worker identity, hierarchy, policy assignment, and service grouping.',
+    headers: EMPLOYEE_IMPORT_TEMPLATE_HEADERS,
+    sample: {
       employeeNumber: 'EMP-1001',
       firstName: 'Amina',
       lastName: 'Hassan',
       workEmail: 'amina.hassan@example.com',
       employmentType: 'FULL_TIME',
       hireDate: '2026-07-01',
-      legalEntityCode: options.legalEntityCode ?? 'EG-LEGAL-01',
-      departmentCode: options.departmentCode ?? 'HR',
+      legalEntityCode: 'EG-LEGAL-01',
+      departmentCode: 'HR',
       positionCode: 'HRBP-01',
       managerEmployeeNumber: 'EMP-0001',
-      locationCode: options.locationCode ?? 'CAIRO-HQ',
+      locationCode: 'CAIRO-HQ',
       workerStatus: 'ACTIVE',
       attendancePolicyCode: 'STANDARD-40H',
       leavePlanCode: 'EG-ANNUAL',
@@ -49,7 +64,150 @@ export function buildEmployeeImportTemplateCsv(options: EmployeeImportTemplateOp
       serviceDeliveryGroup: 'EMPLOYEE-SERVICES',
       notes: 'Replace this sample row before import',
     },
-  ], EMPLOYEE_IMPORT_TEMPLATE_HEADERS);
+  },
+  attendance: {
+    title: 'Attendance ledger',
+    owner: 'Workforce Operations',
+    notes: 'Imports approved attendance facts for check-in/out, manual punch review, and payroll ledger refresh.',
+    headers: ['externalReference', 'employeeNumber', 'attendanceDate', 'checkInAt', 'checkOutAt', 'workLocationCode', 'geofenceEvidence', 'deviceTrustLevel', 'exceptionCode', 'approvalRouteCode', 'policyCode', 'notes'],
+    sample: {
+      externalReference: 'attendance-import-001',
+      employeeNumber: 'EMP-1001',
+      attendanceDate: '2026-07-01',
+      checkInAt: '2026-07-01T09:00:00+03:00',
+      checkOutAt: '2026-07-01T17:00:00+03:00',
+      workLocationCode: 'CAIRO-HQ',
+      geofenceEvidence: 'GPS:30.0444,31.2357',
+      deviceTrustLevel: 'TRUSTED',
+      exceptionCode: '',
+      approvalRouteCode: 'MANAGER',
+      policyCode: 'STANDARD-40H',
+      notes: 'Approved attendance import row',
+    },
+  },
+  leave: {
+    title: 'Leave requests and balances',
+    owner: 'Absence Administration',
+    notes: 'Imports leave requests, balances, approval routes, and payroll-impacting absence codes.',
+    headers: ['externalReference', 'employeeNumber', 'leaveTypeCode', 'startDate', 'endDate', 'amount', 'unit', 'approvalRouteCode', 'documentReference', 'payrollAbsenceCode', 'policyCode', 'notes'],
+    sample: {
+      externalReference: 'leave-import-001',
+      employeeNumber: 'EMP-1001',
+      leaveTypeCode: 'ANNUAL',
+      startDate: '2026-07-10',
+      endDate: '2026-07-12',
+      amount: 3,
+      unit: 'DAYS',
+      approvalRouteCode: 'MANAGER',
+      documentReference: '',
+      payrollAbsenceCode: 'PAID_LEAVE',
+      policyCode: 'EG-ANNUAL',
+      notes: 'Approved leave import row',
+    },
+  },
+  payroll: {
+    title: 'Payroll inputs and salary components',
+    owner: 'Payroll Administration',
+    notes: 'Imports salary composition, recurring earning/deduction items, tax treatment, and insurance treatment.',
+    headers: ['externalReference', 'employeeNumber', 'effectiveFrom', 'salaryComponentCode', 'componentType', 'amount', 'currency', 'taxTreatment', 'insuranceTreatment', 'glAccount', 'payFrequency', 'policyCode', 'notes'],
+    sample: {
+      externalReference: 'payroll-import-001',
+      employeeNumber: 'EMP-1001',
+      effectiveFrom: '2026-07-01',
+      salaryComponentCode: 'BASE_SALARY',
+      componentType: 'EARNING',
+      amount: 25000,
+      currency: 'EGP',
+      taxTreatment: 'TAXABLE',
+      insuranceTreatment: 'INSURABLE',
+      glAccount: '6000-BASE',
+      payFrequency: 'MONTHLY',
+      policyCode: 'EG-PAYROLL-CORE',
+      notes: 'Salary composition import row',
+    },
+  },
+  performance: {
+    title: 'Performance and 360 feedback',
+    owner: 'Talent Management',
+    notes: 'Imports review participants, 360 relationships, objectives, ratings, and profile impact evidence.',
+    headers: ['externalReference', 'cycleCode', 'revieweeEmployeeNumber', 'reviewerEmployeeNumber', 'relationshipType', 'objectiveCode', 'competencyCode', 'rating', 'comment', 'visibility', 'policyCode', 'notes'],
+    sample: {
+      externalReference: 'performance-import-001',
+      cycleCode: 'FY2026',
+      revieweeEmployeeNumber: 'EMP-1001',
+      reviewerEmployeeNumber: 'EMP-1002',
+      relationshipType: 'PEER',
+      objectiveCode: 'OBJ-CUSTOMER',
+      competencyCode: 'COLLABORATION',
+      rating: 4,
+      comment: 'Strong cross-team delivery',
+      visibility: 'PROFILE_SUMMARY',
+      policyCode: 'FY2026-360',
+      notes: '360 feedback import row',
+    },
+  },
+  benefits: {
+    title: 'Benefits enrollments',
+    owner: 'Reward Operations',
+    notes: 'Imports eligibility, enrollment windows, life events, dependent counts, carrier and payroll bridge data.',
+    headers: ['externalReference', 'employeeNumber', 'benefitsProgramCode', 'planCode', 'enrollmentWindowCode', 'coverageTier', 'dependentCount', 'lifeEventCode', 'effectiveFrom', 'employeeContribution', 'employerContribution', 'carrierReference', 'payrollDeductionCode', 'policyCode', 'notes'],
+    sample: {
+      externalReference: 'benefits-import-001',
+      employeeNumber: 'EMP-1001',
+      benefitsProgramCode: 'EG-CORE',
+      planCode: 'MEDICAL-GOLD',
+      enrollmentWindowCode: 'OPEN-2026',
+      coverageTier: 'EMPLOYEE_FAMILY',
+      dependentCount: 2,
+      lifeEventCode: '',
+      effectiveFrom: '2026-07-01',
+      employeeContribution: 500,
+      employerContribution: 1500,
+      carrierReference: 'CAR-001',
+      payrollDeductionCode: 'BEN-MEDICAL',
+      policyCode: 'EG-BENEFITS',
+      notes: 'Benefits enrollment import row',
+    },
+  },
+};
+
+export function buildEmployeeImportTemplateCsv(options: EmployeeImportTemplateOptions = {}): string {
+  return toCsv([{
+    ...TEMPLATE_DEFINITIONS.employees.sample,
+    legalEntityCode: options.legalEntityCode ?? TEMPLATE_DEFINITIONS.employees.sample.legalEntityCode,
+    departmentCode: options.departmentCode ?? TEMPLATE_DEFINITIONS.employees.sample.departmentCode,
+    locationCode: options.locationCode ?? TEMPLATE_DEFINITIONS.employees.sample.locationCode,
+  }], EMPLOYEE_IMPORT_TEMPLATE_HEADERS);
+}
+
+export function isMigrationTemplateModule(value: string): value is MigrationTemplateModule {
+  return (migrationTemplateModules as readonly string[]).includes(value);
+}
+
+export function buildModuleImportTemplateCsv(module: MigrationTemplateModule): string {
+  const definition = TEMPLATE_DEFINITIONS[module];
+  const headers = module === 'employees' ? ['externalReference', ...definition.headers] : definition.headers;
+  return toCsv([{ module, externalReference: `${module}-import-001`, ...definition.sample }], ['module', ...headers]);
+}
+
+export function buildModuleMigrationManifestCsv(apiBaseUrl = ''): string {
+  const base = apiBaseUrl.replace(/\/$/, '');
+  return toCsv(
+    migrationTemplateModules.map((module) => {
+      const definition = TEMPLATE_DEFINITIONS[module];
+      return {
+        module,
+        title: definition.title,
+        templateUrl: `${base}/reporting/module-import-template.csv?module=${module}`,
+        exportUrl: module === 'employees'
+          ? `${base}/hr/core/workers/export.csv`
+          : `${base}/reporting/hr-dashboard/export.csv?module=${module}`,
+        owner: definition.owner,
+        notes: definition.notes,
+      };
+    }),
+    ['module', 'title', 'templateUrl', 'exportUrl', 'owner', 'notes'],
+  );
 }
 
 export function buildHrDashboardExportCsv(dashboard: HrReportDashboard): string {

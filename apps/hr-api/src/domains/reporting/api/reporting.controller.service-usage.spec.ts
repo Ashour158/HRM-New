@@ -134,6 +134,56 @@ describe('ReportingController service usage surface', () => {
     expect(res.send).toHaveBeenCalledWith(expect.stringContaining('attendancePolicyCode,leavePlanCode,performanceCycleCode,benefitsGroupCode,serviceDeliveryGroup'));
   });
 
+  it('downloads a module import template for major module migrations', async () => {
+    const controller = new ReportingController(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as ServiceUsageReportingService,
+    );
+    const res = response();
+
+    await controller.getModuleImportTemplate(request(), res as never, 'payroll');
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="payroll-import-template.csv"');
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('salaryComponentCode,componentType,amount,currency,taxTreatment,insuranceTreatment'));
+  });
+
+  it('rejects unknown module import templates', async () => {
+    const controller = new ReportingController(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as ServiceUsageReportingService,
+    );
+
+    await expect(controller.getModuleImportTemplate(request(), response() as never, 'unknown')).rejects.toThrow('Unknown migration module');
+  });
+
+  it('downloads the module migration manifest', async () => {
+    const controller = new ReportingController(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as ServiceUsageReportingService,
+    );
+    const res = response();
+
+    await controller.exportMigrationManifestCsv(request(), res as never);
+
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
+    expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename="hr-migration-manifest.csv"');
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('employees,Employee master data'));
+    expect(res.send).toHaveBeenCalledWith(expect.stringContaining('benefits,Benefits enrollments'));
+  });
+
   it('exports the HR reports dashboard as CSV', async () => {
     const serviceUsage = {
       getHrDashboard: vi.fn().mockResolvedValue({
