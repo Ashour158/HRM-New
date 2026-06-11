@@ -229,7 +229,11 @@ const builderCatalog = {
   visualizationTypes: [
     { code: 'table', label: 'Table' },
     { code: 'bar', label: 'Bar chart' },
+    { code: 'line', label: 'Trend line' },
+    { code: 'pie', label: 'Breakdown' },
     { code: 'kpi', label: 'KPI cards' },
+    { code: 'matrix', label: 'Matrix' },
+    { code: 'comparison', label: 'Comparison' },
   ],
   dataSources: [
     {
@@ -703,6 +707,14 @@ describe('AdminReporting analytics', () => {
     expect(screen.getAllByLabelText('Attendance status').some((element) => element.getAttribute('role') === 'combobox')).toBe(true);
     expect(screen.getByText('Underlying data catalog')).toBeInTheDocument();
     expect(screen.getByText('Calculated Fields')).toBeInTheDocument();
+    expect(screen.getByText('BI Designer')).toBeInTheDocument();
+    expect(screen.getByText('Choose a report type')).toBeInTheDocument();
+    expect(screen.getByText('Business dimensions')).toBeInTheDocument();
+    expect(screen.getByText('Metric library')).toBeInTheDocument();
+    expect(screen.getByText('Filter options')).toBeInTheDocument();
+    expect(screen.getByText('Connected data model')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /trend line/i }));
 
     await user.click(screen.getByRole('button', { name: /run smart analytics/i }));
     expect(await screen.findByText('Analytics ready')).toBeInTheDocument();
@@ -725,6 +737,7 @@ describe('AdminReporting analytics', () => {
         scopeLevel: 'TENANT',
         populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
+        visualization: 'line',
       }),
     }));
 
@@ -748,6 +761,7 @@ describe('AdminReporting analytics', () => {
         groupBy: ['department'],
         scopeLevel: 'TENANT',
         populationValue: 'ALL',
+        visualization: 'line',
       }),
       limit: 25,
     }));
@@ -765,6 +779,7 @@ describe('AdminReporting analytics', () => {
         scopeLevel: 'TENANT',
         populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
+        visualization: 'line',
       }),
     })));
 

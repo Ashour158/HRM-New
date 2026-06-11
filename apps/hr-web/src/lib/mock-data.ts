@@ -381,6 +381,8 @@ const REPORT_BUILDER_CATALOG = {
     { code: 'line', label: 'Trend line' },
     { code: 'pie', label: 'Breakdown' },
     { code: 'kpi', label: 'KPI cards' },
+    { code: 'matrix', label: 'Matrix' },
+    { code: 'comparison', label: 'Comparison' },
   ],
   dataSources: [
     {

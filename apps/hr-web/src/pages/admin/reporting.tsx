@@ -138,6 +138,7 @@ type ReportingDataSourceCatalogItem = {
   code: string;
   title: string;
   category: string;
+  description?: string;
   scopeLevels: string[];
   fields: ReportingFieldCatalogItem[];
   metrics: ReportingFieldCatalogItem[];
@@ -146,7 +147,7 @@ type ReportingDataSourceCatalogItem = {
   defaultVisualization: ReportingVisualizationType;
 };
 
-type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi';
+type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'matrix' | 'comparison';
 
 type ReportBuilderCatalog = {
   scopeLevels: Array<{ code: string; label: string; description: string }>;
@@ -1310,6 +1311,163 @@ export function AdminReporting() {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="rounded-2xl border-[#dbeafe] bg-[#f8fbff]">
+                <CardHeader>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <CardTitle>BI Designer</CardTitle>
+                      <p className="mt-1 text-sm text-[#475569]">
+                        Build a report by choosing the business question, report type, dimensions, measures, filters, and connected HR data.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="w-fit border-[#bfdbfe] bg-white text-[#1d4ed8]">
+                      Self-service builder
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid gap-3 md:grid-cols-5">
+                    {[
+                      ['1', 'Data', currentSource.title],
+                      ['2', 'Type', catalog.visualizationTypes.find((item) => item.code === visualizationForQuery)?.label ?? visualizationForQuery],
+                      ['3', 'Dimensions', `${groupByForQuery.length} selected`],
+                      ['4', 'Metrics', `${metricsForQuery.length} selected`],
+                      ['5', 'Filters', `${Object.values(filterValues).filter((value) => value.trim()).length + 1} active`],
+                    ].map(([step, label, value]) => (
+                      <div key={step} className="rounded-xl border border-[#dbeafe] bg-white p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4f46e5] text-xs font-bold text-white">{step}</span>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">{label}</p>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-[#0f172a]">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-[#0f172a]">Business question</p>
+                            <p className="mt-1 text-sm text-[#475569]">
+                              {currentSmartCategory?.businessQuestions[0] ?? 'What HR decision should this report support?'}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="w-fit border-[#e2e8f0] bg-[#f8fafc] text-[#475569]">
+                            {currentSource.category}
+                          </Badge>
+                        </div>
+                        {currentSource.description ? (
+                          <p className="mt-3 rounded-xl bg-[#f8fafc] p-3 text-sm text-[#475569]">{currentSource.description}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <p className="text-sm font-semibold text-[#0f172a]">Choose a report type</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {catalog.visualizationTypes.map((item) => (
+                            <button
+                              key={item.code}
+                              type="button"
+                              onClick={() => setVisualization(item.code)}
+                              className={cn(
+                                'rounded-xl border px-3 py-2 text-left text-sm transition hover:border-[#4f46e5]/60 hover:bg-[#eef2ff]',
+                                visualizationForQuery === item.code ? 'border-[#4f46e5] bg-[#eef2ff] text-[#3730a3]' : 'border-[#e2e8f0] bg-white text-[#0f172a]',
+                              )}
+                            >
+                              <span className="font-semibold">{item.label}</span>
+                              <span className="mt-1 block text-xs text-[#64748b]">
+                                {item.code === 'matrix' ? 'Compare dimensions against metrics.' : item.code === 'comparison' ? 'Compare two segments side by side.' : item.code === 'line' ? 'Track movement over time.' : 'Use for this report output.'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <p className="text-sm font-semibold text-[#0f172a]">Connected data model</p>
+                        <div className="mt-3 space-y-2">
+                          {visibleRelationships.slice(0, 3).map((relationship) => {
+                            const nextSource = relationship.from === currentSource.code ? relationship.to : relationship.from;
+                            const relatedSource = catalog.dataSources.find((source) => source.code === nextSource);
+                            return (
+                              <div key={relationship.code} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold text-[#0f172a]">{relationship.title}</p>
+                                    <p className="mt-1 text-xs text-[#64748b]">{relationship.businessUse}</p>
+                                  </div>
+                                  {relatedSource ? (
+                                    <Button variant="outline" size="sm" onClick={() => applyDataSource(relatedSource.code)}>
+                                      Use {relatedSource.title}
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <p className="text-sm font-semibold text-[#0f172a]">Filter options</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">
+                            Period: {filterPeriod}
+                          </Badge>
+                          {currentSource.filters.flatMap((filter) => (filter.options ?? []).slice(0, 3).map((option) => (
+                            <Badge key={`${filter.code}-${option.code}`} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
+                              {filter.label}: {option.label}
+                            </Badge>
+                          )))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                      <p className="text-sm font-semibold text-[#0f172a]">Business dimensions</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {currentSource.groupBy.map((field) => (
+                          <button
+                            key={field.code}
+                            type="button"
+                            onClick={() => toggleCode(field.code, groupByForQuery, setSelectedGroupBy)}
+                            className={cn(
+                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-[#f59e0b]/70',
+                              groupByForQuery.includes(field.code) ? 'border-[#f59e0b] bg-[#fffbeb] text-[#92400e]' : 'border-[#e2e8f0] bg-white text-[#475569]',
+                            )}
+                          >
+                            {field.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                      <p className="text-sm font-semibold text-[#0f172a]">Metric library</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {currentSource.metrics.map((metric) => (
+                          <button
+                            key={metric.code}
+                            type="button"
+                            onClick={() => toggleCode(metric.code, metricsForQuery, setSelectedMetrics)}
+                            className={cn(
+                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-[#10b981]/70',
+                              metricsForQuery.includes(metric.code) ? 'border-[#10b981] bg-[#ecfdf5] text-[#047857]' : 'border-[#e2e8f0] bg-white text-[#475569]',
+                            )}
+                          >
+                            {metric.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </CardContent>

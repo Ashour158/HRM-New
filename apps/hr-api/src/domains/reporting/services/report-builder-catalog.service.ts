@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
 export type ReportingFieldType = 'text' | 'number' | 'date' | 'currency' | 'status' | 'percentage';
-export type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi';
+export type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'matrix' | 'comparison';
 
 export interface ReportingFieldCatalogItem {
   code: string;
@@ -170,6 +170,8 @@ export class ReportBuilderCatalogService {
         { code: 'line', label: 'Trend line' },
         { code: 'pie', label: 'Breakdown' },
         { code: 'kpi', label: 'KPI cards' },
+        { code: 'matrix', label: 'Matrix' },
+        { code: 'comparison', label: 'Comparison' },
       ],
       dataSources: REPORTING_DATA_SOURCES,
       templates: REPORTING_TEMPLATES,

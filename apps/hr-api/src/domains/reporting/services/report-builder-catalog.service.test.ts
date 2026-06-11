@@ -25,4 +25,26 @@ describe('ReportBuilderCatalogService', () => {
       selectedReportCodes: ['missing-report'],
     })).toThrow('Unknown analytics pack report code(s): missing-report');
   });
+
+  it('publishes BI designer report types and cross-domain analytics controls', () => {
+    const service = new ReportBuilderCatalogService();
+    const catalog = service.getCatalog();
+
+    expect(catalog.visualizationTypes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'matrix', label: 'Matrix' }),
+      expect.objectContaining({ code: 'comparison', label: 'Comparison' }),
+    ]));
+    expect(catalog.analyticsPacks).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'FULL_HR_ANALYTICS',
+        dataSources: expect.arrayContaining(['HEADCOUNT', 'ATTENDANCE', 'PAYROLL', 'BENEFITS', 'ENGAGEMENT', 'RETENTION']),
+      }),
+    ]));
+    expect(catalog.businessRelationships).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'attendance-payroll',
+        recommendedDrilldowns: expect.arrayContaining(['Department', 'Employee']),
+      }),
+    ]));
+  });
 });

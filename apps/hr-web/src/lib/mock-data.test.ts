@@ -40,6 +40,7 @@ describe('mock reporting data', () => {
     };
     const catalog = MOCK_RESPONSES['GET /reporting/builder/catalog']() as {
       data: {
+        visualizationTypes?: Array<{ code?: string; label?: string }>;
         smartCategories?: Array<{
           code?: string;
           insights?: Array<{ code?: string; relatedReports?: string[] }>;
@@ -74,6 +75,10 @@ describe('mock reporting data', () => {
       'WORKFORCE_COMPOSITION',
       'REWARD_ASSURANCE',
       'GOVERNANCE_READINESS',
+    ]));
+    expect(catalog.data.visualizationTypes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'matrix', label: 'Matrix' }),
+      expect.objectContaining({ code: 'comparison', label: 'Comparison' }),
     ]));
     expect(catalog.data.smartCategories?.find((category) => category.code === 'WORKFORCE_COMPOSITION')).toMatchObject({
       dataSources: expect.arrayContaining(['HEADCOUNT', 'ATTENDANCE', 'LEAVE']),
