@@ -10,6 +10,7 @@ export interface CompleteReportExecutionPayload {
   reportExecutionId: string;
   resultUrl: string;
   rowCount: number;
+  resultPayload?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -25,7 +26,7 @@ export class CompleteReportExecutionHandler {
     const payload = command.payload as CompleteReportExecutionPayload;
     const entity = await this.repo.findByIdForTenant(new Uuid(payload.reportExecutionId), command.tenantId);
     if (!entity) throw new Error('ReportExecution not found');
-    entity.complete(command.correlationId, payload.resultUrl, payload.rowCount);
+    entity.complete(command.correlationId, payload.resultUrl, payload.rowCount, payload.resultPayload);
     await this.repo.save(entity);
     await this.publisher.publishFromAggregate(entity);
     return {

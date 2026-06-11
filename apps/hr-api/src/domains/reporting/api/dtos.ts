@@ -79,6 +79,28 @@ export class RunSemanticReportQueryDto {
   @ApiPropertyOptional() limit?: number;
 }
 
+export const GetReportFilterOptionsDtoSchema = z.object({
+  dataSource: z.string().min(1),
+  filterCodes: z.array(z.string()).optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+export class GetReportFilterOptionsDto {
+  @ApiProperty() dataSource!: string;
+  @ApiPropertyOptional() filterCodes?: string[];
+  @ApiPropertyOptional() limit?: number;
+}
+
+export const RunReportDefinitionDtoSchema = z.object({
+  reportExecutionId: z.string().uuid().optional(),
+  parameters: z.record(z.unknown()).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+export class RunReportDefinitionDto {
+  @ApiPropertyOptional() reportExecutionId?: string;
+  @ApiPropertyOptional() parameters?: Record<string, unknown>;
+  @ApiPropertyOptional() limit?: number;
+}
+
 export const CreateReportExecutionDtoSchema = z.object({
   reportExecutionId: z.string().uuid(),
   reportDefinitionId: z.string().uuid(),
@@ -96,11 +118,13 @@ export const CompleteReportExecutionDtoSchema = z.object({
   reportExecutionId: z.string().uuid(),
   resultUrl: z.string().min(1),
   rowCount: z.number().int().min(0),
+  resultPayload: z.record(z.unknown()).optional(),
 });
 export class CompleteReportExecutionDto {
   @ApiProperty() reportExecutionId!: string;
   @ApiProperty() resultUrl!: string;
   @ApiProperty() rowCount!: number;
+  @ApiPropertyOptional() resultPayload?: Record<string, unknown>;
 }
 
 export const FailReportExecutionDtoSchema = z.object({

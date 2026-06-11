@@ -238,4 +238,53 @@ describe('ReportSemanticQueryService', () => {
       ]),
     });
   });
+
+  it('derives live filter options from the same governed semantic rows', async () => {
+    const rowProvider: SemanticReportRowProvider = {
+      loadRows: async () => ({
+        rows: [
+          { employeeNumber: 'LIVE-001', employeeName: 'Live Worker One', department: 'ENGINEERING', attendanceStatus: 'LATE', lateMinutes: 25 },
+          { employeeNumber: 'LIVE-002', employeeName: 'Live Worker Two', department: 'SALES', attendanceStatus: 'PRESENT', lateMinutes: 0 },
+          { employeeNumber: 'LIVE-003', employeeName: 'Live Worker Three', department: 'ENGINEERING', attendanceStatus: 'PRESENT', lateMinutes: 0 },
+        ],
+      }),
+    };
+    const service = new ReportSemanticQueryService(new ReportBuilderCatalogService(), rowProvider);
+
+    const result = await service.getFilterOptions({
+      dataSource: 'ATTENDANCE',
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      filterCodes: ['department', 'attendanceStatus', 'period'],
+    });
+
+    expect(result).toMatchObject({
+      dataSource: 'ATTENDANCE',
+      rowSource: 'live',
+    });
+    expect(result.optionsByFilter).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'department',
+        source: 'mixed',
+        options: expect.arrayContaining([
+          { code: 'ENGINEERING', label: 'Engineering', count: 2 },
+          { code: 'SALES', label: 'Sales', count: 1 },
+        ]),
+      }),
+      expect.objectContaining({
+        code: 'attendanceStatus',
+        source: 'mixed',
+        options: expect.arrayContaining([
+          { code: 'PRESENT', label: 'Present', count: 2 },
+          { code: 'LATE', label: 'Late', count: 1 },
+        ]),
+      }),
+      expect.objectContaining({
+        code: 'period',
+        source: 'catalog',
+        options: expect.arrayContaining([
+          expect.objectContaining({ code: 'CURRENT_MONTH', label: 'Current month' }),
+        ]),
+      }),
+    ]));
+  });
 });

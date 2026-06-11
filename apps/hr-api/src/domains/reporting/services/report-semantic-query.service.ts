@@ -10,6 +10,27 @@ export interface SemanticReportQueryInput {
   tenantId?: string;
 }
 
+export interface SemanticFilterOptionsInput {
+  dataSource: string;
+  tenantId?: string;
+  filterCodes?: string[];
+  limit?: number;
+}
+
+export interface SemanticFilterOptionsResult {
+  dataSource: string;
+  sourceTitle: string;
+  generatedAt: string;
+  rowSource: 'live' | 'fixture';
+  optionsByFilter: Array<{
+    code: string;
+    label: string;
+    source: 'catalog' | 'live' | 'mixed';
+    options: Array<{ code: string; label: string; count?: number }>;
+  }>;
+  warnings: string[];
+}
+
 export interface SemanticReportQueryResult {
   dataSource: string;
   sourceTitle: string;
@@ -155,6 +176,37 @@ export class ReportSemanticQueryService {
     private readonly catalogService: ReportBuilderCatalogService,
     @Optional() @Inject(SEMANTIC_REPORT_ROW_PROVIDER) private readonly rowProvider?: SemanticReportRowProvider,
   ) {}
+
+  async getFilterOptions(input: SemanticFilterOptionsInput): Promise<SemanticFilterOptionsResult> {
+    const catalog = this.catalogService.getCatalog();
+    const source = catalog.dataSources.find((item) => item.code === input.dataSource);
+    if (!source) {
+      throw new BadRequestException(`Unknown semantic reporting data source: ${input.dataSource}`);
+    }
+    const selectedFilterCodes = input.filterCodes?.length
+      ? input.filterCodes
+      : source.filters.map((filter) => filter.code);
+    const filters = selectedFilterCodes.map((code) => {
+      const filter = source.filters.find((item) => item.code === code);
+      if (!filter) {
+        throw new BadRequestException(`Unknown filter "${code}" for semantic reporting data source: ${source.code}`);
+      }
+      return filter;
+    });
+    const rowLoad = await this.loadRows({ dataSource: source.code, tenantId: input.tenantId }, source.code);
+    const limit = typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.max(1, Math.min(200, Math.trunc(input.limit)))
+      : 50;
+
+    return {
+      dataSource: source.code,
+      sourceTitle: source.title,
+      generatedAt: new Date().toISOString(),
+      rowSource: rowLoad.source,
+      optionsByFilter: filters.map((filter) => buildFilterOptionSet(filter, rowLoad.rows, limit)),
+      warnings: rowLoad.warnings,
+    };
+  }
 
   async run(input: SemanticReportQueryInput): Promise<SemanticReportQueryResult> {
     const catalog = this.catalogService.getCatalog();
@@ -573,6 +625,43 @@ function parseRowDate(value: unknown): Date | undefined {
 
 function labelFor(fields: ReportingFieldCatalogItem[], code: string): string {
   return fields.find((field) => field.code === code)?.label ?? code;
+}
+
+function buildFilterOptionSet(filter: ReportingFieldCatalogItem, rows: SemanticRow[], limit: number): SemanticFilterOptionsResult['optionsByFilter'][number] {
+  const catalogOptions = filter.options ?? [];
+  const liveCounts = rows.reduce((counts, row) => {
+    const value = row[filter.code];
+    if (value === undefined || value === null || String(value).trim() === '') return counts;
+    const code = String(value);
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+  const catalogCodes = new Set(catalogOptions.map((option) => option.code));
+  const liveOnly = [...liveCounts.entries()]
+    .filter(([code]) => !catalogCodes.has(code))
+    .sort(([leftCode, leftCount], [rightCode, rightCount]) => rightCount - leftCount || leftCode.localeCompare(rightCode))
+    .slice(0, limit)
+    .map(([code, count]) => ({ code, label: code, count }));
+  const options = [
+    ...catalogOptions.map((option) => ({
+      code: option.code,
+      label: option.label,
+      ...(liveCounts.has(option.code) ? { count: liveCounts.get(option.code) } : {}),
+    })),
+    ...liveOnly,
+  ];
+  const liveOptionCount = options.filter((option) => option.count !== undefined).length;
+  const source = liveOptionCount === 0
+    ? 'catalog'
+    : catalogOptions.length > 0
+      ? 'mixed'
+      : 'live';
+  return {
+    code: filter.code,
+    label: filter.label,
+    source,
+    options,
+  };
 }
 
 function errorMessage(error: unknown): string {

@@ -35,7 +35,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
@@ -133,6 +132,8 @@ type ReportingFieldCatalogItem = {
   description?: string;
   options?: Array<{ code: string; label: string }>;
 };
+
+type ReportingFilterOption = { code: string; label: string; count?: number };
 
 type ReportingDataSourceCatalogItem = {
   code: string;
@@ -328,6 +329,20 @@ type SemanticReportQueryResult = {
   warnings: string[];
 };
 
+type SemanticFilterOptionsResult = {
+  dataSource: string;
+  sourceTitle: string;
+  generatedAt: string;
+  rowSource: 'live' | 'fixture';
+  optionsByFilter: Array<{
+    code: string;
+    label: string;
+    source: 'catalog' | 'live' | 'mixed';
+    options: ReportingFilterOption[];
+  }>;
+  warnings: string[];
+};
+
 type SavedReportDefinition = {
   id?: string;
   reportDefinitionId?: string;
@@ -344,6 +359,21 @@ type SavedReportDefinition = {
     populationValue?: string;
     visualization?: ReportingVisualizationType;
   };
+};
+
+type SavedReportExecution = {
+  id?: string;
+  reportExecutionId?: string;
+  reportDefinitionId?: string | { value?: string };
+  status?: string;
+  rowCount?: number;
+  resultUrl?: string;
+  resultPayload?: SemanticReportQueryResult;
+  createdAt?: string;
+  queuedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  updatedAt?: string;
 };
 
 type CalculatedFieldDefinition = {
@@ -438,6 +468,31 @@ function groupSmartCategories(categories: SmartAnalyticsCategory[]) {
   }, {});
 }
 
+function entityId(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'value' in value) {
+    const nested = (value as { value?: unknown }).value;
+    return typeof nested === 'string' ? nested : undefined;
+  }
+  return undefined;
+}
+
+function reportDefinitionId(report: SavedReportDefinition): string | undefined {
+  return report.reportDefinitionId ?? report.id;
+}
+
+function reportExecutionDefinitionId(execution: SavedReportExecution): string | undefined {
+  return entityId(execution.reportDefinitionId);
+}
+
+function formatExecutionTime(execution: SavedReportExecution): string {
+  const value = execution.completedAt ?? execution.startedAt ?? execution.queuedAt ?? execution.createdAt ?? execution.updatedAt;
+  if (!value) return 'Not timestamped';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 const chartColors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899'];
 
 const migrationTemplates = [
@@ -463,7 +518,6 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function AdminReporting() {
   const addNotification = useUIStore((state) => state.addNotification);
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ReportingTab>('overview');
   const [reportName, setReportName] = useState('Monthly attendance exceptions');
@@ -484,6 +538,7 @@ export function AdminReporting() {
   const [calculatedFieldType, setCalculatedFieldType] = useState('currency');
   const [scheduleFrequency, setScheduleFrequency] = useState('MONTHLY');
   const [scheduleRecipients, setScheduleRecipients] = useState('hr.operations@example.com');
+  const [expandedReportId, setExpandedReportId] = useState<string | undefined>();
   const dashboardQuery = useQuery({
     queryKey: ['hr-reports-dashboard'],
     queryFn: async () => unwrapApiData<HrReportsDashboard>((await apiClient.get('/reporting/hr-dashboard')).data),
@@ -499,6 +554,10 @@ export function AdminReporting() {
   const savedReportsQuery = useQuery({
     queryKey: ['report-definitions', 'all'],
     queryFn: async () => unwrapApiData<SavedReportDefinition[]>((await apiClient.get('/reporting/report-definitions?status=ALL')).data),
+  });
+  const reportExecutionsQuery = useQuery({
+    queryKey: ['report-executions', 'recent'],
+    queryFn: async () => unwrapApiData<SavedReportExecution[]>((await apiClient.get('/reporting/report-executions')).data),
   });
   const calculatedFieldsQuery = useQuery({
     queryKey: ['report-calculated-fields', 'all'],
@@ -533,6 +592,24 @@ export function AdminReporting() {
     () => (catalog?.templates ?? []).filter((template) => template.dataSource === dataSourceCode),
     [catalog?.templates, dataSourceCode],
   );
+  const availableFilters = useMemo(
+    () => (currentSource?.filters ?? []).filter((filter) => filter.code !== 'period'),
+    [currentSource?.filters],
+  );
+  const availableFilterCodes = useMemo(() => availableFilters.map((filter) => filter.code), [availableFilters]);
+  const filterOptionsQuery = useQuery({
+    queryKey: ['report-filter-options', currentSource?.code, availableFilterCodes.join('|')],
+    queryFn: async () => unwrapApiData<SemanticFilterOptionsResult>((await apiClient.post('/reporting/builder/filter-options', {
+      dataSource: currentSource?.code ?? dataSourceCode,
+      filterCodes: availableFilterCodes,
+      limit: 50,
+    })).data),
+    enabled: Boolean(currentSource && availableFilterCodes.length > 0),
+  });
+  const filterOptionsFor = (filter: ReportingFieldCatalogItem): ReportingFilterOption[] =>
+    filterOptionsQuery.data?.optionsByFilter.find((optionSet) => optionSet.code === filter.code)?.options
+      ?? filter.options
+      ?? [];
   const fieldsForQuery = selectedFields.length > 0 ? selectedFields : defaultFieldCodes(currentSource);
   const metricsForQuery = selectedMetrics.length > 0 ? selectedMetrics : defaultMetricCodes(currentSource);
   const groupByForQuery = selectedGroupBy.length > 0 ? selectedGroupBy : defaultGroupByCodes(currentSource);
@@ -672,17 +749,21 @@ export function AdminReporting() {
   });
   const runReportMutation = useMutation({
     mutationFn: async (report: SavedReportDefinition) => {
-      if (!user?.id) {
-        throw new Error('Cannot run report without an authenticated user.');
+      const id = reportDefinitionId(report);
+      if (!id) {
+        throw new Error('Cannot run report without a report definition ID.');
       }
-      return unwrapApiData<unknown>((await apiClient.post('/reporting/report-executions', {
+      return unwrapApiData<SavedReportExecution>((await apiClient.post(`/reporting/report-definitions/${id}/commands/run`, {
         reportExecutionId: generateUUID(),
-        reportDefinitionId: report.reportDefinitionId ?? report.id,
-        executedBy: user.id,
         parameters: { period: filterPeriod, source: 'admin-reporting' },
+        limit: 50,
       })).data);
     },
-    onSuccess: () => addNotification({ title: 'Report queued', message: 'The report run was added to the execution queue.', type: 'success', read: false }),
+    onSuccess: async (_result, report) => {
+      setExpandedReportId(reportDefinitionId(report));
+      addNotification({ title: 'Report completed', message: 'The report result is available in the execution history.', type: 'success', read: false });
+      await queryClient.invalidateQueries({ queryKey: ['report-executions', 'recent'] });
+    },
     onError: (error) => addNotification({ title: 'Could not run report', message: error instanceof Error ? error.message : 'Run failed.', type: 'error', read: false }),
   });
   const scheduleReportMutation = useMutation({
@@ -799,9 +880,11 @@ export function AdminReporting() {
                 void analyticsQuery.refetch();
                 void builderCatalogQuery.refetch();
                 void savedReportsQuery.refetch();
+                void reportExecutionsQuery.refetch();
                 void calculatedFieldsQuery.refetch();
+                void filterOptionsQuery.refetch();
               }}
-              disabled={dashboardQuery.isFetching || analyticsQuery.isFetching || builderCatalogQuery.isFetching || savedReportsQuery.isFetching || calculatedFieldsQuery.isFetching}
+              disabled={dashboardQuery.isFetching || analyticsQuery.isFetching || builderCatalogQuery.isFetching || savedReportsQuery.isFetching || reportExecutionsQuery.isFetching || calculatedFieldsQuery.isFetching || filterOptionsQuery.isFetching}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
               Refresh
@@ -1422,9 +1505,9 @@ export function AdminReporting() {
                           <Badge variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">
                             Period: {filterPeriod}
                           </Badge>
-                          {currentSource.filters.flatMap((filter) => (filter.options ?? []).slice(0, 3).map((option) => (
+                          {availableFilters.flatMap((filter) => filterOptionsFor(filter).slice(0, 3).map((option) => (
                             <Badge key={`${filter.code}-${option.code}`} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
-                              {filter.label}: {option.label}
+                              {filter.label}: {option.label}{option.count !== undefined ? ` (${option.count})` : ''}
                             </Badge>
                           )))}
                         </div>
@@ -1569,13 +1652,14 @@ export function AdminReporting() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {currentSource.filters.length > 0 ? (
+                    {availableFilters.length > 0 ? (
                       <div className="space-y-2">
                         <p className="text-sm font-medium text-[#0f172a]">Report filters</p>
                         <div className="space-y-2">
-                          {currentSource.filters.map((filter) => {
+                          {availableFilters.map((filter) => {
                             const value = filterValues[filter.code] ?? '';
-                            if (filter.options && filter.options.length > 0) {
+                            const filterOptions = filterOptionsFor(filter);
+                            if (filterOptions.length > 0) {
                               return (
                                 <Select
                                   key={filter.code}
@@ -1587,9 +1671,9 @@ export function AdminReporting() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="ALL">All {filter.label.toLowerCase()}</SelectItem>
-                                    {filter.options.map((option) => (
+                                    {filterOptions.map((option) => (
                                       <SelectItem key={option.code} value={option.code}>
-                                        {option.label}
+                                        {option.label}{option.count !== undefined ? ` (${option.count})` : ''}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -2317,7 +2401,11 @@ export function AdminReporting() {
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {(savedReportsQuery.data ?? []).map((report, index) => {
                       const source = catalog?.dataSources.find((item) => item.code === report.dataSource);
-                      const reportId = report.reportDefinitionId ?? report.id;
+                      const reportId = reportDefinitionId(report);
+                      const executions = (reportExecutionsQuery.data ?? [])
+                        .filter((execution) => reportExecutionDefinitionId(execution) === reportId)
+                        .slice(0, 3);
+                      const showHistory = expandedReportId === reportId || executions.length > 0;
                       return (
                         <div key={report.reportDefinitionId ?? report.id ?? index} className="rounded-xl border border-[#e2e8f0] bg-white p-4">
                           <div className="flex items-start justify-between gap-3">
@@ -2357,7 +2445,51 @@ export function AdminReporting() {
                             >
                               Schedule
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!reportId}
+                              onClick={() => setExpandedReportId(expandedReportId === reportId ? undefined : reportId)}
+                            >
+                              History
+                            </Button>
                           </div>
+                          {showHistory ? (
+                            <div className="mt-4 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-[#0f172a]">Execution history</p>
+                                {reportExecutionsQuery.isFetching ? (
+                                  <span className="text-xs text-[#64748b]">Refreshing...</span>
+                                ) : null}
+                              </div>
+                              {executions.length > 0 ? (
+                                <div className="mt-3 space-y-2">
+                                  {executions.map((execution) => (
+                                    <div key={execution.reportExecutionId ?? execution.id ?? `${reportId}-${execution.status}`} className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline" className="border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]">
+                                            {execution.status ?? 'RUN'}
+                                          </Badge>
+                                          <span className="text-[#475569]">{formatExecutionTime(execution)}</span>
+                                        </div>
+                                        <span className="font-semibold text-[#0f172a]">{execution.rowCount ?? execution.resultPayload?.drillThroughCount ?? 0} rows</span>
+                                      </div>
+                                      {execution.resultPayload ? (
+                                        <p className="mt-2 text-xs text-[#64748b]">
+                                          {execution.resultPayload.sourceTitle} result saved with {execution.resultPayload.drillThroughCount} underlying records.
+                                        </p>
+                                      ) : execution.resultUrl ? (
+                                        <p className="mt-2 text-xs text-[#64748b]">Result stored for download or delivery.</p>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-sm text-[#64748b]">No execution history yet. Run the report to generate a saved result.</p>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}

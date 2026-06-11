@@ -543,6 +543,37 @@ const semanticQueryResult = {
   warnings: [],
 };
 
+const filterOptionsResult = {
+  dataSource: 'ATTENDANCE',
+  sourceTitle: 'Attendance & Time Ledger',
+  generatedAt: '2026-06-11T08:15:00.000Z',
+  rowSource: 'live',
+  optionsByFilter: [
+    {
+      code: 'attendanceStatus',
+      label: 'Attendance status',
+      source: 'mixed',
+      options: [
+        { code: 'PRESENT', label: 'Present', count: 1 },
+        { code: 'LATE', label: 'Late', count: 1 },
+        { code: 'EXCEPTION', label: 'Exception', count: 0 },
+      ],
+    },
+  ],
+  warnings: [],
+};
+
+const savedReportExecutions = [
+  {
+    reportExecutionId: '00000000-0000-0000-0000-00000000e501',
+    reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+    status: 'COMPLETED',
+    rowCount: 2,
+    completedAt: '2026-06-11T08:20:00.000Z',
+    resultPayload: semanticQueryResult,
+  },
+];
+
 function renderReporting() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -569,6 +600,9 @@ describe('AdminReporting analytics', () => {
   if (path === '/reporting/report-definitions?status=ALL') {
     return Promise.resolve({ data: { success: true, data: savedReports } });
   }
+      if (path === '/reporting/report-executions') {
+        return Promise.resolve({ data: { success: true, data: savedReportExecutions } });
+      }
       if (path === '/reporting/calculated-fields?status=ALL') {
         return Promise.resolve({ data: { success: true, data: [
           { calculatedFieldId: '00000000-0000-0000-0000-00000000c501', fieldName: 'Net payroll cost', expression: 'grossPay - deductionAmount', dataType: 'currency', status: 'ACTIVE' },
@@ -589,14 +623,17 @@ describe('AdminReporting analytics', () => {
       if (path === '/reporting/builder/query/run') {
         return Promise.resolve({ data: { success: true, data: semanticQueryResult } });
       }
+      if (path === '/reporting/builder/filter-options') {
+        return Promise.resolve({ data: { success: true, data: filterOptionsResult } });
+      }
       if (path === '/reporting/report-definitions') {
         return Promise.resolve({ data: { success: true, data: { ...savedReports[0], status: 'DRAFT' } } });
       }
       if (path === '/reporting/calculated-fields') {
         return Promise.resolve({ data: { success: true, data: { calculatedFieldId: '00000000-0000-0000-0000-00000000c599', fieldName: 'Custom metric', status: 'DRAFT' } } });
       }
-      if (path === '/reporting/report-executions') {
-        return Promise.resolve({ data: { success: true, data: { reportExecutionId: '00000000-0000-0000-0000-00000000e501', status: 'QUEUED' } } });
+      if (path === '/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/run') {
+        return Promise.resolve({ data: { success: true, data: savedReportExecutions[0] } });
       }
       if (path === '/reporting/report-schedules') {
         return Promise.resolve({ data: { success: true, data: { reportScheduleId: '00000000-0000-0000-0000-00000000f501', status: 'ACTIVE' } } });
@@ -665,13 +702,17 @@ describe('AdminReporting analytics', () => {
     expect(await screen.findByText('Saved Reports')).toBeInTheDocument();
     expect(screen.getByText('Monthly attendance exceptions')).toBeInTheDocument();
     expect(screen.getByText('Population: ENGINEERING')).toBeInTheDocument();
+    expect(screen.getByText('Execution history')).toBeInTheDocument();
+    expect(screen.getByText('COMPLETED')).toBeInTheDocument();
+    expect(screen.getByText('2 rows')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await userEvent.click(screen.getByRole('button', { name: 'Schedule' }));
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/publish', {});
-    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-executions', expect.objectContaining({
-      reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
-      executedBy: '00000000-0000-0000-0000-000000000777',
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/run', expect.objectContaining({
+      reportExecutionId: expect.any(String),
+      parameters: expect.objectContaining({ period: 'CURRENT_MONTH', source: 'admin-reporting' }),
+      limit: 50,
     }));
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-schedules', expect.objectContaining({
       reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
@@ -712,6 +753,12 @@ describe('AdminReporting analytics', () => {
     expect(screen.getByText('Business dimensions')).toBeInTheDocument();
     expect(screen.getByText('Metric library')).toBeInTheDocument();
     expect(screen.getByText('Filter options')).toBeInTheDocument();
+    expect(await screen.findAllByText(/Present \(1\)/)).not.toHaveLength(0);
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/filter-options', expect.objectContaining({
+      dataSource: 'ATTENDANCE',
+      filterCodes: ['attendanceStatus'],
+      limit: 50,
+    }));
     expect(screen.getByText('Connected data model')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /trend line/i }));

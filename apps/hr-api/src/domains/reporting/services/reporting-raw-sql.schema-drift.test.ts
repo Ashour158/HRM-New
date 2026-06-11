@@ -33,7 +33,7 @@ const REPORTING_REPOSITORY_TABLES: RawSqlLoaderContract[] = [{
     {
       schema: 'hr_reporting',
       table: 'report_executions',
-      columns: ['id', 'tenant_id', 'report_definition_id', 'executed_by', 'parameters', 'result_url', 'row_count', 'started_at', 'completed_at', 'status', 'aggregate_version', 'created_at', 'updated_at'],
+      columns: ['id', 'tenant_id', 'report_definition_id', 'executed_by', 'parameters', 'result_url', 'result_payload', 'row_count', 'started_at', 'completed_at', 'status', 'aggregate_version', 'created_at', 'updated_at'],
     },
     {
       schema: 'hr_reporting',
@@ -59,6 +59,7 @@ function hasColumn(table: string, column: string): boolean {
   const block = createTableBlock.exec(allMigrations)?.[0] ?? allMigrations;
   return block.includes(`${column}:`)
     || new RegExp(`\\b${escapeRegExp(column)}\\b`, 'i').test(block)
+    || new RegExp(`\\b${escapeRegExp(column)}\\b`, 'i').test(allMigrations)
     || allMigrations.includes(`${column}:`);
 }
 

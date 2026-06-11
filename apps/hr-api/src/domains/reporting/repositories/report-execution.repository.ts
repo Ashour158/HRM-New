@@ -40,6 +40,18 @@ export class ReportExecutionRepository {
     return rows.map((r) => this.toAggregate(r));
   }
 
+  async findRecentForTenant(tenantId: Uuid, limit = 50): Promise<ReportExecution[]> {
+    const safeLimit = Math.max(1, Math.min(200, Math.trunc(limit)));
+    const rows = await this.db
+      .selectFrom('hr_reporting.report_executions')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .orderBy('updated_at', 'desc')
+      .limit(safeLimit)
+      .execute();
+    return rows.map((r) => this.toAggregate(r));
+  }
+
   async save(entity: ReportExecution): Promise<void> {
     const existing = await this.db
       .selectFrom('hr_reporting.report_executions')
@@ -54,6 +66,7 @@ export class ReportExecutionRepository {
       executed_by: entity.executedBy.value,
       parameters: entity.parameters,
       result_url: entity.resultUrl ?? null,
+      result_payload: entity.resultPayload ?? null,
       row_count: entity.rowCount ?? null,
       started_at: entity.startedAt ?? null,
       completed_at: entity.completedAt ?? null,
@@ -81,6 +94,7 @@ export class ReportExecutionRepository {
       executedBy: new Uuid(row.executed_by as string),
       parameters: (row.parameters as Record<string, unknown>) ?? {},
       resultUrl: row.result_url as string | undefined,
+      resultPayload: (row.result_payload as Record<string, unknown>) ?? undefined,
       rowCount: row.row_count as number | undefined,
       startedAt: row.started_at ? new Date(row.started_at as string) : undefined,
       completedAt: row.completed_at ? new Date(row.completed_at as string) : undefined,
