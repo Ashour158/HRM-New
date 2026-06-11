@@ -104,8 +104,9 @@ const SEMANTIC_ROWS: Record<string, SemanticRow[]> = {
     { caseNumber: 'CASE-1002', serviceName: 'Benefits update', employeeName: 'Olivia Thompson', employeeNumber: 'EMP-0047', workerKey: 'EMP_0047', legalEntity: 'ACME_US', orgUnit: 'COMMERCIAL', department: 'SALES', manager: 'MGR_SARAH_MITCHELL', caseStatus: 'RESOLVED', ownerTeam: 'Benefits', cases: 1, openTasks: 0, slaBreaches: 0, resolutionHours: 12 },
   ],
   ENGAGEMENT: [
-    { employeeNumber: 'EMP-0042', workerKey: 'EMP_0042', employeeName: 'Emily Chen', legalEntity: 'ACME_EG', orgUnit: 'TECHNOLOGY', department: 'ENGINEERING', manager: 'MGR_JAMES_HARRINGTON', surveyName: 'Pulse 2026', engagementBand: 'WATCH', participationRate: 100, engagementScore: 72, sentimentRisk: 2, recognitionCount: 1 },
-    { employeeNumber: 'EMP-0047', workerKey: 'EMP_0047', employeeName: 'Olivia Thompson', legalEntity: 'ACME_US', orgUnit: 'COMMERCIAL', department: 'SALES', manager: 'MGR_SARAH_MITCHELL', surveyName: 'Pulse 2026', engagementBand: 'SAFE', participationRate: 100, engagementScore: 84, sentimentRisk: 0, recognitionCount: 2 },
+    { employeeNumber: 'EMP-0042', workerKey: 'EMP_0042', employeeName: 'Emily Chen', legalEntity: 'ACME_EG', orgUnit: 'TECHNOLOGY', department: 'ENGINEERING', manager: 'MGR_JAMES_HARRINGTON', surveyName: 'Pulse 2026', surveyDate: '2026-06-03', engagementBand: 'WATCH', participationRate: 100, engagementScore: 72, sentimentRisk: 2, recognitionCount: 1 },
+    { employeeNumber: 'EMP-0044', workerKey: 'EMP_0044', employeeName: 'Marcus Johnson', legalEntity: 'ACME_EG', orgUnit: 'TECHNOLOGY', department: 'ENGINEERING', manager: 'MGR_JAMES_HARRINGTON', surveyName: 'Pulse 2026', surveyDate: '2026-06-03', engagementBand: 'WATCH', participationRate: 50, engagementScore: 68, sentimentRisk: 3, recognitionCount: 0 },
+    { employeeNumber: 'EMP-0047', workerKey: 'EMP_0047', employeeName: 'Olivia Thompson', legalEntity: 'ACME_US', orgUnit: 'COMMERCIAL', department: 'SALES', manager: 'MGR_SARAH_MITCHELL', surveyName: 'Pulse 2026', surveyDate: '2026-06-03', engagementBand: 'SAFE', participationRate: 100, engagementScore: 84, sentimentRisk: 0, recognitionCount: 2 },
   ],
 };
 
@@ -133,9 +134,10 @@ export class ReportSemanticQueryService {
       ? Math.max(1, Math.min(100, Math.trunc(input.limit)))
       : 25;
     const availableRows = SEMANTIC_ROWS[source.code] ?? [];
+    const periodReferenceDate = latestRowDate(availableRows) ?? new Date();
     const filteredRows = availableRows
       .filter((row) => matchesPopulation(row, scopeLevel, populationValue))
-      .filter((row) => matchesFilters(row, filters));
+      .filter((row) => matchesFilters(row, filters, periodReferenceDate));
     const resultRows = groupBy.length > 0
       ? aggregateRows(filteredRows, groupBy, metrics, source)
       : filteredRows.map((row) => projectRow(row, [...fields, ...metrics]));
@@ -143,7 +145,11 @@ export class ReportSemanticQueryService {
     const drillThroughRows = filteredRows.slice(0, limit).map((row) => projectRow(row, drillThroughColumns));
     const primaryMetric = metrics[0];
     const secondaryMetric = metrics[1];
-    const warnings = filteredRows.length === 0 ? ['No records matched this semantic query. Adjust scope, population, or filters.'] : [];
+    const primaryMetricMeta = source.metrics.find((item) => item.code === primaryMetric);
+    const warnings = [
+      ...filterWarnings(availableRows, filters),
+      ...(filteredRows.length === 0 ? ['No records matched this semantic query. Adjust scope, population, or filters.'] : []),
+    ];
 
     return {
       dataSource: source.code,
@@ -166,7 +172,7 @@ export class ReportSemanticQueryService {
       insightCards: [
         { label: 'Rows', value: resultRows.length, tone: resultRows.length > 0 ? 'success' : 'warning' },
         { label: 'Drill-through records', value: filteredRows.length, tone: filteredRows.length > 0 ? 'success' : 'warning' },
-        { label: primaryMetric ? labelFor(source.metrics, primaryMetric) : 'Primary metric', value: primaryMetric ? sum(filteredRows, primaryMetric) : 0, tone: 'default' },
+        { label: primaryMetric ? labelFor(source.metrics, primaryMetric) : 'Primary metric', value: primaryMetric ? metricSummaryValue(filteredRows, primaryMetric, primaryMetricMeta?.type) : 0, tone: 'default' },
       ],
       executionPlan: {
         grain: SOURCE_GRAIN[source.code] ?? 'Business record',
@@ -208,9 +214,9 @@ function matchesPopulation(row: SemanticRow, scopeLevel: string, populationValue
   return field ? String(row[field] ?? '') === populationValue : true;
 }
 
-function matchesFilters(row: SemanticRow, filters: Array<{ code: string; value: string }>): boolean {
+function matchesFilters(row: SemanticRow, filters: Array<{ code: string; value: string }>, periodReferenceDate: Date): boolean {
   return filters.every((filter) => {
-    if (filter.code === 'period') return true;
+    if (filter.code === 'period') return matchesPeriodFilter(row, filter.value, periodReferenceDate);
     if (!filter.value) return true;
     return String(row[filter.code] ?? '') === filter.value;
   });
@@ -218,15 +224,18 @@ function matchesFilters(row: SemanticRow, filters: Array<{ code: string; value: 
 
 function aggregateRows(rows: SemanticRow[], groupBy: string[], metrics: string[], source: ReportingDataSourceCatalogItem): SemanticRow[] {
   const grouped = new Map<string, SemanticRow>();
+  const groupCounts = new Map<string, number>();
   for (const row of rows) {
     const key = groupBy.map((field) => String(row[field] ?? '')).join('\u0001');
     const target = grouped.get(key) ?? Object.fromEntries(groupBy.map((field) => [field, row[field] ?? '']));
+    const groupCount = (groupCounts.get(key) ?? 0) + 1;
+    groupCounts.set(key, groupCount);
     for (const metric of metrics) {
       const metricMeta = source.metrics.find((item) => item.code === metric);
       const current = numeric(target[metric]);
       const next = numeric(row[metric]);
       target[metric] = metricMeta?.type === 'percentage'
-        ? averageMetric(current, next, rows.length)
+        ? runningAverageMetric(current, next, groupCount)
         : current + next;
     }
     grouped.set(key, target);
@@ -250,8 +259,106 @@ function sum(rows: SemanticRow[], metric: string): number {
   return rows.reduce((total, row) => total + numeric(row[metric]), 0);
 }
 
-function averageMetric(current: number, next: number, totalRows: number): number {
-  return Math.round((current + next / Math.max(1, totalRows)) * 100) / 100;
+function metricSummaryValue(rows: SemanticRow[], metric: string, metricType?: string): number {
+  if (metricType !== 'percentage') return sum(rows, metric);
+  if (rows.length === 0) return 0;
+  return roundMetric(sum(rows, metric) / rows.length);
+}
+
+function runningAverageMetric(currentAverage: number, next: number, count: number): number {
+  const safeCount = Math.max(1, count);
+  return roundMetric(((currentAverage * (safeCount - 1)) + next) / safeCount);
+}
+
+function roundMetric(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+const DATE_FIELD_CANDIDATES = [
+  'workDate',
+  'startDate',
+  'endDate',
+  'payPeriod',
+  'hireDate',
+  'dueDate',
+  'surveyDate',
+  'createdAt',
+  'effectiveDate',
+];
+
+function filterWarnings(rows: SemanticRow[], filters: Array<{ code: string; value: string }>): string[] {
+  const periodFilter = filters.find((filter) => filter.code === 'period' && filter.value);
+  if (!periodFilter) return [];
+  if (!isSupportedPeriod(periodFilter.value)) {
+    return [`Period filter "${periodFilter.value}" is not supported for semantic reporting.`];
+  }
+  return rows.some((row) => rowDate(row))
+    ? []
+    : ['Period filter could not be applied because the selected data source has no date field.'];
+}
+
+function matchesPeriodFilter(row: SemanticRow, period: string, referenceDate: Date): boolean {
+  if (!period) return true;
+  if (!isSupportedPeriod(period)) return true;
+  const date = rowDate(row);
+  if (!date) return true;
+  const { from, to } = periodRange(period, referenceDate);
+  return date >= from && date <= to;
+}
+
+function isSupportedPeriod(period: string): boolean {
+  return ['CURRENT_MONTH', 'CURRENT_QUARTER', 'LAST_90_DAYS', 'YEAR_TO_DATE'].includes(period);
+}
+
+function periodRange(period: string, referenceDate: Date): { from: Date; to: Date } {
+  const year = referenceDate.getUTCFullYear();
+  const month = referenceDate.getUTCMonth();
+  if (period === 'CURRENT_MONTH') {
+    return {
+      from: new Date(Date.UTC(year, month, 1)),
+      to: new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999)),
+    };
+  }
+  if (period === 'CURRENT_QUARTER') {
+    const quarterStartMonth = Math.floor(month / 3) * 3;
+    return {
+      from: new Date(Date.UTC(year, quarterStartMonth, 1)),
+      to: new Date(Date.UTC(year, quarterStartMonth + 3, 0, 23, 59, 59, 999)),
+    };
+  }
+  if (period === 'YEAR_TO_DATE') {
+    return {
+      from: new Date(Date.UTC(year, 0, 1)),
+      to: new Date(Date.UTC(year, month, referenceDate.getUTCDate(), 23, 59, 59, 999)),
+    };
+  }
+  return {
+    from: new Date(referenceDate.getTime() - 90 * 24 * 60 * 60 * 1000),
+    to: new Date(Date.UTC(year, month, referenceDate.getUTCDate(), 23, 59, 59, 999)),
+  };
+}
+
+function latestRowDate(rows: SemanticRow[]): Date | undefined {
+  return rows
+    .map((row) => rowDate(row))
+    .filter((date): date is Date => Boolean(date))
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+}
+
+function rowDate(row: SemanticRow): Date | undefined {
+  for (const field of DATE_FIELD_CANDIDATES) {
+    const date = parseRowDate(row[field]);
+    if (date) return date;
+  }
+  return undefined;
+}
+
+function parseRowDate(value: unknown): Date | undefined {
+  if (typeof value !== 'string' || !value.trim()) return undefined;
+  const trimmed = value.trim();
+  const normalized = /^\d{4}-\d{2}$/.test(trimmed) ? `${trimmed}-01` : trimmed;
+  const date = new Date(`${normalized}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function labelFor(fields: ReportingFieldCatalogItem[], code: string): string {

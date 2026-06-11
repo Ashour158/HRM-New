@@ -74,4 +74,36 @@ describe('ReportSemanticQueryService', () => {
       queryDefinition: { fields: ['employeeName'], metrics: ['headcount'] },
     })).rejects.toThrow('Unknown semantic reporting data source: UNKNOWN');
   });
+
+  it('averages percentage metrics per group for rows, charts, and insight cards', async () => {
+    const service = new ReportSemanticQueryService(new ReportBuilderCatalogService());
+
+    const result = await service.run({
+      dataSource: 'ENGAGEMENT',
+      queryDefinition: {
+        fields: ['employeeNumber', 'employeeName', 'surveyName'],
+        metrics: ['participationRate'],
+        groupBy: ['department'],
+        scopeLevel: 'DEPARTMENT',
+        populationValue: 'ENGINEERING',
+        filters: [{ code: 'period', value: 'CURRENT_MONTH' }],
+      },
+      limit: 10,
+    });
+
+    expect(result.rowCount).toBe(1);
+    expect(result.drillThroughCount).toBe(2);
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        department: 'ENGINEERING',
+        participationRate: 75,
+      }),
+    ]);
+    expect(result.chartData).toEqual([
+      { label: 'ENGINEERING', value: 75 },
+    ]);
+    expect(result.insightCards).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: 'Participation rate', value: 75 }),
+    ]));
+  });
 });
