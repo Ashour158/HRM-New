@@ -292,6 +292,26 @@ type SemanticReportQueryResult = {
     appliedFilters: Array<{ code: string; value: string }>;
     availableDrilldowns: string[];
   };
+  decisionSupport: {
+    summary: string;
+    topSegments: Array<{
+      label: string;
+      metric: string;
+      value: number;
+      shareOfTotal: number;
+      severity: 'safe' | 'watch' | 'risk';
+    }>;
+    recommendedDrilldowns: Array<{
+      field: string;
+      label: string;
+      reason: string;
+    }>;
+    nextActions: Array<{
+      label: string;
+      actionType: 'DRILLDOWN' | 'EXPORT' | 'SAVE' | 'SCHEDULE';
+      reason: string;
+    }>;
+  };
   warnings: string[];
 };
 
@@ -1609,6 +1629,57 @@ export function AdminReporting() {
                                     ? semanticQueryMutation.data.executionPlan.appliedFilters.map((filter) => `${filter.code}: ${filter.value}`).join(', ')
                                     : 'No extra filters'}
                                 </p>
+                              </div>
+                            </div>
+                            <div className="rounded-2xl border border-[#bfdbfe] bg-white p-4">
+                              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                  <p className="text-base font-semibold text-[#0f172a]">Decision Support</p>
+                                  <p className="mt-1 text-sm leading-6 text-[#475569]">{semanticQueryMutation.data.decisionSupport.summary}</p>
+                                </div>
+                                <Badge variant="outline" className="w-fit border-[#c7d2fe] bg-[#eef2ff] text-[#3730a3]">
+                                  BI guidance
+                                </Badge>
+                              </div>
+                              <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-sm font-semibold text-[#0f172a]">Top segments</p>
+                                  <div className="mt-3 space-y-2">
+                                    {semanticQueryMutation.data.decisionSupport.topSegments.map((segment) => (
+                                      <div key={`${segment.label}-${segment.metric}`} className="rounded-lg bg-white p-3 text-sm">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <p className="font-semibold text-[#0f172a]">{segment.label}</p>
+                                          <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-[#fecaca] bg-[#fee2e2] text-[#991b1b]' : segment.severity === 'watch' ? 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]' : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]')}>
+                                            {segment.severity}
+                                          </Badge>
+                                        </div>
+                                        <p className="mt-1 text-[#475569]">{segment.metric}: {segment.value} · {segment.shareOfTotal}%</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-sm font-semibold text-[#0f172a]">Suggested drilldowns</p>
+                                  <div className="mt-3 space-y-2">
+                                    {semanticQueryMutation.data.decisionSupport.recommendedDrilldowns.map((drilldown) => (
+                                      <div key={drilldown.field} className="rounded-lg bg-white p-3 text-sm">
+                                        <p className="font-semibold text-[#0f172a]">{drilldown.label}</p>
+                                        <p className="mt-1 text-[#64748b]">{drilldown.reason}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-sm font-semibold text-[#0f172a]">Next actions</p>
+                                  <div className="mt-3 space-y-2">
+                                    {semanticQueryMutation.data.decisionSupport.nextActions.map((action) => (
+                                      <div key={`${action.actionType}-${action.label}`} className="rounded-lg bg-white p-3 text-sm">
+                                        <p className="font-semibold text-[#0f172a]">{action.label}</p>
+                                        <p className="mt-1 text-[#64748b]">{action.reason}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                             {semanticQueryMutation.data.warnings.length > 0 ? (

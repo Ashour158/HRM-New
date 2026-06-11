@@ -29,7 +29,29 @@ export interface SemanticReportQueryResult {
     appliedFilters: Array<{ code: string; value: string }>;
     availableDrilldowns: string[];
   };
+  decisionSupport: SemanticDecisionSupport;
   warnings: string[];
+}
+
+export interface SemanticDecisionSupport {
+  summary: string;
+  topSegments: Array<{
+    label: string;
+    metric: string;
+    value: number;
+    shareOfTotal: number;
+    severity: 'safe' | 'watch' | 'risk';
+  }>;
+  recommendedDrilldowns: Array<{
+    field: string;
+    label: string;
+    reason: string;
+  }>;
+  nextActions: Array<{
+    label: string;
+    actionType: 'DRILLDOWN' | 'EXPORT' | 'SAVE' | 'SCHEDULE';
+    reason: string;
+  }>;
 }
 
 type SemanticRow = Record<string, string | number>;
@@ -180,6 +202,13 @@ export class ReportSemanticQueryService {
         appliedFilters: filters,
         availableDrilldowns: source.groupBy.map((item) => item.label),
       },
+      decisionSupport: buildDecisionSupport({
+        source,
+        resultRows,
+        filteredRows,
+        groupBy,
+        primaryMetric,
+      }),
       warnings,
     };
   }
@@ -263,6 +292,80 @@ function metricSummaryValue(rows: SemanticRow[], metric: string, metricType?: st
   if (metricType !== 'percentage') return sum(rows, metric);
   if (rows.length === 0) return 0;
   return roundMetric(sum(rows, metric) / rows.length);
+}
+
+function buildDecisionSupport(input: {
+  source: ReportingDataSourceCatalogItem;
+  resultRows: SemanticRow[];
+  filteredRows: SemanticRow[];
+  groupBy: string[];
+  primaryMetric?: string;
+}): SemanticDecisionSupport {
+  const metric = input.primaryMetric ?? input.source.metrics[0]?.code;
+  const metricLabel = metric ? labelFor(input.source.metrics, metric) : 'Records';
+  const totalMetricValue = Math.max(0, metric ? sum(input.resultRows, metric) : input.filteredRows.length);
+  const topSegments = metric
+    ? input.resultRows
+      .map((row, index) => {
+        const label = segmentLabel(row, input.groupBy, index);
+        const value = numeric(row[metric]);
+        const shareOfTotal = totalMetricValue > 0 ? roundMetric((value / totalMetricValue) * 100) : 0;
+        return {
+          label,
+          metric: metricLabel,
+          value,
+          shareOfTotal,
+          severity: segmentSeverity(value, shareOfTotal),
+        };
+      })
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 3)
+    : [];
+  const leadingSegment = topSegments[0];
+  const recommendedDrilldowns = input.source.groupBy
+    .filter((field) => !input.groupBy.includes(field.code))
+    .slice(0, 3)
+    .map((field) => ({
+      field: field.code,
+      label: field.label,
+      reason: `Break ${metricLabel.toLowerCase()} down by ${field.label.toLowerCase()} for the next layer of context.`,
+    }));
+
+  return {
+    summary: leadingSegment
+      ? `${leadingSegment.label} is the top segment for ${metricLabel.toLowerCase()} with ${leadingSegment.value} (${leadingSegment.shareOfTotal}% of the result).`
+      : `No segment stood out for ${input.source.title}.`,
+    topSegments,
+    recommendedDrilldowns,
+    nextActions: [
+      ...(leadingSegment ? [{
+        label: `Open ${leadingSegment.label} drill-through`,
+        actionType: 'DRILLDOWN' as const,
+        reason: `Review the ${input.filteredRows.length} underlying record(s) behind the top segment.`,
+      }] : []),
+      {
+        label: 'Export underlying records',
+        actionType: 'EXPORT',
+        reason: 'Share the drill-through data with HR operations or business owners.',
+      },
+      {
+        label: 'Save as recurring report',
+        actionType: 'SCHEDULE',
+        reason: 'Monitor this question on a regular reporting cadence.',
+      },
+    ],
+  };
+}
+
+function segmentLabel(row: SemanticRow, groupBy: string[], index: number): string {
+  const label = groupBy.map((field) => String(row[field] ?? '')).filter(Boolean).join(' / ');
+  return label || `Row ${index + 1}`;
+}
+
+function segmentSeverity(value: number, shareOfTotal: number): 'safe' | 'watch' | 'risk' {
+  if (value <= 0) return 'safe';
+  if (shareOfTotal >= 60) return 'watch';
+  return 'safe';
 }
 
 function runningAverageMetric(currentAverage: number, next: number, count: number): number {

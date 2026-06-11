@@ -64,6 +64,26 @@ describe('ReportSemanticQueryService', () => {
       expect.objectContaining({ label: 'Rows', value: 1 }),
       expect.objectContaining({ label: 'Drill-through records', value: 2 }),
     ]));
+    expect(result.decisionSupport).toEqual(expect.objectContaining({
+      summary: expect.stringContaining('ENGINEERING'),
+      topSegments: expect.arrayContaining([
+        expect.objectContaining({
+          label: 'ENGINEERING',
+          metric: 'Late minutes',
+          value: 18,
+          shareOfTotal: 100,
+          severity: 'watch',
+        }),
+      ]),
+      recommendedDrilldowns: expect.arrayContaining([
+        expect.objectContaining({ label: 'Manager' }),
+        expect.objectContaining({ label: 'Employee' }),
+      ]),
+      nextActions: expect.arrayContaining([
+        expect.objectContaining({ label: 'Open ENGINEERING drill-through' }),
+        expect.objectContaining({ label: 'Export underlying records' }),
+      ]),
+    }));
   });
 
   it('fails closed for unknown semantic data sources', async () => {

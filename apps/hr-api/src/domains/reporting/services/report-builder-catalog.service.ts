@@ -534,6 +534,8 @@ const REPORTING_DATA_SOURCES: ReportingDataSourceCatalogItem[] = [
     ],
     groupBy: [
       { code: 'department', label: 'Department', type: 'text' },
+      { code: 'manager', label: 'Manager', type: 'text' },
+      { code: 'employeeName', label: 'Employee', type: 'text' },
       { code: 'attendanceStatus', label: 'Attendance status', type: 'status' },
       { code: 'workDate', label: 'Work date', type: 'date' },
       { code: 'policyCode', label: 'Policy code', type: 'text' },

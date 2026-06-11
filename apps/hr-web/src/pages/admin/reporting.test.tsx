@@ -501,6 +501,20 @@ const semanticQueryResult = {
     appliedFilters: [{ code: 'period', value: 'CURRENT_MONTH' }],
     availableDrilldowns: ['Department', 'Manager', 'Employee'],
   },
+  decisionSupport: {
+    summary: 'ENGINEERING is the top segment for late minutes with 18 (100% of the result).',
+    topSegments: [
+      { label: 'ENGINEERING', metric: 'Late minutes', value: 18, shareOfTotal: 100, severity: 'watch' },
+    ],
+    recommendedDrilldowns: [
+      { field: 'manager', label: 'Manager', reason: 'Break late minutes down by manager for the next layer of context.' },
+      { field: 'employeeName', label: 'Employee', reason: 'Break late minutes down by employee for the next layer of context.' },
+    ],
+    nextActions: [
+      { label: 'Open ENGINEERING drill-through', actionType: 'DRILLDOWN', reason: 'Review the 2 underlying records behind the top segment.' },
+      { label: 'Export underlying records', actionType: 'EXPORT', reason: 'Share the drill-through data with HR operations or business owners.' },
+    ],
+  },
   warnings: [],
 };
 
@@ -697,6 +711,10 @@ describe('AdminReporting analytics', () => {
     expect(await screen.findByText('Semantic Query Result')).toBeInTheDocument();
     expect(screen.getByText('Worker-day')).toBeInTheDocument();
     expect(screen.getByText('Drill-through records')).toBeInTheDocument();
+    expect(screen.getByText('Decision Support')).toBeInTheDocument();
+    expect(screen.getByText('ENGINEERING is the top segment for late minutes with 18 (100% of the result).')).toBeInTheDocument();
+    expect(screen.getByText('Open ENGINEERING drill-through')).toBeInTheDocument();
+    expect(screen.getByText('Export underlying records')).toBeInTheDocument();
     expect(screen.getAllByText('Emily Chen').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ENGINEERING').length).toBeGreaterThan(0);
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/query/run', expect.objectContaining({
