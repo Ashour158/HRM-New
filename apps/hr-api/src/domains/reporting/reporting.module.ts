@@ -13,6 +13,7 @@ import { CreateReportDefinitionHandler } from './commands/create-report-definiti
 import { PublishReportDefinitionHandler } from './commands/publish-report-definition.handler.js';
 import { ArchiveReportDefinitionHandler } from './commands/archive-report-definition.handler.js';
 import { CreateReportExecutionHandler } from './commands/create-report-execution.handler.js';
+import { RunReportDefinitionHandler } from './commands/run-report-definition.handler.js';
 import { QueueReportExecutionHandler } from './commands/queue-report-execution.handler.js';
 import { StartReportExecutionHandler } from './commands/start-report-execution.handler.js';
 import { CompleteReportExecutionHandler } from './commands/complete-report-execution.handler.js';
@@ -30,6 +31,7 @@ import { ServiceUsageReportingService } from './services/service-usage-reporting
 import { HrAnalyticsReportingService } from './services/hr-analytics-reporting.service.js';
 import { ReportBuilderCatalogService } from './services/report-builder-catalog.service.js';
 import { ReportSemanticQueryService } from './services/report-semantic-query.service.js';
+import { SEMANTIC_REPORT_ROW_PROVIDER, SqlSemanticReportRowProviderService } from './services/report-semantic-row-provider.service.js';
 
 @Module({
   imports: [PlatformModule],
@@ -38,10 +40,12 @@ import { ReportSemanticQueryService } from './services/report-semantic-query.ser
     ReportDefinitionFsmRegistrar, ReportExecutionFsmRegistrar, ReportScheduleFsmRegistrar, CalculatedFieldFsmRegistrar,
     ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository,
     CreateReportDefinitionHandler, PublishReportDefinitionHandler, ArchiveReportDefinitionHandler,
-    CreateReportExecutionHandler, QueueReportExecutionHandler, StartReportExecutionHandler, CompleteReportExecutionHandler, FailReportExecutionHandler, CancelReportExecutionHandler,
+    CreateReportExecutionHandler, RunReportDefinitionHandler, QueueReportExecutionHandler, StartReportExecutionHandler, CompleteReportExecutionHandler, FailReportExecutionHandler, CancelReportExecutionHandler,
     CreateReportScheduleHandler, ActivateReportScheduleHandler, PauseReportScheduleHandler, ExpireReportScheduleHandler,
     CreateCalculatedFieldHandler, ActivateCalculatedFieldHandler, DeprecateCalculatedFieldHandler,
     ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService,
+    SqlSemanticReportRowProviderService,
+    { provide: SEMANTIC_REPORT_ROW_PROVIDER, useExisting: SqlSemanticReportRowProviderService },
   ],
   exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService],
 })

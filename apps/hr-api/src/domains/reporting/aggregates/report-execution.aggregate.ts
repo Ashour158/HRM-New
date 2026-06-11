@@ -9,6 +9,7 @@ export interface ReportExecutionProps {
   executedBy: Uuid;
   parameters?: Record<string, unknown>;
   resultUrl?: string;
+  resultPayload?: Record<string, unknown>;
   rowCount?: number;
   startedAt?: Date;
   completedAt?: Date;
@@ -56,6 +57,7 @@ export class ReportExecution extends AggregateRoot {
   executedBy: Uuid;
   parameters: Record<string, unknown>;
   resultUrl?: string;
+  resultPayload?: Record<string, unknown>;
   rowCount?: number;
   startedAt?: Date;
   completedAt?: Date;
@@ -72,6 +74,7 @@ export class ReportExecution extends AggregateRoot {
     this.executedBy = props.executedBy;
     this.parameters = props.parameters ?? {};
     this.resultUrl = props.resultUrl;
+    this.resultPayload = props.resultPayload;
     this.rowCount = props.rowCount;
     this.startedAt = props.startedAt;
     this.completedAt = props.completedAt;
@@ -90,6 +93,7 @@ export class ReportExecution extends AggregateRoot {
   queue(_correlationId: Uuid): void {
     if (this.status !== 'PENDING') throw new ValidationError(`Cannot queue from state ${this.status}`);
     this.status = 'QUEUED';
+    this.addDomainEvent(new ReportExecutionQueued({ tenantId: this.tenantId, aggregateId: this.id, correlationId: _correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -103,10 +107,11 @@ export class ReportExecution extends AggregateRoot {
     this.updatedAt = new Date();
   }
 
-  complete(correlationId: Uuid, resultUrl: string, rowCount: number): void {
+  complete(correlationId: Uuid, resultUrl: string, rowCount: number, resultPayload?: Record<string, unknown>): void {
     if (this.status !== 'RUNNING') throw new ValidationError(`Cannot complete from state ${this.status}`);
     this.status = 'COMPLETED';
     this.resultUrl = resultUrl;
+    this.resultPayload = resultPayload;
     this.rowCount = rowCount;
     this.completedAt = new Date();
     this.addDomainEvent(new ReportExecutionCompleted({ tenantId: this.tenantId, aggregateId: this.id, correlationId, rowCount, resultUrl }));

@@ -35,7 +35,6 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
@@ -134,10 +133,13 @@ type ReportingFieldCatalogItem = {
   options?: Array<{ code: string; label: string }>;
 };
 
+type ReportingFilterOption = { code: string; label: string; count?: number };
+
 type ReportingDataSourceCatalogItem = {
   code: string;
   title: string;
   category: string;
+  description?: string;
   scopeLevels: string[];
   fields: ReportingFieldCatalogItem[];
   metrics: ReportingFieldCatalogItem[];
@@ -146,7 +148,7 @@ type ReportingDataSourceCatalogItem = {
   defaultVisualization: ReportingVisualizationType;
 };
 
-type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi';
+type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi' | 'matrix' | 'comparison';
 
 type ReportBuilderCatalog = {
   scopeLevels: Array<{ code: string; label: string; description: string }>;
@@ -292,6 +294,52 @@ type SemanticReportQueryResult = {
     appliedFilters: Array<{ code: string; value: string }>;
     availableDrilldowns: string[];
   };
+  decisionSupport: {
+    summary: string;
+    topSegments: Array<{
+      label: string;
+      metric: string;
+      value: number;
+      shareOfTotal: number;
+      severity: 'safe' | 'watch' | 'risk';
+    }>;
+    recommendedDrilldowns: Array<{
+      field: string;
+      label: string;
+      reason: string;
+    }>;
+    nextActions: Array<{
+      label: string;
+      actionType: 'DRILLDOWN' | 'EXPORT' | 'SAVE' | 'SCHEDULE';
+      reason: string;
+    }>;
+  };
+  pivotBreakdowns: Array<{
+    field: string;
+    label: string;
+    metric: string;
+    totalSegments: number;
+    segments: Array<{
+      label: string;
+      value: number;
+      shareOfTotal: number;
+      severity: 'safe' | 'watch' | 'risk';
+    }>;
+  }>;
+  warnings: string[];
+};
+
+type SemanticFilterOptionsResult = {
+  dataSource: string;
+  sourceTitle: string;
+  generatedAt: string;
+  rowSource: 'live' | 'fixture';
+  optionsByFilter: Array<{
+    code: string;
+    label: string;
+    source: 'catalog' | 'live' | 'mixed';
+    options: ReportingFilterOption[];
+  }>;
   warnings: string[];
 };
 
@@ -311,6 +359,21 @@ type SavedReportDefinition = {
     populationValue?: string;
     visualization?: ReportingVisualizationType;
   };
+};
+
+type SavedReportExecution = {
+  id?: string;
+  reportExecutionId?: string;
+  reportDefinitionId?: string | { value?: string };
+  status?: string;
+  rowCount?: number;
+  resultUrl?: string;
+  resultPayload?: SemanticReportQueryResult;
+  createdAt?: string;
+  queuedAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  updatedAt?: string;
 };
 
 type CalculatedFieldDefinition = {
@@ -405,6 +468,31 @@ function groupSmartCategories(categories: SmartAnalyticsCategory[]) {
   }, {});
 }
 
+function entityId(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object' && 'value' in value) {
+    const nested = (value as { value?: unknown }).value;
+    return typeof nested === 'string' ? nested : undefined;
+  }
+  return undefined;
+}
+
+function reportDefinitionId(report: SavedReportDefinition): string | undefined {
+  return report.reportDefinitionId ?? report.id;
+}
+
+function reportExecutionDefinitionId(execution: SavedReportExecution): string | undefined {
+  return entityId(execution.reportDefinitionId);
+}
+
+function formatExecutionTime(execution: SavedReportExecution): string {
+  const value = execution.completedAt ?? execution.startedAt ?? execution.queuedAt ?? execution.createdAt ?? execution.updatedAt;
+  if (!value) return 'Not timestamped';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
 const chartColors = ['#4f46e5', '#10b981', '#f59e0b', '#ec4899'];
 
 const migrationTemplates = [
@@ -430,7 +518,6 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function AdminReporting() {
   const addNotification = useUIStore((state) => state.addNotification);
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ReportingTab>('overview');
   const [reportName, setReportName] = useState('Monthly attendance exceptions');
@@ -451,6 +538,7 @@ export function AdminReporting() {
   const [calculatedFieldType, setCalculatedFieldType] = useState('currency');
   const [scheduleFrequency, setScheduleFrequency] = useState('MONTHLY');
   const [scheduleRecipients, setScheduleRecipients] = useState('hr.operations@example.com');
+  const [expandedReportId, setExpandedReportId] = useState<string | undefined>();
   const dashboardQuery = useQuery({
     queryKey: ['hr-reports-dashboard'],
     queryFn: async () => unwrapApiData<HrReportsDashboard>((await apiClient.get('/reporting/hr-dashboard')).data),
@@ -466,6 +554,10 @@ export function AdminReporting() {
   const savedReportsQuery = useQuery({
     queryKey: ['report-definitions', 'all'],
     queryFn: async () => unwrapApiData<SavedReportDefinition[]>((await apiClient.get('/reporting/report-definitions?status=ALL')).data),
+  });
+  const reportExecutionsQuery = useQuery({
+    queryKey: ['report-executions', 'recent'],
+    queryFn: async () => unwrapApiData<SavedReportExecution[]>((await apiClient.get('/reporting/report-executions')).data),
   });
   const calculatedFieldsQuery = useQuery({
     queryKey: ['report-calculated-fields', 'all'],
@@ -500,6 +592,24 @@ export function AdminReporting() {
     () => (catalog?.templates ?? []).filter((template) => template.dataSource === dataSourceCode),
     [catalog?.templates, dataSourceCode],
   );
+  const availableFilters = useMemo(
+    () => (currentSource?.filters ?? []).filter((filter) => filter.code !== 'period'),
+    [currentSource?.filters],
+  );
+  const availableFilterCodes = useMemo(() => availableFilters.map((filter) => filter.code), [availableFilters]);
+  const filterOptionsQuery = useQuery({
+    queryKey: ['report-filter-options', currentSource?.code, availableFilterCodes.join('|')],
+    queryFn: async () => unwrapApiData<SemanticFilterOptionsResult>((await apiClient.post('/reporting/builder/filter-options', {
+      dataSource: currentSource?.code ?? dataSourceCode,
+      filterCodes: availableFilterCodes,
+      limit: 50,
+    })).data),
+    enabled: Boolean(currentSource && availableFilterCodes.length > 0),
+  });
+  const filterOptionsFor = (filter: ReportingFieldCatalogItem): ReportingFilterOption[] =>
+    filterOptionsQuery.data?.optionsByFilter.find((optionSet) => optionSet.code === filter.code)?.options
+      ?? filter.options
+      ?? [];
   const fieldsForQuery = selectedFields.length > 0 ? selectedFields : defaultFieldCodes(currentSource);
   const metricsForQuery = selectedMetrics.length > 0 ? selectedMetrics : defaultMetricCodes(currentSource);
   const groupByForQuery = selectedGroupBy.length > 0 ? selectedGroupBy : defaultGroupByCodes(currentSource);
@@ -639,17 +749,21 @@ export function AdminReporting() {
   });
   const runReportMutation = useMutation({
     mutationFn: async (report: SavedReportDefinition) => {
-      if (!user?.id) {
-        throw new Error('Cannot run report without an authenticated user.');
+      const id = reportDefinitionId(report);
+      if (!id) {
+        throw new Error('Cannot run report without a report definition ID.');
       }
-      return unwrapApiData<unknown>((await apiClient.post('/reporting/report-executions', {
+      return unwrapApiData<SavedReportExecution>((await apiClient.post(`/reporting/report-definitions/${id}/commands/run`, {
         reportExecutionId: generateUUID(),
-        reportDefinitionId: report.reportDefinitionId ?? report.id,
-        executedBy: user.id,
         parameters: { period: filterPeriod, source: 'admin-reporting' },
+        limit: 50,
       })).data);
     },
-    onSuccess: () => addNotification({ title: 'Report queued', message: 'The report run was added to the execution queue.', type: 'success', read: false }),
+    onSuccess: async (_result, report) => {
+      setExpandedReportId(reportDefinitionId(report));
+      addNotification({ title: 'Report completed', message: 'The report result is available in the execution history.', type: 'success', read: false });
+      await queryClient.invalidateQueries({ queryKey: ['report-executions', 'recent'] });
+    },
     onError: (error) => addNotification({ title: 'Could not run report', message: error instanceof Error ? error.message : 'Run failed.', type: 'error', read: false }),
   });
   const scheduleReportMutation = useMutation({
@@ -766,9 +880,11 @@ export function AdminReporting() {
                 void analyticsQuery.refetch();
                 void builderCatalogQuery.refetch();
                 void savedReportsQuery.refetch();
+                void reportExecutionsQuery.refetch();
                 void calculatedFieldsQuery.refetch();
+                void filterOptionsQuery.refetch();
               }}
-              disabled={dashboardQuery.isFetching || analyticsQuery.isFetching || builderCatalogQuery.isFetching || savedReportsQuery.isFetching || calculatedFieldsQuery.isFetching}
+              disabled={dashboardQuery.isFetching || analyticsQuery.isFetching || builderCatalogQuery.isFetching || savedReportsQuery.isFetching || reportExecutionsQuery.isFetching || calculatedFieldsQuery.isFetching || filterOptionsQuery.isFetching}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
               Refresh
@@ -1282,6 +1398,163 @@ export function AdminReporting() {
                   </div>
                 </CardContent>
               </Card>
+              <Card className="rounded-2xl border-[#dbeafe] bg-[#f8fbff]">
+                <CardHeader>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <CardTitle>BI Designer</CardTitle>
+                      <p className="mt-1 text-sm text-[#475569]">
+                        Build a report by choosing the business question, report type, dimensions, measures, filters, and connected HR data.
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="w-fit border-[#bfdbfe] bg-white text-[#1d4ed8]">
+                      Self-service builder
+                    </Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="grid gap-3 md:grid-cols-5">
+                    {[
+                      ['1', 'Data', currentSource.title],
+                      ['2', 'Type', catalog.visualizationTypes.find((item) => item.code === visualizationForQuery)?.label ?? visualizationForQuery],
+                      ['3', 'Dimensions', `${groupByForQuery.length} selected`],
+                      ['4', 'Metrics', `${metricsForQuery.length} selected`],
+                      ['5', 'Filters', `${Object.values(filterValues).filter((value) => value.trim()).length + 1} active`],
+                    ].map(([step, label, value]) => (
+                      <div key={step} className="rounded-xl border border-[#dbeafe] bg-white p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4f46e5] text-xs font-bold text-white">{step}</span>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">{label}</p>
+                        </div>
+                        <p className="mt-2 text-sm font-semibold text-[#0f172a]">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-[#0f172a]">Business question</p>
+                            <p className="mt-1 text-sm text-[#475569]">
+                              {currentSmartCategory?.businessQuestions[0] ?? 'What HR decision should this report support?'}
+                            </p>
+                          </div>
+                          <Badge variant="outline" className="w-fit border-[#e2e8f0] bg-[#f8fafc] text-[#475569]">
+                            {currentSource.category}
+                          </Badge>
+                        </div>
+                        {currentSource.description ? (
+                          <p className="mt-3 rounded-xl bg-[#f8fafc] p-3 text-sm text-[#475569]">{currentSource.description}</p>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <p className="text-sm font-semibold text-[#0f172a]">Choose a report type</p>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {catalog.visualizationTypes.map((item) => (
+                            <button
+                              key={item.code}
+                              type="button"
+                              onClick={() => setVisualization(item.code)}
+                              className={cn(
+                                'rounded-xl border px-3 py-2 text-left text-sm transition hover:border-[#4f46e5]/60 hover:bg-[#eef2ff]',
+                                visualizationForQuery === item.code ? 'border-[#4f46e5] bg-[#eef2ff] text-[#3730a3]' : 'border-[#e2e8f0] bg-white text-[#0f172a]',
+                              )}
+                            >
+                              <span className="font-semibold">{item.label}</span>
+                              <span className="mt-1 block text-xs text-[#64748b]">
+                                {item.code === 'matrix' ? 'Compare dimensions against metrics.' : item.code === 'comparison' ? 'Compare two segments side by side.' : item.code === 'line' ? 'Track movement over time.' : 'Use for this report output.'}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <p className="text-sm font-semibold text-[#0f172a]">Connected data model</p>
+                        <div className="mt-3 space-y-2">
+                          {visibleRelationships.slice(0, 3).map((relationship) => {
+                            const nextSource = relationship.from === currentSource.code ? relationship.to : relationship.from;
+                            const relatedSource = catalog.dataSources.find((source) => source.code === nextSource);
+                            return (
+                              <div key={relationship.code} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold text-[#0f172a]">{relationship.title}</p>
+                                    <p className="mt-1 text-xs text-[#64748b]">{relationship.businessUse}</p>
+                                  </div>
+                                  {relatedSource ? (
+                                    <Button variant="outline" size="sm" onClick={() => applyDataSource(relatedSource.code)}>
+                                      Use {relatedSource.title}
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                        <p className="text-sm font-semibold text-[#0f172a]">Filter options</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Badge variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">
+                            Period: {filterPeriod}
+                          </Badge>
+                          {availableFilters.flatMap((filter) => filterOptionsFor(filter).slice(0, 3).map((option) => (
+                            <Badge key={`${filter.code}-${option.code}`} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
+                              {filter.label}: {option.label}{option.count !== undefined ? ` (${option.count})` : ''}
+                            </Badge>
+                          )))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                      <p className="text-sm font-semibold text-[#0f172a]">Business dimensions</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {currentSource.groupBy.map((field) => (
+                          <button
+                            key={field.code}
+                            type="button"
+                            onClick={() => toggleCode(field.code, groupByForQuery, setSelectedGroupBy)}
+                            className={cn(
+                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-[#f59e0b]/70',
+                              groupByForQuery.includes(field.code) ? 'border-[#f59e0b] bg-[#fffbeb] text-[#92400e]' : 'border-[#e2e8f0] bg-white text-[#475569]',
+                            )}
+                          >
+                            {field.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                      <p className="text-sm font-semibold text-[#0f172a]">Metric library</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {currentSource.metrics.map((metric) => (
+                          <button
+                            key={metric.code}
+                            type="button"
+                            onClick={() => toggleCode(metric.code, metricsForQuery, setSelectedMetrics)}
+                            className={cn(
+                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-[#10b981]/70',
+                              metricsForQuery.includes(metric.code) ? 'border-[#10b981] bg-[#ecfdf5] text-[#047857]' : 'border-[#e2e8f0] bg-white text-[#475569]',
+                            )}
+                          >
+                            {metric.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
               <div className="grid gap-4 xl:grid-cols-[24rem_1fr]">
                 <Card className="rounded-2xl border-[#e2e8f0]">
                   <CardHeader>
@@ -1379,13 +1652,14 @@ export function AdminReporting() {
                         </SelectContent>
                       </Select>
                     </div>
-                    {currentSource.filters.length > 0 ? (
+                    {availableFilters.length > 0 ? (
                       <div className="space-y-2">
                         <p className="text-sm font-medium text-[#0f172a]">Report filters</p>
                         <div className="space-y-2">
-                          {currentSource.filters.map((filter) => {
+                          {availableFilters.map((filter) => {
                             const value = filterValues[filter.code] ?? '';
-                            if (filter.options && filter.options.length > 0) {
+                            const filterOptions = filterOptionsFor(filter);
+                            if (filterOptions.length > 0) {
                               return (
                                 <Select
                                   key={filter.code}
@@ -1397,9 +1671,9 @@ export function AdminReporting() {
                                   </SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="ALL">All {filter.label.toLowerCase()}</SelectItem>
-                                    {filter.options.map((option) => (
+                                    {filterOptions.map((option) => (
                                       <SelectItem key={option.code} value={option.code}>
-                                        {option.label}
+                                        {option.label}{option.count !== undefined ? ` (${option.count})` : ''}
                                       </SelectItem>
                                     ))}
                                   </SelectContent>
@@ -1611,6 +1885,100 @@ export function AdminReporting() {
                                 </p>
                               </div>
                             </div>
+                            <div className="rounded-2xl border border-[#bfdbfe] bg-white p-4">
+                              <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                <div>
+                                  <p className="text-base font-semibold text-[#0f172a]">Decision Support</p>
+                                  <p className="mt-1 text-sm leading-6 text-[#475569]">{semanticQueryMutation.data.decisionSupport.summary}</p>
+                                </div>
+                                <Badge variant="outline" className="w-fit border-[#c7d2fe] bg-[#eef2ff] text-[#3730a3]">
+                                  BI guidance
+                                </Badge>
+                              </div>
+                              <div className="mt-4 grid gap-3 xl:grid-cols-3">
+                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-sm font-semibold text-[#0f172a]">Top segments</p>
+                                  <div className="mt-3 space-y-2">
+                                    {semanticQueryMutation.data.decisionSupport.topSegments.map((segment) => (
+                                      <div key={`${segment.label}-${segment.metric}`} className="rounded-lg bg-white p-3 text-sm">
+                                        <div className="flex items-center justify-between gap-3">
+                                          <p className="font-semibold text-[#0f172a]">{segment.label}</p>
+                                          <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-[#fecaca] bg-[#fee2e2] text-[#991b1b]' : segment.severity === 'watch' ? 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]' : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]')}>
+                                            {segment.severity}
+                                          </Badge>
+                                        </div>
+                                        <p className="mt-1 text-[#475569]">{segment.metric}: {segment.value} · {segment.shareOfTotal}%</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-sm font-semibold text-[#0f172a]">Suggested drilldowns</p>
+                                  <div className="mt-3 space-y-2">
+                                    {semanticQueryMutation.data.decisionSupport.recommendedDrilldowns.map((drilldown) => (
+                                      <div key={drilldown.field} className="rounded-lg bg-white p-3 text-sm">
+                                        <p className="font-semibold text-[#0f172a]">{drilldown.label}</p>
+                                        <p className="mt-1 text-[#64748b]">{drilldown.reason}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-sm font-semibold text-[#0f172a]">Next actions</p>
+                                  <div className="mt-3 space-y-2">
+                                    {semanticQueryMutation.data.decisionSupport.nextActions.map((action) => (
+                                      <div key={`${action.actionType}-${action.label}`} className="rounded-lg bg-white p-3 text-sm">
+                                        <p className="font-semibold text-[#0f172a]">{action.label}</p>
+                                        <p className="mt-1 text-[#64748b]">{action.reason}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            {semanticQueryMutation.data.pivotBreakdowns.length > 0 ? (
+                              <div className="rounded-2xl border border-[#bfdbfe] bg-white p-4">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                  <div>
+                                    <p className="text-base font-semibold text-[#0f172a]">Explore other cuts</p>
+                                    <p className="mt-1 text-sm leading-6 text-[#475569]">
+                                      Compare the same result by other business dimensions without rebuilding the report.
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="w-fit border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]">
+                                    Smart pivots
+                                  </Badge>
+                                </div>
+                                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                  {semanticQueryMutation.data.pivotBreakdowns.slice(0, 6).map((breakdown) => (
+                                    <div key={breakdown.field} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-[#0f172a]">{breakdown.label}</p>
+                                          <p className="mt-1 text-xs text-[#64748b]">{breakdown.metric}</p>
+                                        </div>
+                                        <Badge variant="outline" className="border-[#e2e8f0] bg-white text-[#475569]">
+                                          {breakdown.totalSegments} segments
+                                        </Badge>
+                                      </div>
+                                      <div className="mt-3 space-y-2">
+                                        {breakdown.segments.slice(0, 3).map((segment) => (
+                                          <div key={`${breakdown.field}-${segment.label}`} className="rounded-lg bg-white p-3 text-sm">
+                                            <div className="flex items-center justify-between gap-3">
+                                              <p className="font-semibold text-[#0f172a]">{segment.label}</p>
+                                              <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-[#fecaca] bg-[#fee2e2] text-[#991b1b]' : segment.severity === 'watch' ? 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]' : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]')}>
+                                                {segment.severity}
+                                              </Badge>
+                                            </div>
+                                            <p className="mt-1 text-[#475569]">{segment.value} · {segment.shareOfTotal}%</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                             {semanticQueryMutation.data.warnings.length > 0 ? (
                               <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
                                 {semanticQueryMutation.data.warnings.join(' ')}
@@ -2033,7 +2401,11 @@ export function AdminReporting() {
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {(savedReportsQuery.data ?? []).map((report, index) => {
                       const source = catalog?.dataSources.find((item) => item.code === report.dataSource);
-                      const reportId = report.reportDefinitionId ?? report.id;
+                      const reportId = reportDefinitionId(report);
+                      const executions = (reportExecutionsQuery.data ?? [])
+                        .filter((execution) => reportExecutionDefinitionId(execution) === reportId)
+                        .slice(0, 3);
+                      const showHistory = expandedReportId === reportId || executions.length > 0;
                       return (
                         <div key={report.reportDefinitionId ?? report.id ?? index} className="rounded-xl border border-[#e2e8f0] bg-white p-4">
                           <div className="flex items-start justify-between gap-3">
@@ -2073,7 +2445,51 @@ export function AdminReporting() {
                             >
                               Schedule
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={!reportId}
+                              onClick={() => setExpandedReportId(expandedReportId === reportId ? undefined : reportId)}
+                            >
+                              History
+                            </Button>
                           </div>
+                          {showHistory ? (
+                            <div className="mt-4 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-[#0f172a]">Execution history</p>
+                                {reportExecutionsQuery.isFetching ? (
+                                  <span className="text-xs text-[#64748b]">Refreshing...</span>
+                                ) : null}
+                              </div>
+                              {executions.length > 0 ? (
+                                <div className="mt-3 space-y-2">
+                                  {executions.map((execution) => (
+                                    <div key={execution.reportExecutionId ?? execution.id ?? `${reportId}-${execution.status}`} className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                          <Badge variant="outline" className="border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]">
+                                            {execution.status ?? 'RUN'}
+                                          </Badge>
+                                          <span className="text-[#475569]">{formatExecutionTime(execution)}</span>
+                                        </div>
+                                        <span className="font-semibold text-[#0f172a]">{execution.rowCount ?? execution.resultPayload?.drillThroughCount ?? 0} rows</span>
+                                      </div>
+                                      {execution.resultPayload ? (
+                                        <p className="mt-2 text-xs text-[#64748b]">
+                                          {execution.resultPayload.sourceTitle} result saved with {execution.resultPayload.drillThroughCount} underlying records.
+                                        </p>
+                                      ) : execution.resultUrl ? (
+                                        <p className="mt-2 text-xs text-[#64748b]">Result stored for download or delivery.</p>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="mt-3 text-sm text-[#64748b]">No execution history yet. Run the report to generate a saved result.</p>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}

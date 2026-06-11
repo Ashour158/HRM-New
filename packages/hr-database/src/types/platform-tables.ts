@@ -1847,6 +1847,7 @@ export interface ReportExecutionsTable {
   executed_by: string;
   parameters: unknown;
   result_url: string | null;
+  result_payload: unknown | null;
   row_count: number | null;
   started_at: Date | null;
   completed_at: Date | null;

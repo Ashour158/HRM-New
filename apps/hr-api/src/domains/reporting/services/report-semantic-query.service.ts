@@ -1,11 +1,34 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { ReportBuilderCatalogService, type ReportingDataSourceCatalogItem, type ReportingFieldCatalogItem } from './report-builder-catalog.service.js';
+import { SEMANTIC_REPORT_ROW_PROVIDER, type SemanticReportRowProvider } from './report-semantic-row-provider.service.js';
 
 export interface SemanticReportQueryInput {
   dataSource: string;
   queryDefinition?: Record<string, unknown>;
   parameters?: Record<string, unknown>;
   limit?: number;
+  tenantId?: string;
+}
+
+export interface SemanticFilterOptionsInput {
+  dataSource: string;
+  tenantId?: string;
+  filterCodes?: string[];
+  limit?: number;
+}
+
+export interface SemanticFilterOptionsResult {
+  dataSource: string;
+  sourceTitle: string;
+  generatedAt: string;
+  rowSource: 'live' | 'fixture';
+  optionsByFilter: Array<{
+    code: string;
+    label: string;
+    source: 'catalog' | 'live' | 'mixed';
+    options: Array<{ code: string; label: string; count?: number }>;
+  }>;
+  warnings: string[];
 }
 
 export interface SemanticReportQueryResult {
@@ -28,11 +51,48 @@ export interface SemanticReportQueryResult {
     privacyLevel: 'standard' | 'sensitive' | 'restricted';
     appliedFilters: Array<{ code: string; value: string }>;
     availableDrilldowns: string[];
+    rowSource: 'live' | 'fixture';
   };
+  decisionSupport: SemanticDecisionSupport;
+  pivotBreakdowns: SemanticPivotBreakdown[];
   warnings: string[];
 }
 
-type SemanticRow = Record<string, string | number>;
+export interface SemanticDecisionSupport {
+  summary: string;
+  topSegments: Array<{
+    label: string;
+    metric: string;
+    value: number;
+    shareOfTotal: number;
+    severity: 'safe' | 'watch' | 'risk';
+  }>;
+  recommendedDrilldowns: Array<{
+    field: string;
+    label: string;
+    reason: string;
+  }>;
+  nextActions: Array<{
+    label: string;
+    actionType: 'DRILLDOWN' | 'EXPORT' | 'SAVE' | 'SCHEDULE';
+    reason: string;
+  }>;
+}
+
+export interface SemanticPivotBreakdown {
+  field: string;
+  label: string;
+  metric: string;
+  totalSegments: number;
+  segments: Array<{
+    label: string;
+    value: number;
+    shareOfTotal: number;
+    severity: 'safe' | 'watch' | 'risk';
+  }>;
+}
+
+export type SemanticRow = Record<string, string | number>;
 
 const SOURCE_GRAIN: Record<string, string> = {
   ATTENDANCE: 'Worker-day',
@@ -112,7 +172,41 @@ const SEMANTIC_ROWS: Record<string, SemanticRow[]> = {
 
 @Injectable()
 export class ReportSemanticQueryService {
-  constructor(private readonly catalogService: ReportBuilderCatalogService) {}
+  constructor(
+    private readonly catalogService: ReportBuilderCatalogService,
+    @Optional() @Inject(SEMANTIC_REPORT_ROW_PROVIDER) private readonly rowProvider?: SemanticReportRowProvider,
+  ) {}
+
+  async getFilterOptions(input: SemanticFilterOptionsInput): Promise<SemanticFilterOptionsResult> {
+    const catalog = this.catalogService.getCatalog();
+    const source = catalog.dataSources.find((item) => item.code === input.dataSource);
+    if (!source) {
+      throw new BadRequestException(`Unknown semantic reporting data source: ${input.dataSource}`);
+    }
+    const selectedFilterCodes = input.filterCodes?.length
+      ? input.filterCodes
+      : source.filters.map((filter) => filter.code);
+    const filters = selectedFilterCodes.map((code) => {
+      const filter = source.filters.find((item) => item.code === code);
+      if (!filter) {
+        throw new BadRequestException(`Unknown filter "${code}" for semantic reporting data source: ${source.code}`);
+      }
+      return filter;
+    });
+    const rowLoad = await this.loadRows({ dataSource: source.code, tenantId: input.tenantId }, source.code);
+    const limit = typeof input.limit === 'number' && Number.isFinite(input.limit)
+      ? Math.max(1, Math.min(200, Math.trunc(input.limit)))
+      : 50;
+
+    return {
+      dataSource: source.code,
+      sourceTitle: source.title,
+      generatedAt: new Date().toISOString(),
+      rowSource: rowLoad.source,
+      optionsByFilter: filters.map((filter) => buildFilterOptionSet(filter, rowLoad.rows, limit)),
+      warnings: rowLoad.warnings,
+    };
+  }
 
   async run(input: SemanticReportQueryInput): Promise<SemanticReportQueryResult> {
     const catalog = this.catalogService.getCatalog();
@@ -133,7 +227,8 @@ export class ReportSemanticQueryService {
     const limit = typeof input.limit === 'number' && Number.isFinite(input.limit)
       ? Math.max(1, Math.min(100, Math.trunc(input.limit)))
       : 25;
-    const availableRows = SEMANTIC_ROWS[source.code] ?? [];
+    const rowLoad = await this.loadRows(input, source.code);
+    const availableRows = rowLoad.rows;
     const periodReferenceDate = latestRowDate(availableRows) ?? new Date();
     const filteredRows = availableRows
       .filter((row) => matchesPopulation(row, scopeLevel, populationValue))
@@ -179,9 +274,63 @@ export class ReportSemanticQueryService {
         privacyLevel: SOURCE_PRIVACY[source.code] ?? 'standard',
         appliedFilters: filters,
         availableDrilldowns: source.groupBy.map((item) => item.label),
+        rowSource: rowLoad.source,
       },
-      warnings,
+      decisionSupport: buildDecisionSupport({
+        source,
+        resultRows,
+        filteredRows,
+        groupBy,
+        primaryMetric,
+      }),
+      pivotBreakdowns: buildPivotBreakdowns({
+        source,
+        filteredRows,
+        groupBy,
+        primaryMetric,
+      }),
+      warnings: [...rowLoad.warnings, ...warnings],
     };
+  }
+
+  private async loadRows(input: SemanticReportQueryInput, dataSource: string): Promise<{
+    rows: SemanticRow[];
+    source: 'live' | 'fixture';
+    warnings: string[];
+  }> {
+    if (!this.rowProvider || !input.tenantId) {
+      return {
+        rows: SEMANTIC_ROWS[dataSource] ?? [],
+        source: 'fixture',
+        warnings: [],
+      };
+    }
+
+    try {
+      const liveRows = await this.rowProvider.loadRows({
+        dataSource,
+        tenantId: input.tenantId,
+        maxRows: 1000,
+      });
+      if (liveRows) {
+        return {
+          rows: liveRows.rows,
+          source: 'live',
+          warnings: liveRows.warnings ?? [],
+        };
+      }
+      return {
+        rows: SEMANTIC_ROWS[dataSource] ?? [],
+        source: 'fixture',
+        warnings: [`${dataSource} is not mapped to a live semantic row source yet; using catalog fixture rows.`],
+      };
+    } catch (error) {
+      return {
+        rows: [],
+        source: 'live',
+        warnings: [`Live semantic row source for ${dataSource} could not be loaded: ${errorMessage(error)}`],
+      };
+    }
   }
 }
 
@@ -263,6 +412,119 @@ function metricSummaryValue(rows: SemanticRow[], metric: string, metricType?: st
   if (metricType !== 'percentage') return sum(rows, metric);
   if (rows.length === 0) return 0;
   return roundMetric(sum(rows, metric) / rows.length);
+}
+
+function buildDecisionSupport(input: {
+  source: ReportingDataSourceCatalogItem;
+  resultRows: SemanticRow[];
+  filteredRows: SemanticRow[];
+  groupBy: string[];
+  primaryMetric?: string;
+}): SemanticDecisionSupport {
+  const metric = input.primaryMetric ?? input.source.metrics[0]?.code;
+  const metricLabel = metric ? labelFor(input.source.metrics, metric) : 'Records';
+  const totalMetricValue = Math.max(0, metric ? sum(input.resultRows, metric) : input.filteredRows.length);
+  const topSegments = metric
+    ? input.resultRows
+      .map((row, index) => {
+        const label = segmentLabel(row, input.groupBy, index);
+        const value = numeric(row[metric]);
+        const shareOfTotal = totalMetricValue > 0 ? roundMetric((value / totalMetricValue) * 100) : 0;
+        return {
+          label,
+          metric: metricLabel,
+          value,
+          shareOfTotal,
+          severity: segmentSeverity(value, shareOfTotal),
+        };
+      })
+      .sort((left, right) => right.value - left.value)
+      .slice(0, 3)
+    : [];
+  const leadingSegment = topSegments[0];
+  const recommendedDrilldowns = input.source.groupBy
+    .filter((field) => !input.groupBy.includes(field.code))
+    .slice(0, 3)
+    .map((field) => ({
+      field: field.code,
+      label: field.label,
+      reason: `Break ${metricLabel.toLowerCase()} down by ${field.label.toLowerCase()} for the next layer of context.`,
+    }));
+
+  return {
+    summary: leadingSegment
+      ? `${leadingSegment.label} is the top segment for ${metricLabel.toLowerCase()} with ${leadingSegment.value} (${leadingSegment.shareOfTotal}% of the result).`
+      : `No segment stood out for ${input.source.title}.`,
+    topSegments,
+    recommendedDrilldowns,
+    nextActions: [
+      ...(leadingSegment ? [{
+        label: `Open ${leadingSegment.label} drill-through`,
+        actionType: 'DRILLDOWN' as const,
+        reason: `Review the ${input.filteredRows.length} underlying record(s) behind the top segment.`,
+      }] : []),
+      {
+        label: 'Export underlying records',
+        actionType: 'EXPORT',
+        reason: 'Share the drill-through data with HR operations or business owners.',
+      },
+      {
+        label: 'Save as recurring report',
+        actionType: 'SCHEDULE',
+        reason: 'Monitor this question on a regular reporting cadence.',
+      },
+    ],
+  };
+}
+
+function buildPivotBreakdowns(input: {
+  source: ReportingDataSourceCatalogItem;
+  filteredRows: SemanticRow[];
+  groupBy: string[];
+  primaryMetric?: string;
+}): SemanticPivotBreakdown[] {
+  const metric = input.primaryMetric ?? input.source.metrics[0]?.code;
+  if (!metric) return [];
+  const metricLabel = labelFor(input.source.metrics, metric);
+  return input.source.groupBy
+    .filter((field) => !input.groupBy.includes(field.code))
+    .map((field) => {
+      const rows = aggregateRows(input.filteredRows, [field.code], [metric], input.source);
+      const total = Math.max(0, sum(rows, metric));
+      const segments = rows
+        .map((row, index) => {
+          const label = segmentLabel(row, [field.code], index);
+          const value = numeric(row[metric]);
+          const shareOfTotal = total > 0 ? roundMetric((value / total) * 100) : 0;
+          return {
+            label,
+            value,
+            shareOfTotal,
+            severity: segmentSeverity(value, shareOfTotal),
+          };
+        })
+        .sort((left, right) => right.value - left.value)
+        .slice(0, 5);
+      return {
+        field: field.code,
+        label: field.label,
+        metric: metricLabel,
+        totalSegments: rows.length,
+        segments,
+      };
+    })
+    .filter((breakdown) => breakdown.segments.length > 0);
+}
+
+function segmentLabel(row: SemanticRow, groupBy: string[], index: number): string {
+  const label = groupBy.map((field) => String(row[field] ?? '')).filter(Boolean).join(' / ');
+  return label || `Row ${index + 1}`;
+}
+
+function segmentSeverity(value: number, shareOfTotal: number): 'safe' | 'watch' | 'risk' {
+  if (value <= 0) return 'safe';
+  if (shareOfTotal >= 60) return 'watch';
+  return 'safe';
 }
 
 function runningAverageMetric(currentAverage: number, next: number, count: number): number {
@@ -363,4 +625,45 @@ function parseRowDate(value: unknown): Date | undefined {
 
 function labelFor(fields: ReportingFieldCatalogItem[], code: string): string {
   return fields.find((field) => field.code === code)?.label ?? code;
+}
+
+function buildFilterOptionSet(filter: ReportingFieldCatalogItem, rows: SemanticRow[], limit: number): SemanticFilterOptionsResult['optionsByFilter'][number] {
+  const catalogOptions = filter.options ?? [];
+  const liveCounts = rows.reduce((counts, row) => {
+    const value = row[filter.code];
+    if (value === undefined || value === null || String(value).trim() === '') return counts;
+    const code = String(value);
+    counts.set(code, (counts.get(code) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+  const catalogCodes = new Set(catalogOptions.map((option) => option.code));
+  const liveOnly = [...liveCounts.entries()]
+    .filter(([code]) => !catalogCodes.has(code))
+    .sort(([leftCode, leftCount], [rightCode, rightCount]) => rightCount - leftCount || leftCode.localeCompare(rightCode))
+    .slice(0, limit)
+    .map(([code, count]) => ({ code, label: code, count }));
+  const options = [
+    ...catalogOptions.map((option) => ({
+      code: option.code,
+      label: option.label,
+      ...(liveCounts.has(option.code) ? { count: liveCounts.get(option.code) } : {}),
+    })),
+    ...liveOnly,
+  ];
+  const liveOptionCount = options.filter((option) => option.count !== undefined).length;
+  const source = liveOptionCount === 0
+    ? 'catalog'
+    : catalogOptions.length > 0
+      ? 'mixed'
+      : 'live';
+  return {
+    code: filter.code,
+    label: filter.label,
+    source,
+    options,
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -392,8 +392,67 @@ describe('ReportingController service usage surface', () => {
         scopeLevel: 'DEPARTMENT',
         populationValue: 'ENGINEERING',
       },
+      tenantId: TENANT_ID,
       limit: 25,
     });
+  });
+
+  it('returns live builder filter options using authenticated tenant scope', async () => {
+    const semanticQuery = {
+      getFilterOptions: vi.fn().mockResolvedValue({
+        dataSource: 'ATTENDANCE',
+        rowSource: 'live',
+        optionsByFilter: [{ code: 'department', label: 'Department', source: 'mixed', options: [{ code: 'ENGINEERING', label: 'Engineering', count: 2 }] }],
+      }),
+    } as unknown as ReportSemanticQueryService;
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { semanticQuery });
+
+    await expect(reporting.getBuilderFilterOptions({
+      dataSource: 'ATTENDANCE',
+      filterCodes: ['department'],
+      limit: 25,
+    }, request())).resolves.toEqual({
+      dataSource: 'ATTENDANCE',
+      rowSource: 'live',
+      optionsByFilter: [{ code: 'department', label: 'Department', source: 'mixed', options: [{ code: 'ENGINEERING', label: 'Engineering', count: 2 }] }],
+    });
+    expect(semanticQuery.getFilterOptions).toHaveBeenCalledWith({
+      dataSource: 'ATTENDANCE',
+      filterCodes: ['department'],
+      limit: 25,
+      tenantId: TENANT_ID,
+    });
+  });
+
+  it('runs a saved report definition through the command bus', async () => {
+    const commandBus = {
+      execute: vi.fn().mockResolvedValue({
+        success: true,
+        data: { reportExecutionId: '00000000-0000-0000-0000-00000000e501', status: 'COMPLETED' },
+      }),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { commandBus });
+    const reportDefinitionId = '00000000-0000-0000-0000-000000000201';
+
+    await expect(reporting.runReportDefinition(reportDefinitionId, {
+      reportExecutionId: '00000000-0000-0000-0000-00000000e501',
+      parameters: { period: 'CURRENT_MONTH' },
+      limit: 50,
+    }, request())).resolves.toEqual({
+      success: true,
+      data: { reportExecutionId: '00000000-0000-0000-0000-00000000e501', status: 'COMPLETED' },
+    });
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'RunReportDefinition',
+      aggregateType: 'ReportDefinition',
+      aggregateId: new Uuid(reportDefinitionId),
+      payload: {
+        reportDefinitionId,
+        reportExecutionId: '00000000-0000-0000-0000-00000000e501',
+        parameters: { period: 'CURRENT_MONTH' },
+        limit: 50,
+      },
+    }));
   });
 
   it('lists report executions through tenant-scoped report definition reads', async () => {

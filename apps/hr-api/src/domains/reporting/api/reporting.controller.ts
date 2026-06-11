@@ -15,7 +15,8 @@ import type * as dtos from './dtos.js';
 import {
   CreateReportDefinitionDtoSchema, CreateReportExecutionDtoSchema, CompleteReportExecutionDtoSchema,
   FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, HrAnalyticsQueryDtoSchema,
-  PreviewReportDefinitionDtoSchema, RunReportAnalyticsDtoSchema, RunSemanticReportQueryDtoSchema, RunSmartAnalyticsCategoryDtoSchema, ZodValidationPipe,
+  GetReportFilterOptionsDtoSchema, PreviewReportDefinitionDtoSchema, RunReportAnalyticsDtoSchema, RunReportDefinitionDtoSchema,
+  RunSemanticReportQueryDtoSchema, RunSmartAnalyticsCategoryDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 import { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
 import { HrAnalyticsReportingService } from '../services/hr-analytics-reporting.service.js';
@@ -93,7 +94,19 @@ export class ReportingController {
   @Post('builder/query/run')
   async runSemanticReportQuery(@Body(new ZodValidationPipe(RunSemanticReportQueryDtoSchema)) dto: dtos.RunSemanticReportQueryDto, @Req() req: Request) {
     this.assertReportingAdmin(req);
-    return this.semanticQuery.run(dto);
+    return this.semanticQuery.run({ ...dto, tenantId: this.getTenantId(req).value });
+  }
+  @Post('builder/filter-options')
+  async getBuilderFilterOptions(@Body(new ZodValidationPipe(GetReportFilterOptionsDtoSchema)) dto: dtos.GetReportFilterOptionsDto, @Req() req: Request) {
+    this.assertReportingAdmin(req);
+    return this.semanticQuery.getFilterOptions({ ...dto, tenantId: this.getTenantId(req).value });
+  }
+  @Post('report-definitions/:id/commands/run')
+  async runReportDefinition(@Param('id') id: string, @Body(new ZodValidationPipe(RunReportDefinitionDtoSchema)) dto: dtos.RunReportDefinitionDto, @Req() req: Request) {
+    return this.commandBus.execute(this.buildCommand('RunReportDefinition', 'ReportDefinition', {
+      ...dto,
+      reportDefinitionId: id,
+    }, req, { aggregateId: new Uuid(id) }));
   }
   @Post('report-definitions/:id/commands/publish')
   async publishReportDefinition(@Param('id') id: string, @Req() req: Request) {
@@ -161,7 +174,7 @@ export class ReportingController {
   async listReportExecutions(@Req() req: Request, @Query('reportDefinitionId') reportDefinitionId?: string) {
     this.assertReportingAdmin(req);
     if (reportDefinitionId) return this.reportExecutionRepo.findByReportDefinitionIdForTenant(new Uuid(reportDefinitionId), this.getTenantId(req));
-    return [];
+    return this.reportExecutionRepo.findRecentForTenant(this.getTenantId(req));
   }
   @Get('report-executions/:id')
   async getReportExecution(@Req() req: Request, @Param('id') id: string) {

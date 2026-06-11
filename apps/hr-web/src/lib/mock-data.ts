@@ -381,6 +381,8 @@ const REPORT_BUILDER_CATALOG = {
     { code: 'line', label: 'Trend line' },
     { code: 'pie', label: 'Breakdown' },
     { code: 'kpi', label: 'KPI cards' },
+    { code: 'matrix', label: 'Matrix' },
+    { code: 'comparison', label: 'Comparison' },
   ],
   dataSources: [
     {
@@ -834,6 +836,75 @@ const SAVED_REPORT_DEFINITIONS = [
       populationValue: 'ACME_EG',
       visualization: 'kpi',
     },
+  },
+];
+
+const MOCK_SEMANTIC_REPORT_RESULT = {
+  dataSource: 'ATTENDANCE',
+  sourceTitle: 'Attendance & Time Ledger',
+  generatedAt: '2026-06-11T08:10:00.000Z',
+  scopeLevel: 'DEPARTMENT',
+  populationValue: 'ENGINEERING',
+  columns: ['department', 'lateMinutes', 'exceptions'],
+  metrics: ['lateMinutes', 'exceptions'],
+  groupBy: ['department'],
+  rowCount: 1,
+  drillThroughCount: 3,
+  rows: [
+    { department: 'Engineering', lateMinutes: 29, exceptions: 2 },
+  ],
+  drillThroughRows: [
+    { employeeNumber: 'EMP-0042', employeeName: 'Emily Chen', workDate: '2026-06-10', attendanceStatus: 'LATE', department: 'Engineering', lateMinutes: 18, exceptions: 1 },
+    { employeeNumber: 'EMP-0044', employeeName: 'Marcus Johnson', workDate: '2026-06-10', attendanceStatus: 'PRESENT', department: 'Engineering', lateMinutes: 0, exceptions: 0 },
+    { employeeNumber: 'EMP-0047', employeeName: 'Olivia Thompson', workDate: '2026-06-10', attendanceStatus: 'LATE', department: 'Engineering', lateMinutes: 11, exceptions: 1 },
+  ],
+  chartData: [{ label: 'Engineering', value: 29, secondaryValue: 2 }],
+  insightCards: [
+    { label: 'Rows', value: 1, tone: 'success' },
+    { label: 'Drill-through records', value: 3, tone: 'success' },
+    { label: 'Late minutes', value: 29, tone: 'warning' },
+  ],
+  executionPlan: {
+    grain: 'Worker-day',
+    privacyLevel: 'sensitive',
+    appliedFilters: [{ code: 'period', value: 'CURRENT_MONTH' }],
+    availableDrilldowns: ['Department', 'Manager', 'Employee'],
+  },
+  decisionSupport: {
+    summary: 'Engineering has the strongest attendance exception pressure in this result.',
+    topSegments: [
+      { label: 'Engineering', metric: 'Late minutes', value: 29, shareOfTotal: 100, severity: 'watch' },
+    ],
+    recommendedDrilldowns: [
+      { field: 'manager', label: 'Manager', reason: 'Check if the exceptions are isolated to a team.' },
+      { field: 'employeeName', label: 'Employee', reason: 'Review underlying worker-day evidence.' },
+    ],
+    nextActions: [
+      { label: 'Open Engineering drill-through', actionType: 'DRILLDOWN', reason: 'Review the three records behind the top segment.' },
+      { label: 'Export underlying records', actionType: 'EXPORT', reason: 'Share the exception list with HR operations.' },
+    ],
+  },
+  pivotBreakdowns: [
+    {
+      field: 'manager',
+      label: 'Manager',
+      metric: 'Late minutes',
+      totalSegments: 1,
+      segments: [{ label: 'James Harrington', value: 29, shareOfTotal: 100, severity: 'watch' }],
+    },
+  ],
+  warnings: [],
+};
+
+const MOCK_REPORT_EXECUTIONS = [
+  {
+    reportExecutionId: '00000000-0000-0000-0000-00000000e501',
+    reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+    status: 'COMPLETED',
+    rowCount: 3,
+    resultUrl: 'reporting://executions/00000000-0000-0000-0000-00000000e501/semantic-result',
+    resultPayload: MOCK_SEMANTIC_REPORT_RESULT,
+    completedAt: '2026-06-11T08:20:00.000Z',
   },
 ];
 
@@ -1321,6 +1392,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   // ── Reporting ─────────────────────────────────────────────────────────────
   'GET /reporting/builder/catalog': () => ok(REPORT_BUILDER_CATALOG),
   'GET /reporting/report-definitions': () => ok(SAVED_REPORT_DEFINITIONS),
+  'GET /reporting/report-executions': () => ok(MOCK_REPORT_EXECUTIONS),
   'GET /reporting/calculated-fields': () => ok([
     { calculatedFieldId: '00000000-0000-0000-0000-00000000c501', fieldName: 'Net payroll cost', expression: 'grossPay - deductionAmount', dataType: 'currency', sourceFields: ['grossPay', 'deductionAmount'], status: 'ACTIVE' },
     { calculatedFieldId: '00000000-0000-0000-0000-00000000c502', fieldName: 'Attendance risk score', expression: 'lateMinutes + exceptions', dataType: 'number', sourceFields: ['lateMinutes', 'exceptions'], status: 'DRAFT' },
@@ -1379,6 +1451,35 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     ],
     relationships: REPORT_BUILDER_CATALOG.businessRelationships.filter((relationship) => ['HEADCOUNT', 'ATTENDANCE', 'LEAVE', 'PAYROLL'].includes(relationship.from) || ['HEADCOUNT', 'ATTENDANCE', 'LEAVE', 'PAYROLL'].includes(relationship.to)),
   }),
+  'POST /reporting/builder/filter-options': () => ok({
+    dataSource: 'ATTENDANCE',
+    sourceTitle: 'Attendance & Time Ledger',
+    generatedAt: '2026-06-11T08:15:00.000Z',
+    rowSource: 'live',
+    optionsByFilter: [
+      {
+        code: 'attendanceStatus',
+        label: 'Attendance status',
+        source: 'mixed',
+        options: [
+          { code: 'PRESENT', label: 'Present', count: 1 },
+          { code: 'LATE', label: 'Late', count: 2 },
+          { code: 'EXCEPTION', label: 'Exception', count: 0 },
+        ],
+      },
+      {
+        code: 'department',
+        label: 'Department',
+        source: 'live',
+        options: [
+          { code: 'ENGINEERING', label: 'Engineering', count: 3 },
+          { code: 'SALES', label: 'Sales', count: 2 },
+        ],
+      },
+    ],
+    warnings: [],
+  }),
+  'POST /reporting/builder/query/run': () => ok(MOCK_SEMANTIC_REPORT_RESULT),
   'POST /reporting/report-definitions/preview': () => ok({
     valid: true,
     dataSource: 'ATTENDANCE',
@@ -1400,6 +1501,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     warnings: [],
   }),
   'POST /reporting/report-definitions/': () => ok({ status: 'PUBLISHED' }),
+  'POST /reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/run': () => ok(MOCK_REPORT_EXECUTIONS[0]),
   'POST /reporting/report-definitions': () => ok({
     reportDefinitionId: '00000000-0000-0000-0000-00000000a599',
     reportName: 'Custom workforce report',

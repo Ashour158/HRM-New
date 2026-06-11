@@ -229,7 +229,11 @@ const builderCatalog = {
   visualizationTypes: [
     { code: 'table', label: 'Table' },
     { code: 'bar', label: 'Bar chart' },
+    { code: 'line', label: 'Trend line' },
+    { code: 'pie', label: 'Breakdown' },
     { code: 'kpi', label: 'KPI cards' },
+    { code: 'matrix', label: 'Matrix' },
+    { code: 'comparison', label: 'Comparison' },
   ],
   dataSources: [
     {
@@ -501,8 +505,74 @@ const semanticQueryResult = {
     appliedFilters: [{ code: 'period', value: 'CURRENT_MONTH' }],
     availableDrilldowns: ['Department', 'Manager', 'Employee'],
   },
+  decisionSupport: {
+    summary: 'ENGINEERING is the top segment for late minutes with 18 (100% of the result).',
+    topSegments: [
+      { label: 'ENGINEERING', metric: 'Late minutes', value: 18, shareOfTotal: 100, severity: 'watch' },
+    ],
+    recommendedDrilldowns: [
+      { field: 'manager', label: 'Manager', reason: 'Break late minutes down by manager for the next layer of context.' },
+      { field: 'employeeName', label: 'Employee', reason: 'Break late minutes down by employee for the next layer of context.' },
+    ],
+    nextActions: [
+      { label: 'Open ENGINEERING drill-through', actionType: 'DRILLDOWN', reason: 'Review the 2 underlying records behind the top segment.' },
+      { label: 'Export underlying records', actionType: 'EXPORT', reason: 'Share the drill-through data with HR operations or business owners.' },
+    ],
+  },
+  pivotBreakdowns: [
+    {
+      field: 'manager',
+      label: 'Manager',
+      metric: 'Late minutes',
+      totalSegments: 1,
+      segments: [
+        { label: 'MGR_JAMES_HARRINGTON', value: 18, shareOfTotal: 100, severity: 'watch' },
+      ],
+    },
+    {
+      field: 'employeeName',
+      label: 'Employee',
+      metric: 'Late minutes',
+      totalSegments: 2,
+      segments: [
+        { label: 'Emily Chen', value: 18, shareOfTotal: 100, severity: 'watch' },
+        { label: 'Marcus Johnson', value: 0, shareOfTotal: 0, severity: 'safe' },
+      ],
+    },
+  ],
   warnings: [],
 };
+
+const filterOptionsResult = {
+  dataSource: 'ATTENDANCE',
+  sourceTitle: 'Attendance & Time Ledger',
+  generatedAt: '2026-06-11T08:15:00.000Z',
+  rowSource: 'live',
+  optionsByFilter: [
+    {
+      code: 'attendanceStatus',
+      label: 'Attendance status',
+      source: 'mixed',
+      options: [
+        { code: 'PRESENT', label: 'Present', count: 1 },
+        { code: 'LATE', label: 'Late', count: 1 },
+        { code: 'EXCEPTION', label: 'Exception', count: 0 },
+      ],
+    },
+  ],
+  warnings: [],
+};
+
+const savedReportExecutions = [
+  {
+    reportExecutionId: '00000000-0000-0000-0000-00000000e501',
+    reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+    status: 'COMPLETED',
+    rowCount: 2,
+    completedAt: '2026-06-11T08:20:00.000Z',
+    resultPayload: semanticQueryResult,
+  },
+];
 
 function renderReporting() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -530,6 +600,9 @@ describe('AdminReporting analytics', () => {
   if (path === '/reporting/report-definitions?status=ALL') {
     return Promise.resolve({ data: { success: true, data: savedReports } });
   }
+      if (path === '/reporting/report-executions') {
+        return Promise.resolve({ data: { success: true, data: savedReportExecutions } });
+      }
       if (path === '/reporting/calculated-fields?status=ALL') {
         return Promise.resolve({ data: { success: true, data: [
           { calculatedFieldId: '00000000-0000-0000-0000-00000000c501', fieldName: 'Net payroll cost', expression: 'grossPay - deductionAmount', dataType: 'currency', status: 'ACTIVE' },
@@ -550,14 +623,17 @@ describe('AdminReporting analytics', () => {
       if (path === '/reporting/builder/query/run') {
         return Promise.resolve({ data: { success: true, data: semanticQueryResult } });
       }
+      if (path === '/reporting/builder/filter-options') {
+        return Promise.resolve({ data: { success: true, data: filterOptionsResult } });
+      }
       if (path === '/reporting/report-definitions') {
         return Promise.resolve({ data: { success: true, data: { ...savedReports[0], status: 'DRAFT' } } });
       }
       if (path === '/reporting/calculated-fields') {
         return Promise.resolve({ data: { success: true, data: { calculatedFieldId: '00000000-0000-0000-0000-00000000c599', fieldName: 'Custom metric', status: 'DRAFT' } } });
       }
-      if (path === '/reporting/report-executions') {
-        return Promise.resolve({ data: { success: true, data: { reportExecutionId: '00000000-0000-0000-0000-00000000e501', status: 'QUEUED' } } });
+      if (path === '/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/run') {
+        return Promise.resolve({ data: { success: true, data: savedReportExecutions[0] } });
       }
       if (path === '/reporting/report-schedules') {
         return Promise.resolve({ data: { success: true, data: { reportScheduleId: '00000000-0000-0000-0000-00000000f501', status: 'ACTIVE' } } });
@@ -626,13 +702,17 @@ describe('AdminReporting analytics', () => {
     expect(await screen.findByText('Saved Reports')).toBeInTheDocument();
     expect(screen.getByText('Monthly attendance exceptions')).toBeInTheDocument();
     expect(screen.getByText('Population: ENGINEERING')).toBeInTheDocument();
+    expect(screen.getByText('Execution history')).toBeInTheDocument();
+    expect(screen.getByText('COMPLETED')).toBeInTheDocument();
+    expect(screen.getByText('2 rows')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await userEvent.click(screen.getByRole('button', { name: 'Schedule' }));
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/publish', {});
-    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-executions', expect.objectContaining({
-      reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
-      executedBy: '00000000-0000-0000-0000-000000000777',
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/run', expect.objectContaining({
+      reportExecutionId: expect.any(String),
+      parameters: expect.objectContaining({ period: 'CURRENT_MONTH', source: 'admin-reporting' }),
+      limit: 50,
     }));
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-schedules', expect.objectContaining({
       reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
@@ -668,6 +748,20 @@ describe('AdminReporting analytics', () => {
     expect(screen.getAllByLabelText('Attendance status').some((element) => element.getAttribute('role') === 'combobox')).toBe(true);
     expect(screen.getByText('Underlying data catalog')).toBeInTheDocument();
     expect(screen.getByText('Calculated Fields')).toBeInTheDocument();
+    expect(screen.getByText('BI Designer')).toBeInTheDocument();
+    expect(screen.getByText('Choose a report type')).toBeInTheDocument();
+    expect(screen.getByText('Business dimensions')).toBeInTheDocument();
+    expect(screen.getByText('Metric library')).toBeInTheDocument();
+    expect(screen.getByText('Filter options')).toBeInTheDocument();
+    expect(await screen.findAllByText(/Present \(1\)/)).not.toHaveLength(0);
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/filter-options', expect.objectContaining({
+      dataSource: 'ATTENDANCE',
+      filterCodes: ['attendanceStatus'],
+      limit: 50,
+    }));
+    expect(screen.getByText('Connected data model')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /trend line/i }));
 
     await user.click(screen.getByRole('button', { name: /run smart analytics/i }));
     expect(await screen.findByText('Analytics ready')).toBeInTheDocument();
@@ -690,6 +784,7 @@ describe('AdminReporting analytics', () => {
         scopeLevel: 'TENANT',
         populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
+        visualization: 'line',
       }),
     }));
 
@@ -697,6 +792,12 @@ describe('AdminReporting analytics', () => {
     expect(await screen.findByText('Semantic Query Result')).toBeInTheDocument();
     expect(screen.getByText('Worker-day')).toBeInTheDocument();
     expect(screen.getByText('Drill-through records')).toBeInTheDocument();
+    expect(screen.getByText('Decision Support')).toBeInTheDocument();
+    expect(screen.getByText('ENGINEERING is the top segment for late minutes with 18 (100% of the result).')).toBeInTheDocument();
+    expect(screen.getByText('Open ENGINEERING drill-through')).toBeInTheDocument();
+    expect(screen.getByText('Export underlying records')).toBeInTheDocument();
+    expect(screen.getByText('Explore other cuts')).toBeInTheDocument();
+    expect(screen.getByText('MGR_JAMES_HARRINGTON')).toBeInTheDocument();
     expect(screen.getAllByText('Emily Chen').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ENGINEERING').length).toBeGreaterThan(0);
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/query/run', expect.objectContaining({
@@ -707,6 +808,7 @@ describe('AdminReporting analytics', () => {
         groupBy: ['department'],
         scopeLevel: 'TENANT',
         populationValue: 'ALL',
+        visualization: 'line',
       }),
       limit: 25,
     }));
@@ -724,6 +826,7 @@ describe('AdminReporting analytics', () => {
         scopeLevel: 'TENANT',
         populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
+        visualization: 'line',
       }),
     })));
 

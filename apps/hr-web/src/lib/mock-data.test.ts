@@ -40,6 +40,7 @@ describe('mock reporting data', () => {
     };
     const catalog = MOCK_RESPONSES['GET /reporting/builder/catalog']() as {
       data: {
+        visualizationTypes?: Array<{ code?: string; label?: string }>;
         smartCategories?: Array<{
           code?: string;
           insights?: Array<{ code?: string; relatedReports?: string[] }>;
@@ -59,6 +60,18 @@ describe('mock reporting data', () => {
         relationships?: unknown[];
       };
     };
+    const filterOptions = MOCK_RESPONSES['POST /reporting/builder/filter-options']() as {
+      data: {
+        rowSource?: string;
+        optionsByFilter?: Array<{ code?: string; options?: Array<{ code?: string; count?: number }> }>;
+      };
+    };
+    const semanticRun = MOCK_RESPONSES['POST /reporting/builder/query/run']() as {
+      data: { drillThroughRows?: unknown[]; decisionSupport?: { nextActions?: unknown[] } };
+    };
+    const executions = MOCK_RESPONSES['GET /reporting/report-executions']() as {
+      data: Array<{ status?: string; resultPayload?: { drillThroughCount?: number } }>;
+    };
 
     expect(analytics.data.totals?.activeModules).toBe(8);
     expect(analytics.data.modules?.map((module) => module.code)).toEqual(expect.arrayContaining([
@@ -74,6 +87,10 @@ describe('mock reporting data', () => {
       'WORKFORCE_COMPOSITION',
       'REWARD_ASSURANCE',
       'GOVERNANCE_READINESS',
+    ]));
+    expect(catalog.data.visualizationTypes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'matrix', label: 'Matrix' }),
+      expect.objectContaining({ code: 'comparison', label: 'Comparison' }),
     ]));
     expect(catalog.data.smartCategories?.find((category) => category.code === 'WORKFORCE_COMPOSITION')).toMatchObject({
       dataSources: expect.arrayContaining(['HEADCOUNT', 'ATTENDANCE', 'LEAVE']),
@@ -94,5 +111,16 @@ describe('mock reporting data', () => {
       filterSummary: expect.any(Array),
       relationships: expect.any(Array),
     });
+    expect(filterOptions.data).toMatchObject({
+      rowSource: 'live',
+      optionsByFilter: expect.arrayContaining([
+        expect.objectContaining({ code: 'attendanceStatus', options: expect.arrayContaining([expect.objectContaining({ code: 'LATE', count: 2 })]) }),
+      ]),
+    });
+    expect(semanticRun.data.drillThroughRows?.length).toBeGreaterThan(0);
+    expect(semanticRun.data.decisionSupport?.nextActions?.length).toBeGreaterThan(0);
+    expect(executions.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ status: 'COMPLETED', resultPayload: expect.objectContaining({ drillThroughCount: 3 }) }),
+    ]));
   });
 });

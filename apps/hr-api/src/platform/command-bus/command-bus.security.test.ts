@@ -223,6 +223,13 @@ describe('CommandBus security gates', () => {
     })).toBe('ACCESS_GOVERNANCE');
   });
 
+  it('requires applied access governance for saved report execution commands', () => {
+    expect(requiredPolicyAreaForCommand({
+      aggregateType: 'ReportDefinition',
+      commandName: 'RunReportDefinition',
+    })).toBe('ACCESS_GOVERNANCE');
+  });
+
   it('rejects stale expected state when the stored aggregate state has moved', async () => {
     const executeTakeFirst = async () => ({
       id: workerId.value,
