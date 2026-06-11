@@ -270,6 +270,30 @@ type ReportDefinitionPreview = {
   warnings: string[];
 };
 
+type SemanticReportQueryResult = {
+  dataSource: string;
+  sourceTitle: string;
+  generatedAt: string;
+  scopeLevel: string;
+  populationValue?: string;
+  columns: string[];
+  metrics: string[];
+  groupBy: string[];
+  rowCount: number;
+  drillThroughCount: number;
+  rows: Array<Record<string, string | number>>;
+  drillThroughRows: Array<Record<string, string | number>>;
+  chartData: Array<{ label: string; value: number; secondaryValue?: number }>;
+  insightCards: Array<{ label: string; value: string | number; tone: 'success' | 'warning' | 'default' }>;
+  executionPlan: {
+    grain: string;
+    privacyLevel: 'standard' | 'sensitive' | 'restricted';
+    appliedFilters: Array<{ code: string; value: string }>;
+    availableDrilldowns: string[];
+  };
+  warnings: string[];
+};
+
 type SavedReportDefinition = {
   id?: string;
   reportDefinitionId?: string;
@@ -500,6 +524,20 @@ export function AdminReporting() {
     onError: (error) => addNotification({
       title: 'Preview failed',
       message: error instanceof Error ? error.message : 'Could not preview the report.',
+      type: 'error',
+      read: false,
+    }),
+  });
+  const semanticQueryMutation = useMutation({
+    mutationFn: async () => unwrapApiData<SemanticReportQueryResult>((await apiClient.post('/reporting/builder/query/run', {
+      dataSource: currentSource?.code ?? dataSourceCode,
+      queryDefinition: buildQueryDefinition(),
+      parameters: { period: filterPeriod },
+      limit: 25,
+    })).data),
+    onError: (error) => addNotification({
+      title: 'Report run failed',
+      message: error instanceof Error ? error.message : 'Could not run the semantic report.',
       type: 'error',
       read: false,
     }),
@@ -1445,6 +1483,14 @@ export function AdminReporting() {
                               Preview
                             </Button>
                             <Button
+                              variant="outline"
+                              onClick={() => semanticQueryMutation.mutate()}
+                              disabled={semanticQueryMutation.isPending || !currentSource}
+                            >
+                              <BarChart3 className="mr-2 h-4 w-4" />
+                              Run Report
+                            </Button>
+                            <Button
                               onClick={() => saveReportMutation.mutate()}
                               disabled={saveReportMutation.isPending || !currentSource}
                               className="bg-[#4f46e5] text-white hover:bg-[#4338ca]"
@@ -1505,6 +1551,108 @@ export function AdminReporting() {
                             Choose the report data and click Preview to see sample rows and chart output.
                           </div>
                         )}
+                        {semanticQueryMutation.data ? (
+                          <div className="space-y-4 rounded-2xl border border-[#dbeafe] bg-[#eff6ff] p-4">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                              <div>
+                                <p className="text-lg font-semibold text-[#0f172a]">Semantic Query Result</p>
+                                <p className="mt-1 text-sm text-[#475569]">
+                                  {semanticQueryMutation.data.sourceTitle} · {semanticQueryMutation.data.scopeLevel}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="border-[#bfdbfe] bg-white text-[#1d4ed8]">
+                                {semanticQueryMutation.data.executionPlan.privacyLevel}
+                              </Badge>
+                            </div>
+                            <div className="grid gap-3 sm:grid-cols-3">
+                              {semanticQueryMutation.data.insightCards.map((card) => (
+                                <div key={card.label} className={cn('rounded-xl border p-3', highlightTone(card.tone))}>
+                                  <p className="text-xs font-semibold uppercase tracking-wide">{card.label}</p>
+                                  <p className="mt-2 text-2xl font-bold">{card.value}</p>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="grid gap-3 text-sm lg:grid-cols-3">
+                              <div className="rounded-xl border border-[#bfdbfe] bg-white p-3">
+                                <p className="text-[#64748b]">Data grain</p>
+                                <p className="font-semibold text-[#0f172a]">{semanticQueryMutation.data.executionPlan.grain}</p>
+                              </div>
+                              <div className="rounded-xl border border-[#bfdbfe] bg-white p-3">
+                                <p className="text-[#64748b]">Drilldowns</p>
+                                <p className="font-semibold text-[#0f172a]">{semanticQueryMutation.data.executionPlan.availableDrilldowns.slice(0, 3).join(', ')}</p>
+                              </div>
+                              <div className="rounded-xl border border-[#bfdbfe] bg-white p-3">
+                                <p className="text-[#64748b]">Filters</p>
+                                <p className="font-semibold text-[#0f172a]">
+                                  {semanticQueryMutation.data.executionPlan.appliedFilters.length > 0
+                                    ? semanticQueryMutation.data.executionPlan.appliedFilters.map((filter) => `${filter.code}: ${filter.value}`).join(', ')
+                                    : 'No extra filters'}
+                                </p>
+                              </div>
+                            </div>
+                            {semanticQueryMutation.data.warnings.length > 0 ? (
+                              <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
+                                {semanticQueryMutation.data.warnings.join(' ')}
+                              </div>
+                            ) : null}
+                            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+                              <div className="h-56 rounded-xl border border-[#bfdbfe] bg-white p-3">
+                                <p className="mb-2 text-sm font-semibold text-[#0f172a]">Dashboard preview</p>
+                                <ResponsiveContainer width="100%" height="85%">
+                                  <BarChart data={semanticQueryMutation.data.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 28 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                    <XAxis dataKey="label" angle={-20} textAnchor="end" interval={0} height={50} tick={{ fontSize: 10 }} />
+                                    <YAxis allowDecimals={false} />
+                                    <Tooltip />
+                                    <Bar dataKey="value" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
+                              <div className="overflow-x-auto rounded-xl border border-[#bfdbfe] bg-white">
+                                <p className="border-b border-[#dbeafe] px-3 py-2 text-sm font-semibold text-[#0f172a]">Aggregate result</p>
+                                <table className="w-full text-left text-sm">
+                                  <thead className="bg-[#f8fafc] text-[#475569]">
+                                    <tr>
+                                      {semanticQueryMutation.data.columns.map((column) => (
+                                        <th key={column} className="px-3 py-2 font-semibold">{column}</th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-[#e2e8f0]">
+                                    {semanticQueryMutation.data.rows.map((row, index) => (
+                                      <tr key={index}>
+                                        {semanticQueryMutation.data.columns.map((column) => (
+                                          <td key={column} className="px-3 py-2 text-[#0f172a]">{row[column] ?? ''}</td>
+                                        ))}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                            <div className="overflow-x-auto rounded-xl border border-[#bfdbfe] bg-white">
+                              <p className="border-b border-[#dbeafe] px-3 py-2 text-sm font-semibold text-[#0f172a]">Underlying records</p>
+                              <table className="w-full text-left text-sm">
+                                <thead className="bg-[#f8fafc] text-[#475569]">
+                                  <tr>
+                                    {Object.keys(semanticQueryMutation.data.drillThroughRows[0] ?? {}).map((column) => (
+                                      <th key={column} className="px-3 py-2 font-semibold">{column}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#e2e8f0]">
+                                  {semanticQueryMutation.data.drillThroughRows.map((row, index) => (
+                                    <tr key={index}>
+                                      {Object.entries(row).map(([column, value]) => (
+                                        <td key={column} className="px-3 py-2 text-[#0f172a]">{value}</td>
+                                      ))}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        ) : null}
                       </CardContent>
                     </Card>
 

@@ -29,6 +29,7 @@ import { ReportingEventsPublisher } from './events/reporting-events.publisher.js
 import { ServiceUsageReportingService } from './services/service-usage-reporting.service.js';
 import { HrAnalyticsReportingService } from './services/hr-analytics-reporting.service.js';
 import { ReportBuilderCatalogService } from './services/report-builder-catalog.service.js';
+import { ReportSemanticQueryService } from './services/report-semantic-query.service.js';
 
 @Module({
   imports: [PlatformModule],
@@ -40,8 +41,8 @@ import { ReportBuilderCatalogService } from './services/report-builder-catalog.s
     CreateReportExecutionHandler, QueueReportExecutionHandler, StartReportExecutionHandler, CompleteReportExecutionHandler, FailReportExecutionHandler, CancelReportExecutionHandler,
     CreateReportScheduleHandler, ActivateReportScheduleHandler, PauseReportScheduleHandler, ExpireReportScheduleHandler,
     CreateCalculatedFieldHandler, ActivateCalculatedFieldHandler, DeprecateCalculatedFieldHandler,
-    ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService,
+    ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService,
   ],
-  exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService],
+  exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService],
 })
 export class ReportingModule {}

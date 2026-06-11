@@ -15,11 +15,12 @@ import type * as dtos from './dtos.js';
 import {
   CreateReportDefinitionDtoSchema, CreateReportExecutionDtoSchema, CompleteReportExecutionDtoSchema,
   FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, HrAnalyticsQueryDtoSchema,
-  PreviewReportDefinitionDtoSchema, RunReportAnalyticsDtoSchema, RunSmartAnalyticsCategoryDtoSchema, ZodValidationPipe,
+  PreviewReportDefinitionDtoSchema, RunReportAnalyticsDtoSchema, RunSemanticReportQueryDtoSchema, RunSmartAnalyticsCategoryDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 import { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
 import { HrAnalyticsReportingService } from '../services/hr-analytics-reporting.service.js';
 import { ReportBuilderCatalogService } from '../services/report-builder-catalog.service.js';
+import { ReportSemanticQueryService } from '../services/report-semantic-query.service.js';
 import {
   buildEmployeeImportTemplateCsv,
   buildHrDashboardExportCsv,
@@ -43,6 +44,7 @@ export class ReportingController {
     private readonly serviceUsageReporting: ServiceUsageReportingService,
     private readonly hrAnalyticsReporting: HrAnalyticsReportingService,
     private readonly reportBuilderCatalog: ReportBuilderCatalogService,
+    private readonly semanticQuery: ReportSemanticQueryService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -87,6 +89,11 @@ export class ReportingController {
   async runSmartAnalyticsCategory(@Body(new ZodValidationPipe(RunSmartAnalyticsCategoryDtoSchema)) dto: dtos.RunSmartAnalyticsCategoryDto, @Req() req: Request) {
     this.assertReportingAdmin(req);
     return this.reportBuilderCatalog.runSmartCategory(dto);
+  }
+  @Post('builder/query/run')
+  async runSemanticReportQuery(@Body(new ZodValidationPipe(RunSemanticReportQueryDtoSchema)) dto: dtos.RunSemanticReportQueryDto, @Req() req: Request) {
+    this.assertReportingAdmin(req);
+    return this.semanticQuery.run(dto);
   }
   @Post('report-definitions/:id/commands/publish')
   async publishReportDefinition(@Param('id') id: string, @Req() req: Request) {

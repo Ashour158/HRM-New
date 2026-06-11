@@ -3,6 +3,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { ReportingController } from './reporting.controller.js';
 import type { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
 import { ReportBuilderCatalogService } from '../services/report-builder-catalog.service.js';
+import type { ReportSemanticQueryService } from '../services/report-semantic-query.service.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -50,6 +51,7 @@ function controller(
     reportExecutionRepo?: unknown;
     reportScheduleRepo?: unknown;
     calculatedFieldRepo?: unknown;
+    semanticQuery?: ReportSemanticQueryService;
   } = {},
 ) {
   return new ReportingController(
@@ -61,6 +63,7 @@ function controller(
     serviceUsage,
     analyticsReporting,
     new ReportBuilderCatalogService(),
+    (reportingRepos.semanticQuery ?? {}) as ReportSemanticQueryService,
   );
 }
 
@@ -350,6 +353,46 @@ describe('ReportingController service usage surface', () => {
         expect.objectContaining({ code: 'leave-attendance-payroll' }),
         expect.objectContaining({ code: 'benefits-payroll' }),
       ]),
+    });
+  });
+
+  it('runs a semantic report query for reporting admins', async () => {
+    const semanticQuery = {
+      run: vi.fn().mockResolvedValue({
+        dataSource: 'ATTENDANCE',
+        rowCount: 1,
+        drillThroughCount: 2,
+        rows: [{ department: 'ENGINEERING', lateMinutes: 18 }],
+      }),
+    } as unknown as ReportSemanticQueryService;
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { semanticQuery });
+
+    await expect(reporting.runSemanticReportQuery({
+      dataSource: 'ATTENDANCE',
+      queryDefinition: {
+        fields: ['employeeNumber'],
+        metrics: ['lateMinutes'],
+        groupBy: ['department'],
+        scopeLevel: 'DEPARTMENT',
+        populationValue: 'ENGINEERING',
+      },
+      limit: 25,
+    }, request())).resolves.toEqual({
+      dataSource: 'ATTENDANCE',
+      rowCount: 1,
+      drillThroughCount: 2,
+      rows: [{ department: 'ENGINEERING', lateMinutes: 18 }],
+    });
+    expect(semanticQuery.run).toHaveBeenCalledWith({
+      dataSource: 'ATTENDANCE',
+      queryDefinition: {
+        fields: ['employeeNumber'],
+        metrics: ['lateMinutes'],
+        groupBy: ['department'],
+        scopeLevel: 'DEPARTMENT',
+        populationValue: 'ENGINEERING',
+      },
+      limit: 25,
     });
   });
 

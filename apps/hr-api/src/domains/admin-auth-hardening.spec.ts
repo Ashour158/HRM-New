@@ -99,7 +99,7 @@ describe('admin controller auth hardening', () => {
 
   it('runs reporting commands as the authenticated reporting actor and rejects employees', async () => {
     const bus = commandBus();
-    const controller = new ReportingController(bus as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+    const controller = new ReportingController(bus as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
 
     await expect(controller.createReportDefinition({
       reportDefinitionId: '00000000-0000-0000-0000-000000000401',

@@ -457,6 +457,39 @@ const smartCategoryResult = {
   relationships: builderCatalog.businessRelationships,
 };
 
+const semanticQueryResult = {
+  dataSource: 'ATTENDANCE',
+  sourceTitle: 'Attendance & Time Ledger',
+  generatedAt: '2026-06-11T08:10:00.000Z',
+  scopeLevel: 'TENANT',
+  populationValue: 'ALL',
+  columns: ['department', 'lateMinutes', 'exceptions'],
+  metrics: ['lateMinutes', 'exceptions'],
+  groupBy: ['department'],
+  rowCount: 1,
+  drillThroughCount: 2,
+  rows: [
+    { department: 'ENGINEERING', lateMinutes: 18, exceptions: 1 },
+  ],
+  drillThroughRows: [
+    { employeeNumber: 'EMP-0042', employeeName: 'Emily Chen', workDate: '2026-06-10', attendanceStatus: 'LATE', department: 'ENGINEERING', lateMinutes: 18, exceptions: 1 },
+    { employeeNumber: 'EMP-0044', employeeName: 'Marcus Johnson', workDate: '2026-06-10', attendanceStatus: 'PRESENT', department: 'ENGINEERING', lateMinutes: 0, exceptions: 0 },
+  ],
+  chartData: [{ label: 'ENGINEERING', value: 18, secondaryValue: 1 }],
+  insightCards: [
+    { label: 'Rows', value: 1, tone: 'success' },
+    { label: 'Drill-through records', value: 2, tone: 'success' },
+    { label: 'Late minutes', value: 18, tone: 'default' },
+  ],
+  executionPlan: {
+    grain: 'Worker-day',
+    privacyLevel: 'sensitive',
+    appliedFilters: [{ code: 'period', value: 'CURRENT_MONTH' }],
+    availableDrilldowns: ['Department', 'Manager', 'Employee'],
+  },
+  warnings: [],
+};
+
 function renderReporting() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -499,6 +532,9 @@ describe('AdminReporting analytics', () => {
       }
       if (path === '/reporting/builder/smart-categories/run') {
         return Promise.resolve({ data: { success: true, data: smartCategoryResult } });
+      }
+      if (path === '/reporting/builder/query/run') {
+        return Promise.resolve({ data: { success: true, data: semanticQueryResult } });
       }
       if (path === '/reporting/report-definitions') {
         return Promise.resolve({ data: { success: true, data: { ...savedReports[0], status: 'DRAFT' } } });
@@ -639,6 +675,24 @@ describe('AdminReporting analytics', () => {
         populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
       }),
+    }));
+
+    await user.click(screen.getByRole('button', { name: /run report/i }));
+    expect(await screen.findByText('Semantic Query Result')).toBeInTheDocument();
+    expect(screen.getByText('Worker-day')).toBeInTheDocument();
+    expect(screen.getByText('Drill-through records')).toBeInTheDocument();
+    expect(screen.getAllByText('Emily Chen').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ENGINEERING').length).toBeGreaterThan(0);
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/query/run', expect.objectContaining({
+      dataSource: 'ATTENDANCE',
+      queryDefinition: expect.objectContaining({
+        fields: ['employeeNumber', 'employeeName', 'workDate', 'attendanceStatus'],
+        metrics: ['lateMinutes', 'exceptions'],
+        groupBy: ['department'],
+        scopeLevel: 'TENANT',
+        populationValue: 'ALL',
+      }),
+      limit: 25,
     }));
 
     await user.click(screen.getByRole('button', { name: /save report/i }));

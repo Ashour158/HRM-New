@@ -66,6 +66,19 @@ export class RunSmartAnalyticsCategoryDto {
   @ApiPropertyOptional() filters?: Array<{ code: string; value: string }>;
 }
 
+export const RunSemanticReportQueryDtoSchema = z.object({
+  dataSource: z.string().min(1),
+  queryDefinition: z.record(z.unknown()).optional(),
+  parameters: z.record(z.unknown()).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+});
+export class RunSemanticReportQueryDto {
+  @ApiProperty() dataSource!: string;
+  @ApiPropertyOptional() queryDefinition?: Record<string, unknown>;
+  @ApiPropertyOptional() parameters?: Record<string, unknown>;
+  @ApiPropertyOptional() limit?: number;
+}
+
 export const CreateReportExecutionDtoSchema = z.object({
   reportExecutionId: z.string().uuid(),
   reportDefinitionId: z.string().uuid(),
