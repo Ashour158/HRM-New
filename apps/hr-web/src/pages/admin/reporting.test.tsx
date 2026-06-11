@@ -515,6 +515,27 @@ const semanticQueryResult = {
       { label: 'Export underlying records', actionType: 'EXPORT', reason: 'Share the drill-through data with HR operations or business owners.' },
     ],
   },
+  pivotBreakdowns: [
+    {
+      field: 'manager',
+      label: 'Manager',
+      metric: 'Late minutes',
+      totalSegments: 1,
+      segments: [
+        { label: 'MGR_JAMES_HARRINGTON', value: 18, shareOfTotal: 100, severity: 'watch' },
+      ],
+    },
+    {
+      field: 'employeeName',
+      label: 'Employee',
+      metric: 'Late minutes',
+      totalSegments: 2,
+      segments: [
+        { label: 'Emily Chen', value: 18, shareOfTotal: 100, severity: 'watch' },
+        { label: 'Marcus Johnson', value: 0, shareOfTotal: 0, severity: 'safe' },
+      ],
+    },
+  ],
   warnings: [],
 };
 
@@ -715,6 +736,8 @@ describe('AdminReporting analytics', () => {
     expect(screen.getByText('ENGINEERING is the top segment for late minutes with 18 (100% of the result).')).toBeInTheDocument();
     expect(screen.getByText('Open ENGINEERING drill-through')).toBeInTheDocument();
     expect(screen.getByText('Export underlying records')).toBeInTheDocument();
+    expect(screen.getByText('Explore other cuts')).toBeInTheDocument();
+    expect(screen.getByText('MGR_JAMES_HARRINGTON')).toBeInTheDocument();
     expect(screen.getAllByText('Emily Chen').length).toBeGreaterThan(0);
     expect(screen.getAllByText('ENGINEERING').length).toBeGreaterThan(0);
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/query/run', expect.objectContaining({

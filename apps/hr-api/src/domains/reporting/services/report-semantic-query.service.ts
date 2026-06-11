@@ -30,6 +30,7 @@ export interface SemanticReportQueryResult {
     availableDrilldowns: string[];
   };
   decisionSupport: SemanticDecisionSupport;
+  pivotBreakdowns: SemanticPivotBreakdown[];
   warnings: string[];
 }
 
@@ -51,6 +52,19 @@ export interface SemanticDecisionSupport {
     label: string;
     actionType: 'DRILLDOWN' | 'EXPORT' | 'SAVE' | 'SCHEDULE';
     reason: string;
+  }>;
+}
+
+export interface SemanticPivotBreakdown {
+  field: string;
+  label: string;
+  metric: string;
+  totalSegments: number;
+  segments: Array<{
+    label: string;
+    value: number;
+    shareOfTotal: number;
+    severity: 'safe' | 'watch' | 'risk';
   }>;
 }
 
@@ -209,6 +223,12 @@ export class ReportSemanticQueryService {
         groupBy,
         primaryMetric,
       }),
+      pivotBreakdowns: buildPivotBreakdowns({
+        source,
+        filteredRows,
+        groupBy,
+        primaryMetric,
+      }),
       warnings,
     };
   }
@@ -355,6 +375,45 @@ function buildDecisionSupport(input: {
       },
     ],
   };
+}
+
+function buildPivotBreakdowns(input: {
+  source: ReportingDataSourceCatalogItem;
+  filteredRows: SemanticRow[];
+  groupBy: string[];
+  primaryMetric?: string;
+}): SemanticPivotBreakdown[] {
+  const metric = input.primaryMetric ?? input.source.metrics[0]?.code;
+  if (!metric) return [];
+  const metricLabel = labelFor(input.source.metrics, metric);
+  return input.source.groupBy
+    .filter((field) => !input.groupBy.includes(field.code))
+    .map((field) => {
+      const rows = aggregateRows(input.filteredRows, [field.code], [metric], input.source);
+      const total = Math.max(0, sum(rows, metric));
+      const segments = rows
+        .map((row, index) => {
+          const label = segmentLabel(row, [field.code], index);
+          const value = numeric(row[metric]);
+          const shareOfTotal = total > 0 ? roundMetric((value / total) * 100) : 0;
+          return {
+            label,
+            value,
+            shareOfTotal,
+            severity: segmentSeverity(value, shareOfTotal),
+          };
+        })
+        .sort((left, right) => right.value - left.value)
+        .slice(0, 5);
+      return {
+        field: field.code,
+        label: field.label,
+        metric: metricLabel,
+        totalSegments: rows.length,
+        segments,
+      };
+    })
+    .filter((breakdown) => breakdown.segments.length > 0);
 }
 
 function segmentLabel(row: SemanticRow, groupBy: string[], index: number): string {

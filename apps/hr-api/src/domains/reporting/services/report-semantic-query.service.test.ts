@@ -84,6 +84,30 @@ describe('ReportSemanticQueryService', () => {
         expect.objectContaining({ label: 'Export underlying records' }),
       ]),
     }));
+    expect(result.pivotBreakdowns).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        field: 'manager',
+        label: 'Manager',
+        segments: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'MGR_JAMES_HARRINGTON',
+            value: 18,
+            shareOfTotal: 100,
+          }),
+        ]),
+      }),
+      expect.objectContaining({
+        field: 'employeeName',
+        label: 'Employee',
+        segments: expect.arrayContaining([
+          expect.objectContaining({
+            label: 'Emily Chen',
+            value: 18,
+            shareOfTotal: 100,
+          }),
+        ]),
+      }),
+    ]));
   });
 
   it('fails closed for unknown semantic data sources', async () => {

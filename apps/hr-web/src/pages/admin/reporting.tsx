@@ -312,6 +312,18 @@ type SemanticReportQueryResult = {
       reason: string;
     }>;
   };
+  pivotBreakdowns: Array<{
+    field: string;
+    label: string;
+    metric: string;
+    totalSegments: number;
+    segments: Array<{
+      label: string;
+      value: number;
+      shareOfTotal: number;
+      severity: 'safe' | 'watch' | 'risk';
+    }>;
+  }>;
   warnings: string[];
 };
 
@@ -1682,6 +1694,49 @@ export function AdminReporting() {
                                 </div>
                               </div>
                             </div>
+                            {semanticQueryMutation.data.pivotBreakdowns.length > 0 ? (
+                              <div className="rounded-2xl border border-[#bfdbfe] bg-white p-4">
+                                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                  <div>
+                                    <p className="text-base font-semibold text-[#0f172a]">Explore other cuts</p>
+                                    <p className="mt-1 text-sm leading-6 text-[#475569]">
+                                      Compare the same result by other business dimensions without rebuilding the report.
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="w-fit border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]">
+                                    Smart pivots
+                                  </Badge>
+                                </div>
+                                <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                                  {semanticQueryMutation.data.pivotBreakdowns.slice(0, 6).map((breakdown) => (
+                                    <div key={breakdown.field} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                          <p className="text-sm font-semibold text-[#0f172a]">{breakdown.label}</p>
+                                          <p className="mt-1 text-xs text-[#64748b]">{breakdown.metric}</p>
+                                        </div>
+                                        <Badge variant="outline" className="border-[#e2e8f0] bg-white text-[#475569]">
+                                          {breakdown.totalSegments} segments
+                                        </Badge>
+                                      </div>
+                                      <div className="mt-3 space-y-2">
+                                        {breakdown.segments.slice(0, 3).map((segment) => (
+                                          <div key={`${breakdown.field}-${segment.label}`} className="rounded-lg bg-white p-3 text-sm">
+                                            <div className="flex items-center justify-between gap-3">
+                                              <p className="font-semibold text-[#0f172a]">{segment.label}</p>
+                                              <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-[#fecaca] bg-[#fee2e2] text-[#991b1b]' : segment.severity === 'watch' ? 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]' : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]')}>
+                                                {segment.severity}
+                                              </Badge>
+                                            </div>
+                                            <p className="mt-1 text-[#475569]">{segment.value} · {segment.shareOfTotal}%</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ) : null}
                             {semanticQueryMutation.data.warnings.length > 0 ? (
                               <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
                                 {semanticQueryMutation.data.warnings.join(' ')}
