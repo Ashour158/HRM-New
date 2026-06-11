@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 export type ReportingFieldType = 'text' | 'number' | 'date' | 'currency' | 'status' | 'percentage';
 export type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi';
@@ -187,7 +187,14 @@ export class ReportBuilderCatalogService {
     selectedInsightCodes?: string[];
     filters?: Array<{ code: string; value: string }>;
   }): SmartAnalyticsRunResult {
-    const category = SMART_ANALYTICS_CATEGORIES.find((item) => item.code === input.categoryCode) ?? SMART_ANALYTICS_CATEGORIES[0];
+    const category = SMART_ANALYTICS_CATEGORIES.find((item) => item.code === input.categoryCode);
+    if (!category) {
+      throw new BadRequestException(`Unknown smart analytics category: ${input.categoryCode}`);
+    }
+    const invalidInsightCodes = input.selectedInsightCodes?.filter((code) => !category.insights.some((insight) => insight.code === code)) ?? [];
+    if (invalidInsightCodes.length > 0) {
+      throw new BadRequestException(`Unknown smart analytics insight code(s): ${invalidInsightCodes.join(', ')}`);
+    }
     const selectedInsights = input.selectedInsightCodes?.length
       ? category.insights.filter((insight) => input.selectedInsightCodes?.includes(insight.code))
       : category.insights;
@@ -219,7 +226,14 @@ export class ReportBuilderCatalogService {
     selectedReportCodes?: string[];
     filters?: Array<{ code: string; value: string }>;
   }): ReportAnalyticsRunResult {
-    const pack = REPORTING_ANALYTICS_PACKS.find((item) => item.code === input.packCode) ?? REPORTING_ANALYTICS_PACKS[0];
+    const pack = REPORTING_ANALYTICS_PACKS.find((item) => item.code === input.packCode);
+    if (!pack) {
+      throw new BadRequestException(`Unknown analytics pack: ${input.packCode}`);
+    }
+    const invalidReportCodes = input.selectedReportCodes?.filter((code) => !pack.reportCodes.includes(code)) ?? [];
+    if (invalidReportCodes.length > 0) {
+      throw new BadRequestException(`Unknown analytics pack report code(s): ${invalidReportCodes.join(', ')}`);
+    }
     const selectedCodes = input.selectedReportCodes?.length ? input.selectedReportCodes : pack.reportCodes;
     const reportOptions = REPORTING_TEMPLATES
       .filter((template) => pack.reportCodes.includes(template.code))

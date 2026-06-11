@@ -19,6 +19,20 @@ vi.mock('@/stores/ui-store', () => ({
   useUIStore: (selector: (state: { addNotification: () => void }) => unknown) => selector({ addNotification: vi.fn() }),
 }));
 
+vi.mock('@/hooks/use-auth', () => ({
+  useAuth: () => ({
+    user: {
+      id: '00000000-0000-0000-0000-000000000777',
+      email: 'hr.admin@example.com',
+      firstName: 'HR',
+      lastName: 'Admin',
+      roles: [],
+      permissions: [],
+      tenantId: '00000000-0000-0000-0000-000000000001',
+    },
+  }),
+}));
+
 vi.mock('recharts', () => ({
   Bar: () => null,
   BarChart: ({ children }: { children?: ReactNode }) => <div data-testid="bar-chart">{children}</div>,
@@ -546,7 +560,7 @@ describe('AdminReporting analytics', () => {
         return Promise.resolve({ data: { success: true, data: { reportExecutionId: '00000000-0000-0000-0000-00000000e501', status: 'QUEUED' } } });
       }
       if (path === '/reporting/report-schedules') {
-        return Promise.resolve({ data: { success: true, data: { reportScheduleId: '00000000-0000-0000-0000-00000000s501', status: 'ACTIVE' } } });
+        return Promise.resolve({ data: { success: true, data: { reportScheduleId: '00000000-0000-0000-0000-00000000f501', status: 'ACTIVE' } } });
       }
       if (path.includes('/commands/publish')) {
         return Promise.resolve({ data: { success: true, data: { status: 'PUBLISHED' } } });
@@ -618,11 +632,13 @@ describe('AdminReporting analytics', () => {
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/publish', {});
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-executions', expect.objectContaining({
       reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+      executedBy: '00000000-0000-0000-0000-000000000777',
     }));
     expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-schedules', expect.objectContaining({
       reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
       frequency: 'MONTHLY',
       recipients: ['hr.operations@example.com'],
+      nextRunAt: expect.any(String),
     }));
     expect(await screen.findByText('Migration Templates')).toBeInTheDocument();
     expect(screen.getByText('Headcount & Org')).toBeInTheDocument();

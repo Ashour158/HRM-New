@@ -1420,7 +1420,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     queuedAt: '2026-06-11T08:00:00.000Z',
   }),
   'POST /reporting/report-schedules': () => ok({
-    reportScheduleId: '00000000-0000-0000-0000-00000000s501',
+    reportScheduleId: '00000000-0000-0000-0000-00000000f501',
     status: 'ACTIVE',
     nextRunAt: '2026-06-12T08:00:00.000Z',
   }),

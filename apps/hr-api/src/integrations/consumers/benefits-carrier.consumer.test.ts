@@ -91,4 +91,62 @@ describe('BenefitsCarrierConsumer', () => {
       effectiveDate: '2026-03-01',
     }));
   });
+
+  it('normalizes UUID value variants for enrollment and life event carrier updates', async () => {
+    const { carrierAdapter, handle } = buildConsumer();
+
+    await handle(event(BENEFITS_ENROLLMENT_EFFECTIVE, {
+      enrollmentId: new Uuid(enrollmentId),
+      workerId: { value: workerId },
+      programId,
+      coverageStartDate: ' 2026-02-01 ',
+    }));
+    await handle(event(LIFE_EVENT_PROCESSED, {
+      lifeEventId: { value: lifeEventId },
+      workerId: new Uuid(workerId),
+      lifeEventType: ' BIRTH ',
+      effectiveDate: ' 2026-04-01 ',
+    }));
+
+    expect(carrierAdapter.sendEnrollment).toHaveBeenCalledWith(expect.objectContaining({
+      enrollmentId: new Uuid(enrollmentId),
+      workerId: new Uuid(workerId),
+      programId: new Uuid(programId),
+      coverageStartDate: '2026-02-01',
+    }));
+    expect(carrierAdapter.sendLifeEventUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      lifeEventId: new Uuid(lifeEventId),
+      workerId: new Uuid(workerId),
+      eventType: 'BIRTH',
+      effectiveDate: '2026-04-01',
+    }));
+  });
+
+  it.each([
+    ['enrollmentId', { workerId, programId, coverageStartDate: '2026-02-01' }],
+    ['workerId', { enrollmentId, programId, coverageStartDate: '2026-02-01' }],
+    ['programId', { enrollmentId, workerId, coverageStartDate: '2026-02-01' }],
+    ['coverageStartDate', { enrollmentId, workerId, programId, coverageStartDate: '   ' }],
+  ])('rejects enrollment events missing %s', async (field, payload) => {
+    const { carrierAdapter, handle } = buildConsumer();
+
+    await expect(handle(event(BENEFITS_ENROLLMENT_EFFECTIVE, payload))).rejects.toThrow(
+      `Benefits carrier event payload is missing ${field}`,
+    );
+    expect(carrierAdapter.sendEnrollment).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['lifeEventId', { workerId, eventType: 'MARRIAGE', effectiveDate: '2026-03-01' }],
+    ['workerId', { lifeEventId, eventType: 'MARRIAGE', effectiveDate: '2026-03-01' }],
+    ['eventType', { lifeEventId, workerId, effectiveDate: '2026-03-01' }],
+    ['effectiveDate', { lifeEventId, workerId, eventType: 'MARRIAGE', effectiveDate: '   ' }],
+  ])('rejects life events missing %s', async (field, payload) => {
+    const { carrierAdapter, handle } = buildConsumer();
+
+    await expect(handle(event(LIFE_EVENT_PROCESSED, payload))).rejects.toThrow(
+      `Benefits carrier event payload is missing ${field}`,
+    );
+    expect(carrierAdapter.sendLifeEventUpdate).not.toHaveBeenCalled();
+  });
 });

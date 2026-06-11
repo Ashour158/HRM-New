@@ -61,7 +61,7 @@ export class BenefitsCarrierConsumer implements OnModuleInit {
         enrollmentId,
         workerId,
         programId,
-        coverageStartDate: stringValue(payload.coverageStartDate) ?? new Date().toISOString(),
+        coverageStartDate: requiredString(payload.coverageStartDate, 'coverageStartDate'),
       });
       return;
     }
@@ -78,8 +78,8 @@ export class BenefitsCarrierConsumer implements OnModuleInit {
       await this.carrierAdapter.sendLifeEventUpdate({
         lifeEventId,
         workerId,
-        eventType: stringValue(payload.eventType) ?? stringValue(payload.lifeEventType) ?? 'UNKNOWN',
-        effectiveDate: stringValue(payload.effectiveDate) ?? new Date().toISOString(),
+        eventType: stringValue(payload.eventType) ?? stringValue(payload.lifeEventType) ?? missingString('eventType'),
+        effectiveDate: requiredString(payload.effectiveDate, 'effectiveDate'),
       });
       return;
     }
@@ -92,6 +92,14 @@ function requiredUuid(value: unknown, field: string): Uuid {
   const uuid = uuidValue(value);
   if (!uuid) throw new Error(`Benefits carrier event payload is missing ${field}`);
   return uuid;
+}
+
+function requiredString(value: unknown, field: string): string {
+  return stringValue(value) ?? missingString(field);
+}
+
+function missingString(field: string): never {
+  throw new Error(`Benefits carrier event payload is missing ${field}`);
 }
 
 function uuidValue(value: unknown): Uuid | undefined {

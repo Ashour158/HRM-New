@@ -1229,7 +1229,7 @@ export function AdminPayroll() {
                 </div>
                 {offCycleRows.map((row, index) => (
                   <div key={`off-cycle-${index}`} className="grid gap-2 md:grid-cols-[1fr_12rem_9rem_7rem_2rem]">
-                    <Input value={row.employeeId ?? ''} placeholder="Employee number or work email" onChange={(event) => updateOffCycleRow(index, { employeeId: event.target.value })} />
+                    <Input value={row.employeeId ?? ''} placeholder="Employee number" onChange={(event) => updateOffCycleRow(index, { employeeId: event.target.value })} />
                     <Select value={row.inputType ?? 'OFF_CYCLE_EARNING'} onValueChange={(value) => updateOffCycleRow(index, { inputType: value as PayrollOffCycleRow['inputType'] })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>

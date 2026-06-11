@@ -35,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/hooks/use-auth';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
@@ -377,6 +378,20 @@ function highlightTone(tone: 'success' | 'warning' | 'default') {
   return 'border-[#cbd5e1] bg-[#f8fafc] text-[#475569]';
 }
 
+function nextRunAtForFrequency(frequency: string, from = new Date()): string {
+  const next = new Date(from.getTime());
+  if (frequency === 'WEEKLY') {
+    next.setDate(next.getDate() + 7);
+  } else if (frequency === 'MONTHLY') {
+    next.setMonth(next.getMonth() + 1);
+  } else if (frequency === 'QUARTERLY') {
+    next.setMonth(next.getMonth() + 3);
+  } else {
+    next.setDate(next.getDate() + 1);
+  }
+  return next.toISOString();
+}
+
 function recordSeverityTone(severity: 'safe' | 'watch' | 'risk') {
   if (severity === 'risk') return 'border-[#fecaca] bg-[#fef2f2] text-[#991b1b]';
   if (severity === 'watch') return 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]';
@@ -415,6 +430,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function AdminReporting() {
   const addNotification = useUIStore((state) => state.addNotification);
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<ReportingTab>('overview');
   const [reportName, setReportName] = useState('Monthly attendance exceptions');
@@ -622,12 +638,17 @@ export function AdminReporting() {
     onError: (error) => addNotification({ title: 'Could not publish report', message: error instanceof Error ? error.message : 'Publish failed.', type: 'error', read: false }),
   });
   const runReportMutation = useMutation({
-    mutationFn: async (report: SavedReportDefinition) => unwrapApiData<unknown>((await apiClient.post('/reporting/report-executions', {
-      reportExecutionId: generateUUID(),
-      reportDefinitionId: report.reportDefinitionId ?? report.id,
-      executedBy: generateUUID(),
-      parameters: { period: filterPeriod, source: 'admin-reporting' },
-    })).data),
+    mutationFn: async (report: SavedReportDefinition) => {
+      if (!user?.id) {
+        throw new Error('Cannot run report without an authenticated user.');
+      }
+      return unwrapApiData<unknown>((await apiClient.post('/reporting/report-executions', {
+        reportExecutionId: generateUUID(),
+        reportDefinitionId: report.reportDefinitionId ?? report.id,
+        executedBy: user.id,
+        parameters: { period: filterPeriod, source: 'admin-reporting' },
+      })).data);
+    },
     onSuccess: () => addNotification({ title: 'Report queued', message: 'The report run was added to the execution queue.', type: 'success', read: false }),
     onError: (error) => addNotification({ title: 'Could not run report', message: error instanceof Error ? error.message : 'Run failed.', type: 'error', read: false }),
   });
@@ -637,7 +658,7 @@ export function AdminReporting() {
       reportDefinitionId: report.reportDefinitionId ?? report.id,
       frequency: scheduleFrequency,
       recipients: scheduleRecipients.split(',').map((recipient) => recipient.trim()).filter(Boolean),
-      nextRunAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      nextRunAt: nextRunAtForFrequency(scheduleFrequency),
     })).data),
     onSuccess: () => addNotification({ title: 'Schedule created', message: 'The report schedule is now ready for automated delivery.', type: 'success', read: false }),
     onError: (error) => addNotification({ title: 'Could not schedule report', message: error instanceof Error ? error.message : 'Schedule failed.', type: 'error', read: false }),

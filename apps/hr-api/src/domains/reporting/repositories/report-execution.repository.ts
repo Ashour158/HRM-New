@@ -27,7 +27,7 @@ export class ReportExecutionRepository {
 
   async findByReportDefinitionId(reportDefinitionId: Uuid): Promise<ReportExecution[]> {
     const rows = await this.db.selectFrom('hr_reporting.report_executions').selectAll().where('report_definition_id', '=', reportDefinitionId.value).execute();
-    return rows.map((r: any) => this.toAggregate(r));
+    return rows.map((r) => this.toAggregate(r));
   }
 
   async findByReportDefinitionIdForTenant(reportDefinitionId: Uuid, tenantId: Uuid): Promise<ReportExecution[]> {
@@ -37,7 +37,7 @@ export class ReportExecutionRepository {
       .where('report_definition_id', '=', reportDefinitionId.value)
       .where('tenant_id', '=', tenantId.value)
       .execute();
-    return rows.map((r: any) => this.toAggregate(r));
+    return rows.map((r) => this.toAggregate(r));
   }
 
   async save(entity: ReportExecution): Promise<void> {
