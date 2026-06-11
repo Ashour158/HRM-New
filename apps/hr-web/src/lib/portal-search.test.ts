@@ -10,6 +10,7 @@ describe('resolvePortalSearchPath', () => {
 
   it('routes admin setup and policy terms through the Admin Panel', () => {
     expect(resolvePortalSearchPath('admin', 'admin panel')).toBe('/admin/system-console');
+    expect(resolvePortalSearchPath('admin', 'production readiness')).toBe('/admin/system-console/readiness');
     expect(resolvePortalSearchPath('admin', 'administrator settings')).toBe('/admin/system-console/settings');
     expect(resolvePortalSearchPath('admin', 'leave policy')).toBe('/admin/system-console/policies');
     expect(resolvePortalSearchPath('admin', 'location setup')).toBe('/admin/system-console/settings');

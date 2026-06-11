@@ -42,6 +42,8 @@ import { AppService } from './app.service.js';
 import { PolicyActionsController } from './policy-actions.controller.js';
 import { EmployeeSelfServiceController } from './employee-self-service.controller.js';
 import { AdminDashboardController } from './admin-dashboard.controller.js';
+import { AdminReadinessController } from './admin-readiness.controller.js';
+import { AdminReadinessService } from './admin-readiness.service.js';
 import { AuditController } from './audit.controller.js';
 import { ManagerTeamController } from './manager-team.controller.js';
 import { AuthGuard } from './guards/auth.guard.js';
@@ -50,9 +52,10 @@ import { PermissionGuard } from './guards/permission.guard.js';
 
 @Module({
   imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule],
-  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController, ManagerTeamController],
+  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController],
   providers: [
     AppService,
+    AdminReadinessService,
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

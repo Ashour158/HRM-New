@@ -589,7 +589,8 @@ export function AdminSystemConsole() {
     { label: 'Reporting And Analytics', description: 'Workforce, reward, talent, service, and governance reporting.', group: 'Governance And Insights', path: '/admin/reports', icon: FileText, tone: 'text-[#818cf8]' },
     { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#4f46e5]' },
     { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'not-configured' },
-    { label: 'System Operations', description: 'Readiness, recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'Production Readiness', description: 'Go-live gate across setup, policies, modules, integrations, queues, audit, and release controls.', group: 'Governance And Insights', path: '/admin/system-console/readiness', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'System Operations', description: 'Recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
     { label: 'Failed Work Queue', description: 'Review failed background work, decide recovery actions, and export operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
     { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#4f46e5]' },
     { label: 'Service Event Map', description: 'Review service event names, ownership, versioning, and consuming teams.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
@@ -691,7 +692,7 @@ export function AdminSystemConsole() {
     {
       title: 'Queues, Audit, And Health',
       description: 'Watch readiness, recover failed work, review notifications, and confirm recent audit evidence.',
-      path: '/admin/system-console#system-operations',
+      path: '/admin/system-console/readiness',
       actionLabel: 'Open Health',
       status: readinessDown > 0 || queueBacklog > 0 || unresolvedDeadLetters > 0 ? 'attention' : readinessQuery.isSuccess ? 'live' : 'partial',
       statusLabel: readinessDown > 0 || queueBacklog > 0 || unresolvedDeadLetters > 0 ? 'Watch' : readinessQuery.isSuccess ? 'Ready' : 'Loading',

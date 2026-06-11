@@ -37,6 +37,7 @@ const AdminCountryPolicy = lazy(() => import('@/pages/admin/country-policy').the
 const AdminPolicies = lazy(() => import('@/pages/admin/policies').then((module) => ({ default: module.AdminPolicies })));
 const AdminSettings = lazy(() => import('@/pages/admin/settings').then((module) => ({ default: module.AdminSettings })));
 const AdminSystemConsole = lazy(() => import('@/pages/admin/system-console').then((module) => ({ default: module.AdminSystemConsole })));
+const AdminReadiness = lazy(() => import('@/pages/admin/readiness').then((module) => ({ default: module.AdminReadiness })));
 const AdminIntegrations = lazy(() => import('@/pages/admin/integrations').then((module) => ({ default: module.AdminIntegrations })));
 const AdminAccessGovernance = lazy(() => import('@/pages/admin/access-governance').then((module) => ({ default: module.AdminAccessGovernance })));
 const AdminDeadLetterEvents = lazy(() => import('@/pages/admin/dead-letter-events').then((module) => ({ default: module.AdminDeadLetterEvents })));
@@ -194,6 +195,14 @@ export function AppRoutes() {
                       element={
                         <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
                           <AdminIntegrations />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/readiness"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminReadiness />
                         </RequireRoles>
                       }
                     />

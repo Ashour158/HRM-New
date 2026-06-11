@@ -19,6 +19,7 @@ export function resolvePortalSearchPath(portalType: PortalSearchContext, query: 
     return '/employee/services';
   }
   if (value.includes('integrat') || value.includes('api') || value.includes('adapter') || value.includes('map')) return '/admin/system-console/integrations';
+  if (value.includes('readiness') || value.includes('go live') || value.includes('go-live') || value.includes('production gate')) return '/admin/system-console/readiness';
   if (value.includes('event contract') || value.includes('topic') || value.includes('schema') || value.includes('outbox contract')) return '/admin/system-console/event-contracts';
   if (value.includes('audit') || value.includes('evidence') || value.includes('export')) return '/admin/system-console/audit';
   if (value.includes('policy') || value.includes('leave policy') || value.includes('attendance policy')) return '/admin/system-console/policies';
