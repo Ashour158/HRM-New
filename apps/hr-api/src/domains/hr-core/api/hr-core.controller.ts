@@ -794,6 +794,9 @@ export class HrCoreController {
           updateEmployeeIds.add(row.employeeId);
         } else {
           createEmployeeIds.add(row.employeeId);
+          if (!row.firstName || !row.lastName || !row.workEmail) {
+            errors.push({ row: index + 1, field: 'employeeId', message: 'Employee does not exist for mass update' });
+          }
           if (!row.firstName) errors.push({ row: index + 1, field: 'firstName', message: 'First name is required for new employees' });
           if (!row.lastName) errors.push({ row: index + 1, field: 'lastName', message: 'Last name is required for new employees' });
           if (!row.workEmail) errors.push({ row: index + 1, field: 'workEmail', message: 'Work email is required for new employees' });

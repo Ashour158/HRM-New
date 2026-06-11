@@ -334,11 +334,23 @@ describe('HrCoreController smoke test', () => {
       updatedCount: 0,
       events: ['EmployeeMassUpdateRejected'],
     });
-    expect(result.errors).toContainEqual(expect.objectContaining({
-      row: 1,
-      field: 'employeeId',
-      message: 'Employee does not exist for mass update',
-    }));
+    expect(result.errors).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        row: 1,
+        field: 'employeeId',
+        message: 'Employee does not exist for mass update',
+      }),
+      expect.objectContaining({
+        row: 1,
+        field: 'firstName',
+        message: 'First name is required for new employees',
+      }),
+      expect.objectContaining({
+        row: 1,
+        field: 'lastName',
+        message: 'Last name is required for new employees',
+      }),
+    ]));
     expect(commandBus.execute).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminReporting } from './reporting';
 
@@ -224,6 +225,15 @@ describe('AdminReporting analytics', () => {
   it('renders business analytics charts from the reporting analytics endpoint', async () => {
     renderReporting();
 
+    expect(await screen.findByText('Report Activity')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /analytics/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /library/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
+    expect(screen.queryByText('Cross-Module Analytics')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /analytics/i }));
+
     expect(await screen.findByText('Cross-Module Analytics')).toBeInTheDocument();
     expect(screen.getAllByText('Attendance Exceptions').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Leave Pipeline').length).toBeGreaterThan(0);
@@ -233,10 +243,19 @@ describe('AdminReporting analytics', () => {
     expect(screen.getAllByText('Headcount and Org Coverage').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Compliance Evidence').length).toBeGreaterThan(0);
     expect(screen.getAllByText('HR Services Demand').length).toBeGreaterThan(0);
-    expect(screen.getByText('Template: headcount-org')).toBeInTheDocument();
-    expect(screen.getByText('Engine: position-headcount')).toBeInTheDocument();
     expect(screen.getAllByText('EGP 210,000').length).toBeGreaterThan(0);
     expect(screen.getByText('26')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /library/i }));
+
+    expect(await screen.findByText('Migration Templates')).toBeInTheDocument();
+    expect(screen.getByText('Headcount & Org')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /activity/i }));
+
+    expect(await screen.findByText('Top Report Activity')).toBeInTheDocument();
+    expect(screen.getByText('Template: headcount-org')).toBeInTheDocument();
+    expect(screen.getByText('Engine: position-headcount')).toBeInTheDocument();
     await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/reporting/hr-analytics'));
   });
 });

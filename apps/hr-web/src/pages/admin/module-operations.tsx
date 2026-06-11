@@ -47,6 +47,7 @@ type OperationalRecord = {
   nativeSource?: string | null;
   nativeId?: string | null;
   nativeRoute?: string | null;
+  payload?: unknown;
 };
 
 type WorkflowItem = {
@@ -189,7 +190,7 @@ type AdvanceControlVariables = {
   control: GovernanceControl;
 };
 
-type NativeRecordAction = 'advance' | 'approve' | 'process' | 'terminate' | 'reject';
+type NativeRecordAction = 'advance' | 'approve' | 'process' | 'make-effective' | 'terminate' | 'reject';
 
 type RecordAction = {
   label: string;
@@ -463,6 +464,7 @@ function mapRecord(record: OperationRecordApi): OperationalRecord {
     nativeSource: record.nativeSource,
     nativeId: record.nativeId,
     nativeRoute: record.nativeRoute,
+    payload: record.payload,
   };
 }
 
@@ -540,6 +542,12 @@ function nextRecordStatus(record: OperationalRecord): OperationalRecord['status'
   return 'Active';
 }
 
+function nativeStatusValue(record: OperationalRecord): string | undefined {
+  if (!record.payload || typeof record.payload !== 'object' || Array.isArray(record.payload)) return undefined;
+  const status = (record.payload as { nativeStatus?: unknown }).nativeStatus;
+  return typeof status === 'string' ? status.toUpperCase() : undefined;
+}
+
 function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
   if (record.source === 'native') {
     if (record.nativeSource === 'compensation_plans' && record.status === 'Draft') {
@@ -553,6 +561,7 @@ function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
     }
 
     if (record.nativeSource === 'benefits_enrollments') {
+      const nativeStatus = nativeStatusValue(record);
       if (record.status === 'In Review') {
         return [
           {
@@ -574,6 +583,16 @@ function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
             Icon: XCircle,
           },
         ];
+      }
+      if (record.status === 'Active' && nativeStatus === 'APPROVED') {
+        return [{
+          label: 'Make Effective',
+          status: 'Active',
+          operationAction: 'make-effective',
+          lastEvent: `${record.object} made effective`,
+          title: 'Make effective benefits enrollment',
+          Icon: CheckCircle2,
+        }];
       }
       if (record.status === 'Active') {
         return [{
@@ -677,6 +696,7 @@ export function AdminModuleOperations() {
   const [importRows, setImportRows] = React.useState<OperationImportRow[]>([]);
   const [importPreview, setImportPreview] = React.useState<OperationImportPreview | null>(null);
   const [importApplyResult, setImportApplyResult] = React.useState<OperationImportApplyResult | null>(null);
+  const [showRecordDiagnostics, setShowRecordDiagnostics] = React.useState(false);
 
   React.useEffect(() => {
     if (module) {
@@ -686,6 +706,7 @@ export function AdminModuleOperations() {
       setImportRows([]);
       setImportPreview(null);
       setImportApplyResult(null);
+      setShowRecordDiagnostics(false);
     }
   }, [module]);
 
@@ -1041,8 +1062,8 @@ export function AdminModuleOperations() {
                 <Badge variant="outline" className="border-white/40 bg-white/10 font-mono text-xs uppercase tracking-wider text-white">
                   {module.category}
                 </Badge>
-                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#a5b4fc]">
-                  {module.backendRoot}
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#c7d2fe]">
+                  Operations workspace
                 </span>
               </div>
               <h2 className="mt-3 font-headline text-3xl font-bold">{module.label} Operations</h2>
@@ -1243,23 +1264,21 @@ export function AdminModuleOperations() {
                       return (
                         <TableRow key={record.id}>
                           <TableCell>
-                            <p className="font-mono text-xs font-semibold text-[#4f46e5]">{record.id}</p>
                             <p className="font-semibold text-[#0f172a]">{record.object}</p>
                             {record.source || record.nativeSource ? (
                               <div className="mt-2 flex flex-wrap gap-1">
                                 {record.source ? (
                                   <Badge variant="outline" className="border-[#e2e8f0] bg-[#eef2ff] text-[10px] uppercase tracking-wider text-[#475569]">
-                                    {record.source}
+                                    Source managed
                                   </Badge>
                                 ) : null}
                                 {record.nativeSource ? (
                                   <Badge variant="outline" className="border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[10px] uppercase tracking-wider text-[#4f46e5]">
-                                    {record.nativeSource}
+                                    Linked workspace
                                   </Badge>
                                 ) : null}
                               </div>
                             ) : null}
-                            {record.nativeId ? <p className="mt-1 font-mono text-[11px] text-[#94a3b8]">Native: {record.nativeId}</p> : null}
                           </TableCell>
                           <TableCell>{record.owner}</TableCell>
                           <TableCell className="max-w-[320px] text-[#475569]">{record.workflow}</TableCell>
@@ -1297,14 +1316,14 @@ export function AdminModuleOperations() {
                                   disabled
                                   title="Edit this native record in its native module workspace"
                                 >
-                                  Native Only
+                                  Source Workspace
                                 </Button>
                               )}
                               {record.nativeRoute ? (
                                 <Button asChild size="sm" variant="ghost">
                                   <Link to={record.nativeRoute}>
                                     <ExternalLink className="mr-1 h-3.5 w-3.5" />
-                                    Native
+                                    Source
                                   </Link>
                                 </Button>
                               ) : null}
@@ -1316,6 +1335,32 @@ export function AdminModuleOperations() {
                   </TableBody>
                 </Table>
                 </div>
+                {filteredRecords.length > 0 ? (
+                  <div className="mt-4 rounded-2xl border border-[#e2e8f0] bg-white/70 p-4">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowRecordDiagnostics((current) => !current)}
+                    >
+                      <SlidersHorizontal className="mr-2 h-4 w-4" />
+                      Advanced Diagnostics
+                    </Button>
+                    {showRecordDiagnostics ? (
+                      <div className="mt-3 grid gap-3 md:grid-cols-2">
+                        {filteredRecords.map((record) => (
+                          <div key={`${record.id}-diagnostics`} className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3 text-xs text-[#475569]">
+                            <p className="font-semibold text-[#0f172a]">{record.object}</p>
+                            <p className="mt-2 font-mono">Record ID: <span>{record.id}</span></p>
+                            {record.nativeId ? <p className="font-mono">Native ID: <span>{record.nativeId}</span></p> : null}
+                            {record.nativeSource ? <p className="font-mono">Native source: {record.nativeSource}</p> : null}
+                            {record.nativeRoute ? <p className="font-mono">Native route: {record.nativeRoute}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {filteredRecords.length === 0 ? (
                   <div className="space-y-3">
                     <EmptyState label="No persisted operation records yet. Create an operation from the command center to store the first live record." />
@@ -1579,18 +1624,10 @@ export function AdminModuleOperations() {
 
             <Card className="border-transparent fusion-glass rounded-2xl">
               <CardHeader>
-                <CardTitle>Route and Service Contract</CardTitle>
-                <CardDescription>The page is tied to a known backend root and the shared module registry.</CardDescription>
+                <CardTitle>Business Object Map</CardTitle>
+                <CardDescription>Objects and events this module keeps synchronized across the HR operating model.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-                  <p className="lumina-label">Backend Root</p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">{module.backendRoot}</p>
-                </div>
-                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-                  <p className="lumina-label">Admin Route</p>
-                  <p className="mt-2 font-mono text-sm font-semibold text-[#0f172a]">/admin/modules/{module.id}/operations</p>
-                </div>
                 <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
                   <div className="mb-3 flex items-center gap-2">
                     <Route className="h-4 w-4 text-[#4f46e5]" />
@@ -1605,6 +1642,19 @@ export function AdminModuleOperations() {
                   </div>
                   <ChipList items={eventTriggers} />
                 </div>
+                <details className="rounded-lg border border-[#e2e8f0]/70 bg-white/70 p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-[#0f172a]">Advanced Diagnostics</summary>
+                  <div className="mt-3 space-y-3 text-sm">
+                    <div>
+                      <p className="lumina-label">Backend Root</p>
+                      <p className="mt-1 font-mono font-semibold text-[#0f172a]">{module.backendRoot}</p>
+                    </div>
+                    <div>
+                      <p className="lumina-label">Admin Route</p>
+                      <p className="mt-1 font-mono font-semibold text-[#0f172a]">/admin/modules/{module.id}/operations</p>
+                    </div>
+                  </div>
+                </details>
               </CardContent>
             </Card>
           </TabsContent>

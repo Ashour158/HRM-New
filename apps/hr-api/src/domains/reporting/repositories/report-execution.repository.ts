@@ -15,13 +15,38 @@ export class ReportExecutionRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<ReportExecution | undefined> {
+    const row = await this.db
+      .selectFrom('hr_reporting.report_executions')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row) : undefined;
+  }
+
   async findByReportDefinitionId(reportDefinitionId: Uuid): Promise<ReportExecution[]> {
     const rows = await this.db.selectFrom('hr_reporting.report_executions').selectAll().where('report_definition_id', '=', reportDefinitionId.value).execute();
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByReportDefinitionIdForTenant(reportDefinitionId: Uuid, tenantId: Uuid): Promise<ReportExecution[]> {
+    const rows = await this.db
+      .selectFrom('hr_reporting.report_executions')
+      .selectAll()
+      .where('report_definition_id', '=', reportDefinitionId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: ReportExecution): Promise<void> {
-    const existing = await this.db.selectFrom('hr_reporting.report_executions').select('id').where('id', '=', entity.id.value).executeTakeFirst();
+    const existing = await this.db
+      .selectFrom('hr_reporting.report_executions')
+      .select('id')
+      .where('id', '=', entity.id.value)
+      .where('tenant_id', '=', entity.tenantId.value)
+      .executeTakeFirst();
     const row = {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
@@ -37,7 +62,12 @@ export class ReportExecutionRepository {
       updated_at: new Date().toISOString(),
     };
     if (existing) {
-      await this.db.updateTable('hr_reporting.report_executions').set(row).where('id', '=', entity.id.value).execute();
+      await this.db
+        .updateTable('hr_reporting.report_executions')
+        .set(row)
+        .where('id', '=', entity.id.value)
+        .where('tenant_id', '=', entity.tenantId.value)
+        .execute();
     } else {
       await this.db.insertInto('hr_reporting.report_executions').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }

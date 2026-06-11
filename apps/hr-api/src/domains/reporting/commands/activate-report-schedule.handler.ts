@@ -21,7 +21,7 @@ export class ActivateReportScheduleHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as ActivateReportSchedulePayload;
-    const entity = await this.repo.findById(new Uuid(payload.reportScheduleId));
+    const entity = await this.repo.findByIdForTenant(new Uuid(payload.reportScheduleId), command.tenantId);
     if (!entity) throw new Error('ReportSchedule not found');
     entity.activate(command.correlationId);
     await this.repo.save(entity);

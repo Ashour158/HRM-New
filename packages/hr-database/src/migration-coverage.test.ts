@@ -129,4 +129,16 @@ describe('migration coverage', () => {
     expect(migrationTextContains(migrationName, 'TimeClockEvent')).toBe(true);
     expect(migrationTextContains(migrationName, 'hr.time.v1')).toBe(true);
   });
+
+  it('contains reporting repository tables required by reporting APIs', () => {
+    const migrationName = '20260610000002000_reporting_repository_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationTextContains(migrationName, 'CREATE TABLE IF NOT EXISTS hr_reporting.report_definitions')).toBe(true);
+    expect(migrationTextContains(migrationName, 'CREATE TABLE IF NOT EXISTS hr_reporting.report_executions')).toBe(true);
+    expect(migrationTextContains(migrationName, 'CREATE TABLE IF NOT EXISTS hr_reporting.report_schedules')).toBe(true);
+    expect(migrationTextContains(migrationName, 'CREATE TABLE IF NOT EXISTS hr_reporting.calculated_fields')).toBe(true);
+    expect(migrationTextContains(migrationName, 'CREATE INDEX IF NOT EXISTS report_executions_tenant_definition_idx')).toBe(true);
+    expect(migrationTextContains(migrationName, 'CREATE INDEX IF NOT EXISTS calculated_fields_tenant_status_idx')).toBe(true);
+  });
 });

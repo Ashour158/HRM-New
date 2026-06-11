@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import {
+  benefitsWorkerContextTable,
+  NativeModuleOperationAdapterService,
   nativeOperationModuleIds,
   nativeOperationSourceKeys,
   nativeStatusCommandForOperation,
@@ -89,6 +91,19 @@ describe('native module operation registry', () => {
       aggregateId: enrollmentId,
       payload: { enrollmentId, reason: 'Closed via admin module operations' },
     });
+
+    const makeEffective = nativeStatusCommandForOperation('benefits', 'benefits_enrollments', enrollmentId.value, 'Active', {
+      actorId,
+      roles: ['BENEFITS_ADMIN'],
+      permissions: [],
+    }, 'make-effective');
+
+    expect(makeEffective).toMatchObject({
+      commandName: 'MakeEffectiveBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      aggregateId: enrollmentId,
+      payload: { enrollmentId },
+    });
   });
 
   it('maps benefits life event native closes to life-event processing commands', () => {
@@ -138,5 +153,57 @@ describe('native module operation registry', () => {
         reason: 'Rejected via admin module operations',
       },
     });
+  });
+
+  it('identifies benefits native rows that carry worker policy context', () => {
+    expect(benefitsWorkerContextTable('benefits', 'benefits_enrollments')).toBe('"hr_benefits"."benefits_enrollments"');
+    expect(benefitsWorkerContextTable('benefits', 'benefits_life_events')).toBe('"hr_benefits"."benefits_life_events"');
+    expect(benefitsWorkerContextTable('benefits', 'benefits_programs')).toBeUndefined();
+    expect(benefitsWorkerContextTable('compensation', 'benefits_enrollments')).toBeUndefined();
+  });
+
+  it('dispatches native benefits operations with subject worker context and benefits sensitivity', async () => {
+    const tenantId = Uuid.generate();
+    const enrollmentId = Uuid.generate();
+    const workerId = Uuid.generate();
+    const actorId = Uuid.generate();
+    const execute = vi.fn().mockResolvedValue({ success: true });
+    const service = Object.create(NativeModuleOperationAdapterService.prototype) as NativeModuleOperationAdapterService & {
+      commandBus: { execute: typeof execute };
+      logger: { warn: ReturnType<typeof vi.fn> };
+      resolveNativeSubjectWorkerId: () => Promise<Uuid>;
+    };
+    Object.assign(service, {
+      commandBus: { execute },
+      logger: { warn: vi.fn() },
+      resolveNativeSubjectWorkerId: vi.fn().mockResolvedValue(workerId),
+    });
+
+    await service.applyRecordStatusUpdate(
+      tenantId,
+      'benefits',
+      'benefits_enrollments',
+      enrollmentId.value,
+      'Active',
+      {
+        actorId,
+        roles: ['BENEFITS_ADMIN'],
+        permissions: [],
+      },
+      'make-effective',
+    );
+
+    expect(execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'MakeEffectiveBenefitsEnrollment',
+      subjectWorkerId: workerId,
+      metadata: expect.objectContaining({
+        clientType: 'HR_ADMIN',
+        hrDataSensitivity: 'LOW',
+      }),
+      payload: expect.objectContaining({
+        enrollmentId,
+        workerId,
+      }),
+    }));
   });
 });

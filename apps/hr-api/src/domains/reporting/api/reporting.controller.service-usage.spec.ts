@@ -3,9 +3,11 @@ import { Uuid } from '@hcm/shared-kernel';
 import { ReportingController } from './reporting.controller.js';
 import type { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
 
+const TENANT_ID = '00000000-0000-0000-0000-000000000001';
+
 function request() {
   return {
-    tenantId: '00000000-0000-0000-0000-000000000001',
+    tenantId: TENANT_ID,
     actor: {
       actorType: 'USER',
       actorId: new Uuid('00000000-0000-0000-0000-000000000101'),
@@ -19,7 +21,7 @@ function request() {
 
 function requestWithRoles(roles: string[]) {
   return {
-    tenantId: '00000000-0000-0000-0000-000000000001',
+    tenantId: TENANT_ID,
     actor: {
       actorType: 'USER',
       actorId: new Uuid('00000000-0000-0000-0000-000000000101'),
@@ -42,13 +44,19 @@ function controller(
   serviceUsage: ServiceUsageReportingService = {} as ServiceUsageReportingService,
   analyticsReporting = {} as never,
   reportDefinitionRepo = {} as never,
+  reportingRepos: {
+    commandBus?: unknown;
+    reportExecutionRepo?: unknown;
+    reportScheduleRepo?: unknown;
+    calculatedFieldRepo?: unknown;
+  } = {},
 ) {
   return new ReportingController(
-    {} as never,
+    (reportingRepos.commandBus ?? {}) as never,
     reportDefinitionRepo,
-    {} as never,
-    {} as never,
-    {} as never,
+    (reportingRepos.reportExecutionRepo ?? {}) as never,
+    (reportingRepos.reportScheduleRepo ?? {}) as never,
+    (reportingRepos.calculatedFieldRepo ?? {}) as never,
     serviceUsage,
     analyticsReporting,
   );
@@ -156,8 +164,133 @@ describe('ReportingController service usage surface', () => {
 
     expect(reportDefinitionRepo.findByStatusForTenant).toHaveBeenCalledWith(
       'PUBLISHED',
-      new Uuid('00000000-0000-0000-0000-000000000001'),
+      new Uuid(TENANT_ID),
     );
+  });
+
+  it('lists report executions through tenant-scoped report definition reads', async () => {
+    const reportExecutionRepo = {
+      findByReportDefinitionIdForTenant: vi.fn().mockResolvedValue([{ id: 'execution-1' }]),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { reportExecutionRepo });
+    const reportDefinitionId = '00000000-0000-0000-0000-000000000201';
+
+    await expect(reporting.listReportExecutions(request(), reportDefinitionId)).resolves.toEqual([{ id: 'execution-1' }]);
+
+    expect(reportExecutionRepo.findByReportDefinitionIdForTenant).toHaveBeenCalledWith(
+      new Uuid(reportDefinitionId),
+      new Uuid(TENANT_ID),
+    );
+  });
+
+  it('does not return a cross-tenant report execution id', async () => {
+    const reportExecutionRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { reportExecutionRepo });
+    const executionId = '00000000-0000-0000-0000-000000000202';
+
+    await expect(reporting.getReportExecution(request(), executionId)).resolves.toBeUndefined();
+
+    expect(reportExecutionRepo.findByIdForTenant).toHaveBeenCalledWith(
+      new Uuid(executionId),
+      new Uuid(TENANT_ID),
+    );
+  });
+
+  it('does not queue a cross-tenant report execution id', async () => {
+    const commandBus = { execute: vi.fn() };
+    const reportExecutionRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { commandBus, reportExecutionRepo });
+
+    await expect(reporting.queueReportExecution('00000000-0000-0000-0000-000000000203', request())).rejects.toThrow('Report execution not found');
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('lists report schedules through tenant-scoped report definition reads', async () => {
+    const reportScheduleRepo = {
+      findByReportDefinitionIdForTenant: vi.fn().mockResolvedValue([{ id: 'schedule-1' }]),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { reportScheduleRepo });
+    const reportDefinitionId = '00000000-0000-0000-0000-000000000301';
+
+    await expect(reporting.listReportSchedules(request(), reportDefinitionId)).resolves.toEqual([{ id: 'schedule-1' }]);
+
+    expect(reportScheduleRepo.findByReportDefinitionIdForTenant).toHaveBeenCalledWith(
+      new Uuid(reportDefinitionId),
+      new Uuid(TENANT_ID),
+    );
+  });
+
+  it('does not return a cross-tenant report schedule id', async () => {
+    const reportScheduleRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { reportScheduleRepo });
+    const scheduleId = '00000000-0000-0000-0000-000000000302';
+
+    await expect(reporting.getReportSchedule(request(), scheduleId)).resolves.toBeUndefined();
+
+    expect(reportScheduleRepo.findByIdForTenant).toHaveBeenCalledWith(
+      new Uuid(scheduleId),
+      new Uuid(TENANT_ID),
+    );
+  });
+
+  it('does not activate a cross-tenant report schedule id', async () => {
+    const commandBus = { execute: vi.fn() };
+    const reportScheduleRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { commandBus, reportScheduleRepo });
+
+    await expect(reporting.activateReportSchedule('00000000-0000-0000-0000-000000000303', request())).rejects.toThrow('Report schedule not found');
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('lists calculated fields through tenant-scoped status reads', async () => {
+    const calculatedFieldRepo = {
+      findByStatusForTenant: vi.fn().mockResolvedValue([{ id: 'field-1' }]),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { calculatedFieldRepo });
+
+    await expect(reporting.listCalculatedFields(request(), 'ACTIVE')).resolves.toEqual([{ id: 'field-1' }]);
+
+    expect(calculatedFieldRepo.findByStatusForTenant).toHaveBeenCalledWith(
+      'ACTIVE',
+      new Uuid(TENANT_ID),
+    );
+  });
+
+  it('does not return a cross-tenant calculated field id', async () => {
+    const calculatedFieldRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { calculatedFieldRepo });
+    const calculatedFieldId = '00000000-0000-0000-0000-000000000401';
+
+    await expect(reporting.getCalculatedField(request(), calculatedFieldId)).resolves.toBeUndefined();
+
+    expect(calculatedFieldRepo.findByIdForTenant).toHaveBeenCalledWith(
+      new Uuid(calculatedFieldId),
+      new Uuid(TENANT_ID),
+    );
+  });
+
+  it('does not activate a cross-tenant calculated field id', async () => {
+    const commandBus = { execute: vi.fn() };
+    const calculatedFieldRepo = {
+      findByIdForTenant: vi.fn().mockResolvedValue(undefined),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { commandBus, calculatedFieldRepo });
+
+    await expect(reporting.activateCalculatedField('00000000-0000-0000-0000-000000000402', request())).rejects.toThrow('Calculated field not found');
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 
   it('blocks report definition reads for non-reporting roles', async () => {

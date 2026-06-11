@@ -167,7 +167,7 @@ const RECORD_STATUSES: OperationRecordStatus[] = ['Draft', 'Active', 'In Review'
 const RISKS: OperationRisk[] = ['Low', 'Medium', 'High'];
 const WORKFLOW_STATES: OperationWorkflowState[] = ['Queued', 'In Progress', 'Needs Approval', 'Ready'];
 const CONTROL_STATUSES: OperationControlStatus[] = ['Draft', 'In Review', 'Approved', 'Applied'];
-const NATIVE_OPERATION_ACTIONS: NativeOperationAction[] = ['advance', 'approve', 'process', 'terminate', 'reject'];
+const NATIVE_OPERATION_ACTIONS: NativeOperationAction[] = ['advance', 'approve', 'process', 'make-effective', 'terminate', 'reject'];
 
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {

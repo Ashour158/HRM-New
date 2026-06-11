@@ -22,7 +22,7 @@ export class FailReportExecutionHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as FailReportExecutionPayload;
-    const entity = await this.repo.findById(new Uuid(payload.reportExecutionId));
+    const entity = await this.repo.findByIdForTenant(new Uuid(payload.reportExecutionId), command.tenantId);
     if (!entity) throw new Error('ReportExecution not found');
     entity.fail(command.correlationId, payload.reason);
     await this.repo.save(entity);

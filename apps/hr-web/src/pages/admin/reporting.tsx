@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart3,
@@ -28,6 +29,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ErrorState } from '@/components/common/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 
@@ -114,6 +116,8 @@ type HrAnalyticsDashboard = {
   riskSignals: Array<{ label: string; value: number }>;
 };
 
+type ReportingTab = 'overview' | 'analytics' | 'library' | 'activity';
+
 function unwrapApiData<T>(payload: unknown): T {
   const response = payload as { success?: boolean; data?: T };
   return response?.success === true && response.data !== undefined ? response.data : payload as T;
@@ -159,6 +163,7 @@ function downloadBlob(blob: Blob, filename: string) {
 
 export function AdminReporting() {
   const addNotification = useUIStore((state) => state.addNotification);
+  const [activeTab, setActiveTab] = useState<ReportingTab>('overview');
   const dashboardQuery = useQuery({
     queryKey: ['hr-reports-dashboard'],
     queryFn: async () => unwrapApiData<HrReportsDashboard>((await apiClient.get('/reporting/hr-dashboard')).data),
@@ -218,6 +223,15 @@ export function AdminReporting() {
         )}
       />
 
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ReportingTab)}>
+        <TabsList className="h-auto flex-wrap justify-start bg-[#f8fafc] p-1">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          <TabsTrigger value="library">Library</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {dashboardQuery.isLoading ? (
         <div className="grid gap-4 md:grid-cols-4">
           {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-24 rounded-2xl" />)}
@@ -226,60 +240,66 @@ export function AdminReporting() {
         <ErrorState title="Unable to load reporting" error={dashboardQuery.error} onRetry={() => dashboardQuery.refetch()} />
       ) : dashboard ? (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <BusinessMetric label="Report Groups" value={`${dashboard.totals.activeReportGroups}/${dashboard.totals.reportGroups}`} tone="success" />
-            <BusinessMetric label="Activity" value={dashboard.totals.totalActivity} />
-            <BusinessMetric label="Queue Backlog" value={dashboard.totals.queueBacklog} tone={dashboard.totals.queueBacklog > 0 ? 'warning' : 'success'} />
-            <BusinessMetric label="Open Issues" value={dashboard.totals.issues} tone={dashboard.totals.issues > 0 ? 'warning' : 'success'} />
-          </div>
+          {activeTab === 'overview' ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <BusinessMetric label="Report Groups" value={`${dashboard.totals.activeReportGroups}/${dashboard.totals.reportGroups}`} tone="success" />
+              <BusinessMetric label="Activity" value={dashboard.totals.totalActivity} />
+              <BusinessMetric label="Queue Backlog" value={dashboard.totals.queueBacklog} tone={dashboard.totals.queueBacklog > 0 ? 'warning' : 'success'} />
+              <BusinessMetric label="Open Issues" value={dashboard.totals.issues} tone={dashboard.totals.issues > 0 ? 'warning' : 'success'} />
+            </div>
 
-          <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-            <Card className="rounded-2xl border-[#e2e8f0]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-[#4f46e5]" />
-                  Report Activity
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="h-[320px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dashboard.activityByReport} margin={{ top: 10, right: 16, left: 0, bottom: 36 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                    <XAxis dataKey="label" angle={-25} textAnchor="end" interval={0} height={70} tick={{ fontSize: 11 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Bar dataKey="activity" fill="#4f46e5" radius={[6, 6, 0, 0]} />
-                    <Bar dataKey="issues" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+            <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
+              <Card className="rounded-2xl border-[#e2e8f0]">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-[#4f46e5]" />
+                    Report Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="h-[320px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dashboard.activityByReport} margin={{ top: 10, right: 16, left: 0, bottom: 36 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" angle={-25} textAnchor="end" interval={0} height={70} tick={{ fontSize: 11 }} />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip />
+                      <Bar dataKey="activity" fill="#4f46e5" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="issues" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
 
-            <Card className="rounded-2xl border-[#e2e8f0]">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <ShieldAlert className="h-5 w-5 text-[#f59e0b]" />
-                  Attention Queue
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {attentionReports.length > 0 ? attentionReports.map((report) => (
-                  <div key={report.code} className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-[#0f172a]">{report.title}</p>
-                      <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.readiness}</Badge>
+              <Card className="rounded-2xl border-[#e2e8f0]">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-[#f59e0b]" />
+                    Attention Queue
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {attentionReports.length > 0 ? attentionReports.map((report) => (
+                    <div key={report.code} className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-semibold text-[#0f172a]">{report.title}</p>
+                        <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.readiness}</Badge>
+                      </div>
+                      <p className="mt-1 text-sm text-[#475569]">{report.issues} issue(s), {report.queueBacklog} queued item(s)</p>
                     </div>
-                    <p className="mt-1 text-sm text-[#475569]">{report.issues} issue(s), {report.queueBacklog} queued item(s)</p>
-                  </div>
-                )) : (
-                  <div className="rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm text-[#166534]">
-                    All report groups are clear.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )) : (
+                    <div className="rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm text-[#166534]">
+                      All report groups are clear.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
+          ) : null}
 
+          {activeTab === 'analytics' ? (
+          <div className="space-y-6">
           {analyticsQuery.isLoading ? (
             <div className="grid gap-4 md:grid-cols-4">
               {[0, 1, 2, 3].map((item) => <Skeleton key={item} className="h-24 rounded-2xl" />)}
@@ -406,41 +426,49 @@ export function AdminReporting() {
               </div>
             </>
           ) : null}
+          </div>
+          ) : null}
 
-          <SectionHeading title="Report Library" />
-          <Card className="rounded-2xl border-[#e2e8f0]">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-[#10b981]" />
-                Migration Templates
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {migrationTemplates.map((template) => (
-                  <div key={template.module} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-[#0f172a]">{template.title}</p>
-                        <p className="mt-1 text-sm text-[#64748b]">{template.owner}</p>
+          {activeTab === 'library' ? (
+          <div className="space-y-6">
+            <SectionHeading title="Report Library" />
+            <Card className="rounded-2xl border-[#e2e8f0]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5 text-[#10b981]" />
+                  Migration Templates
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {migrationTemplates.map((template) => (
+                    <div key={template.module} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-semibold text-[#0f172a]">{template.title}</p>
+                          <p className="mt-1 text-sm text-[#64748b]">{template.owner}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => downloadCsv(`/reporting/module-import-template.csv?module=${template.module}`, `${template.module}-import-template.csv`)}
+                        >
+                          <Download className="mr-2 h-4 w-4" />
+                          Template
+                        </Button>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => downloadCsv(`/reporting/module-import-template.csv?module=${template.module}`, `${template.module}-import-template.csv`)}
-                      >
-                        <Download className="mr-2 h-4 w-4" />
-                        Template
-                      </Button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+          ) : null}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            {dashboard.reports.map((report) => (
+          {activeTab === 'activity' ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 lg:grid-cols-2">
+              {dashboard.reports.map((report) => (
               <Card key={report.code} className="rounded-2xl border-[#e2e8f0]">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
@@ -500,25 +528,27 @@ export function AdminReporting() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-
-          <Card className="rounded-2xl border-[#e2e8f0]">
-            <CardHeader>
-              <CardTitle>Top Report Activity</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {topReports.map((report) => (
-                <div key={report.code} className="grid gap-2 rounded-xl bg-[#f8fafc] p-3 md:grid-cols-[1fr_auto] md:items-center">
-                  <div>
-                    <p className="font-semibold text-[#0f172a]">{report.title}</p>
-                    <p className="text-sm text-[#64748b]">{report.commands} commands, {report.events} events, {report.notifications} notifications</p>
-                  </div>
-                  <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.activity} activity</Badge>
-                </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+
+            <Card className="rounded-2xl border-[#e2e8f0]">
+              <CardHeader>
+                <CardTitle>Top Report Activity</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {topReports.map((report) => (
+                  <div key={report.code} className="grid gap-2 rounded-xl bg-[#f8fafc] p-3 md:grid-cols-[1fr_auto] md:items-center">
+                    <div>
+                      <p className="font-semibold text-[#0f172a]">{report.title}</p>
+                      <p className="text-sm text-[#64748b]">{report.commands} commands, {report.events} events, {report.notifications} notifications</p>
+                    </div>
+                    <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.activity} activity</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+          ) : null}
         </>
       ) : null}
     </div>

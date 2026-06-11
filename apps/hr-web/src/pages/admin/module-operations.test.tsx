@@ -95,14 +95,56 @@ describe('AdminModuleOperations benefits actions', () => {
     renderOperations([
       enrollmentRecord,
       lifeEventRecord,
-      { ...enrollmentRecord, id: '00000000-0000-0000-0000-000000000203', status: 'Active', lastEvent: 'Enrollment approved' },
+      {
+        ...enrollmentRecord,
+        id: '00000000-0000-0000-0000-000000000203',
+        status: 'Active',
+        lastEvent: 'Enrollment approved',
+        payload: { nativeStatus: 'APPROVED' },
+      },
+      {
+        ...enrollmentRecord,
+        id: '00000000-0000-0000-0000-000000000204',
+        status: 'Active',
+        lastEvent: 'Enrollment effective',
+        payload: { nativeStatus: 'EFFECTIVE' },
+      },
     ]);
     await openRecordsTab();
 
     expect(await screen.findByRole('button', { name: /approve/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /process/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /make effective/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /terminate/i })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /reject/i })).toHaveLength(2);
+  });
+
+  it('sends an explicit make-effective action for approved benefits enrollment native records', async () => {
+    const approvedEnrollment = {
+      ...enrollmentRecord,
+      status: 'Active',
+      lastEvent: 'Enrollment approved',
+      payload: { nativeStatus: 'APPROVED' },
+    };
+    apiClientPatchMock.mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...approvedEnrollment, lastEvent: 'Enrollment made effective' },
+      },
+    });
+    renderOperations([approvedEnrollment]);
+    await openRecordsTab();
+
+    await userEvent.click(await screen.findByRole('button', { name: /make effective/i }));
+
+    await waitFor(() => expect(apiClientPatchMock).toHaveBeenCalledWith(
+      '/admin/module-operations/benefits/records/00000000-0000-0000-0000-000000000201',
+      expect.objectContaining({
+        status: 'Active',
+        operationAction: 'make-effective',
+        lastEvent: 'Enrollment made effective',
+      }),
+    ));
   });
 
   it('sends an explicit reject action for benefits enrollment native records', async () => {
@@ -125,5 +167,23 @@ describe('AdminModuleOperations benefits actions', () => {
         lastEvent: 'Enrollment rejected',
       }),
     ));
+  });
+
+  it('keeps raw record and native identifiers in advanced diagnostics instead of the default records view', async () => {
+    renderOperations([enrollmentRecord]);
+    await openRecordsTab();
+
+    expect(await screen.findByText('Enrollment')).toBeInTheDocument();
+    expect(screen.queryByText('00000000-0000-0000-0000-000000000201')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Native:/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /native only/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^native$/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Advanced Diagnostics'));
+
+    expect(screen.getByText(/Record ID:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Native ID:/i)).toBeInTheDocument();
+    expect(screen.getByText('00000000-0000-0000-0000-000000000201')).toBeInTheDocument();
+    expect(screen.getByText('00000000-0000-0000-0000-000000000901')).toBeInTheDocument();
   });
 });

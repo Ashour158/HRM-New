@@ -21,7 +21,7 @@ export class StartReportExecutionHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as StartReportExecutionPayload;
-    const entity = await this.repo.findById(new Uuid(payload.reportExecutionId));
+    const entity = await this.repo.findByIdForTenant(new Uuid(payload.reportExecutionId), command.tenantId);
     if (!entity) throw new Error('ReportExecution not found');
     entity.start(command.correlationId);
     await this.repo.save(entity);

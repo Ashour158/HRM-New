@@ -21,7 +21,7 @@ export class DeprecateCalculatedFieldHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as DeprecateCalculatedFieldPayload;
-    const entity = await this.repo.findById(new Uuid(payload.calculatedFieldId));
+    const entity = await this.repo.findByIdForTenant(new Uuid(payload.calculatedFieldId), command.tenantId);
     if (!entity) throw new Error('CalculatedField not found');
     entity.deprecate(command.correlationId);
     await this.repo.save(entity);
