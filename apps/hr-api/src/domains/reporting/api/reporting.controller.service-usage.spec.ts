@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import { ReportingController } from './reporting.controller.js';
 import type { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
+import { ReportBuilderCatalogService } from '../services/report-builder-catalog.service.js';
 
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -59,6 +60,7 @@ function controller(
     (reportingRepos.calculatedFieldRepo ?? {}) as never,
     serviceUsage,
     analyticsReporting,
+    new ReportBuilderCatalogService(),
   );
 }
 
@@ -168,6 +170,160 @@ describe('ReportingController service usage surface', () => {
     );
   });
 
+  it('lists report definitions across lifecycle states for the reporting builder library', async () => {
+    const reportDefinitionRepo = {
+      findByStatusForTenant: vi.fn()
+        .mockResolvedValueOnce([{ id: 'draft-report' }])
+        .mockResolvedValueOnce([{ id: 'published-report' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([]),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, reportDefinitionRepo as never);
+
+    await expect(reporting.listReportDefinitions(request(), 'ALL')).resolves.toEqual([
+      { id: 'draft-report' },
+      { id: 'published-report' },
+    ]);
+
+    expect(reportDefinitionRepo.findByStatusForTenant).toHaveBeenCalledTimes(4);
+    expect(reportDefinitionRepo.findByStatusForTenant).toHaveBeenNthCalledWith(1, 'DRAFT', new Uuid(TENANT_ID));
+    expect(reportDefinitionRepo.findByStatusForTenant).toHaveBeenNthCalledWith(2, 'PUBLISHED', new Uuid(TENANT_ID));
+  });
+
+  it('exposes report builder catalog and previews selected fields without raw SQL', async () => {
+    const reporting = controller();
+
+    const catalog = await reporting.getReportBuilderCatalog(request());
+    expect(catalog.dataSources.map((source) => source.code)).toEqual(expect.arrayContaining(['ATTENDANCE', 'LEAVE', 'PAYROLL', 'BENEFITS', 'COMPLIANCE', 'SERVICES']));
+    expect(catalog.analyticsPacks.map((pack) => pack.code)).toEqual(expect.arrayContaining(['FULL_HR_ANALYTICS', 'WORKFORCE_HEALTH', 'REWARD_CONTROL']));
+    expect(catalog.dataSources.find((source) => source.code === 'ATTENDANCE')?.filters.some((filter) => filter.options && filter.options.length > 0)).toBe(true);
+
+    await expect(reporting.previewReportDefinition({
+      dataSource: 'ATTENDANCE',
+      queryDefinition: {
+        fields: ['employeeNumber', 'employeeName', 'workDate'],
+        metrics: ['lateMinutes', 'exceptions'],
+        groupBy: ['department'],
+        scopeLevel: 'DEPARTMENT',
+        visualization: 'bar',
+      },
+    }, request())).resolves.toMatchObject({
+      valid: true,
+      dataSource: 'ATTENDANCE',
+      scopeLevel: 'DEPARTMENT',
+      columns: ['employeeNumber', 'employeeName', 'workDate'],
+      metrics: ['lateMinutes', 'exceptions'],
+      groupBy: ['department'],
+    });
+  });
+
+  it('exposes smart BI categories and business relationships in the builder catalog', async () => {
+    const reporting = controller();
+
+    const catalog = await reporting.getReportBuilderCatalog(request());
+
+    expect(catalog.smartCategories.map((category) => category.code)).toEqual(expect.arrayContaining([
+      'WORKFORCE_COMPOSITION',
+      'ORG_LOCATION',
+      'ATTENDANCE_BEHAVIOR',
+      'LEAVE_BEHAVIOR',
+      'PAYROLL_COST',
+      'BENEFITS_ANALYTICS',
+      'TALENT_PERFORMANCE',
+      'EMPLOYEE_EXPERIENCE',
+      'TALENT_ACQUISITION',
+      'GOVERNANCE_COMPLIANCE',
+    ]));
+    expect(catalog.smartCategories.map((category) => category.title)).toEqual(expect.arrayContaining([
+      'Workforce Composition',
+      'Organization & Location',
+      'Attendance Behavior',
+      'Leave Behavior',
+      'Payroll, Cost & Deductions',
+      'Benefits',
+      'Performance & 360',
+      'Engagement & Sentiment',
+      'Recruitment & Onboarding',
+      'Compliance, Access & Audit',
+    ]));
+    expect(catalog.smartCategories).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        code: 'PAYROLL_COST',
+        businessQuestions: expect.arrayContaining(['Why did payroll cost change?']),
+        dataSources: expect.arrayContaining(['PAYROLL', 'ATTENDANCE', 'LEAVE', 'BENEFITS']),
+        insights: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'gross-to-net-bridge',
+            relatedReports: expect.arrayContaining(['payroll-cost-summary']),
+          }),
+        ]),
+      }),
+    ]));
+    expect(catalog.businessRelationships).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'attendance-payroll', from: 'ATTENDANCE', to: 'PAYROLL' }),
+      expect.objectContaining({ code: 'benefits-payroll', from: 'BENEFITS', to: 'PAYROLL' }),
+      expect.objectContaining({ code: 'recruitment-onboarding-headcount', from: 'RECRUITMENT', to: 'ONBOARDING' }),
+      expect.objectContaining({ code: 'compliance-access-audit', from: 'COMPLIANCE', to: 'ACCESS' }),
+    ]));
+  });
+
+  it('runs a smart analytics pack from the builder catalog', async () => {
+    const reporting = controller();
+
+    await expect(reporting.runReportAnalyticsPack({
+      packCode: 'FULL_HR_ANALYTICS',
+      scopeLevel: 'TENANT',
+      period: 'CURRENT_MONTH',
+      selectedReportCodes: ['attendance-exceptions-monthly', 'payroll-cost-summary'],
+      filters: [{ code: 'department', value: 'ENGINEERING' }],
+    }, request())).resolves.toMatchObject({
+      packCode: 'FULL_HR_ANALYTICS',
+      title: 'Full HR Analytics',
+      scopeLevel: 'TENANT',
+      period: 'CURRENT_MONTH',
+      reportOptions: expect.arrayContaining([
+        expect.objectContaining({ code: 'attendance-exceptions-monthly', recommended: true }),
+        expect.objectContaining({ code: 'payroll-cost-summary', recommended: true }),
+      ]),
+      highlights: expect.arrayContaining([
+        expect.objectContaining({ label: 'Active workforce' }),
+      ]),
+    });
+  });
+
+  it('runs a smart category from the builder catalog', async () => {
+    const reporting = controller();
+
+    await expect(reporting.runSmartAnalyticsCategory({
+      categoryCode: 'PAYROLL_COST',
+      scopeLevel: 'LEGAL_ENTITY',
+      period: 'CURRENT_MONTH',
+      selectedInsightCodes: ['gross-to-net-bridge'],
+      filters: [{ code: 'legalEntity', value: 'ACME_EG' }],
+    }, request())).resolves.toMatchObject({
+      categoryCode: 'PAYROLL_COST',
+      title: 'Payroll, Cost & Deductions',
+      scopeLevel: 'LEGAL_ENTITY',
+      period: 'CURRENT_MONTH',
+      summary: expect.stringContaining('Payroll, Cost & Deductions analyzed across'),
+      insights: [
+        expect.objectContaining({
+          code: 'gross-to-net-bridge',
+          relatedReports: expect.arrayContaining(['payroll-cost-summary']),
+        }),
+      ],
+      drilldowns: expect.arrayContaining(['Legal entity', 'Department', 'Pay period', 'Payroll status', 'Component', 'Employee']),
+      relatedReports: expect.arrayContaining([
+        expect.objectContaining({ code: 'payroll-cost-summary', dataSource: 'PAYROLL' }),
+      ]),
+      relationships: expect.arrayContaining([
+        expect.objectContaining({ code: 'attendance-payroll' }),
+        expect.objectContaining({ code: 'leave-attendance-payroll' }),
+        expect.objectContaining({ code: 'benefits-payroll' }),
+      ]),
+    });
+  });
+
   it('lists report executions through tenant-scoped report definition reads', async () => {
     const reportExecutionRepo = {
       findByReportDefinitionIdForTenant: vi.fn().mockResolvedValue([{ id: 'execution-1' }]),
@@ -264,6 +420,25 @@ describe('ReportingController service usage surface', () => {
       'ACTIVE',
       new Uuid(TENANT_ID),
     );
+  });
+
+  it('lists calculated fields across lifecycle states for builder formulas', async () => {
+    const calculatedFieldRepo = {
+      findByStatusForTenant: vi.fn()
+        .mockResolvedValueOnce([{ id: 'draft-field' }])
+        .mockResolvedValueOnce([{ id: 'active-field' }])
+        .mockResolvedValueOnce([]),
+    };
+    const reporting = controller({} as ServiceUsageReportingService, {} as never, {} as never, { calculatedFieldRepo });
+
+    await expect(reporting.listCalculatedFields(request(), 'ALL')).resolves.toEqual([
+      { id: 'draft-field' },
+      { id: 'active-field' },
+    ]);
+
+    expect(calculatedFieldRepo.findByStatusForTenant).toHaveBeenCalledTimes(3);
+    expect(calculatedFieldRepo.findByStatusForTenant).toHaveBeenNthCalledWith(1, 'DRAFT', new Uuid(TENANT_ID));
+    expect(calculatedFieldRepo.findByStatusForTenant).toHaveBeenNthCalledWith(2, 'ACTIVE', new Uuid(TENANT_ID));
   });
 
   it('does not return a cross-tenant calculated field id', async () => {

@@ -38,6 +38,27 @@ describe('mock reporting data', () => {
         totals?: { activeModules?: number };
       };
     };
+    const catalog = MOCK_RESPONSES['GET /reporting/builder/catalog']() as {
+      data: {
+        smartCategories?: Array<{
+          code?: string;
+          insights?: Array<{ code?: string; relatedReports?: string[] }>;
+          dataSources?: string[];
+        }>;
+        businessRelationships?: Array<{ code?: string; from?: string; to?: string }>;
+      };
+    };
+    const smartRun = MOCK_RESPONSES['POST /reporting/builder/smart-categories/run']() as {
+      data: {
+        categoryCode?: string;
+        insights?: unknown[];
+        relatedReports?: unknown[];
+        drilldowns?: unknown[];
+        recommendedActions?: unknown[];
+        filterSummary?: unknown[];
+        relationships?: unknown[];
+      };
+    };
 
     expect(analytics.data.totals?.activeModules).toBe(8);
     expect(analytics.data.modules?.map((module) => module.code)).toEqual(expect.arrayContaining([
@@ -48,6 +69,30 @@ describe('mock reporting data', () => {
     expect(dashboard.data.reports?.find((report) => report.code === 'HEADCOUNT_ORG')).toMatchObject({
       template: { module: 'headcount-org' },
       brain: { engine: 'position-headcount' },
+    });
+    expect(catalog.data.smartCategories?.map((category) => category.code)).toEqual(expect.arrayContaining([
+      'WORKFORCE_COMPOSITION',
+      'REWARD_ASSURANCE',
+      'GOVERNANCE_READINESS',
+    ]));
+    expect(catalog.data.smartCategories?.find((category) => category.code === 'WORKFORCE_COMPOSITION')).toMatchObject({
+      dataSources: expect.arrayContaining(['HEADCOUNT', 'ATTENDANCE', 'LEAVE']),
+      insights: expect.arrayContaining([
+        expect.objectContaining({ code: 'capacity-risk', relatedReports: expect.arrayContaining(['attendance-exceptions-monthly']) }),
+      ]),
+    });
+    expect(catalog.data.businessRelationships).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'attendance-payroll-readiness', from: 'ATTENDANCE', to: 'PAYROLL' }),
+      expect.objectContaining({ code: 'compliance-services-control', from: 'COMPLIANCE', to: 'SERVICES' }),
+    ]));
+    expect(smartRun.data).toMatchObject({
+      categoryCode: 'WORKFORCE_COMPOSITION',
+      insights: expect.any(Array),
+      relatedReports: expect.any(Array),
+      drilldowns: expect.any(Array),
+      recommendedActions: expect.any(Array),
+      filterSummary: expect.any(Array),
+      relationships: expect.any(Array),
     });
   });
 });

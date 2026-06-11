@@ -21,6 +21,47 @@ export class CreateReportDefinitionDto {
   @ApiPropertyOptional() schedule?: Record<string, unknown>;
 }
 
+export const PreviewReportDefinitionDtoSchema = z.object({
+  dataSource: z.string().min(1),
+  queryDefinition: z.record(z.unknown()).optional(),
+  parameters: z.record(z.unknown()).optional(),
+});
+export class PreviewReportDefinitionDto {
+  @ApiProperty() dataSource!: string;
+  @ApiPropertyOptional() queryDefinition?: Record<string, unknown>;
+  @ApiPropertyOptional() parameters?: Record<string, unknown>;
+}
+
+export const RunReportAnalyticsDtoSchema = z.object({
+  packCode: z.string().min(1),
+  scopeLevel: z.string().optional(),
+  period: z.string().optional(),
+  selectedReportCodes: z.array(z.string()).optional(),
+  filters: z.array(z.object({ code: z.string(), value: z.string() })).optional(),
+});
+export class RunReportAnalyticsDto {
+  @ApiProperty() packCode!: string;
+  @ApiPropertyOptional() scopeLevel?: string;
+  @ApiPropertyOptional() period?: string;
+  @ApiPropertyOptional() selectedReportCodes?: string[];
+  @ApiPropertyOptional() filters?: Array<{ code: string; value: string }>;
+}
+
+export const RunSmartAnalyticsCategoryDtoSchema = z.object({
+  categoryCode: z.string().min(1),
+  scopeLevel: z.string().optional(),
+  period: z.string().optional(),
+  selectedInsightCodes: z.array(z.string()).optional(),
+  filters: z.array(z.object({ code: z.string(), value: z.string() })).optional(),
+});
+export class RunSmartAnalyticsCategoryDto {
+  @ApiProperty() categoryCode!: string;
+  @ApiPropertyOptional() scopeLevel?: string;
+  @ApiPropertyOptional() period?: string;
+  @ApiPropertyOptional() selectedInsightCodes?: string[];
+  @ApiPropertyOptional() filters?: Array<{ code: string; value: string }>;
+}
+
 export const CreateReportExecutionDtoSchema = z.object({
   reportExecutionId: z.string().uuid(),
   reportDefinitionId: z.string().uuid(),

@@ -6,10 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AdminReporting } from './reporting';
 
 const apiClientGetMock = vi.hoisted(() => vi.fn());
+const apiClientPostMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
     get: apiClientGetMock,
+    post: apiClientPostMock,
   },
 }));
 
@@ -199,6 +201,256 @@ const analytics = {
   ],
 };
 
+const builderCatalog = {
+  scopeLevels: [
+    { code: 'TENANT', label: 'Whole Company', description: 'All records' },
+    { code: 'DEPARTMENT', label: 'Department', description: 'Department records' },
+    { code: 'MANAGER', label: 'Manager Team', description: 'Manager records' },
+  ],
+  visualizationTypes: [
+    { code: 'table', label: 'Table' },
+    { code: 'bar', label: 'Bar chart' },
+    { code: 'kpi', label: 'KPI cards' },
+  ],
+  dataSources: [
+    {
+      code: 'HEADCOUNT',
+      title: 'Employee Headcount',
+      category: 'People & Organization',
+      scopeLevels: ['TENANT', 'DEPARTMENT'],
+      defaultVisualization: 'bar',
+      fields: [
+        { code: 'employeeNumber', label: 'Employee number', type: 'text', defaultSelected: true },
+        { code: 'employeeName', label: 'Employee name', type: 'text', defaultSelected: true },
+        { code: 'department', label: 'Department', type: 'text', defaultSelected: true },
+      ],
+      metrics: [
+        { code: 'headcount', label: 'Headcount', type: 'number' },
+        { code: 'activeWorkers', label: 'Active workers', type: 'number' },
+      ],
+      groupBy: [
+        { code: 'department', label: 'Department', type: 'text' },
+      ],
+      filters: [
+        { code: 'period', label: 'Period', type: 'status', options: [{ code: 'CURRENT_MONTH', label: 'Current month' }, { code: 'LAST_90_DAYS', label: 'Last 90 days' }] },
+        { code: 'department', label: 'Department', type: 'status', options: [{ code: 'ENGINEERING', label: 'Engineering' }, { code: 'SALES', label: 'Sales' }] },
+      ],
+    },
+    {
+      code: 'ATTENDANCE',
+      title: 'Attendance & Time Ledger',
+      category: 'Workforce',
+      scopeLevels: ['TENANT', 'DEPARTMENT'],
+      defaultVisualization: 'bar',
+      fields: [
+        { code: 'employeeNumber', label: 'Employee number', type: 'text', defaultSelected: true },
+        { code: 'employeeName', label: 'Employee name', type: 'text', defaultSelected: true },
+        { code: 'workDate', label: 'Work date', type: 'date', defaultSelected: true },
+        { code: 'attendanceStatus', label: 'Attendance status', type: 'status', defaultSelected: true },
+      ],
+      metrics: [
+        { code: 'lateMinutes', label: 'Late minutes', type: 'number' },
+        { code: 'exceptions', label: 'Exceptions', type: 'number' },
+      ],
+      groupBy: [
+        { code: 'department', label: 'Department', type: 'text' },
+      ],
+      filters: [
+        { code: 'period', label: 'Period', type: 'status', options: [{ code: 'CURRENT_MONTH', label: 'Current month' }, { code: 'LAST_90_DAYS', label: 'Last 90 days' }] },
+        { code: 'attendanceStatus', label: 'Attendance status', type: 'status', options: [{ code: 'PRESENT', label: 'Present' }, { code: 'LATE', label: 'Late' }, { code: 'EXCEPTION', label: 'Exception' }] },
+      ],
+    },
+    {
+      code: 'PAYROLL',
+      title: 'Payroll & Payslips',
+      category: 'Reward',
+      scopeLevels: ['TENANT', 'DEPARTMENT'],
+      defaultVisualization: 'kpi',
+      fields: [
+        { code: 'employeeNumber', label: 'Employee number', type: 'text', defaultSelected: true },
+        { code: 'employeeName', label: 'Employee name', type: 'text', defaultSelected: true },
+        { code: 'payPeriod', label: 'Pay period', type: 'text', defaultSelected: true },
+      ],
+      metrics: [
+        { code: 'grossPay', label: 'Gross pay', type: 'currency' },
+        { code: 'netPay', label: 'Net pay', type: 'currency' },
+      ],
+      groupBy: [
+        { code: 'department', label: 'Department', type: 'text' },
+      ],
+      filters: [
+        { code: 'period', label: 'Period', type: 'status', options: [{ code: 'CURRENT_MONTH', label: 'Current month' }] },
+      ],
+    },
+    {
+      code: 'COMPLIANCE',
+      title: 'Compliance & Acknowledgements',
+      category: 'Governance',
+      scopeLevels: ['TENANT', 'DEPARTMENT'],
+      defaultVisualization: 'bar',
+      fields: [
+        { code: 'employeeNumber', label: 'Employee number', type: 'text', defaultSelected: true },
+        { code: 'policyCode', label: 'Policy', type: 'text', defaultSelected: true },
+        { code: 'acknowledgementStatus', label: 'Acknowledgement status', type: 'status', defaultSelected: true },
+      ],
+      metrics: [
+        { code: 'acknowledgements', label: 'Acknowledgements', type: 'number' },
+        { code: 'overdueAcknowledgements', label: 'Overdue acknowledgements', type: 'number' },
+      ],
+      groupBy: [
+        { code: 'acknowledgementStatus', label: 'Acknowledgement status', type: 'status' },
+      ],
+      filters: [
+        { code: 'period', label: 'Period', type: 'status', options: [{ code: 'CURRENT_MONTH', label: 'Current month' }] },
+      ],
+    },
+  ],
+  templates: [
+    { code: 'attendance-exceptions-monthly', title: 'Monthly Attendance Exceptions', dataSource: 'ATTENDANCE', fields: ['employeeNumber', 'employeeName', 'workDate', 'attendanceStatus'], metrics: ['lateMinutes', 'exceptions'], groupBy: ['department'], scopeLevel: 'DEPARTMENT', visualization: 'bar', recommended: true, packCodes: ['FULL_HR_ANALYTICS', 'WORKFORCE_HEALTH'] },
+    { code: 'payroll-cost-summary', title: 'Payroll Cost Summary', dataSource: 'PAYROLL', fields: ['employeeNumber', 'employeeName', 'payPeriod'], metrics: ['grossPay', 'netPay'], groupBy: ['department'], scopeLevel: 'DEPARTMENT', visualization: 'kpi', recommended: true, packCodes: ['FULL_HR_ANALYTICS', 'REWARD_CONTROL'] },
+    { code: 'compliance-acknowledgement-risk', title: 'Compliance Acknowledgement Risk', dataSource: 'COMPLIANCE', fields: ['employeeNumber', 'policyCode', 'acknowledgementStatus'], metrics: ['acknowledgements', 'overdueAcknowledgements'], groupBy: ['acknowledgementStatus'], scopeLevel: 'TENANT', visualization: 'bar', recommended: true, packCodes: ['FULL_HR_ANALYTICS'] },
+  ],
+  analyticsPacks: [
+    { code: 'FULL_HR_ANALYTICS', title: 'Full HR Analytics', category: 'Executive', description: 'Run the complete cross-module HR view.', reportCodes: ['attendance-exceptions-monthly', 'payroll-cost-summary', 'compliance-acknowledgement-risk'], dataSources: ['ATTENDANCE', 'PAYROLL', 'COMPLIANCE'], defaultScopeLevel: 'TENANT', defaultPeriod: 'CURRENT_MONTH', outputs: ['Executive scorecard', 'Risk signals'] },
+    { code: 'WORKFORCE_HEALTH', title: 'Workforce Health', category: 'Workforce', description: 'Attendance and leave risk signals.', reportCodes: ['attendance-exceptions-monthly'], dataSources: ['HEADCOUNT', 'ATTENDANCE'], defaultScopeLevel: 'DEPARTMENT', defaultPeriod: 'LAST_90_DAYS', outputs: ['Attendance exceptions'] },
+  ],
+  smartCategories: [
+    {
+      code: 'WORKFORCE_COMPOSITION',
+      title: 'Workforce Composition',
+      group: 'People Intelligence',
+      description: 'Understand active headcount, attendance pressure, and leave patterns.',
+      businessQuestions: [
+        'Where is workforce capacity under pressure?',
+        'Which departments combine vacancy risk with attendance exceptions?',
+        'What follow-up report should HR operations run next?',
+      ],
+      dataSources: ['HEADCOUNT', 'ATTENDANCE'],
+      reportCodes: ['attendance-exceptions-monthly'],
+      drilldowns: ['Department', 'Manager team', 'Employee'],
+      insights: [
+        {
+          code: 'capacity-risk',
+          title: 'Capacity Risk Hotspots',
+          question: 'Which teams show capacity risk this month?',
+          metricLabel: 'Risk signals',
+          metricValue: 18,
+          trend: '+4 vs prior period',
+          tone: 'warning',
+          explanation: 'Engineering has overlapping vacancy and attendance exception signals.',
+          dataSources: ['HEADCOUNT', 'ATTENDANCE'],
+          relatedReports: ['attendance-exceptions-monthly'],
+          chart: [{ label: 'Engineering', value: 8 }, { label: 'Sales', value: 6 }],
+          affectedRecords: [
+            { label: 'Engineering', value: '7 vacancies with 18 attendance exceptions', severity: 'risk' },
+            { label: 'Sales', value: '6 pending leave requests during coverage gap', severity: 'watch' },
+          ],
+          actions: ['Open workforce review', 'Notify HR operations'],
+        },
+      ],
+    },
+    {
+      code: 'REWARD_ASSURANCE',
+      title: 'Reward Assurance',
+      group: 'Financial Control',
+      description: 'Connect payroll cost and benefit contribution checks.',
+      businessQuestions: ['Are payroll and benefit costs aligned to the current workforce?'],
+      dataSources: ['PAYROLL'],
+      reportCodes: ['payroll-cost-summary'],
+      drilldowns: ['Legal entity', 'Department'],
+      insights: [
+        {
+          code: 'payroll-close-control',
+          title: 'Payroll Close Control',
+          question: 'What needs attention before payroll closes?',
+          metricLabel: 'Close blockers',
+          metricValue: 3,
+          trend: '-2 vs last run',
+          tone: 'warning',
+          explanation: 'Three records need deduction or attendance evidence review.',
+          dataSources: ['PAYROLL', 'ATTENDANCE'],
+          relatedReports: ['payroll-cost-summary'],
+          chart: [{ label: 'Ready', value: 22 }, { label: 'Blocked', value: 3 }],
+          affectedRecords: [{ label: 'Acme Corp USA', value: '2 deduction checks', severity: 'watch' }],
+          actions: ['Review payroll blockers'],
+        },
+      ],
+    },
+  ],
+  businessRelationships: [
+    { code: 'headcount-attendance-capacity', title: 'Headcount to Attendance Capacity', from: 'HEADCOUNT', to: 'ATTENDANCE', relationship: 'Capacity and exception context', businessUse: 'Shows whether attendance exceptions are symptoms of vacancy and coverage pressure.' },
+    { code: 'attendance-payroll-readiness', title: 'Attendance to Payroll Readiness', from: 'ATTENDANCE', to: 'PAYROLL', relationship: 'Time evidence for payroll close', businessUse: 'Ensures late minutes, overtime, and exceptions are reviewed before payroll is approved.' },
+  ],
+};
+
+const savedReports = [
+  {
+    reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+    reportName: 'Monthly attendance exceptions',
+    dataSource: 'ATTENDANCE',
+    status: 'PUBLISHED',
+    queryDefinition: {
+      fields: ['employeeNumber', 'employeeName', 'workDate'],
+      metrics: ['lateMinutes', 'exceptions'],
+      groupBy: ['department'],
+      scopeLevel: 'DEPARTMENT',
+      visualization: 'bar',
+    },
+  },
+];
+
+const previewResult = {
+  valid: true,
+  dataSource: 'ATTENDANCE',
+  scopeLevel: 'TENANT',
+  columns: ['employeeNumber', 'employeeName', 'workDate', 'attendanceStatus'],
+  metrics: ['lateMinutes', 'exceptions'],
+  groupBy: ['department'],
+  rowCountEstimate: 144,
+  chartData: [{ label: 'Engineering', value: 65 }, { label: 'Sales', value: 43 }],
+  sampleRows: [
+    { employeeNumber: 'EMP-0042', employeeName: 'Emily Chen', workDate: '2026-06-10', attendanceStatus: 'Late', lateMinutes: 12 },
+    { employeeNumber: 'EMP-0044', employeeName: 'Marcus Johnson', workDate: '2026-06-10', attendanceStatus: 'Present', lateMinutes: 0 },
+  ],
+  warnings: [],
+};
+
+const analyticsPackResult = {
+  packCode: 'FULL_HR_ANALYTICS',
+  title: 'Full HR Analytics',
+  generatedAt: '2026-06-11T08:00:00.000Z',
+  scopeLevel: 'TENANT',
+  period: 'CURRENT_MONTH',
+  reportOptions: [
+    { code: 'attendance-exceptions-monthly', title: 'Monthly Attendance Exceptions', dataSource: 'ATTENDANCE', recommended: true },
+  ],
+  highlights: [
+    { label: 'Active workforce', value: 248, tone: 'success' },
+    { label: 'Open risk signals', value: 26, tone: 'warning' },
+  ],
+  charts: [
+    { title: 'Workforce risk', data: [{ label: 'Attendance', value: 18 }, { label: 'Payroll', value: 4 }] },
+  ],
+  suggestedNextActions: ['Run attendance exceptions by department.'],
+};
+
+const smartCategoryResult = {
+  categoryCode: 'WORKFORCE_COMPOSITION',
+  title: 'Workforce Composition',
+  generatedAt: '2026-06-11T08:05:00.000Z',
+  scopeLevel: 'TENANT',
+  period: 'CURRENT_MONTH',
+  summary: 'Workforce Composition analysis found 18 risk signals across headcount and attendance.',
+  insights: builderCatalog.smartCategories[0].insights,
+  drilldowns: builderCatalog.smartCategories[0].drilldowns,
+  relatedReports: [
+    { code: 'attendance-exceptions-monthly', title: 'Monthly Attendance Exceptions', dataSource: 'ATTENDANCE' },
+  ],
+  recommendedActions: ['Open the attendance exception report for Engineering.'],
+  filterSummary: [{ label: 'Period', value: 'CURRENT_MONTH' }],
+  relationships: builderCatalog.businessRelationships,
+};
+
 function renderReporting() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -211,6 +463,7 @@ function renderReporting() {
 describe('AdminReporting analytics', () => {
   beforeEach(() => {
     apiClientGetMock.mockReset();
+    apiClientPostMock.mockReset();
     apiClientGetMock.mockImplementation((path: string) => {
       if (path === '/reporting/hr-dashboard') {
         return Promise.resolve({ data: { success: true, data: dashboard } });
@@ -218,7 +471,45 @@ describe('AdminReporting analytics', () => {
       if (path === '/reporting/hr-analytics') {
         return Promise.resolve({ data: { success: true, data: analytics } });
       }
+      if (path === '/reporting/builder/catalog') {
+        return Promise.resolve({ data: { success: true, data: builderCatalog } });
+      }
+  if (path === '/reporting/report-definitions?status=ALL') {
+    return Promise.resolve({ data: { success: true, data: savedReports } });
+  }
+      if (path === '/reporting/calculated-fields?status=ALL') {
+        return Promise.resolve({ data: { success: true, data: [
+          { calculatedFieldId: '00000000-0000-0000-0000-00000000c501', fieldName: 'Net payroll cost', expression: 'grossPay - deductionAmount', dataType: 'currency', status: 'ACTIVE' },
+        ] } });
+      }
       return Promise.resolve({ data: new Blob(['']) });
+    });
+    apiClientPostMock.mockImplementation((path: string) => {
+      if (path === '/reporting/report-definitions/preview') {
+        return Promise.resolve({ data: { success: true, data: previewResult } });
+      }
+      if (path === '/reporting/builder/analytics-packs/run') {
+        return Promise.resolve({ data: { success: true, data: analyticsPackResult } });
+      }
+      if (path === '/reporting/builder/smart-categories/run') {
+        return Promise.resolve({ data: { success: true, data: smartCategoryResult } });
+      }
+      if (path === '/reporting/report-definitions') {
+        return Promise.resolve({ data: { success: true, data: { ...savedReports[0], status: 'DRAFT' } } });
+      }
+      if (path === '/reporting/calculated-fields') {
+        return Promise.resolve({ data: { success: true, data: { calculatedFieldId: '00000000-0000-0000-0000-00000000c599', fieldName: 'Custom metric', status: 'DRAFT' } } });
+      }
+      if (path === '/reporting/report-executions') {
+        return Promise.resolve({ data: { success: true, data: { reportExecutionId: '00000000-0000-0000-0000-00000000e501', status: 'QUEUED' } } });
+      }
+      if (path === '/reporting/report-schedules') {
+        return Promise.resolve({ data: { success: true, data: { reportScheduleId: '00000000-0000-0000-0000-00000000s501', status: 'ACTIVE' } } });
+      }
+      if (path.includes('/commands/publish')) {
+        return Promise.resolve({ data: { success: true, data: { status: 'PUBLISHED' } } });
+      }
+      return Promise.resolve({ data: { success: true, data: null } });
     });
   });
 
@@ -226,15 +517,29 @@ describe('AdminReporting analytics', () => {
     renderReporting();
 
     expect(await screen.findByText('Report Activity')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /overview/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /analytics/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /library/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /command center/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /smart analytics/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /report builder/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /data relationships/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /library & delivery/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /activity/i })).toBeInTheDocument();
-    expect(screen.queryByText('Cross-Module Analytics')).not.toBeInTheDocument();
+    expect(screen.queryByText('Smart HR Analytics Studio')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('tab', { name: /analytics/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /smart analytics/i }));
 
-    expect(await screen.findByText('Cross-Module Analytics')).toBeInTheDocument();
+    expect(await screen.findByText('Smart HR Analytics Studio')).toBeInTheDocument();
+    expect(screen.getByText('Business Categories')).toBeInTheDocument();
+    expect(screen.getAllByText('Workforce Composition').length).toBeGreaterThan(0);
+    expect(screen.getByText('Capacity Risk Hotspots')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /run category analysis/i }));
+    expect(await screen.findByText('Category Run Result')).toBeInTheDocument();
+    expect(screen.getByText('Workforce Composition analysis found 18 risk signals across headcount and attendance.')).toBeInTheDocument();
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/smart-categories/run', expect.objectContaining({
+      categoryCode: 'WORKFORCE_COMPOSITION',
+      period: 'CURRENT_MONTH',
+      selectedInsightCodes: ['capacity-risk'],
+    }));
+    expect(screen.getByText('Operational Analytics Coverage')).toBeInTheDocument();
     expect(screen.getAllByText('Attendance Exceptions').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Leave Pipeline').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Payroll Net Pay').length).toBeGreaterThan(0);
@@ -246,16 +551,103 @@ describe('AdminReporting analytics', () => {
     expect(screen.getAllByText('EGP 210,000').length).toBeGreaterThan(0);
     expect(screen.getByText('26')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('tab', { name: /library/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /data relationships/i }));
 
+    expect(await screen.findByText('HR Data Relationship Map')).toBeInTheDocument();
+    expect(screen.getByText('Business Data Domains')).toBeInTheDocument();
+    expect(screen.getByText('How This Data Connects')).toBeInTheDocument();
+    expect(screen.getByText('Headcount to Attendance Capacity')).toBeInTheDocument();
+    expect(screen.getByText('Attendance to Payroll Readiness')).toBeInTheDocument();
+    expect(screen.getByText('Smart categories using this data')).toBeInTheDocument();
+    expect(screen.getAllByText('Workforce Composition').length).toBeGreaterThan(0);
+
+    await userEvent.click(screen.getByRole('tab', { name: /library & delivery/i }));
+
+    expect(await screen.findByText('Saved Reports')).toBeInTheDocument();
+    expect(screen.getByText('Monthly attendance exceptions')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Run' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Schedule' }));
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/00000000-0000-0000-0000-00000000a501/commands/publish', {});
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-executions', expect.objectContaining({
+      reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+    }));
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-schedules', expect.objectContaining({
+      reportDefinitionId: '00000000-0000-0000-0000-00000000a501',
+      frequency: 'MONTHLY',
+      recipients: ['hr.operations@example.com'],
+    }));
     expect(await screen.findByText('Migration Templates')).toBeInTheDocument();
     expect(screen.getByText('Headcount & Org')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /activity/i }));
 
     expect(await screen.findByText('Top Report Activity')).toBeInTheDocument();
-    expect(screen.getByText('Template: headcount-org')).toBeInTheDocument();
-    expect(screen.getByText('Engine: position-headcount')).toBeInTheDocument();
+    expect(screen.getByText('Connected services: ORGANIZATION, HR_CORE')).toBeInTheDocument();
     await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/reporting/hr-analytics'));
+  });
+
+  it('builds, previews, and saves a custom report definition', async () => {
+    const user = userEvent.setup();
+    renderReporting();
+
+    await user.click(await screen.findByRole('tab', { name: /builder/i }));
+
+    expect(await screen.findByText('Choose What to Run')).toBeInTheDocument();
+    expect(screen.getByText('Full HR Analytics')).toBeInTheDocument();
+    expect(screen.getByText('Recommended reports')).toBeInTheDocument();
+    expect(screen.getAllByText('Attendance & Time Ledger').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Report name')).toHaveValue('Monthly attendance exceptions');
+    expect(screen.getByLabelText('Underlying data')).toBeInTheDocument();
+    expect(screen.getByLabelText('Scope level')).toBeInTheDocument();
+    expect(screen.getByLabelText('Display')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Attendance status').some((element) => element.getAttribute('role') === 'combobox')).toBe(true);
+    expect(screen.getByText('Underlying data catalog')).toBeInTheDocument();
+    expect(screen.getByText('Calculated Fields')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /run smart analytics/i }));
+    expect(await screen.findByText('Analytics ready')).toBeInTheDocument();
+    expect(screen.getByText('Open risk signals')).toBeInTheDocument();
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/builder/analytics-packs/run', expect.objectContaining({
+      packCode: 'FULL_HR_ANALYTICS',
+      period: 'CURRENT_MONTH',
+    }));
+
+    await user.click(screen.getByRole('button', { name: /^preview$/i }));
+
+    expect(await screen.findByText('Estimated rows')).toBeInTheDocument();
+    expect(screen.getByText('144')).toBeInTheDocument();
+    expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions/preview', expect.objectContaining({
+      dataSource: 'ATTENDANCE',
+      queryDefinition: expect.objectContaining({
+        fields: ['employeeNumber', 'employeeName', 'workDate', 'attendanceStatus'],
+        metrics: ['lateMinutes', 'exceptions'],
+        groupBy: ['department'],
+        scopeLevel: 'TENANT',
+        sourcePackCode: 'FULL_HR_ANALYTICS',
+      }),
+    }));
+
+    await user.click(screen.getByRole('button', { name: /save report/i }));
+
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/report-definitions', expect.objectContaining({
+      reportName: 'Monthly attendance exceptions',
+      reportType: 'CUSTOM',
+      dataSource: 'ATTENDANCE',
+      queryDefinition: expect.objectContaining({
+        fields: ['employeeNumber', 'employeeName', 'workDate', 'attendanceStatus'],
+        metrics: ['lateMinutes', 'exceptions'],
+        groupBy: ['department'],
+        scopeLevel: 'TENANT',
+        sourcePackCode: 'FULL_HR_ANALYTICS',
+      }),
+    })));
+
+    await user.click(screen.getByRole('button', { name: /save metric/i }));
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/calculated-fields', expect.objectContaining({
+      fieldName: 'Custom metric',
+      expression: 'grossPay - deductionAmount',
+      dataType: 'currency',
+    })));
   });
 });

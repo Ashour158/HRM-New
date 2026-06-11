@@ -14,10 +14,12 @@ import { CalculatedFieldRepository } from '../repositories/calculated-field.repo
 import type * as dtos from './dtos.js';
 import {
   CreateReportDefinitionDtoSchema, CreateReportExecutionDtoSchema, CompleteReportExecutionDtoSchema,
-  FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, HrAnalyticsQueryDtoSchema, ZodValidationPipe,
+  FailReportExecutionDtoSchema, CreateReportScheduleDtoSchema, CreateCalculatedFieldDtoSchema, HrAnalyticsQueryDtoSchema,
+  PreviewReportDefinitionDtoSchema, RunReportAnalyticsDtoSchema, RunSmartAnalyticsCategoryDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 import { ServiceUsageReportingService } from '../services/service-usage-reporting.service.js';
 import { HrAnalyticsReportingService } from '../services/hr-analytics-reporting.service.js';
+import { ReportBuilderCatalogService } from '../services/report-builder-catalog.service.js';
 import {
   buildEmployeeImportTemplateCsv,
   buildHrDashboardExportCsv,
@@ -40,6 +42,7 @@ export class ReportingController {
     private readonly calculatedFieldRepo: CalculatedFieldRepository,
     private readonly serviceUsageReporting: ServiceUsageReportingService,
     private readonly hrAnalyticsReporting: HrAnalyticsReportingService,
+    private readonly reportBuilderCatalog: ReportBuilderCatalogService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -65,6 +68,26 @@ export class ReportingController {
   async createReportDefinition(@Body(new ZodValidationPipe(CreateReportDefinitionDtoSchema)) dto: dtos.CreateReportDefinitionDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateReportDefinition', 'ReportDefinition', dto, req));
   }
+  @Get('builder/catalog')
+  async getReportBuilderCatalog(@Req() req: Request) {
+    this.assertReportingAdmin(req);
+    return this.reportBuilderCatalog.getCatalog();
+  }
+  @Post('report-definitions/preview')
+  async previewReportDefinition(@Body(new ZodValidationPipe(PreviewReportDefinitionDtoSchema)) dto: dtos.PreviewReportDefinitionDto, @Req() req: Request) {
+    this.assertReportingAdmin(req);
+    return this.reportBuilderCatalog.previewDefinition(dto);
+  }
+  @Post('builder/analytics-packs/run')
+  async runReportAnalyticsPack(@Body(new ZodValidationPipe(RunReportAnalyticsDtoSchema)) dto: dtos.RunReportAnalyticsDto, @Req() req: Request) {
+    this.assertReportingAdmin(req);
+    return this.reportBuilderCatalog.runAnalyticsPack(dto);
+  }
+  @Post('builder/smart-categories/run')
+  async runSmartAnalyticsCategory(@Body(new ZodValidationPipe(RunSmartAnalyticsCategoryDtoSchema)) dto: dtos.RunSmartAnalyticsCategoryDto, @Req() req: Request) {
+    this.assertReportingAdmin(req);
+    return this.reportBuilderCatalog.runSmartCategory(dto);
+  }
   @Post('report-definitions/:id/commands/publish')
   async publishReportDefinition(@Param('id') id: string, @Req() req: Request) {
     const doc = await this.reportDefinitionRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
@@ -80,7 +103,12 @@ export class ReportingController {
   @Get('report-definitions')
   async listReportDefinitions(@Req() req: Request, @Query('status') status?: string) {
     this.assertReportingAdmin(req);
-    return this.reportDefinitionRepo.findByStatusForTenant(status ?? 'DRAFT', this.getTenantId(req));
+    if (!status || status === 'ALL') {
+      const tenantId = this.getTenantId(req);
+      const groups = await Promise.all(['DRAFT', 'PUBLISHED', 'ARCHIVED', 'DEPRECATED'].map((state) => this.reportDefinitionRepo.findByStatusForTenant(state, tenantId)));
+      return groups.flat();
+    }
+    return this.reportDefinitionRepo.findByStatusForTenant(status, this.getTenantId(req));
   }
   @Get('report-definitions/:id')
   async getReportDefinition(@Req() req: Request, @Param('id') id: string) {
@@ -187,6 +215,11 @@ export class ReportingController {
   @Get('calculated-fields')
   async listCalculatedFields(@Req() req: Request, @Query('status') status?: string) {
     this.assertReportingAdmin(req);
+    if (status === 'ALL') {
+      const tenantId = this.getTenantId(req);
+      const groups = await Promise.all(['DRAFT', 'ACTIVE', 'DEPRECATED'].map((state) => this.calculatedFieldRepo.findByStatusForTenant(state, tenantId)));
+      return groups.flat();
+    }
     return this.calculatedFieldRepo.findByStatusForTenant(status ?? 'DRAFT', this.getTenantId(req));
   }
   @Get('calculated-fields/:id')
