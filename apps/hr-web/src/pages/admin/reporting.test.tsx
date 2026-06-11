@@ -207,6 +207,11 @@ const builderCatalog = {
     { code: 'DEPARTMENT', label: 'Department', description: 'Department records' },
     { code: 'MANAGER', label: 'Manager Team', description: 'Manager records' },
   ],
+  populationOptions: [
+    { scopeLevel: 'TENANT', label: 'Whole company', values: [{ code: 'ALL', label: 'All workers', description: 'All accessible records.' }] },
+    { scopeLevel: 'DEPARTMENT', label: 'Department', values: [{ code: 'ENGINEERING', label: 'Engineering', description: 'Engineering department records.' }, { code: 'SALES', label: 'Sales' }] },
+    { scopeLevel: 'MANAGER', label: 'Manager Team', values: [{ code: 'MGR_JAMES_HARRINGTON', label: 'James Harrington Team' }] },
+  ],
   visualizationTypes: [
     { code: 'table', label: 'Table' },
     { code: 'bar', label: 'Bar chart' },
@@ -378,8 +383,8 @@ const builderCatalog = {
     },
   ],
   businessRelationships: [
-    { code: 'headcount-attendance-capacity', title: 'Headcount to Attendance Capacity', from: 'HEADCOUNT', to: 'ATTENDANCE', relationship: 'Capacity and exception context', businessUse: 'Shows whether attendance exceptions are symptoms of vacancy and coverage pressure.' },
-    { code: 'attendance-payroll-readiness', title: 'Attendance to Payroll Readiness', from: 'ATTENDANCE', to: 'PAYROLL', relationship: 'Time evidence for payroll close', businessUse: 'Ensures late minutes, overtime, and exceptions are reviewed before payroll is approved.' },
+    { code: 'headcount-attendance-capacity', title: 'Headcount to Attendance Capacity', from: 'HEADCOUNT', to: 'ATTENDANCE', relationship: 'Capacity and exception context', businessUse: 'Shows whether attendance exceptions are symptoms of vacancy and coverage pressure.', grain: 'Worker assignment to worker-day', joinKeys: ['workerId', 'departmentId'], privacyLevel: 'standard', lineage: ['Worker profile', 'Assignment', 'Attendance ledger'], recommendedDrilldowns: ['Department', 'Manager'] },
+    { code: 'attendance-payroll-readiness', title: 'Attendance to Payroll Readiness', from: 'ATTENDANCE', to: 'PAYROLL', relationship: 'Time evidence for payroll close', businessUse: 'Ensures late minutes, overtime, and exceptions are reviewed before payroll is approved.', grain: 'Worker-day to payroll period', joinKeys: ['workerId', 'payPeriod'], privacyLevel: 'sensitive', lineage: ['Attendance event', 'Daily ledger', 'Payroll preview'], recommendedDrilldowns: ['Department', 'Employee'] },
   ],
 };
 
@@ -394,6 +399,7 @@ const savedReports = [
       metrics: ['lateMinutes', 'exceptions'],
       groupBy: ['department'],
       scopeLevel: 'DEPARTMENT',
+      populationValue: 'ENGINEERING',
       visualization: 'bar',
     },
   },
@@ -558,6 +564,10 @@ describe('AdminReporting analytics', () => {
     expect(screen.getByText('How This Data Connects')).toBeInTheDocument();
     expect(screen.getByText('Headcount to Attendance Capacity')).toBeInTheDocument();
     expect(screen.getByText('Attendance to Payroll Readiness')).toBeInTheDocument();
+    expect(screen.getAllByText('Data grain').length).toBeGreaterThan(0);
+    expect(screen.getByText('Worker-day to payroll period')).toBeInTheDocument();
+    expect(screen.getAllByText('workerId').length).toBeGreaterThan(0);
+    expect(screen.getByText('Attendance event -> Daily ledger -> Payroll preview')).toBeInTheDocument();
     expect(screen.getByText('Smart categories using this data')).toBeInTheDocument();
     expect(screen.getAllByText('Workforce Composition').length).toBeGreaterThan(0);
 
@@ -565,6 +575,7 @@ describe('AdminReporting analytics', () => {
 
     expect(await screen.findByText('Saved Reports')).toBeInTheDocument();
     expect(screen.getByText('Monthly attendance exceptions')).toBeInTheDocument();
+    expect(screen.getByText('Population: ENGINEERING')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
     await userEvent.click(screen.getByRole('button', { name: 'Run' }));
     await userEvent.click(screen.getByRole('button', { name: 'Schedule' }));
@@ -600,6 +611,7 @@ describe('AdminReporting analytics', () => {
     expect(screen.getByLabelText('Report name')).toHaveValue('Monthly attendance exceptions');
     expect(screen.getByLabelText('Underlying data')).toBeInTheDocument();
     expect(screen.getByLabelText('Scope level')).toBeInTheDocument();
+    expect(screen.getByLabelText('Report population')).toBeInTheDocument();
     expect(screen.getByLabelText('Display')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Attendance status').some((element) => element.getAttribute('role') === 'combobox')).toBe(true);
     expect(screen.getByText('Underlying data catalog')).toBeInTheDocument();
@@ -624,6 +636,7 @@ describe('AdminReporting analytics', () => {
         metrics: ['lateMinutes', 'exceptions'],
         groupBy: ['department'],
         scopeLevel: 'TENANT',
+        populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
       }),
     }));
@@ -639,6 +652,7 @@ describe('AdminReporting analytics', () => {
         metrics: ['lateMinutes', 'exceptions'],
         groupBy: ['department'],
         scopeLevel: 'TENANT',
+        populationValue: 'ALL',
         sourcePackCode: 'FULL_HR_ANALYTICS',
       }),
     })));

@@ -197,6 +197,16 @@ describe('ReportingController service usage surface', () => {
     expect(catalog.dataSources.map((source) => source.code)).toEqual(expect.arrayContaining(['ATTENDANCE', 'LEAVE', 'PAYROLL', 'BENEFITS', 'COMPLIANCE', 'SERVICES']));
     expect(catalog.analyticsPacks.map((pack) => pack.code)).toEqual(expect.arrayContaining(['FULL_HR_ANALYTICS', 'WORKFORCE_HEALTH', 'REWARD_CONTROL']));
     expect(catalog.dataSources.find((source) => source.code === 'ATTENDANCE')?.filters.some((filter) => filter.options && filter.options.length > 0)).toBe(true);
+    expect(catalog.populationOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        scopeLevel: 'LEGAL_ENTITY',
+        values: expect.arrayContaining([expect.objectContaining({ code: 'ACME_EG' })]),
+      }),
+      expect.objectContaining({
+        scopeLevel: 'MANAGER',
+        values: expect.arrayContaining([expect.objectContaining({ code: 'MGR_JAMES_HARRINGTON' })]),
+      }),
+    ]));
 
     await expect(reporting.previewReportDefinition({
       dataSource: 'ATTENDANCE',
@@ -205,6 +215,7 @@ describe('ReportingController service usage surface', () => {
         metrics: ['lateMinutes', 'exceptions'],
         groupBy: ['department'],
         scopeLevel: 'DEPARTMENT',
+        populationValue: 'ENGINEERING',
         visualization: 'bar',
       },
     }, request())).resolves.toMatchObject({
@@ -260,11 +271,29 @@ describe('ReportingController service usage surface', () => {
       }),
     ]));
     expect(catalog.businessRelationships).toEqual(expect.arrayContaining([
-      expect.objectContaining({ code: 'attendance-payroll', from: 'ATTENDANCE', to: 'PAYROLL' }),
-      expect.objectContaining({ code: 'benefits-payroll', from: 'BENEFITS', to: 'PAYROLL' }),
+      expect.objectContaining({ code: 'attendance-payroll', from: 'ATTENDANCE', to: 'PAYROLL', grain: 'Worker-day to payroll period', privacyLevel: 'sensitive', joinKeys: expect.arrayContaining(['workerId', 'payPeriod']) }),
+      expect.objectContaining({ code: 'benefits-payroll', from: 'BENEFITS', to: 'PAYROLL', privacyLevel: 'restricted', recommendedDrilldowns: expect.arrayContaining(['Program', 'Coverage level']) }),
       expect.objectContaining({ code: 'recruitment-onboarding-headcount', from: 'RECRUITMENT', to: 'ONBOARDING' }),
       expect.objectContaining({ code: 'compliance-access-audit', from: 'COMPLIANCE', to: 'ACCESS' }),
     ]));
+  });
+
+  it('warns when a scoped report has no selected population', async () => {
+    const reporting = controller();
+
+    await expect(reporting.previewReportDefinition({
+      dataSource: 'ATTENDANCE',
+      queryDefinition: {
+        fields: ['employeeNumber'],
+        metrics: ['lateMinutes'],
+        groupBy: ['department'],
+        scopeLevel: 'DEPARTMENT',
+        visualization: 'bar',
+      },
+    }, request())).resolves.toMatchObject({
+      valid: false,
+      warnings: expect.arrayContaining(['Select a department population before publishing this report.']),
+    });
   });
 
   it('runs a smart analytics pack from the builder catalog', async () => {

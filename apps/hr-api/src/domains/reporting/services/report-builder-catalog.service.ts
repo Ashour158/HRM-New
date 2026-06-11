@@ -43,12 +43,19 @@ export interface ReportingTemplateCatalogItem {
 
 export interface ReportBuilderCatalog {
   scopeLevels: Array<{ code: string; label: string; description: string }>;
+  populationOptions: ReportingPopulationOption[];
   visualizationTypes: Array<{ code: ReportingVisualizationType; label: string }>;
   dataSources: ReportingDataSourceCatalogItem[];
   templates: ReportingTemplateCatalogItem[];
   analyticsPacks: ReportingAnalyticsPack[];
   smartCategories: SmartAnalyticsCategory[];
   businessRelationships: ReportingBusinessRelationship[];
+}
+
+export interface ReportingPopulationOption {
+  scopeLevel: string;
+  label: string;
+  values: Array<{ code: string; label: string; description?: string }>;
 }
 
 export interface ReportingAnalyticsPack {
@@ -110,6 +117,11 @@ export interface ReportingBusinessRelationship {
   to: string;
   relationship: string;
   businessUse: string;
+  grain: string;
+  joinKeys: string[];
+  privacyLevel: 'standard' | 'sensitive' | 'restricted';
+  lineage: string[];
+  recommendedDrilldowns: string[];
 }
 
 export interface SmartAnalyticsRunResult {
@@ -151,6 +163,7 @@ export class ReportBuilderCatalogService {
         { code: 'EMPLOYEE', label: 'Employee', description: 'Limit results to selected employees.' },
         { code: 'GROUP', label: 'Custom Group', description: 'Limit results by a saved workforce group.' },
       ],
+      populationOptions: REPORTING_POPULATION_OPTIONS,
       visualizationTypes: [
         { code: 'table', label: 'Table' },
         { code: 'bar', label: 'Bar chart' },
@@ -169,6 +182,7 @@ export class ReportBuilderCatalogService {
   runSmartCategory(input: {
     categoryCode: string;
     scopeLevel?: string;
+    populationValue?: string;
     period?: string;
     selectedInsightCodes?: string[];
     filters?: Array<{ code: string; value: string }>;
@@ -200,6 +214,7 @@ export class ReportBuilderCatalogService {
   runAnalyticsPack(input: {
     packCode: string;
     scopeLevel?: string;
+    populationValue?: string;
     period?: string;
     selectedReportCodes?: string[];
     filters?: Array<{ code: string; value: string }>;
@@ -259,6 +274,10 @@ export class ReportBuilderCatalogService {
     const scopeLevel = typeof queryDefinition.scopeLevel === 'string' && source.scopeLevels.includes(queryDefinition.scopeLevel)
       ? queryDefinition.scopeLevel
       : 'TENANT';
+    const populationValue = typeof queryDefinition.populationValue === 'string' ? queryDefinition.populationValue : undefined;
+    const populationOptions = REPORTING_POPULATION_OPTIONS.find((option) => option.scopeLevel === scopeLevel)?.values ?? [];
+    const hasValidPopulation = scopeLevel === 'TENANT'
+      || (populationValue !== undefined && populationOptions.some((option) => option.code === populationValue));
 
     const columns = selectedFields.length > 0
       ? selectedFields
@@ -274,6 +293,7 @@ export class ReportBuilderCatalogService {
     if (columns.length === 0) warnings.push('Select at least one column before publishing this report.');
     if (metrics.length === 0) warnings.push('Select at least one metric to support charts and KPIs.');
     if (queryDefinition.visualization === 'pie' && groupBy.length === 0) warnings.push('Breakdown charts require a grouping field.');
+    if (!hasValidPopulation) warnings.push(`Select a ${scopeLevel.toLowerCase().replace('_', ' ')} population before publishing this report.`);
 
     const base = REPORTING_SAMPLE_VOLUME[source.code] ?? 25;
     const scopeFactor = scopeLevel === 'TENANT' ? 1 : scopeLevel === 'EMPLOYEE' ? 0.08 : 0.35;
@@ -380,6 +400,64 @@ const legalEntityOptions = [
   { code: 'ACME_US', label: 'Acme Corp USA' },
   { code: 'ACME_EG', label: 'Acme Egypt' },
   { code: 'ACME_UK', label: 'Acme Corp UK' },
+];
+const orgUnitOptions = [
+  { code: 'TECHNOLOGY', label: 'Technology' },
+  { code: 'COMMERCIAL', label: 'Commercial' },
+  { code: 'CORPORATE', label: 'Corporate Services' },
+];
+const managerOptions = [
+  { code: 'MGR_JAMES_HARRINGTON', label: 'James Harrington Team' },
+  { code: 'MGR_SARAH_MITCHELL', label: 'Sarah Mitchell Team' },
+  { code: 'MGR_DAVID_CHEN', label: 'David Chen Team' },
+];
+const employeeOptions = [
+  { code: 'EMP_0042', label: 'Emily Chen' },
+  { code: 'EMP_0044', label: 'Marcus Johnson' },
+  { code: 'EMP_0047', label: 'Olivia Thompson' },
+];
+const savedGroupOptions = [
+  { code: 'CRITICAL_ROLES', label: 'Critical roles' },
+  { code: 'REMOTE_WORKERS', label: 'Remote workers' },
+  { code: 'NEW_JOINERS_90', label: 'New joiners - 90 days' },
+];
+
+const REPORTING_POPULATION_OPTIONS: ReportingPopulationOption[] = [
+  {
+    scopeLevel: 'TENANT',
+    label: 'Whole company',
+    values: [{ code: 'ALL', label: 'All workers', description: 'All records the reporting admin can access.' }],
+  },
+  {
+    scopeLevel: 'LEGAL_ENTITY',
+    label: 'Legal entity',
+    values: legalEntityOptions.map((option) => ({ ...option, description: 'Records assigned to this legal employer.' })),
+  },
+  {
+    scopeLevel: 'ORG_UNIT',
+    label: 'Org unit',
+    values: orgUnitOptions.map((option) => ({ ...option, description: 'Records assigned to this operating unit.' })),
+  },
+  {
+    scopeLevel: 'DEPARTMENT',
+    label: 'Department',
+    values: departmentOptions.map((option) => ({ ...option, description: 'Records assigned to this department.' })),
+  },
+  {
+    scopeLevel: 'MANAGER',
+    label: 'Manager team',
+    values: managerOptions.map((option) => ({ ...option, description: 'Direct and indirect reports for this manager.' })),
+  },
+  {
+    scopeLevel: 'EMPLOYEE',
+    label: 'Employee',
+    values: employeeOptions.map((option) => ({ ...option, description: 'Single worker reporting scope.' })),
+  },
+  {
+    scopeLevel: 'GROUP',
+    label: 'Saved workforce group',
+    values: savedGroupOptions.map((option) => ({ ...option, description: 'A saved business audience managed by HR.' })),
+  },
 ];
 
 const REPORTING_DATA_SOURCES: ReportingDataSourceCatalogItem[] = [
@@ -1198,15 +1276,15 @@ const REPORTING_ANALYTICS_PACKS: ReportingAnalyticsPack[] = [
 ];
 
 const REPORTING_BUSINESS_RELATIONSHIPS: ReportingBusinessRelationship[] = [
-  { code: 'employee-org', title: 'Employee to Organization', from: 'HEADCOUNT', to: 'HEADCOUNT', relationship: 'Employee belongs to legal entity, location, department, position, and manager.', businessUse: 'Scopes every report by entity, department, manager, group, or employee.' },
-  { code: 'attendance-payroll', title: 'Attendance to Payroll', from: 'ATTENDANCE', to: 'PAYROLL', relationship: 'Attendance ledger feeds payable hours, overtime, lateness, and deductions.', businessUse: 'Explains payroll movement and close blockers from time data.' },
-  { code: 'leave-attendance-payroll', title: 'Leave to Attendance and Payroll', from: 'LEAVE', to: 'PAYROLL', relationship: 'Approved leave creates absence days, balance movement, and payroll impact.', businessUse: 'Connects leave behavior to payroll cost and staffing risk.' },
-  { code: 'benefits-payroll', title: 'Benefits to Payroll', from: 'BENEFITS', to: 'PAYROLL', relationship: 'Benefits enrollment and dependents feed employee and employer contribution components.', businessUse: 'Validates payslip benefit deductions and carrier reconciliation.' },
-  { code: 'performance-learning', title: 'Performance to Skills', from: 'PERFORMANCE', to: 'LEARNING', relationship: 'Review outcomes and goals identify training, certification, and skill gaps.', businessUse: 'Links 360 performance findings to learning actions.' },
-  { code: 'engagement-retention', title: 'Engagement to Retention Risk', from: 'ENGAGEMENT', to: 'RETENTION', relationship: 'Engagement participation and sentiment influence retention risk hotspots.', businessUse: 'Prioritizes manager action for teams with morale and attrition risk.' },
-  { code: 'recruitment-onboarding-headcount', title: 'Recruitment to Headcount', from: 'RECRUITMENT', to: 'ONBOARDING', relationship: 'Hiring pipeline creates onboarding workload and future headcount movement.', businessUse: 'Shows whether hiring plans translate into productive employees.' },
-  { code: 'compliance-access-audit', title: 'Compliance and Access Governance', from: 'COMPLIANCE', to: 'ACCESS', relationship: 'Policy acknowledgements, access reviews, and audit evidence share governance controls.', businessUse: 'Builds audit-ready reports across HR compliance and security governance.' },
-  { code: 'services-engagement', title: 'HR Services to Engagement', from: 'SERVICES', to: 'ENGAGEMENT', relationship: 'HR case volume, SLA risk, and service demand can explain employee sentiment pressure.', businessUse: 'Identifies operational friction affecting employee experience.' },
+  { code: 'employee-org', title: 'Employee to Organization', from: 'HEADCOUNT', to: 'HEADCOUNT', relationship: 'Employee belongs to legal entity, location, department, position, and manager.', businessUse: 'Scopes every report by entity, department, manager, group, or employee.', grain: 'One row per worker assignment', joinKeys: ['workerId', 'departmentId', 'managerWorkerId'], privacyLevel: 'standard', lineage: ['Worker profile', 'Assignment', 'Organization structure'], recommendedDrilldowns: ['Legal entity', 'Department', 'Manager', 'Employee'] },
+  { code: 'attendance-payroll', title: 'Attendance to Payroll', from: 'ATTENDANCE', to: 'PAYROLL', relationship: 'Attendance ledger feeds payable hours, overtime, lateness, and deductions.', businessUse: 'Explains payroll movement and close blockers from time data.', grain: 'Worker-day to payroll period', joinKeys: ['workerId', 'workDate', 'payPeriod'], privacyLevel: 'sensitive', lineage: ['Attendance event', 'Daily ledger', 'Payroll preview'], recommendedDrilldowns: ['Department', 'Employee', 'Pay period', 'Attendance status'] },
+  { code: 'leave-attendance-payroll', title: 'Leave to Attendance and Payroll', from: 'LEAVE', to: 'PAYROLL', relationship: 'Approved leave creates absence days, balance movement, and payroll impact.', businessUse: 'Connects leave behavior to payroll cost and staffing risk.', grain: 'Absence request to worker-day and payroll period', joinKeys: ['workerId', 'absenceRequestId', 'payPeriod'], privacyLevel: 'sensitive', lineage: ['Leave request', 'Approval workflow', 'Attendance absence', 'Payroll input'], recommendedDrilldowns: ['Leave type', 'Request status', 'Department', 'Employee'] },
+  { code: 'benefits-payroll', title: 'Benefits to Payroll', from: 'BENEFITS', to: 'PAYROLL', relationship: 'Benefits enrollment and dependents feed employee and employer contribution components.', businessUse: 'Validates payslip benefit deductions and carrier reconciliation.', grain: 'Enrollment coverage to payroll component', joinKeys: ['workerId', 'benefitsEnrollmentId', 'payPeriod'], privacyLevel: 'restricted', lineage: ['Benefits enrollment', 'Contribution policy', 'Payroll deduction'], recommendedDrilldowns: ['Program', 'Coverage level', 'Legal entity', 'Employee'] },
+  { code: 'performance-learning', title: 'Performance to Skills', from: 'PERFORMANCE', to: 'LEARNING', relationship: 'Review outcomes and goals identify training, certification, and skill gaps.', businessUse: 'Links 360 performance findings to learning actions.', grain: 'Worker-cycle to learning plan', joinKeys: ['workerId', 'reviewCycleId', 'skillCode'], privacyLevel: 'sensitive', lineage: ['Performance cycle', 'Goal result', 'Skill gap', 'Learning assignment'], recommendedDrilldowns: ['Manager', 'Cycle', 'Skill', 'Employee'] },
+  { code: 'engagement-retention', title: 'Engagement to Retention Risk', from: 'ENGAGEMENT', to: 'RETENTION', relationship: 'Engagement participation and sentiment influence retention risk hotspots.', businessUse: 'Prioritizes manager action for teams with morale and attrition risk.', grain: 'Survey cohort to retention segment', joinKeys: ['departmentId', 'managerWorkerId', 'period'], privacyLevel: 'restricted', lineage: ['Engagement survey', 'Sentiment result', 'Retention risk model'], recommendedDrilldowns: ['Department', 'Manager', 'Tenure band', 'Risk band'] },
+  { code: 'recruitment-onboarding-headcount', title: 'Recruitment to Headcount', from: 'RECRUITMENT', to: 'ONBOARDING', relationship: 'Hiring pipeline creates onboarding workload and future headcount movement.', businessUse: 'Shows whether hiring plans translate into productive employees.', grain: 'Candidate to onboarding plan and position', joinKeys: ['candidateId', 'positionId', 'workerId'], privacyLevel: 'standard', lineage: ['Requisition', 'Offer', 'Onboarding plan', 'Worker assignment'], recommendedDrilldowns: ['Position', 'Department', 'Hiring stage', 'Start date'] },
+  { code: 'compliance-access-audit', title: 'Compliance and Access Governance', from: 'COMPLIANCE', to: 'ACCESS', relationship: 'Policy acknowledgements, access reviews, and audit evidence share governance controls.', businessUse: 'Builds audit-ready reports across HR compliance and security governance.', grain: 'Worker-policy to access grant/review', joinKeys: ['workerId', 'policyDocumentId', 'accessGrantId'], privacyLevel: 'restricted', lineage: ['Policy document', 'Acknowledgement', 'Access review', 'Audit evidence'], recommendedDrilldowns: ['Policy', 'Role', 'Reviewer', 'Employee'] },
+  { code: 'services-engagement', title: 'HR Services to Engagement', from: 'SERVICES', to: 'ENGAGEMENT', relationship: 'HR case volume, SLA risk, and service demand can explain employee sentiment pressure.', businessUse: 'Identifies operational friction affecting employee experience.', grain: 'Case demand to survey cohort', joinKeys: ['workerId', 'departmentId', 'period'], privacyLevel: 'sensitive', lineage: ['HR case', 'SLA state', 'Engagement survey'], recommendedDrilldowns: ['Service', 'Department', 'Case status', 'Manager'] },
 ];
 
 const SMART_ANALYTICS_CATEGORIES: SmartAnalyticsCategory[] = [

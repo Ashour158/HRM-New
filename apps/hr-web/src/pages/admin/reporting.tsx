@@ -149,6 +149,11 @@ type ReportingVisualizationType = 'table' | 'bar' | 'line' | 'pie' | 'kpi';
 
 type ReportBuilderCatalog = {
   scopeLevels: Array<{ code: string; label: string; description: string }>;
+  populationOptions: Array<{
+    scopeLevel: string;
+    label: string;
+    values: Array<{ code: string; label: string; description?: string }>;
+  }>;
   visualizationTypes: Array<{ code: ReportingVisualizationType; label: string }>;
   dataSources: ReportingDataSourceCatalogItem[];
   templates: Array<{
@@ -232,6 +237,11 @@ type ReportingBusinessRelationship = {
   to: string;
   relationship: string;
   businessUse: string;
+  grain?: string;
+  joinKeys?: string[];
+  privacyLevel?: 'standard' | 'sensitive' | 'restricted';
+  lineage?: string[];
+  recommendedDrilldowns?: string[];
 };
 
 type SmartAnalyticsRunResult = {
@@ -273,6 +283,7 @@ type SavedReportDefinition = {
     metrics?: string[];
     groupBy?: string[];
     scopeLevel?: string;
+    populationValue?: string;
     visualization?: ReportingVisualizationType;
   };
 };
@@ -388,6 +399,7 @@ export function AdminReporting() {
   const [selectedMetrics, setSelectedMetrics] = useState<string[]>([]);
   const [selectedGroupBy, setSelectedGroupBy] = useState<string[]>([]);
   const [scopeLevel, setScopeLevel] = useState('TENANT');
+  const [populationValue, setPopulationValue] = useState('ALL');
   const [visualization, setVisualization] = useState<ReportingVisualizationType>('table');
   const [filterPeriod, setFilterPeriod] = useState('CURRENT_MONTH');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
@@ -439,6 +451,7 @@ export function AdminReporting() {
     () => (catalog?.businessRelationships ?? []).filter((relationship) => relationship.from === dataSourceCode || relationship.to === dataSourceCode),
     [catalog?.businessRelationships, dataSourceCode],
   );
+  const visibleRelationships = relationshipsForCurrentSource.length > 0 ? relationshipsForCurrentSource : (catalog?.businessRelationships ?? []);
   const smartCategoriesForCurrentSource = useMemo(
     () => (catalog?.smartCategories ?? []).filter((category) => category.dataSources.includes(dataSourceCode)),
     [catalog?.smartCategories, dataSourceCode],
@@ -451,6 +464,14 @@ export function AdminReporting() {
   const metricsForQuery = selectedMetrics.length > 0 ? selectedMetrics : defaultMetricCodes(currentSource);
   const groupByForQuery = selectedGroupBy.length > 0 ? selectedGroupBy : defaultGroupByCodes(currentSource);
   const scopeForQuery = currentSource?.scopeLevels.includes(scopeLevel) ? scopeLevel : currentSource?.scopeLevels[0] ?? 'TENANT';
+  const populationOptionsForScope = useMemo(
+    () => catalog?.populationOptions.find((option) => option.scopeLevel === scopeForQuery),
+    [catalog?.populationOptions, scopeForQuery],
+  );
+  const populationValueForQuery = populationOptionsForScope?.values.some((option) => option.code === populationValue)
+    ? populationValue
+    : populationOptionsForScope?.values[0]?.code;
+  const populationLabelForQuery = populationOptionsForScope?.values.find((option) => option.code === populationValueForQuery)?.label ?? 'All workers';
   const visualizationForQuery = visualization;
 
   const buildQueryDefinition = () => ({
@@ -459,6 +480,7 @@ export function AdminReporting() {
     metrics: metricsForQuery,
     groupBy: groupByForQuery,
     scopeLevel: scopeForQuery,
+    populationValue: populationValueForQuery,
     visualization: visualizationForQuery,
     filters: [
       { code: 'period', value: filterPeriod },
@@ -506,6 +528,7 @@ export function AdminReporting() {
     mutationFn: async () => unwrapApiData<ReportAnalyticsRunResult>((await apiClient.post('/reporting/builder/analytics-packs/run', {
       packCode: currentPack?.code ?? selectedPackCode,
       scopeLevel: currentPack?.defaultScopeLevel ?? scopeForQuery,
+      populationValue: populationValueForQuery,
       period: filterPeriod,
       selectedReportCodes: selectedReportCodes.length > 0 ? selectedReportCodes : currentPack?.reportCodes,
       filters: Object.entries(filterValues).filter(([, value]) => value.trim()).map(([code, value]) => ({ code, value })),
@@ -521,6 +544,7 @@ export function AdminReporting() {
     mutationFn: async () => unwrapApiData<SmartAnalyticsRunResult>((await apiClient.post('/reporting/builder/smart-categories/run', {
       categoryCode: currentSmartCategory?.code ?? selectedSmartCategoryCode,
       scopeLevel: scopeForQuery,
+      populationValue: populationValueForQuery,
       period: filterPeriod,
       selectedInsightCodes: currentSmartCategory?.insights.map((insight) => insight.code),
       filters: Object.entries(filterValues).filter(([, value]) => value.trim()).map(([code, value]) => ({ code, value })),
@@ -581,13 +605,23 @@ export function AdminReporting() {
     onError: (error) => addNotification({ title: 'Could not schedule report', message: error instanceof Error ? error.message : 'Schedule failed.', type: 'error', read: false }),
   });
 
+  const defaultPopulationValueForScope = (nextScope: string) =>
+    catalog?.populationOptions.find((option) => option.scopeLevel === nextScope)?.values[0]?.code ?? 'ALL';
+
+  const applyScopeLevel = (nextScope: string) => {
+    setScopeLevel(nextScope);
+    setPopulationValue(defaultPopulationValueForScope(nextScope));
+  };
+
   const applyDataSource = (code: string) => {
     const nextSource = catalog?.dataSources.find((source) => source.code === code);
+    const nextScope = nextSource?.scopeLevels[0] ?? 'TENANT';
     setDataSourceCode(code);
     setSelectedFields(defaultFieldCodes(nextSource));
     setSelectedMetrics(defaultMetricCodes(nextSource));
     setSelectedGroupBy(defaultGroupByCodes(nextSource));
-    setScopeLevel(nextSource?.scopeLevels[0] ?? 'TENANT');
+    setScopeLevel(nextScope);
+    setPopulationValue(defaultPopulationValueForScope(nextScope));
     setVisualization(nextSource?.defaultVisualization ?? 'table');
     setFilterValues({});
   };
@@ -600,6 +634,7 @@ export function AdminReporting() {
     setSelectedMetrics(template.metrics);
     setSelectedGroupBy(template.groupBy);
     setScopeLevel(template.scopeLevel);
+    setPopulationValue(defaultPopulationValueForScope(template.scopeLevel));
     setVisualization(template.visualization);
     setFilterValues({});
     setSelectedReportCodes([template.code]);
@@ -613,6 +648,7 @@ export function AdminReporting() {
     setSelectedReportCodes(pack.reportCodes);
     setFilterPeriod(pack.defaultPeriod);
     setScopeLevel(pack.defaultScopeLevel);
+    setPopulationValue(defaultPopulationValueForScope(pack.defaultScopeLevel));
     const firstTemplate = catalog?.templates.find((template) => pack.reportCodes.includes(template.code));
     if (firstTemplate) {
       applyTemplate(firstTemplate);
@@ -620,6 +656,7 @@ export function AdminReporting() {
       setSelectedReportCodes(pack.reportCodes);
       setFilterPeriod(pack.defaultPeriod);
       setScopeLevel(pack.defaultScopeLevel);
+      setPopulationValue(defaultPopulationValueForScope(pack.defaultScopeLevel));
     }
   };
 
@@ -1221,7 +1258,7 @@ export function AdminReporting() {
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-[#0f172a]">Scope level</label>
-                      <Select value={scopeForQuery} onValueChange={setScopeLevel}>
+                      <Select value={scopeForQuery} onValueChange={applyScopeLevel}>
                         <SelectTrigger aria-label="Scope level">
                           <SelectValue />
                         </SelectTrigger>
@@ -1235,6 +1272,24 @@ export function AdminReporting() {
                             ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-[#0f172a]">Report population</label>
+                      <Select value={populationValueForQuery ?? 'ALL'} onValueChange={setPopulationValue}>
+                        <SelectTrigger aria-label="Report population">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(populationOptionsForScope?.values ?? [{ code: 'ALL', label: 'All workers' }]).map((option) => (
+                            <SelectItem key={option.code} value={option.code}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {populationOptionsForScope?.values.find((option) => option.code === populationValueForQuery)?.description ? (
+                        <p className="text-xs text-[#64748b]">{populationOptionsForScope.values.find((option) => option.code === populationValueForQuery)?.description}</p>
+                      ) : null}
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-[#0f172a]">Period</label>
@@ -1479,6 +1534,10 @@ export function AdminReporting() {
                           <p className="font-semibold text-[#0f172a]">{catalog.scopeLevels.find((scope) => scope.code === scopeForQuery)?.label ?? scopeForQuery}</p>
                         </div>
                         <div>
+                          <p className="text-[#64748b]">Population</p>
+                          <p className="font-semibold text-[#0f172a]">{populationLabelForQuery}</p>
+                        </div>
+                        <div>
                           <p className="text-[#64748b]">Filters</p>
                           <p className="text-[#0f172a]">
                             {[`Period: ${filterPeriod}`, ...Object.entries(filterValues).filter(([, value]) => value.trim()).map(([code, value]) => `${code}: ${value}`)].join(', ')}
@@ -1634,7 +1693,7 @@ export function AdminReporting() {
                         <CardTitle>How This Data Connects</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {relationshipsForCurrentSource.length > 0 ? relationshipsForCurrentSource.map((relationship) => {
+                        {visibleRelationships.length > 0 ? visibleRelationships.map((relationship) => {
                           const fromSource = catalog.dataSources.find((source) => source.code === relationship.from);
                           const toSource = catalog.dataSources.find((source) => source.code === relationship.to);
                           return (
@@ -1655,6 +1714,42 @@ export function AdminReporting() {
                                   <p className="font-medium text-[#0f172a]">{relationship.relationship}</p>
                                 </div>
                               </div>
+                              <div className="mt-4 grid gap-3 text-sm lg:grid-cols-2">
+                                <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Data grain</p>
+                                  <p className="mt-1 text-[#0f172a]">{relationship.grain ?? 'Business process record'}</p>
+                                </div>
+                                <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Privacy</p>
+                                  <p className="mt-1 text-[#0f172a]">{relationship.privacyLevel ?? 'standard'}</p>
+                                </div>
+                              </div>
+                              {relationship.joinKeys && relationship.joinKeys.length > 0 ? (
+                                <div className="mt-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Join keys</p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {relationship.joinKeys.map((key) => (
+                                      <Badge key={key} variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">{key}</Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+                              {relationship.lineage && relationship.lineage.length > 0 ? (
+                                <div className="mt-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Lineage</p>
+                                  <p className="mt-1 text-sm text-[#475569]">{relationship.lineage.join(' -> ')}</p>
+                                </div>
+                              ) : null}
+                              {relationship.recommendedDrilldowns && relationship.recommendedDrilldowns.length > 0 ? (
+                                <div className="mt-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Recommended drilldowns</p>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {relationship.recommendedDrilldowns.map((drilldown) => (
+                                      <Badge key={drilldown} variant="outline" className="border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]">{drilldown}</Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
                             </div>
                           );
                         }) : (
@@ -1781,6 +1876,7 @@ export function AdminReporting() {
                           </div>
                           <div className="mt-3 space-y-1 text-xs text-[#64748b]">
                             <p>Scope: {report.queryDefinition?.scopeLevel ?? 'TENANT'}</p>
+                            <p>Population: {report.queryDefinition?.populationValue ?? 'ALL'}</p>
                             <p>Fields: {fieldLabels(source, report.queryDefinition?.fields) || 'Default fields'}</p>
                           </div>
                           <div className="mt-4 flex flex-wrap gap-2">
