@@ -1,11 +1,13 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { ReportBuilderCatalogService, type ReportingDataSourceCatalogItem, type ReportingFieldCatalogItem } from './report-builder-catalog.service.js';
+import { SEMANTIC_REPORT_ROW_PROVIDER, type SemanticReportRowProvider } from './report-semantic-row-provider.service.js';
 
 export interface SemanticReportQueryInput {
   dataSource: string;
   queryDefinition?: Record<string, unknown>;
   parameters?: Record<string, unknown>;
   limit?: number;
+  tenantId?: string;
 }
 
 export interface SemanticReportQueryResult {
@@ -28,6 +30,7 @@ export interface SemanticReportQueryResult {
     privacyLevel: 'standard' | 'sensitive' | 'restricted';
     appliedFilters: Array<{ code: string; value: string }>;
     availableDrilldowns: string[];
+    rowSource: 'live' | 'fixture';
   };
   decisionSupport: SemanticDecisionSupport;
   pivotBreakdowns: SemanticPivotBreakdown[];
@@ -68,7 +71,7 @@ export interface SemanticPivotBreakdown {
   }>;
 }
 
-type SemanticRow = Record<string, string | number>;
+export type SemanticRow = Record<string, string | number>;
 
 const SOURCE_GRAIN: Record<string, string> = {
   ATTENDANCE: 'Worker-day',
@@ -148,7 +151,10 @@ const SEMANTIC_ROWS: Record<string, SemanticRow[]> = {
 
 @Injectable()
 export class ReportSemanticQueryService {
-  constructor(private readonly catalogService: ReportBuilderCatalogService) {}
+  constructor(
+    private readonly catalogService: ReportBuilderCatalogService,
+    @Optional() @Inject(SEMANTIC_REPORT_ROW_PROVIDER) private readonly rowProvider?: SemanticReportRowProvider,
+  ) {}
 
   async run(input: SemanticReportQueryInput): Promise<SemanticReportQueryResult> {
     const catalog = this.catalogService.getCatalog();
@@ -169,7 +175,8 @@ export class ReportSemanticQueryService {
     const limit = typeof input.limit === 'number' && Number.isFinite(input.limit)
       ? Math.max(1, Math.min(100, Math.trunc(input.limit)))
       : 25;
-    const availableRows = SEMANTIC_ROWS[source.code] ?? [];
+    const rowLoad = await this.loadRows(input, source.code);
+    const availableRows = rowLoad.rows;
     const periodReferenceDate = latestRowDate(availableRows) ?? new Date();
     const filteredRows = availableRows
       .filter((row) => matchesPopulation(row, scopeLevel, populationValue))
@@ -215,6 +222,7 @@ export class ReportSemanticQueryService {
         privacyLevel: SOURCE_PRIVACY[source.code] ?? 'standard',
         appliedFilters: filters,
         availableDrilldowns: source.groupBy.map((item) => item.label),
+        rowSource: rowLoad.source,
       },
       decisionSupport: buildDecisionSupport({
         source,
@@ -229,8 +237,48 @@ export class ReportSemanticQueryService {
         groupBy,
         primaryMetric,
       }),
-      warnings,
+      warnings: [...rowLoad.warnings, ...warnings],
     };
+  }
+
+  private async loadRows(input: SemanticReportQueryInput, dataSource: string): Promise<{
+    rows: SemanticRow[];
+    source: 'live' | 'fixture';
+    warnings: string[];
+  }> {
+    if (!this.rowProvider || !input.tenantId) {
+      return {
+        rows: SEMANTIC_ROWS[dataSource] ?? [],
+        source: 'fixture',
+        warnings: [],
+      };
+    }
+
+    try {
+      const liveRows = await this.rowProvider.loadRows({
+        dataSource,
+        tenantId: input.tenantId,
+        maxRows: 1000,
+      });
+      if (liveRows) {
+        return {
+          rows: liveRows.rows,
+          source: 'live',
+          warnings: liveRows.warnings ?? [],
+        };
+      }
+      return {
+        rows: SEMANTIC_ROWS[dataSource] ?? [],
+        source: 'fixture',
+        warnings: [`${dataSource} is not mapped to a live semantic row source yet; using catalog fixture rows.`],
+      };
+    } catch (error) {
+      return {
+        rows: [],
+        source: 'live',
+        warnings: [`Live semantic row source for ${dataSource} could not be loaded: ${errorMessage(error)}`],
+      };
+    }
   }
 }
 
@@ -525,4 +573,8 @@ function parseRowDate(value: unknown): Date | undefined {
 
 function labelFor(fields: ReportingFieldCatalogItem[], code: string): string {
   return fields.find((field) => field.code === code)?.label ?? code;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -30,6 +30,7 @@ import { ServiceUsageReportingService } from './services/service-usage-reporting
 import { HrAnalyticsReportingService } from './services/hr-analytics-reporting.service.js';
 import { ReportBuilderCatalogService } from './services/report-builder-catalog.service.js';
 import { ReportSemanticQueryService } from './services/report-semantic-query.service.js';
+import { SEMANTIC_REPORT_ROW_PROVIDER, SqlSemanticReportRowProviderService } from './services/report-semantic-row-provider.service.js';
 
 @Module({
   imports: [PlatformModule],
@@ -42,6 +43,8 @@ import { ReportSemanticQueryService } from './services/report-semantic-query.ser
     CreateReportScheduleHandler, ActivateReportScheduleHandler, PauseReportScheduleHandler, ExpireReportScheduleHandler,
     CreateCalculatedFieldHandler, ActivateCalculatedFieldHandler, DeprecateCalculatedFieldHandler,
     ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService,
+    SqlSemanticReportRowProviderService,
+    { provide: SEMANTIC_REPORT_ROW_PROVIDER, useExisting: SqlSemanticReportRowProviderService },
   ],
   exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService],
 })

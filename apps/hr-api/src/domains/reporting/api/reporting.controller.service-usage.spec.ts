@@ -392,6 +392,7 @@ describe('ReportingController service usage surface', () => {
         scopeLevel: 'DEPARTMENT',
         populationValue: 'ENGINEERING',
       },
+      tenantId: TENANT_ID,
       limit: 25,
     });
   });

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { HR_ANALYTICS_RAW_SQL_LOADERS } from './hr-analytics-reporting.service.js';
 import { SERVICE_USAGE_RAW_SQL_LOADERS } from './service-usage-reporting.service.js';
+import { SEMANTIC_REPORT_RAW_SQL_LOADERS } from './report-semantic-row-provider.service.js';
 
 type RawSqlLoaderContract = {
   name: string;
@@ -83,6 +84,10 @@ describe('reporting raw SQL schema drift coverage', () => {
 
   it('keeps HR analytics raw SQL loader contracts aligned to migration DDL', () => {
     assertLoaderContracts(HR_ANALYTICS_RAW_SQL_LOADERS);
+  });
+
+  it('keeps semantic report raw SQL loader contracts aligned to migration DDL', () => {
+    assertLoaderContracts(SEMANTIC_REPORT_RAW_SQL_LOADERS);
   });
 
   it('keeps reporting repository tables aligned to migration DDL', () => {

@@ -93,7 +93,7 @@ export class ReportingController {
   @Post('builder/query/run')
   async runSemanticReportQuery(@Body(new ZodValidationPipe(RunSemanticReportQueryDtoSchema)) dto: dtos.RunSemanticReportQueryDto, @Req() req: Request) {
     this.assertReportingAdmin(req);
-    return this.semanticQuery.run(dto);
+    return this.semanticQuery.run({ ...dto, tenantId: this.getTenantId(req).value });
   }
   @Post('report-definitions/:id/commands/publish')
   async publishReportDefinition(@Param('id') id: string, @Req() req: Request) {
