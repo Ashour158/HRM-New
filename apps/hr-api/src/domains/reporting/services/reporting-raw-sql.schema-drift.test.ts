@@ -21,6 +21,31 @@ const migrationTexts = readdirSync(migrationsDir)
   .filter((name) => name.endsWith('.js'))
   .map((name) => readFileSync(join(migrationsDir, name), 'utf8'));
 const allMigrations = migrationTexts.join('\n');
+const REPORTING_REPOSITORY_TABLES: RawSqlLoaderContract[] = [{
+  name: 'reporting repositories',
+  tables: [
+    {
+      schema: 'hr_reporting',
+      table: 'report_definitions',
+      columns: ['id', 'tenant_id', 'report_name', 'report_type', 'data_source', 'query_definition', 'parameters', 'schedule', 'status', 'aggregate_version', 'created_at', 'updated_at'],
+    },
+    {
+      schema: 'hr_reporting',
+      table: 'report_executions',
+      columns: ['id', 'tenant_id', 'report_definition_id', 'executed_by', 'parameters', 'result_url', 'row_count', 'started_at', 'completed_at', 'status', 'aggregate_version', 'created_at', 'updated_at'],
+    },
+    {
+      schema: 'hr_reporting',
+      table: 'report_schedules',
+      columns: ['id', 'tenant_id', 'report_definition_id', 'frequency', 'recipients', 'next_run_at', 'last_run_at', 'status', 'aggregate_version', 'created_at', 'updated_at'],
+    },
+    {
+      schema: 'hr_reporting',
+      table: 'calculated_fields',
+      columns: ['id', 'tenant_id', 'field_name', 'expression', 'data_type', 'source_fields', 'status', 'aggregate_version', 'created_at', 'updated_at'],
+    },
+  ],
+}];
 
 function hasTable(schema: string, table: string): boolean {
   return allMigrations.includes(`schema: '${schema}', name: '${table}'`)
@@ -58,5 +83,9 @@ describe('reporting raw SQL schema drift coverage', () => {
 
   it('keeps HR analytics raw SQL loader contracts aligned to migration DDL', () => {
     assertLoaderContracts(HR_ANALYTICS_RAW_SQL_LOADERS);
+  });
+
+  it('keeps reporting repository tables aligned to migration DDL', () => {
+    assertLoaderContracts(REPORTING_REPOSITORY_TABLES);
   });
 });

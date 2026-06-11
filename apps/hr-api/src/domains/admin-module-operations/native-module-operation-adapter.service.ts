@@ -33,7 +33,7 @@ type NativeStatusCommand = {
   payload: Record<string, unknown>;
 };
 
-export type NativeOperationAction = 'advance' | 'approve' | 'process' | 'terminate' | 'reject';
+export type NativeOperationAction = 'advance' | 'approve' | 'process' | 'make-effective' | 'terminate' | 'reject';
 
 const DEFAULT_LIMIT_PER_SOURCE = 10;
 
@@ -308,6 +308,16 @@ export function nativeStatusCommandForOperation(
     };
   }
 
+  if (moduleId === 'benefits' && nativeSource === 'benefits_enrollments' && operationAction === 'make-effective') {
+    const enrollmentId = new Uuid(nativeRecordId);
+    return {
+      commandName: 'MakeEffectiveBenefitsEnrollment',
+      aggregateType: 'BenefitsEnrollment',
+      aggregateId: enrollmentId,
+      payload: { enrollmentId },
+    };
+  }
+
   if (moduleId === 'benefits' && nativeSource === 'benefits_enrollments' && (operationAction === 'approve' || status === 'Active')) {
     const enrollmentId = new Uuid(nativeRecordId);
     return {
@@ -403,21 +413,25 @@ export class NativeModuleOperationAdapterService {
     if (!command) return false;
 
     try {
+      const subjectWorkerId = await this.resolveNativeSubjectWorkerId(tenantId, moduleId, nativeSource, nativeRecordId);
+      const payload = subjectWorkerId ? { ...command.payload, workerId: subjectWorkerId } : command.payload;
       const envelope: HrCommandEnvelope<Record<string, unknown>> = {
         commandId: Uuid.generate(),
         commandName: command.commandName,
         commandSchemaVersion: 1,
         tenantId,
         actor,
+        subjectWorkerId,
         aggregateType: command.aggregateType,
         aggregateId: command.aggregateId,
         idempotencyKey: crypto.randomUUID(),
         correlationId: Uuid.generate(),
         reason: `${command.commandName} via admin module operations`,
-        payload: command.payload,
+        payload,
         metadata: {
-          requestHash: computeRequestHash(command.payload),
+          requestHash: computeRequestHash(payload),
           clientType: 'HR_ADMIN',
+          hrDataSensitivity: moduleId === 'benefits' ? 'LOW' : undefined,
         },
       };
       const result = await this.commandBus.execute(envelope);
@@ -427,6 +441,26 @@ export class NativeModuleOperationAdapterService {
       this.logger.warn(`Could not update native source ${nativeSource} for module ${moduleId}: ${message}`);
       return false;
     }
+  }
+
+  private async resolveNativeSubjectWorkerId(
+    tenantId: Uuid,
+    moduleId: string,
+    nativeSource: string,
+    nativeRecordId: string,
+  ): Promise<Uuid | undefined> {
+    const table = benefitsWorkerContextTable(moduleId, nativeSource);
+    if (!table) return undefined;
+
+    const result = await sql<{ worker_id: string | null }>`
+      select worker_id::text as worker_id
+      from ${sql.raw(table)}
+      where tenant_id = ${tenantId.value}::uuid
+        and id = ${nativeRecordId}::uuid
+      limit 1
+    `.execute(this.db);
+    const workerId = result.rows[0]?.worker_id;
+    return workerId && Uuid.isValid(workerId) ? new Uuid(workerId) : undefined;
   }
 
   private async readNativeRows(tenantId: Uuid, source: NativeSourceConfig): Promise<NativeOperationRow[]> {
@@ -451,4 +485,11 @@ export class NativeModuleOperationAdapterService {
       return [];
     }
   }
+}
+
+export function benefitsWorkerContextTable(moduleId: string, nativeSource: string): string | undefined {
+  if (moduleId !== 'benefits') return undefined;
+  if (nativeSource === 'benefits_enrollments') return schemaTable('hr_benefits', 'benefits_enrollments');
+  if (nativeSource === 'benefits_life_events') return schemaTable('hr_benefits', 'benefits_life_events');
+  return undefined;
 }

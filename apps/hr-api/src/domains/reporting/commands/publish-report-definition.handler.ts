@@ -21,7 +21,7 @@ export class PublishReportDefinitionHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as PublishReportDefinitionPayload;
-    const entity = await this.repo.findById(new Uuid(payload.reportDefinitionId));
+    const entity = await this.repo.findByIdForTenant(new Uuid(payload.reportDefinitionId), command.tenantId);
     if (!entity) throw new Error('ReportDefinition not found');
     entity.publish(command.correlationId);
     await this.repo.save(entity);

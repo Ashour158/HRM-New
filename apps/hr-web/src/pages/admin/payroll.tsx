@@ -91,6 +91,7 @@ interface PayrollCyclePreview {
   totalNet: number;
   currency: string;
   rows: PayrollCycleRow[];
+  readiness?: PayrollReadiness;
 }
 
 interface PayrollMassUpdateRow {
@@ -335,6 +336,7 @@ export function AdminPayroll() {
   const [activePayrollTab, setActivePayrollTab] = React.useState<PayrollTab>('cycle');
   const [selectedWorkerId, setSelectedWorkerId] = React.useState('');
   const [persistedBatch, setPersistedBatch] = React.useState<PayrollPaymentBatch | null>(null);
+  const [showPayrollDiagnostics, setShowPayrollDiagnostics] = React.useState(false);
   const [bankFileFormat, setBankFileFormat] = React.useState<'CSV' | 'CBE_EGYPT_CSV' | 'SEPA_XML' | 'NACHA'>('CBE_EGYPT_CSV');
   const [glPosting, setGlPosting] = React.useState<PayrollGlPosting | null>(null);
   const [offCycleRows, setOffCycleRows] = React.useState<PayrollOffCycleRow[]>([
@@ -366,6 +368,18 @@ export function AdminPayroll() {
       setSetup(cloneSetup(setupConfig));
     }
   }, [setupConfig]);
+
+  React.useEffect(() => {
+    setCloseResult(null);
+    setWorkflowMessage('');
+    setShowPayrollDiagnostics(false);
+  }, [year, month, workLocationCode]);
+
+  React.useEffect(() => {
+    if (!closeResult) {
+      setReadiness(preview?.readiness ?? null);
+    }
+  }, [preview?.readiness, closeResult]);
 
   React.useEffect(() => {
     if (!preview?.rows.length) {
@@ -696,7 +710,7 @@ export function AdminPayroll() {
       cell: (row: PayrollCycleRow) => (
         <div>
           <p className="font-medium">{row.name}</p>
-          <p className="text-xs text-muted-foreground">{row.employeeId} · {row.email}</p>
+          <p className="text-xs text-muted-foreground">{row.email}</p>
         </div>
       ),
     },
@@ -855,7 +869,7 @@ export function AdminPayroll() {
         <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4')}>
           <div>
             <p className="text-xs text-muted-foreground">Payment Batch</p>
-            <p className="font-semibold">{paymentBatch.batchId}</p>
+            <p className="font-semibold">{paymentBatch.ready ? 'Ready for bank review' : 'Needs attention'}</p>
             <Badge variant={paymentBatch.ready ? 'default' : 'secondary'}>{paymentBatch.ready ? 'Ready' : 'Blocked'}</Badge>
           </div>
           <div>
@@ -880,12 +894,12 @@ export function AdminPayroll() {
           <div>
             <p className="text-xs text-muted-foreground">Closed Cycle</p>
             <p className="font-semibold">{closeResult.status}</p>
-            <p className="text-xs text-muted-foreground">{closeResult.payrollCycleId}</p>
+            <p className="text-xs text-muted-foreground">{closeResult.periodStart} to {closeResult.periodEnd}</p>
           </div>
           <div>
           <p className="text-xs text-muted-foreground">Payment Batch</p>
-          <p className="font-semibold">{closeResult.paymentBatchId ? 'Persisted' : 'Pending'}</p>
-          <p className="text-xs text-muted-foreground">{closeResult.paymentBatchId ?? 'No batch id'}</p>
+          <p className="font-semibold">{closeResult.paymentBatchId ? 'Created' : 'Pending setup'}</p>
+          <p className="text-xs text-muted-foreground">{closeResult.paymentBatchId ? 'Ready for payments workflow' : 'Batch will be created after close'}</p>
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Approved Inputs</p>
@@ -911,6 +925,33 @@ export function AdminPayroll() {
               {closeResult.bankMissingCount}
             </p>
           </div>
+        </section>
+      ) : null}
+
+      {(closeResult || paymentBatch) ? (
+        <section className={tabClass('cycle', 'fusion-glass mt-4 rounded-[2rem] p-4')}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setShowPayrollDiagnostics((current) => !current)}>
+            Diagnostics
+          </Button>
+          {showPayrollDiagnostics ? (
+            <div className="mt-3 grid gap-3 text-xs text-muted-foreground md:grid-cols-2">
+              {paymentBatch ? (
+                <div className="rounded-md border bg-white p-3">
+                  <p className="font-semibold text-foreground">Payment preview</p>
+                  <p className="font-mono">Batch ID: {paymentBatch.batchId}</p>
+                  <p className="font-mono">Cycle ID: {paymentBatch.payrollCycleId}</p>
+                </div>
+              ) : null}
+              {closeResult ? (
+                <div className="rounded-md border bg-white p-3">
+                  <p className="font-semibold text-foreground">Closed payroll</p>
+                  <p className="font-mono">Cycle ID: {closeResult.payrollCycleId}</p>
+                  <p className="font-mono">Payment batch ID: {closeResult.paymentBatchId ?? 'Pending'}</p>
+                  <p className="font-mono">Calculation run ID: {closeResult.payrollCalculationRunId}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 
@@ -963,7 +1004,7 @@ export function AdminPayroll() {
                     <SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger>
                     <SelectContent>
                       {rows.map((row) => (
-                        <SelectItem key={row.workerId} value={row.workerId}>{row.employeeId} - {row.name}</SelectItem>
+                        <SelectItem key={row.workerId} value={row.workerId}>{row.name} - {row.email}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1065,7 +1106,7 @@ export function AdminPayroll() {
                 <div className="grid gap-3 rounded-md border bg-slate-50 p-3 md:grid-cols-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Payment Batch</p>
-                    <p className="font-semibold">{paymentBatch.batchId}</p>
+                    <p className="font-semibold">{paymentBatch.ready ? 'Ready for bank review' : 'Needs attention'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Ready Transfers</p>
@@ -1122,7 +1163,7 @@ export function AdminPayroll() {
                   <div className="grid gap-3 md:grid-cols-4">
                     <div>
                       <p className="text-xs text-muted-foreground">Batch</p>
-                      <p className="font-semibold">{persistedBatch?.batchNumber ?? persistedBatch?.batchId ?? closeResult.paymentBatchId}</p>
+                      <p className="font-semibold">{persistedBatch?.batchNumber ?? persistedBatch?.status ?? 'Created'}</p>
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Net to Bank</p>
@@ -1188,7 +1229,7 @@ export function AdminPayroll() {
                 </div>
                 {offCycleRows.map((row, index) => (
                   <div key={`off-cycle-${index}`} className="grid gap-2 md:grid-cols-[1fr_12rem_9rem_7rem_2rem]">
-                    <Input value={row.employeeId ?? ''} placeholder="Employee ID" onChange={(event) => updateOffCycleRow(index, { employeeId: event.target.value })} />
+                    <Input value={row.employeeId ?? ''} placeholder="Employee number" onChange={(event) => updateOffCycleRow(index, { employeeId: event.target.value })} />
                     <Select value={row.inputType ?? 'OFF_CYCLE_EARNING'} onValueChange={(value) => updateOffCycleRow(index, { inputType: value as PayrollOffCycleRow['inputType'] })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -1588,8 +1629,8 @@ export function AdminPayroll() {
                         <SelectItem value="WARNING">Warning</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Input value={(rule.workerIds ?? []).join(',')} placeholder="Worker ids" onChange={(event) => updateBlockingRule(index, { workerIds: splitCsv(event.target.value) })} />
-                    <Input value={(rule.employeeIds ?? []).join(',')} placeholder="Employee ids" onChange={(event) => updateBlockingRule(index, { employeeIds: splitCsv(event.target.value) })} />
+                    <Input value={(rule.workerIds ?? []).join(',')} placeholder="Specific people (optional)" onChange={(event) => updateBlockingRule(index, { workerIds: splitCsv(event.target.value) })} />
+                    <Input value={(rule.employeeIds ?? []).join(',')} placeholder="Employee numbers (optional)" onChange={(event) => updateBlockingRule(index, { employeeIds: splitCsv(event.target.value) })} />
                     <Input value={(rule.employeeTypes ?? []).join(',')} placeholder="Employee types" onChange={(event) => updateBlockingRule(index, { employeeTypes: splitCsv(event.target.value) })} />
                     <Input value={(rule.departmentCodes ?? []).join(',')} placeholder="Department codes" onChange={(event) => updateBlockingRule(index, { departmentCodes: splitCsv(event.target.value) })} />
                     <Input value={(rule.locationCodes ?? []).join(',')} placeholder="Workplace codes" onChange={(event) => updateBlockingRule(index, { locationCodes: splitCsv(event.target.value) })} />
@@ -1791,7 +1832,7 @@ export function AdminPayroll() {
                       <Input value={rule.endTime ?? ''} placeholder="End time" onChange={(event) => updateShiftRotation(index, { endTime: event.target.value })} />
                       <Input value={(rule.locationCodes ?? []).join(',')} placeholder="Workplace codes" onChange={(event) => updateShiftRotation(index, { locationCodes: splitCsv(event.target.value) })} />
                       <Input value={(rule.departmentCodes ?? []).join(',')} placeholder="Department codes" onChange={(event) => updateShiftRotation(index, { departmentCodes: splitCsv(event.target.value) })} />
-                      <Input value={(rule.workerIds ?? []).join(',')} placeholder="Worker ids" onChange={(event) => updateShiftRotation(index, { workerIds: splitCsv(event.target.value) })} />
+                      <Input value={(rule.workerIds ?? []).join(',')} placeholder="Specific people (optional)" onChange={(event) => updateShiftRotation(index, { workerIds: splitCsv(event.target.value) })} />
                       <Button type="button" variant="ghost" onClick={() => updateAttendancePolicy({ shiftRotations: (setup.attendancePolicy.shiftRotations ?? []).filter((_, rowIndex) => rowIndex !== index) })}>
                         <Trash2 className="mr-2 h-4 w-4" />
                         Remove
@@ -1951,7 +1992,7 @@ export function AdminPayroll() {
                     <Input value={rule.label} onChange={(event) => updateFlexibleRule(index, { label: event.target.value })} />
                     <Input value={(rule.locationCodes ?? []).join(',')} placeholder="Workplace codes" onChange={(event) => updateFlexibleRule(index, { locationCodes: splitCsv(event.target.value) })} />
                     <Input value={(rule.departmentCodes ?? []).join(',')} placeholder="Department codes" onChange={(event) => updateFlexibleRule(index, { departmentCodes: splitCsv(event.target.value) })} />
-                    <Input value={(rule.workerIds ?? []).join(',')} placeholder="Worker ids" onChange={(event) => updateFlexibleRule(index, { workerIds: splitCsv(event.target.value) })} />
+                    <Input value={(rule.workerIds ?? []).join(',')} placeholder="Specific people (optional)" onChange={(event) => updateFlexibleRule(index, { workerIds: splitCsv(event.target.value) })} />
                     <Input value={rule.flexibleWindowStart ?? ''} placeholder="Flex start" onChange={(event) => updateFlexibleRule(index, { flexibleWindowStart: event.target.value })} />
                     <Input value={rule.flexibleWindowEnd ?? ''} placeholder="Flex end" onChange={(event) => updateFlexibleRule(index, { flexibleWindowEnd: event.target.value })} />
                     <Input value={rule.coreStartTime ?? ''} placeholder="Core start" onChange={(event) => updateFlexibleRule(index, { coreStartTime: event.target.value })} />
@@ -2084,8 +2125,8 @@ export function AdminPayroll() {
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Input value={(earning.workerIds ?? []).join(',')} placeholder="Worker ids" onChange={(event) => updateEarning(index, { workerIds: splitCsv(event.target.value) })} />
-                    <Input value={(earning.employeeIds ?? []).join(',')} placeholder="Employee ids" onChange={(event) => updateEarning(index, { employeeIds: splitCsv(event.target.value) })} />
+                    <Input value={(earning.workerIds ?? []).join(',')} placeholder="Specific people (optional)" onChange={(event) => updateEarning(index, { workerIds: splitCsv(event.target.value) })} />
+                    <Input value={(earning.employeeIds ?? []).join(',')} placeholder="Employee numbers (optional)" onChange={(event) => updateEarning(index, { employeeIds: splitCsv(event.target.value) })} />
                     <Input value={(earning.appliesToEmployeeTypes ?? []).join(',')} placeholder="Employee types: FULL_TIME,HOURLY" onChange={(event) => updateEarning(index, { appliesToEmployeeTypes: splitCsv(event.target.value) })} />
                     <Input value={(earning.departmentCodes ?? []).join(',')} placeholder="Department codes" onChange={(event) => updateEarning(index, { departmentCodes: splitCsv(event.target.value) })} />
                     <Input value={(earning.locationCodes ?? []).join(',')} placeholder="Workplace codes" onChange={(event) => updateEarning(index, { locationCodes: splitCsv(event.target.value) })} />
@@ -2182,8 +2223,8 @@ export function AdminPayroll() {
                   <div className="grid grid-cols-2 gap-2">
                     <Input type="number" value={deduction.maxAmount ?? ''} placeholder="Max amount cap" onChange={(event) => updateDeduction(index, { maxAmount: event.target.value ? Number(event.target.value) : undefined })} />
                     <Input type="number" value={deduction.priority ?? ''} placeholder="Priority" onChange={(event) => updateDeduction(index, { priority: event.target.value ? Number(event.target.value) : undefined })} />
-                    <Input value={(deduction.workerIds ?? []).join(',')} placeholder="Worker ids" onChange={(event) => updateDeduction(index, { workerIds: splitCsv(event.target.value) })} />
-                    <Input value={(deduction.employeeIds ?? []).join(',')} placeholder="Employee ids" onChange={(event) => updateDeduction(index, { employeeIds: splitCsv(event.target.value) })} />
+                    <Input value={(deduction.workerIds ?? []).join(',')} placeholder="Specific people (optional)" onChange={(event) => updateDeduction(index, { workerIds: splitCsv(event.target.value) })} />
+                    <Input value={(deduction.employeeIds ?? []).join(',')} placeholder="Employee numbers (optional)" onChange={(event) => updateDeduction(index, { employeeIds: splitCsv(event.target.value) })} />
                     <Input value={(deduction.appliesToEmployeeTypes ?? []).join(',')} placeholder="Employee types: FULL_TIME,HOURLY" onChange={(event) => updateDeduction(index, { appliesToEmployeeTypes: splitCsv(event.target.value) })} />
                     <Input value={(deduction.departmentCodes ?? []).join(',')} placeholder="Department codes" onChange={(event) => updateDeduction(index, { departmentCodes: splitCsv(event.target.value) })} />
                     <Input value={(deduction.locationCodes ?? []).join(',')} placeholder="Workplace codes" onChange={(event) => updateDeduction(index, { locationCodes: splitCsv(event.target.value) })} />

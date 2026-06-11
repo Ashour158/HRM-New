@@ -334,6 +334,46 @@ describe('AdminModuleOperationsController', () => {
     );
   });
 
+  it('passes explicit benefits make-effective actions through the native adapter', async () => {
+    const repository = {
+      findRecord: vi.fn()
+        .mockResolvedValueOnce(recordRow({
+          module_id: 'benefits',
+          object_type: 'Enrollment',
+          status: 'Active',
+          native_source: 'benefits_enrollments',
+          native_record_id: '00000000-0000-0000-0000-000000000902',
+        }))
+        .mockResolvedValueOnce(recordRow({
+          module_id: 'benefits',
+          object_type: 'Enrollment',
+          status: 'Active',
+          native_source: 'benefits_enrollments',
+          native_record_id: '00000000-0000-0000-0000-000000000902',
+        })),
+    } as unknown as AdminModuleOperationsRepository;
+    const adapter = nativeAdapter();
+    const request = adminRequest();
+    const controller = new AdminModuleOperationsController(repository, adapter);
+
+    await controller.updateRecord(
+      'benefits',
+      '00000000-0000-0000-0000-000000000201',
+      { status: 'Active', operationAction: 'make-effective' },
+      request,
+    );
+
+    expect(adapter.applyRecordStatusUpdate).toHaveBeenCalledWith(
+      new Uuid(tenantId),
+      'benefits',
+      'benefits_enrollments',
+      '00000000-0000-0000-0000-000000000902',
+      'Active',
+      request.actor,
+      'make-effective',
+    );
+  });
+
   it('rejects unsupported native record status updates instead of writing through generically', async () => {
     const repository = {
       findRecord: vi.fn().mockResolvedValue(recordRow({ native_source: 'compensation_bands' })),

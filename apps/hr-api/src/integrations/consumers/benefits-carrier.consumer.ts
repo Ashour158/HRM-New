@@ -9,10 +9,14 @@
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
-import { isBenefitsEnrollmentFinalizedEvent, isLifeEventProcessedEvent } from '@hcm/event-schemas';
+import { Uuid } from '@hcm/shared-kernel';
 import { EventBus } from '../../platform/event-bus/event-bus.js';
 import { InboxConsumer } from '../../platform/outbox-inbox/inbox-consumer.js';
 import { BenefitsCarrierAdapter } from '../adapters/benefits-carrier.adapter.js';
+
+const BENEFITS_ENROLLMENT_EFFECTIVE = 'BenefitsEnrollmentEffective';
+const BENEFITS_ENROLLMENT_FINALIZED = BENEFITS_ENROLLMENT_EFFECTIVE;
+const LIFE_EVENT_PROCESSED = 'LifeEventProcessed';
 
 @Injectable()
 export class BenefitsCarrierConsumer implements OnModuleInit {
@@ -41,38 +45,76 @@ export class BenefitsCarrierConsumer implements OnModuleInit {
   }
 
   private async handle(event: HrEventEnvelope<unknown>): Promise<void> {
-    if (isBenefitsEnrollmentFinalizedEvent(event)) {
+    const payload = isRecord(event.payload) ? event.payload : {};
+
+    if (event.eventName === BENEFITS_ENROLLMENT_EFFECTIVE || event.eventName === BENEFITS_ENROLLMENT_FINALIZED) {
+      const enrollmentId = requiredUuid(payload.enrollmentId, 'enrollmentId');
+      const workerId = requiredUuid(payload.workerId, 'workerId');
+      const programId = requiredUuid(payload.programId, 'programId');
       this.logger.log({
         type: 'CONSUMER_BENEFITS_ENROLLMENT_FINALIZED',
-        enrollmentId: event.payload.enrollmentId.value,
-        workerId: event.payload.workerId.value,
+        enrollmentId: enrollmentId.value,
+        workerId: workerId.value,
       });
 
       await this.carrierAdapter.sendEnrollment({
-        enrollmentId: event.payload.enrollmentId,
-        workerId: event.payload.workerId,
-        programId: event.payload.enrollmentId, // placeholder – resolve from read model in production
-        coverageStartDate: new Date().toISOString(),
+        enrollmentId,
+        workerId,
+        programId,
+        coverageStartDate: requiredString(payload.coverageStartDate, 'coverageStartDate'),
       });
       return;
     }
 
-    if (isLifeEventProcessedEvent(event)) {
+    if (event.eventName === LIFE_EVENT_PROCESSED) {
+      const lifeEventId = requiredUuid(payload.lifeEventId, 'lifeEventId');
+      const workerId = requiredUuid(payload.workerId, 'workerId');
       this.logger.log({
         type: 'CONSUMER_LIFE_EVENT_PROCESSED',
-        lifeEventId: event.payload.lifeEventId.value,
-        workerId: event.payload.workerId.value,
+        lifeEventId: lifeEventId.value,
+        workerId: workerId.value,
       });
 
       await this.carrierAdapter.sendLifeEventUpdate({
-        lifeEventId: event.payload.lifeEventId,
-        workerId: event.payload.workerId,
-        eventType: 'UNKNOWN', // resolve from read model in production
-        effectiveDate: new Date().toISOString(),
+        lifeEventId,
+        workerId,
+        eventType: stringValue(payload.eventType) ?? stringValue(payload.lifeEventType) ?? missingString('eventType'),
+        effectiveDate: requiredString(payload.effectiveDate, 'effectiveDate'),
       });
       return;
     }
 
     this.logger.debug({ type: 'CONSUMER_EVENT_IGNORED', eventName: event.eventName });
   }
+}
+
+function requiredUuid(value: unknown, field: string): Uuid {
+  const uuid = uuidValue(value);
+  if (!uuid) throw new Error(`Benefits carrier event payload is missing ${field}`);
+  return uuid;
+}
+
+function requiredString(value: unknown, field: string): string {
+  return stringValue(value) ?? missingString(field);
+}
+
+function missingString(field: string): never {
+  throw new Error(`Benefits carrier event payload is missing ${field}`);
+}
+
+function uuidValue(value: unknown): Uuid | undefined {
+  if (value instanceof Uuid) return value;
+  if (typeof value === 'string' && Uuid.isValid(value)) return new Uuid(value);
+  if (isRecord(value) && typeof value.value === 'string' && Uuid.isValid(value.value)) {
+    return new Uuid(value.value);
+  }
+  return undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
