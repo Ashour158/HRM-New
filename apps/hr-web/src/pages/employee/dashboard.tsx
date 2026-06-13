@@ -18,6 +18,7 @@ import { buildEmployeeJourneyItems, type EmployeeJourneyTone } from '@/lib/emplo
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { BarChartPanel } from '@/components/ui/charts';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -514,10 +515,6 @@ export function EmployeeDashboard() {
       lateMinutes: day.lateMinutes,
     }));
   }, [attendancePeriodView?.series, today, todayState?.totalWorkedMinutes]);
-  const attendanceChartMaxHours = React.useMemo(
-    () => Math.max(1, ...attendanceSeries.map((point) => point.hours || 0)),
-    [attendanceSeries],
-  );
   const attendanceSummary = React.useMemo(() => ({
     summary: {
       payableMinutes: Math.round((attendancePeriodView?.totals.payableHours ?? 0) * 60),
@@ -888,23 +885,11 @@ export function EmployeeDashboard() {
             </Select>
           </div>
         </div>
-        <div className="h-64 min-h-[256px] min-w-0 overflow-hidden rounded-2xl bg-white/55 p-4">
-          <div className="flex h-full items-end gap-2" role="img" aria-label={`${rangeLabel(attendanceRange)} attendance hours trend`}>
-            {attendanceSeries.map((point) => {
-              const height = Math.max(8, Math.round(((point.hours || 0) / attendanceChartMaxHours) * 100));
-              return (
-                <div key={point.day} className="flex h-full min-w-0 flex-1 flex-col justify-end gap-2 text-center">
-                  <div
-                    className="mx-auto w-full max-w-12 rounded-t-2xl bg-gradient-to-t from-indigo-500 to-violet-300 shadow-sm shadow-indigo-500/20"
-                    style={{ height: `${height}%` }}
-                    title={`${point.day}: ${point.hours.toFixed(1)} hours`}
-                  />
-                  <span className="truncate text-[11px] font-semibold text-slate-500">{point.day}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <BarChartPanel
+          title={`${rangeLabel(attendanceRange)} Attendance Hours`}
+          data={attendanceSeries.map((point) => ({ label: point.day, value: point.hours }))}
+          height={256}
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)]">

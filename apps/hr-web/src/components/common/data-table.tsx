@@ -2,6 +2,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { BulkActionToolbar, type BulkAction } from '@/components/ui/bulk-action-toolbar';
 import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 /**
@@ -28,6 +29,10 @@ interface DataTableProps<T> {
   sortColumn?: string;
   sortDirection?: 'asc' | 'desc';
   onSort?: (column: string, direction: 'asc' | 'desc') => void;
+  selectable?: boolean;
+  selectedRowIds?: string[];
+  onSelectionChange?: (ids: string[]) => void;
+  bulkActions?: BulkAction[];
 }
 
 /**
@@ -46,8 +51,16 @@ export function DataTable<T>({
   sortColumn,
   sortDirection,
   onSort,
+  selectable = false,
+  selectedRowIds = [],
+  onSelectionChange,
+  bulkActions = [],
 }: DataTableProps<T>) {
   const totalPages = Math.ceil(total / pageSize);
+  const visibleRowIds = React.useMemo(() => data.map((row) => keyExtractor(row)), [data, keyExtractor]);
+  const selectedSet = React.useMemo(() => new Set(selectedRowIds), [selectedRowIds]);
+  const allVisibleSelected = visibleRowIds.length > 0 && visibleRowIds.every((id) => selectedSet.has(id));
+  const selectedCount = selectedRowIds.length;
 
   const handleSort = (columnKey: string) => {
     if (!onSort) return;
@@ -56,6 +69,30 @@ export function DataTable<T>({
     } else {
       onSort(columnKey, 'asc');
     }
+  };
+
+  const setSelected = (ids: string[]) => {
+    onSelectionChange?.(ids);
+  };
+
+  const toggleRow = (id: string) => {
+    if (!onSelectionChange) return;
+    const next = new Set(selectedSet);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setSelected(Array.from(next));
+  };
+
+  const toggleAllVisible = () => {
+    if (!onSelectionChange) return;
+    if (allVisibleSelected) {
+      setSelected(selectedRowIds.filter((id) => !visibleRowIds.includes(id)));
+      return;
+    }
+    setSelected(Array.from(new Set([...selectedRowIds, ...visibleRowIds])));
   };
 
   const renderSortIcon = (column: DataTableColumn<T>) => {
@@ -80,10 +117,29 @@ export function DataTable<T>({
 
   return (
     <div className="space-y-4">
+      {selectable && selectedCount > 0 ? (
+        <BulkActionToolbar
+          actions={bulkActions}
+          selectedCount={selectedCount}
+          onClearSelection={() => setSelected([])}
+        />
+      ) : null}
       <div className="rounded-md border overflow-x-auto">
         <table className="w-full caption-bottom text-sm">
           <thead className="[&_tr]:border-b bg-muted/50">
             <tr>
+              {selectable ? (
+                <th className="h-12 w-12 px-4 text-left align-middle">
+                  <input
+                    aria-label="Select all rows"
+                    checked={allVisibleSelected}
+                    className="h-4 w-4 rounded border-border text-primary focus-visible:ring-ring"
+                    disabled={!onSelectionChange || visibleRowIds.length === 0}
+                    onChange={toggleAllVisible}
+                    type="checkbox"
+                  />
+                </th>
+              ) : null}
               {columns.map((column) => (
                 <th
                   key={column.key}
@@ -105,23 +161,39 @@ export function DataTable<T>({
           <tbody className="[&_tr:last-child]:border-0">
             {data.length === 0 ? (
               <tr>
-                <td colSpan={columns.length} className="h-24 text-center text-muted-foreground">
+                <td colSpan={columns.length + (selectable ? 1 : 0)} className="h-24 text-center text-muted-foreground">
                   {emptyMessage}
                 </td>
               </tr>
             ) : (
-              data.map((row) => (
-                <tr
-                  key={keyExtractor(row)}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
-                  {columns.map((column) => (
-                    <td key={column.key} className={cn('p-4 align-middle', column.className)}>
-                      {column.cell(row)}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              data.map((row) => {
+                const rowId = keyExtractor(row);
+                const isSelected = selectedSet.has(rowId);
+                return (
+                  <tr
+                    key={rowId}
+                    className={cn('border-b transition-colors hover:bg-muted/50', isSelected && 'bg-muted/60')}
+                  >
+                    {selectable ? (
+                      <td className="w-12 p-4 align-middle">
+                        <input
+                          aria-label="Select row"
+                          checked={isSelected}
+                          className="h-4 w-4 rounded border-border text-primary focus-visible:ring-ring"
+                          disabled={!onSelectionChange}
+                          onChange={() => toggleRow(rowId)}
+                          type="checkbox"
+                        />
+                      </td>
+                    ) : null}
+                    {columns.map((column) => (
+                      <td key={column.key} className={cn('p-4 align-middle', column.className)}>
+                        {column.cell(row)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

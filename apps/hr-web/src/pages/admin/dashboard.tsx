@@ -1,23 +1,9 @@
 import { Link } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart as RePieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as ReTooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts';
 import { useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BarChartPanel, DonutChartPanel, LineChartPanel } from '@/components/ui/charts';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { buildAdminJourneyItems, type AdminJourneyTone } from '@/lib/admin-journey';
@@ -26,7 +12,6 @@ import {
   Activity,
   AlertTriangle,
   ArrowRight,
-  BarChart3,
   Briefcase,
   Building2,
   ChevronRight,
@@ -38,11 +23,9 @@ import {
   Landmark,
   Layers3,
   Network,
-  PieChart,
   Quote,
   ShieldCheck,
   TrendingDown,
-  TrendingUp,
   Umbrella,
   UserCircle,
   UserPlus,
@@ -68,35 +51,6 @@ interface AdminDashboardData {
     message: string;
   }>;
 }
-
-const CHART_COLORS = ['#818cf8', '#a78bfa', '#c084fc', '#2dd4bf', '#fbbf24', '#a5b4fc'];
-
-const headcountTrend = [
-  { month: 'Jan', headcount: 4480 },
-  { month: 'Feb', headcount: 4525 },
-  { month: 'Mar', headcount: 4598 },
-  { month: 'Apr', headcount: 4662 },
-  { month: 'May', headcount: 4744 },
-  { month: 'Jun', headcount: 4820 },
-];
-
-const deptDistribution = [
-  { name: 'Engineering', value: 1280 },
-  { name: 'Sales', value: 920 },
-  { name: 'Operations', value: 760 },
-  { name: 'Marketing', value: 540 },
-  { name: 'Finance', value: 480 },
-  { name: 'People & Admin', value: 840 },
-];
-
-const hiresAttrition = [
-  { month: 'Jan', hires: 64, exits: 38 },
-  { month: 'Feb', hires: 71, exits: 42 },
-  { month: 'Mar', hires: 83, exits: 35 },
-  { month: 'Apr', hires: 77, exits: 51 },
-  { month: 'May', hires: 88, exits: 44 },
-  { month: 'Jun', hires: 92, exits: 39 },
-];
 
 const dailyQuotes = [
   "Great teams aren't built in a day — they're built every day.",
@@ -404,84 +358,31 @@ export function AdminDashboard() {
 
       {/* Analytics */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Headcount growth — area */}
-        <div className="flex flex-col rounded-[2rem] fusion-glass p-6 lg:col-span-2 lg:p-8">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-xl font-bold">
-              <TrendingUp size={20} className="text-indigo-500" />
-              Headcount Growth
-            </h2>
-            <span className="rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">Last 6 months</span>
-          </div>
-          <div className="-ml-2 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={headcountTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="fusionHeadcount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#818cf8" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#a5b4fc" stopOpacity={0.02} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} domain={['dataMin - 100', 'dataMax + 80']} width={48} />
-                <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
-                <Area type="monotone" dataKey="headcount" stroke="#818cf8" strokeWidth={3} fill="url(#fusionHeadcount)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* By department — donut */}
-        <div className="flex flex-col rounded-[2rem] fusion-glass p-6 lg:p-8">
-          <h2 className="mb-2 flex items-center gap-2 text-xl font-bold">
-            <PieChart size={20} className="text-teal-500" />
-            By Department
-          </h2>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <RePieChart>
-                <Pie data={deptDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={90} paddingAngle={3} stroke="none">
-                  {deptDistribution.map((entry, i) => (
-                    <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                  ))}
-                </Pie>
-                <ReTooltip contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
-                <Legend iconType="circle" wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
-              </RePieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Hires vs attrition — bar */}
-        <div className="flex flex-col rounded-[2rem] fusion-glass p-6 lg:col-span-3 lg:p-8">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-xl font-bold">
-              <BarChart3 size={20} className="text-violet-500" />
-              Hires vs Attrition
-            </h2>
-            <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-indigo-400" /> Hires
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-3 w-3 rounded-full bg-amber-300" /> Exits
-              </span>
-            </div>
-          </div>
-          <div className="-ml-2 h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={hiresAttrition} margin={{ top: 10, right: 10, left: 0, bottom: 0 }} barGap={6}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="month" tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} width={36} />
-                <ReTooltip cursor={{ fill: 'rgba(99,102,241,0.06)' }} contentStyle={{ borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 10px 30px rgba(0,0,0,0.08)', fontSize: 13 }} />
-                <Bar dataKey="hires" fill="#818cf8" radius={[8, 8, 0, 0]} maxBarSize={34} />
-                <Bar dataKey="exits" fill="#fbbf24" radius={[8, 8, 0, 0]} maxBarSize={34} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        <LineChartPanel
+          title="Workforce Snapshot"
+          data={[
+            { label: 'Headcount', value: data?.headcount ?? 0 },
+            { label: 'Open roles', value: data?.openPositions ?? 0 },
+            { label: 'New hires', value: data?.newHiresThisMonth ?? 0 },
+            { label: 'Exits', value: data?.terminationsThisMonth ?? 0 },
+          ]}
+        />
+        <DonutChartPanel
+          title="Alert Severity"
+          data={[
+            { label: 'High', value: alerts.filter((alert) => alert.severity === 'high').length },
+            { label: 'Medium', value: alerts.filter((alert) => alert.severity === 'medium').length },
+            { label: 'Low', value: alerts.filter((alert) => alert.severity === 'low').length },
+          ]}
+        />
+        <BarChartPanel
+          title="Hiring And Turnover"
+          data={[
+            { label: 'Hires', value: data?.newHiresThisMonth ?? 0 },
+            { label: 'Exits', value: data?.terminationsThisMonth ?? 0 },
+            { label: 'Turnover %', value: data?.turnover ?? 0 },
+          ]}
+        />
       </div>
 
       {/* Operating flow + alerts + activity */}

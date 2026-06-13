@@ -1,4 +1,4 @@
-export type PortalSearchContext = 'employee' | 'manager' | 'admin';
+export type PortalSearchContext = 'employee' | 'manager' | 'admin' | 'recruiter' | 'payroll';
 
 /**
  * Resolves global portal search terms to the closest real screen.
@@ -17,6 +17,16 @@ export function resolvePortalSearchPath(portalType: PortalSearchContext, query: 
     if (value.includes('profile') || value.includes('document')) return '/employee/profile';
     if (value.includes('onboard')) return '/employee/onboarding';
     return '/employee/services';
+  }
+  if (portalType === 'recruiter') {
+    if (value.includes('candidate') || value.includes('pipeline')) return '/recruiter#pipeline';
+    if (value.includes('offer')) return '/recruiter#offers';
+    return '/recruiter#requisitions';
+  }
+  if (portalType === 'payroll') {
+    if (value.includes('payslip')) return '/payroll#payslips';
+    if (value.includes('export') || value.includes('bank') || value.includes('payment')) return '/payroll#exports';
+    return '/payroll#runs';
   }
   if (value.includes('integrat') || value.includes('api') || value.includes('adapter') || value.includes('map')) return '/admin/system-console/integrations';
   if (value.includes('readiness') || value.includes('go live') || value.includes('go-live') || value.includes('production gate')) return '/admin/system-console/readiness';
