@@ -18,6 +18,10 @@ export class PlatformNotificationService {
   }
 
   private async buildNotifications(event: HrEventEnvelope<unknown>): Promise<PlatformNotificationInput[]> {
+    if (event.eventName === 'ReminderDue') {
+      return this.buildReminderNotifications(event);
+    }
+
     const notifications: PlatformNotificationInput[] = [];
     const subjectWorkerId = event.privacy.subjectWorkerId;
     const category = event.privacy.employeeDataCategory ?? event.aggregateType.toUpperCase();
@@ -72,6 +76,62 @@ export class PlatformNotificationService {
 
     return notifications;
   }
+
+  private async buildReminderNotifications(event: HrEventEnvelope<unknown>): Promise<PlatformNotificationInput[]> {
+    const payload = isRecord(event.payload) ? event.payload : {};
+    const audienceWorkerIds = stringArray(payload.audienceWorkerIds);
+    const managerAudienceWorkerIds = stringArray(payload.managerAudienceWorkerIds);
+    const title = stringValue(payload.title) ?? `${stringValue(payload.reminderType) ?? 'Reminder'} due`;
+    const body = stringValue(payload.message) ?? stringValue(payload.body) ?? `${title} for ${event.aggregateType}.`;
+    const category = event.privacy.employeeDataCategory ?? event.aggregateType.toUpperCase();
+    const eventId = uuidValue(event.eventId);
+    const tenantId = uuidValue(event.tenantId);
+    const aggregateId = uuidValue(event.aggregateId);
+    const correlationId = uuidValue(event.metadata.correlationId);
+    const occurredAt = dateValue(event.occurredAt);
+    const base = {
+      tenantId,
+      category,
+      title,
+      body,
+      sourceEventId: eventId,
+      sourceEventName: event.eventName,
+      relatedAggregateType: event.aggregateType,
+      relatedAggregateId: aggregateId,
+      payload: {
+        ...payload,
+        eventName: event.eventName,
+        aggregateType: event.aggregateType,
+        aggregateId,
+        correlationId,
+        occurredAt: occurredAt.toISOString(),
+      },
+    };
+
+    const notifications: PlatformNotificationInput[] = [];
+    for (const workerId of audienceWorkerIds) {
+      notifications.push({
+        ...base,
+        audience: 'EMPLOYEE',
+        recipientWorkerId: workerId,
+      });
+    }
+    for (const workerId of managerAudienceWorkerIds) {
+      notifications.push({
+        ...base,
+        audience: 'MANAGER',
+        recipientWorkerId: workerId,
+      });
+    }
+    if (payload.notifyHrOperations === true) {
+      notifications.push({
+        ...base,
+        audience: 'HR_OPERATIONS',
+        recipientRole: HR_OPERATIONS_NOTIFICATION_ROLE,
+      });
+    }
+    return notifications;
+  }
 }
 
 function humanizeEventName(value: string): string {
@@ -96,4 +156,17 @@ function dateValue(value: unknown): Date {
     if (!Number.isNaN(date.getTime())) return date;
   }
   throw new Error('Event envelope is missing an occurredAt date value');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function stringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)));
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
 }

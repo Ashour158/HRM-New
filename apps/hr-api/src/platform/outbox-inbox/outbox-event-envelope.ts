@@ -176,6 +176,7 @@ function isClientType(value: unknown): value is ClientType {
     'MOBILE',
     'BFF',
     'SYSTEM',
+    'SYSTEM_SCHEDULER',
     'INTEGRATION',
   ].includes(value);
 }

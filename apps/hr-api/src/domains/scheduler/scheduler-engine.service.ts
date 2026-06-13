@@ -2,9 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createPrivacyForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
 import { runWithTenant } from '@hcm/platform-core';
 import { Uuid } from '@hcm/shared-kernel';
-import type { CommandBus } from '../../platform/command-bus/command-bus.js';
-import type { EventBus } from '../../platform/event-bus/event-bus.js';
-import type { HcmSetupService } from '../hcm-setup/hcm-setup.service.js';
+// Value imports (not `import type`): Nest needs the runtime class in paramtypes
+// metadata to resolve these by-type constructor dependencies.
+import { CommandBus } from '../../platform/command-bus/command-bus.js';
+import { EventBus } from '../../platform/event-bus/event-bus.js';
+import { HcmSetupService } from '../hcm-setup/hcm-setup.service.js';
 import { resolveTenantTimezone } from '../hcm-setup/hcm-setup-currency.js';
 import { buildSchedulerCommandEnvelope, schedulerIdempotencyKey } from './scheduler-command-envelope.factory.js';
 import { nextRunAfter, schedulerPeriodKey } from './scheduler-time.js';
@@ -25,6 +27,8 @@ export class SchedulerEngineService {
     private readonly jobRepository: SchedulerJobRepositoryPort,
     @Inject(SCHEDULER_JOB_RUN_REPOSITORY)
     private readonly runRepository: SchedulerJobRunRepositoryPort,
+    // Pick<> erases to Object in metadata, so inject the concrete service token.
+    @Inject(HcmSetupService)
     private readonly hcmSetup: Pick<HcmSetupService, 'getSetup'>,
   ) {}
 

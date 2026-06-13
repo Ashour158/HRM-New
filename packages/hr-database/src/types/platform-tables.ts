@@ -109,6 +109,67 @@ export interface PlatformNotificationsTable {
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
+export interface PlatformSchedulerJobRunsTable {
+  id: string;
+  tenant_id: string;
+  job_name: string;
+  period_key: string;
+  status: string;
+  items_processed: number;
+  error: string | null;
+  started_at: ColumnType<Date, string | Date | undefined, never>;
+  finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PlatformSchedulerJobSchedulesTable {
+  id: string;
+  tenant_id: string;
+  job_name: string;
+  cron: string;
+  enabled: boolean;
+  updated_by: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ReminderDispatchLogTable {
+  id: string;
+  tenant_id: string;
+  dispatch_key: string;
+  reminder_type: string;
+  subject_id: string;
+  subject_type: string;
+  due_date_bucket: string;
+  escalation_tier: string;
+  audience_worker_ids: string[];
+  dispatched_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  expires_at: ColumnType<Date, string | Date, string | Date>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface EffectiveDatingActivationLogTable {
+  id: string;
+  tenant_id: string;
+  job_name: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  effective_date_bucket: string;
+  command_name: string;
+  status: string;
+  error: string | null;
+  dispatched_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface HcmSetupConfigsTable {
   id: string;
   tenant_id: string;
@@ -2105,6 +2166,10 @@ export interface Database {
   outbox_events: OutboxEventsTable;
   inbox_events: InboxEventsTable;
   platform_notifications: PlatformNotificationsTable;
+  scheduler_job_runs: PlatformSchedulerJobRunsTable;
+  scheduler_job_schedules: PlatformSchedulerJobSchedulesTable;
+  reminder_dispatch_log: ReminderDispatchLogTable;
+  effective_dating_activation_log: EffectiveDatingActivationLogTable;
   hcm_setup_configs: HcmSetupConfigsTable;
   roles: RolesTable;
   permissions: PermissionsTable;

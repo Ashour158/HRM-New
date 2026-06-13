@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createKyselyInstance, getPool, type Database } from '@hcm/database';
 import type { Kysely, Selectable } from 'kysely';
 import { randomUUID } from 'node:crypto';
@@ -32,7 +32,7 @@ export interface CreateAuthTokenInput {
 export class AuthTokenRepository {
   private readonly db: Kysely<Database>;
 
-  constructor(db?: Kysely<Database>) {
+  constructor(@Optional() db?: Kysely<Database>) {
     this.db = db ?? createKyselyInstance(getPool());
   }
 

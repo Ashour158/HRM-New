@@ -18,6 +18,13 @@ export interface InboxMetricInput {
   status: 'success' | 'failed_retryable' | 'failed_non_retryable' | 'deduplicated' | 'skipped';
 }
 
+export interface SchedulerMetricInput {
+  jobName: string;
+  status: 'SUCCEEDED' | 'FAILED' | 'SKIPPED';
+  durationMs: number;
+  itemsProcessed: number;
+}
+
 type HttpMetric = {
   count: number;
   sumSeconds: number;
@@ -38,6 +45,8 @@ export class ObservabilityMetricsService {
   private readonly httpRequests = new Map<string, HttpMetric>();
   private readonly outboxEvents = new Map<string, { count: number; eventName: string; status: string }>();
   private readonly inboxEvents = new Map<string, { count: number; consumerName: string; eventName: string; status: string }>();
+  private readonly schedulerRuns = new Map<string, { count: number; jobName: string; status: string; sumSeconds: number }>();
+  private readonly schedulerItemsProcessed = new Map<string, { jobName: string; value: number }>();
 
   recordHttpRequest(input: HttpRequestMetricInput): void {
     const statusClass = `${Math.floor(input.statusCode / 100)}xx`;
@@ -91,6 +100,24 @@ export class ObservabilityMetricsService {
     this.inboxEvents.set(key, current);
   }
 
+  recordSchedulerJobRun(input: SchedulerMetricInput): void {
+    const jobName = sanitizeLabelValue(input.jobName);
+    const key = `${jobName}|${input.status}`;
+    const current = this.schedulerRuns.get(key) ?? {
+      count: 0,
+      jobName,
+      status: input.status,
+      sumSeconds: 0,
+    };
+    current.count += 1;
+    current.sumSeconds += Math.max(0, input.durationMs / 1000);
+    this.schedulerRuns.set(key, current);
+    this.schedulerItemsProcessed.set(jobName, {
+      jobName,
+      value: Math.max(0, input.itemsProcessed),
+    });
+  }
+
   renderPrometheus(): string {
     const lines: string[] = [];
     lines.push('# HELP hcm_observability_info Static metadata for the HRM Nexus API observability endpoint.');
@@ -137,6 +164,25 @@ export class ObservabilityMetricsService {
     lines.push('# TYPE hcm_inbox_events_total counter');
     for (const metric of this.inboxEvents.values()) {
       lines.push(`hcm_inbox_events_total{consumer_name="${metric.consumerName}",event_name="${metric.eventName}",status="${metric.status}"} ${metric.count}`);
+    }
+
+    lines.push('# HELP hcm_scheduler_job_runs_total Scheduler job execution counts.');
+    lines.push('# TYPE hcm_scheduler_job_runs_total counter');
+    for (const metric of this.schedulerRuns.values()) {
+      lines.push(`hcm_scheduler_job_runs_total{job_name="${metric.jobName}",status="${metric.status}"} ${metric.count}`);
+    }
+
+    lines.push('# HELP hcm_scheduler_job_duration_seconds Scheduler job execution duration in seconds.');
+    lines.push('# TYPE hcm_scheduler_job_duration_seconds summary');
+    for (const metric of this.schedulerRuns.values()) {
+      lines.push(`hcm_scheduler_job_duration_seconds_sum{job_name="${metric.jobName}",status="${metric.status}"} ${seconds(metric.sumSeconds * 1000)}`);
+      lines.push(`hcm_scheduler_job_duration_seconds_count{job_name="${metric.jobName}",status="${metric.status}"} ${metric.count}`);
+    }
+
+    lines.push('# HELP hcm_scheduler_job_items_processed Last observed items processed by scheduler job.');
+    lines.push('# TYPE hcm_scheduler_job_items_processed gauge');
+    for (const metric of this.schedulerItemsProcessed.values()) {
+      lines.push(`hcm_scheduler_job_items_processed{job_name="${metric.jobName}"} ${metric.value}`);
     }
 
     return `${lines.join('\n')}\n`;

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createKyselyInstance, getPool, type Database } from '@hcm/database';
 import { RedisCacheService } from '@hcm/platform-core';
 import type { Kysely } from 'kysely';
@@ -20,7 +20,7 @@ export class AuthSessionStore implements AuthSessionStoreLike {
   private redisCache?: RedisCacheService;
   private redisUnavailable = process.env.NODE_ENV === 'test';
 
-  constructor(db?: Kysely<Database>, cache?: RedisCacheService) {
+  constructor(@Optional() db?: Kysely<Database>, @Optional() cache?: RedisCacheService) {
     this.db = db ?? createKyselyInstance(getPool());
     this.redisCache = cache;
     if (cache) this.redisUnavailable = false;

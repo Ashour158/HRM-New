@@ -191,6 +191,8 @@ export const TopicRegistry: Record<string, string> = {
   LegalHold: HR_GLOBAL,
   statutoryReport: HR_GLOBAL,
   StatutoryReport: HR_GLOBAL,
+  reminder: HR_GLOBAL,
+  Reminder: HR_GLOBAL,
   workAuthorizationCase: HR_GLOBAL,
   WorkAuthorizationCase: HR_GLOBAL,
   worksCouncilConsultation: HR_GLOBAL,
@@ -314,6 +316,7 @@ export const EventNameTopicPrefixes: ReadonlyArray<readonly [string, string]> = 
   ['CollectiveBargainingSession', HR_GLOBAL],
   ['Position', HR_CORE],
   ['HeadcountRequest', HR_CORE],
+  ['Reminder', HR_GLOBAL],
 ];
 
 export interface EventContractRegistrySnapshot {
