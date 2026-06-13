@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import type { HcmPolicyScope, HcmSetupConfig, PayrollCalculationPolicy, PayrollPolicyLogicLedgerRule, SalaryCompositionPlan } from '../../hcm-setup/hcm-setup.types.js';
 import type { AttendanceMonthlySummary } from '../../time-attendance/services/attendance-calculation.service.js';
 import { PayrollStatutoryPolicyService } from './payroll-statutory-policy.service.js';
@@ -189,6 +190,11 @@ function roundMoney(value: number): number {
 
 function datePart(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function requirePayrollCurrency(currency: string | undefined, context: string): string {
+  if (!currency) throw new Error(`${context} currency is required`);
+  return currency;
 }
 
 function deductionMinutes(attendance: AttendanceMonthlySummary | undefined, eventCode: string | undefined): number {
@@ -688,7 +694,7 @@ export class PayrollCycleCalculationService {
       : input.employees;
     const period = { periodStart: datePart(periodStart), periodEnd: datePart(periodEnd) };
     const rows = filteredEmployees.map((employee) => this.calculateRow(employee, input.setup, period));
-    const currency = rows[0]?.currency ?? input.setup.locations?.[0]?.currency ?? 'EGP';
+    const currency = rows[0]?.currency ?? resolveTenantCurrency(input.setup);
 
     return {
       id: `${input.year}-${input.month.toString().padStart(2, '0')}`,
@@ -1094,7 +1100,7 @@ export class PayrollCycleCalculationService {
         netPay,
         deductions,
         taxes,
-        currency: lines[0]?.currency ?? employee?.currency ?? 'EGP',
+        currency: requirePayrollCurrency(lines[0]?.currency ?? employee?.currency, 'Payslip'),
         lines,
       };
     });

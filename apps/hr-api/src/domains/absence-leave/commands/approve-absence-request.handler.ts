@@ -3,6 +3,8 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import type { HcmSetupConfig } from '../../hcm-setup/hcm-setup.types.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
@@ -25,9 +27,10 @@ export class ApproveAbsenceRequestHandler {
     const payload = command.payload as { absenceRequestId: Uuid; approvedBy: Uuid };
     const ar = await this.repo.findById(payload.absenceRequestId);
     if (!ar) throw new Error('Absence request not found');
-    await this.assertBalanceImpactAvailable(ar);
+    const setup = await this.hcmSetupService.getSetup(ar.tenantId);
+    await this.assertBalanceImpactAvailable(ar, setup);
     ar.approve(payload.approvedBy, command.correlationId);
-    await this.applyBalanceImpact(ar, command.correlationId);
+    await this.applyBalanceImpact(ar, setup, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {
@@ -45,7 +48,7 @@ export class ApproveAbsenceRequestHandler {
         durationUnit: ar.durationUnit,
         payrollImpact: ar.payrollImpact,
         amount: ar.payrollImpact === 'UNPAID_LEAVE' ? ar.durationAmount : 0,
-        currency: 'EGP',
+        currency: resolveTenantCurrency(setup),
       },
       commandId: command.commandId,
       correlationId: command.correlationId,
@@ -58,9 +61,8 @@ export class ApproveAbsenceRequestHandler {
     } as CommandResult<unknown>;
   }
 
-  private async applyBalanceImpact(ar: Awaited<ReturnType<AbsenceRequestRepository['findById']>>, correlationId: Uuid): Promise<void> {
+  private async applyBalanceImpact(ar: Awaited<ReturnType<AbsenceRequestRepository['findById']>>, setup: HcmSetupConfig, correlationId: Uuid): Promise<void> {
     if (!ar?.deductFromBalance) return;
-    const setup = await this.hcmSetupService.getSetup(ar.tenantId);
     const storedHours = this.leavePolicyService.amountToStoredHours(setup, ar.durationUnit, ar.durationAmount);
     const balances = await this.balanceRepo.findByWorker(ar.workerId);
     const balance = balances.find((candidate) => (
@@ -77,9 +79,8 @@ export class ApproveAbsenceRequestHandler {
     await this.publisher.publishFromAggregate(balance);
   }
 
-  private async assertBalanceImpactAvailable(ar: Awaited<ReturnType<AbsenceRequestRepository['findById']>>): Promise<void> {
+  private async assertBalanceImpactAvailable(ar: Awaited<ReturnType<AbsenceRequestRepository['findById']>>, setup: HcmSetupConfig): Promise<void> {
     if (!ar?.deductFromBalance) return;
-    const setup = await this.hcmSetupService.getSetup(ar.tenantId);
     const policy = this.leavePolicyService.resolvePolicy({ leavePolicies: setup.leavePolicies }, ar.policyCode || ar.absenceType);
     const balances = await this.balanceRepo.findByWorker(ar.workerId);
     const balance = balances.find((candidate) => (

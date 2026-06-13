@@ -30,6 +30,8 @@ import { EmploymentRelationshipRepository } from '../repositories/employment-rel
 import { JobAssignmentRepository } from '../repositories/job-assignment.repository.js';
 import { EmploymentContractRepository } from '../repositories/employment-contract.repository.js';
 import { PersonalDataRecordRepository } from '../repositories/personal-data-record.repository.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 
 import type * as dtos from './dtos.js';
 import {
@@ -171,7 +173,7 @@ export class HrCoreController {
     private readonly employmentContractRepo: EmploymentContractRepository,
     private readonly personalDataRepo: PersonalDataRecordRepository,
     private readonly fsm: FsmFramework,
-
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -583,6 +585,7 @@ export class HrCoreController {
   @Get('workers/mass-update-template.csv')
   async employeeMassUpdateTemplate(@Req() req: Request, @Res() res: Response) {
     this.assertHrCoreAdminScope(req);
+    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
     const csv = toCsv([{
       employeeId: 'EMP-001',
       firstName: 'Mona',
@@ -598,7 +601,7 @@ export class HrCoreController {
       jobTitle: 'PAYROLL_SPECIALIST',
       workLocationCode: 'CAIRO_HQ',
       grossSalary: 10000,
-      currency: 'EGP',
+      currency: resolveTenantCurrency(setup),
     }]);
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename="employee-mass-update-template.csv"');

@@ -31,7 +31,7 @@ function buildController(overrides: { payrollCycleRepo?: unknown } = {}) {
 
   return new PayrollController(
     {} as never,
-    { getSetup: async () => ({ locations: [] }) } as never,
+    { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }] }) } as never,
     { findActive: async () => [], search: async () => [], findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
     { findByWorker: async () => [] } as never,
     {} as never,
@@ -146,7 +146,7 @@ describe('PayrollController salary governance', () => {
     };
     const controller = new PayrollController(
       {} as never,
-      { getSetup: async () => ({ locations: [], payrollBlockingRules: [] }) } as never,
+      { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }], payrollBlockingRules: [] }) } as never,
       {
         findActive: async () => [],
         search: async () => [],

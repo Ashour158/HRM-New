@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { AccessControlService, SodMatrix } from '@hcm/access-control';
-import { AuthService } from '../auth/auth.service.js';
+import { AuthService, type AuthSession } from '../auth/auth.service.js';
 import { requiredPolicyAreaForCommand } from '../platform/command-bus/command-bus.js';
 import { buildServiceUsageSummary, type ServiceUsageMetricRow } from './reporting/services/service-usage-reporting.service.js';
 import { PayrollCycleGovernanceService } from './payroll/services/payroll-cycle-governance.service.js';
@@ -299,11 +299,69 @@ function auditHash(previousHash: string, record: Record<string, unknown>): strin
   return createHash('sha256').update(`${previousHash}:${JSON.stringify(record)}`).digest('hex');
 }
 
+function buildWorkflowAuthService(): AuthService {
+  const user = {
+    id: '00000000-0000-0000-0000-000000000012',
+    email: 'employee@example.com',
+    firstName: 'Regular',
+    lastName: 'Employee',
+    passwordHash: '$2b$10$XOturYAwdImT.TMp4gkc7u0j3ZwAWzMbJViENs0C0QP5c5TYKDRF.',
+    tenantId: tenantA,
+    status: 'ACTIVE' as const,
+    roles: ['EMPLOYEE'],
+    permissions: ['SELF_READ'],
+    failedLoginCount: 0,
+  };
+  const sessions = new Map<string, AuthSession>();
+  return AuthService.createForTest({
+    config: {
+      port: 3001,
+      nodeEnv: 'test',
+      databaseUrl: '',
+      redisUrl: '',
+      kafkaBrokers: [],
+      jwtSecret: 'workflow-test-secret',
+      jwtExpiresIn: '1h',
+      refreshTokenExpiresIn: '7d',
+      mfaRequired: false,
+      bcryptCost: 10,
+      loginMaxAttempts: 5,
+      lockoutMinutes: 15,
+      apiKeyHeader: 'X-API-Key',
+      corsOrigins: [],
+      logLevel: 'silent',
+      otelEnabled: false,
+      otelServiceName: 'hr-api-test',
+    },
+    users: {
+      findByEmail: async (inputTenantId: string, email: string) =>
+        inputTenantId === tenantA && email.toLowerCase() === user.email ? user : undefined,
+      findById: async (id: string) => (id === user.id ? user : undefined),
+      create: async () => user,
+      updateMfaSecret: async () => undefined,
+      resetFailedLoginState: async () => undefined,
+      recordFailedLogin: async () => undefined,
+      updatePassword: async () => undefined,
+    },
+    sessions: {
+      create: async (session) => { sessions.set(session.sessionId, session); },
+      get: async (sessionId) => sessions.get(sessionId),
+      save: async (session) => { sessions.set(session.sessionId, session); },
+      revoke: async (sessionId) => { sessions.delete(sessionId); },
+    },
+    tokens: {
+      create: async () => { throw new Error('Tokens are not used in this workflow test'); },
+      findActiveByHash: async () => undefined,
+      consume: async () => undefined,
+    },
+  });
+}
+
 describe('enterprise E2E workflow confidence gates', () => {
   it('covers login/session and tenant isolation before workflow commands execute', async () => {
-    const auth = new AuthService();
-    const user = await auth.validateCredentials('employee@example.com', 'Password123!');
-    const session = auth.createSession(user);
+    const auth = buildWorkflowAuthService();
+    const user = await auth.validateCredentials('employee@example.com', 'Password123!', tenantA);
+    const session = await auth.createSession(user);
 
     expect(session.token).toEqual(expect.any(String));
     expect(session.refreshToken).toEqual(expect.any(String));

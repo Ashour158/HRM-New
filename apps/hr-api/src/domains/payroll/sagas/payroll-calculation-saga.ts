@@ -3,6 +3,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { HR_PAYROLL, isPayrollCycleOpenedEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
 import { PayrollCalculationRunRepository } from '../repositories/payroll-calculation-run.repository.js';
 
@@ -19,6 +21,7 @@ export class PayrollCalculationSaga implements OnModuleInit {
     private readonly payrollCycleRepo: PayrollCycleRepository,
     private readonly calculationRunRepo: PayrollCalculationRunRepository,
     private readonly eventsPublisher: PayrollEventsPublisher,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   onModuleInit(): void {
@@ -60,8 +63,9 @@ export class PayrollCalculationSaga implements OnModuleInit {
     await this.payrollCycleRepo.save(cycle);
     await this.eventsPublisher.publishFromAggregate(cycle);
 
+    const setup = await this.hcmSetupService.getSetup(cycle.tenantId);
     const run = PayrollCalculationRun.start(
-      { id: Uuid.generate(), tenantId: cycle.tenantId, payrollCycleId: cycle.id, currency: 'USD' },
+      { id: Uuid.generate(), tenantId: cycle.tenantId, payrollCycleId: cycle.id, currency: resolveTenantCurrency(setup) },
       correlationId,
     );
     await this.calculationRunRepo.save(run);

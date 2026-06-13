@@ -128,6 +128,14 @@ function controller() {
   const auditLedger = {
     writeAuditOnAccess: vi.fn().mockResolvedValue(undefined),
   };
+  const hcmSetupService = {
+    getSetup: vi.fn().mockResolvedValue({
+      locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }],
+      cities: [],
+      statutoryPayrollPacks: [],
+      salaryCompositionPlans: [],
+    }),
+  };
 
   return {
     workerRepo,
@@ -137,6 +145,7 @@ function controller() {
     payrollCalculation,
     payslipArtifactRepo,
     auditLedger,
+    hcmSetupService,
     instance: new (EmployeePayrollController as any)(
       workerRepo,
       personalDataRepo,
@@ -145,6 +154,7 @@ function controller() {
       payrollCalculation,
       payslipArtifactRepo,
       auditLedger,
+      hcmSetupService,
     ) as EmployeePayrollController,
   };
 }

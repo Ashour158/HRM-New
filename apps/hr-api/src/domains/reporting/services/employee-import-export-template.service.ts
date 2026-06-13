@@ -127,7 +127,7 @@ const TEMPLATE_DEFINITIONS: Record<MigrationTemplateModule, TemplateDefinition> 
       salaryComponentCode: 'BASE_SALARY',
       componentType: 'EARNING',
       amount: 25000,
-      currency: 'EGP',
+      currency: 'TENANT_CURRENCY',
       taxTreatment: 'TAXABLE',
       insuranceTreatment: 'INSURABLE',
       glAccount: '6000-BASE',

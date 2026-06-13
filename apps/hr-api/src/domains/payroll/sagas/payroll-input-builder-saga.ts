@@ -12,6 +12,8 @@ import {
 } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { PayrollInputRepository } from '../repositories/payroll-input.repository.js';
 import { PayrollInput } from '../aggregates/payroll-input.aggregate.js';
 import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
@@ -27,6 +29,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
     private readonly payrollInputRepo: PayrollInputRepository,
     private readonly eventsPublisher: PayrollEventsPublisher,
     private readonly payrollCycleRepo: PayrollCycleRepository,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   onModuleInit(): void {
@@ -68,7 +71,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       workerId: this.toUuid(event.payload.workerId),
       inputType: 'TIMESHEET_HOURS',
       amount: this.readNumber(event.payload, 'amount') ?? 0,
-      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      currency: await this.resolveEventCurrency(event, event.payload),
       description: `Timesheet ${this.uuidValue(event.payload.timesheetId)}`,
     });
   }
@@ -79,7 +82,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       workerId: this.toUuid(event.payload.workerId),
       inputType: 'OVERTIME_PAY',
       amount: this.readNumber(event.payload, 'amount') ?? 0,
-      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      currency: await this.resolveEventCurrency(event, event.payload),
       description: `Overtime ${this.uuidValue(event.payload.overtimeRequestId)}`,
     });
   }
@@ -98,7 +101,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       workerId: this.toUuid(event.payload.workerId),
       inputType: payrollImpact === 'UNPAID_LEAVE' ? 'UNPAID_LEAVE' : 'APPROVED_LEAVE',
       amount: this.readNumber(event.payload, 'amount') ?? 0,
-      currency: this.readString(event.payload, 'currency') ?? 'EGP',
+      currency: await this.resolveEventCurrency(event, event.payload),
       description: `Leave ${this.uuidValue(event.payload.absenceRequestId)} ${event.payload.durationAmount ?? ''} ${event.payload.durationUnit ?? ''}`.trim(),
     });
   }
@@ -114,7 +117,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       workerId: this.toUuid(payload.workerId),
       inputType: 'BENEFITS_DEDUCTION',
       amount: this.readNumber(payload, 'amount') ?? 0,
-      currency: this.readString(payload, 'currency') ?? 'EGP',
+      currency: await this.resolveEventCurrency(event, payload),
       description: `Benefits ${this.uuidValue(payload.enrollmentId)}`,
     });
   }
@@ -126,7 +129,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       workerId: this.toUuid(payload.workerId),
       inputType: 'COMPENSATION_CHANGE',
       amount: this.readNumber(payload, 'amount') ?? 0,
-      currency: this.readString(payload, 'currency') ?? 'EGP',
+      currency: await this.resolveEventCurrency(event, payload),
       description: `Compensation ${event.eventName} ${this.uuidValue(payload.changeId)}`.trim(),
     });
   }
@@ -193,6 +196,10 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
   private readString(payload: unknown, key: string): string | undefined {
     const value = (payload as Record<string, unknown>)[key];
     return typeof value === 'string' && value.trim() ? value : undefined;
+  }
+
+  private async resolveEventCurrency(event: HrEventEnvelope<unknown>, payload: unknown): Promise<string> {
+    return this.readString(payload, 'currency') ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(event.tenantId));
   }
 
   private toUuid(value: Uuid | string | undefined): Uuid | undefined {

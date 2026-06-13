@@ -68,6 +68,13 @@ function sourceHash(row: AttendanceLedgerRow): string {
   ].join('#');
 }
 
+function requirePayrollCurrency(currency?: string): string {
+  if (!currency) {
+    throw new Error('Attendance payroll handoff currency is required');
+  }
+  return currency;
+}
+
 @Injectable()
 export class AttendanceFinalizationService {
   finalizeDailyLedger(ledger: AttendanceDailyLedger, options: {
@@ -134,7 +141,7 @@ export class AttendanceFinalizationService {
           payrollCycleId: options.payrollCycleId as string,
           inputType: 'ATTENDANCE_DAILY_LEDGER',
           amount: snapshot.deductionMinutes,
-          currency: options.currency ?? 'EGP',
+          currency: requirePayrollCurrency(options.currency),
           description: `Attendance ${snapshot.workDate}: payable ${snapshot.payableMinutes}m, deduction ${snapshot.deductionMinutes}m, overtime ${snapshot.overtimeMinutes}m`,
         }))
         : [],

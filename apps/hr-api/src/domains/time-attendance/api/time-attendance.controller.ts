@@ -541,7 +541,7 @@ export class TimeAttendanceController {
     const outcome = await this.commandBus.execute(this.buildCommand(
       'FinalizeAttendanceDailyLedger',
       'AttendanceDailyLedger',
-      { ...dto, currency: 'EGP' },
+      dto,
       req,
     ));
 

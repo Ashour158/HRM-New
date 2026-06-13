@@ -40,6 +40,9 @@ jobs:
       - name: Secret scan
         run: pnpm secret:scan
 
+      - name: Locale scan
+        run: pnpm locale:scan
+
       - name: Deployment envelope check
         run: pnpm ci:verify-deployment-envelope
 

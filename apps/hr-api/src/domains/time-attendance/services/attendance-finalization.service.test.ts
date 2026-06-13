@@ -105,6 +105,7 @@ describe('AttendanceFinalizationService', () => {
       lockedBy: 'payroll-admin',
       payrollCycleId: 'cycle-1',
       lockedAt,
+      currency: 'EGP',
     });
 
     expect(result.canFinalize).toBe(true);

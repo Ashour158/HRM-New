@@ -9,6 +9,7 @@ import { actorClientType, requireActor, requireTenantId } from '../../../platfor
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import type { HcmSetupConfig, PayrollGlAccountMapping } from '../../hcm-setup/hcm-setup.types.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
@@ -123,6 +124,11 @@ function parseClockLocation(value?: string): ClockLocationPayload {
 
 function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
+}
+
+function requirePayrollCurrency(currency: string | undefined, context: string): string {
+  if (!currency) throw new BadRequestException(`${context} currency is required`);
+  return currency;
 }
 
 function roundMoney(value: number): number {
@@ -370,6 +376,7 @@ export class PayrollController {
 
   private async applyMassUpdateRowsToInputCollection(payrollCycleId: string, rows: PayrollCsvRow[], req: Request) {
     const applied: Array<{ employeeId: string; workerId: string; inputTypes: string[] }> = [];
+    const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     for (const row of rows) {
       if (!row.employeeId) continue;
       const worker = await this.findWorkerByEmployeeId(row.employeeId);
@@ -385,7 +392,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: 'MASS_UPDATE_GROSS_PAY',
           amount: Number(row.grossSalary),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} gross salary`,
         });
       }
@@ -395,7 +402,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: 'MASS_UPDATE_TAX_OVERRIDE',
           amount: Number(row.taxOverride),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} tax override`,
         });
       }
@@ -405,7 +412,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: 'MASS_UPDATE_INSURANCE_OVERRIDE',
           amount: Number(row.insuranceOverride),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} insurance override`,
         });
       }
@@ -415,7 +422,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: row.deductionCode ? `MASS_UPDATE_DEDUCTION_${row.deductionCode}` : 'MASS_UPDATE_DEDUCTION',
           amount: Number(row.deductionAmount),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} deduction ${row.deductionCode ?? ''}`.trim(),
         });
       }
@@ -432,7 +439,7 @@ export class PayrollController {
     };
   }
 
-  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[]): Promise<PayrollApprovedInputRecord[]> {
+  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[], tenantCurrency: string): Promise<PayrollApprovedInputRecord[]> {
     const inputs: PayrollApprovedInputRecord[] = [];
     for (const row of rows) {
       if (!row.employeeId) continue;
@@ -440,7 +447,7 @@ export class PayrollController {
       if (!worker) {
         throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       }
-      const currency = row.currency ?? 'EGP';
+      const currency = row.currency ?? tenantCurrency;
       if (row.grossSalary !== undefined) inputs.push({
         workerId: worker.id.value,
         inputType: 'MASS_UPDATE_GROSS_PAY',
@@ -477,7 +484,7 @@ export class PayrollController {
     return inputs;
   }
 
-  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[]): Promise<PayrollApprovedInputRecord[]> {
+  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[], tenantCurrency: string): Promise<PayrollApprovedInputRecord[]> {
     const inputs: PayrollApprovedInputRecord[] = [];
     for (const row of rows) {
       if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
@@ -487,7 +494,7 @@ export class PayrollController {
         workerId: worker.id.value,
         inputType: row.inputType,
         amount: Number(row.amount),
-        currency: row.currency ?? 'EGP',
+        currency: row.currency ?? tenantCurrency,
         status: 'APPROVED',
         description: row.description ?? `${row.employeeId} ${row.inputType.toLowerCase().replace(/_/g, ' ')}`,
       });
@@ -510,6 +517,10 @@ export class PayrollController {
     const activeWorkers = await this.workerRepo.findActive();
     const fallbackWorkers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.search('', { limit: 1000 });
     return fallbackWorkers.find((worker) => worker.employeeNumber === employeeId);
+  }
+
+  private async resolvePayrollCurrencyForRequest(req: Request): Promise<string> {
+    return resolveTenantCurrency(await this.hcmSetupService.getSetup(requireTenantId(req)));
   }
 
   private toSessions(events: Array<{ eventType: string; timestamp: Date; location?: string }>): AttendanceSession[] {
@@ -584,6 +595,7 @@ export class PayrollController {
     const setup = await this.hcmSetupService.getSetup(tenantId);
     const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
     const workers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
+    const tenantCurrency = resolveTenantCurrency(setup);
 
     return Promise.all(workers.map(async (worker) => {
       const records = await this.personalDataRepo.findByWorker(worker.id);
@@ -605,7 +617,7 @@ export class PayrollController {
       const orgUnitId = readString(contact.orgUnitId ?? orgUnit?.id ?? orgUnit?.code);
       const countryCode = readString(workLocation?.countryCode ?? location?.countryCode);
       const grossSalary = Number(compensation.grossSalaryAmount ?? compensation.salaryAmount ?? 0);
-      const salaryCurrency = String(compensation.salaryCurrency ?? locationCurrency ?? 'EGP');
+      const salaryCurrency = String(compensation.salaryCurrency ?? locationCurrency ?? tenantCurrency);
       const salaryBasis = readString(compensation.salaryBasis)?.toUpperCase();
       const hourlyRate = Number(compensation.hourlyRateAmount ?? compensation.hourlyRate ?? 0);
       const bankAccount: PayrollBankAccount | undefined = bankAccountPayload ? {
@@ -703,7 +715,7 @@ export class PayrollController {
     return [...linesByWorkerId.entries()].map(([workerId, lines]) => {
       const bankRow = bankRowsByWorkerId.get(workerId);
       const artifact = artifactsByWorkerId.get(workerId);
-      const currency = lines[0]?.currency ?? bankRow?.currency ?? artifact?.currency ?? 'EGP';
+      const currency = requirePayrollCurrency(lines[0]?.currency ?? bankRow?.currency ?? artifact?.currency, 'Locked payroll row');
       const grossLines = lines.filter((line) => (
         line.lineType === 'GROSS'
         || line.ruleSetId === 'EARNING'
@@ -768,10 +780,11 @@ export class PayrollController {
     if (!cycle) throw new BadRequestException('Payroll cycle not found');
     const payrollCycleUuid = new Uuid(payrollCycleId);
     const tenantId = this.getTenantId(req);
-    const [allResultLines, paymentBatch, payslipArtifacts] = await Promise.all([
+    const [allResultLines, paymentBatch, payslipArtifacts, setup] = await Promise.all([
       this.resultLineRepo.findByPayrollCycle(payrollCycleUuid),
       this.paymentBatchRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
       this.payslipArtifactRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+      this.hcmSetupService.getSetup(tenantId),
     ]);
     const resultLines = allResultLines.filter((line) => line.status === 'LOCKED');
     const rows = this.buildPersistedCycleRows({ resultLines, paymentBatch, payslipArtifacts });
@@ -807,7 +820,7 @@ export class PayrollController {
       totalEmployerInsurance: employerInsurance,
       totalPolicyDeductions: deductions,
       totalNet: net,
-      currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? 'EGP',
+      currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? resolveTenantCurrency(setup),
       rows,
     };
   }
@@ -1179,9 +1192,10 @@ export class PayrollController {
     const preview = await this.buildMonthlyPreview(req, year, month, body.workLocationCode);
     if (preview.employeeCount === 0) throw new BadRequestException('No employees are available for this payroll cycle');
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const tenantCurrency = resolveTenantCurrency(setup);
     const projectedReadinessPreview = this.payrollApprovedInputProjection.applyApprovedInputs(
       preview,
-      await this.buildMassUpdateProjectionInputs(massUpdateRows),
+      await this.buildMassUpdateProjectionInputs(massUpdateRows, tenantCurrency),
     );
     const readinessBankRows = this.payrollCalculation.buildBankTransferRows(projectedReadinessPreview.rows);
     const readiness = this.mergeReadiness(this.payrollGovernance.evaluateCloseToPayReadiness({
@@ -1366,11 +1380,12 @@ export class PayrollController {
   @Get('mass-update-template.csv')
   async massUpdateTemplate(@Req() req: Request, @Res() res: Response) {
     this.assertCanExportPayroll(req);
+    const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     const csv = toCsv([{
       employeeId: 'EMP-001',
       workEmail: 'employee@example.com',
       grossSalary: 10000,
-      currency: 'EGP',
+      currency: tenantCurrency,
       taxOverride: '',
       insuranceOverride: '',
       deductionCode: 'LATE_PER_MINUTE',
@@ -1455,7 +1470,7 @@ export class PayrollController {
       rowCount: rows.length,
       preview: this.payrollApprovedInputProjection.applyApprovedInputs(
         preview,
-        await this.buildOffCycleProjectionInputs(rows),
+        await this.buildOffCycleProjectionInputs(rows, await this.resolvePayrollCurrencyForRequest(req)),
       ),
       events: ['PayrollOffCyclePreviewBuilt'],
     };
@@ -1482,6 +1497,7 @@ export class PayrollController {
       });
     }
     const applied: Array<{ employeeId: string; workerId: string; inputType: string }> = [];
+    const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     for (const row of rows) {
       if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
       const worker = await this.findWorkerByEmployeeId(row.employeeId);
@@ -1491,7 +1507,7 @@ export class PayrollController {
         payrollCycleId: id,
         inputType: row.inputType,
         amount: Number(row.amount),
-        currency: row.currency ?? 'EGP',
+        currency: row.currency ?? tenantCurrency,
         description: row.description ?? `${row.employeeId} ${row.inputType.toLowerCase().replace(/_/g, ' ')}`,
       }, req);
       applied.push({ employeeId: row.employeeId, workerId: worker.id.value, inputType: row.inputType });
