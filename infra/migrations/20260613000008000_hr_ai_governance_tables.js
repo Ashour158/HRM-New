@@ -81,6 +81,11 @@ exports.up = (pgm) => {
   pgm.createIndex({ schema: 'hr_ai', name: 'hr_ai_kill_switches' }, ['tenant_id', 'status']);
   pgm.createIndex({ schema: 'hr_ai', name: 'hr_ai_kill_switches' }, ['tenant_id', 'use_case_id']);
   pgm.createIndex({ schema: 'hr_ai', name: 'hr_ai_kill_switches' }, ['tenant_id', 'triggered_by']);
+  pgm.addConstraint(
+    { schema: 'hr_ai', name: 'hr_ai_kill_switches' },
+    'hr_ai_kill_switches_use_case_fk',
+    'FOREIGN KEY (use_case_id) REFERENCES hr_ai.hr_ai_use_cases(id) ON DELETE CASCADE',
+  );
 };
 
 exports.down = (pgm) => {

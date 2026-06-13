@@ -61,10 +61,17 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   }
 
   async update(id: Uuid, row: Updateable<Database[TTable]>): Promise<TAggregate | undefined> {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for update');
+    }
+
     const result = await this.queryExecutor
       .updateTable(this.table)
-      .set(row as unknown as Record<string, unknown>)
+      // Never allow a caller-supplied tenant_id to override the active tenant context.
+      .set({ ...(row as unknown as Record<string, unknown>), tenant_id: tenantId.value })
       .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
       .returningAll()
       .executeTakeFirst();
 
@@ -72,9 +79,15 @@ export abstract class BaseRepository<TTable extends keyof Database, TAggregate =
   }
 
   async delete(id: Uuid): Promise<boolean> {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for delete');
+    }
+
     const result = await this.queryExecutor
       .deleteFrom(this.table)
       .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
       .executeTakeFirst();
 
     return Number((result as unknown as { numDeletedRows: bigint }).numDeletedRows) > 0;

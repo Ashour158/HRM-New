@@ -21,7 +21,7 @@ export class HrAiKillSwitchRepository {
   }
 
   async save(entity: HrAiKillSwitch): Promise<void> {
-    const existing = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').select('id').where('id', '=', entity.id.value).executeTakeFirst();
+    const existing = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').select('id').where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).executeTakeFirst();
     const row = {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
@@ -36,7 +36,7 @@ export class HrAiKillSwitchRepository {
       updated_at: new Date().toISOString(),
     };
     if (existing) {
-      await this.db.updateTable('hr_ai.hr_ai_kill_switches').set(row).where('id', '=', entity.id.value).execute();
+      await this.db.updateTable('hr_ai.hr_ai_kill_switches').set(row).where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).execute();
     } else {
       await this.db.insertInto('hr_ai.hr_ai_kill_switches').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }

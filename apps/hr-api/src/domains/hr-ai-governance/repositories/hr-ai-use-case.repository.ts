@@ -21,7 +21,7 @@ export class HrAiUseCaseRepository {
   }
 
   async save(entity: HrAiUseCase): Promise<void> {
-    const existing = await this.db.selectFrom('hr_ai.hr_ai_use_cases').select('id').where('id', '=', entity.id.value).executeTakeFirst();
+    const existing = await this.db.selectFrom('hr_ai.hr_ai_use_cases').select('id').where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).executeTakeFirst();
     const row = {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
@@ -36,7 +36,7 @@ export class HrAiUseCaseRepository {
       updated_at: new Date().toISOString(),
     };
     if (existing) {
-      await this.db.updateTable('hr_ai.hr_ai_use_cases').set(row).where('id', '=', entity.id.value).execute();
+      await this.db.updateTable('hr_ai.hr_ai_use_cases').set(row).where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).execute();
     } else {
       await this.db.insertInto('hr_ai.hr_ai_use_cases').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
