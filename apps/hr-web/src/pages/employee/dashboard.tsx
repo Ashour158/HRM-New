@@ -88,6 +88,14 @@ interface AttendancePeriodMetrics {
   undertimeMinutes: number;
 }
 
+interface AttendancePeriodInsights {
+  attendanceScore: number;
+  coverageRisk: 'HIGH' | 'LOW' | 'MEDIUM';
+  payrollBlockers: number;
+  policyViolations: number;
+  trend: 'IMPROVING' | 'STABLE' | 'WATCH';
+}
+
 const journeyToneClasses: Record<EmployeeJourneyTone, string> = {
   attention: 'border-amber-200 bg-amber-50 text-amber-800',
   default: 'border-slate-200 bg-white text-slate-700',
@@ -103,16 +111,24 @@ interface AttendancePeriodView {
   totals: AttendancePeriodMetrics;
   series: Array<AttendancePeriodMetrics & { workDate: string }>;
   workers: Array<AttendancePeriodMetrics & {
+    attendanceScore?: number;
     workerId: string;
     employeeId: string;
     name: string;
     departmentName?: string;
     managerId?: string;
+    payrollBlockers?: number;
+    policyViolations?: number;
+    riskLevel?: 'HIGH' | 'LOW' | 'MEDIUM';
   }>;
+  insights?: AttendancePeriodInsights;
   policyEvidence: {
-    flexibleRuleCodes: string[];
-    leavePolicyTypes: string[];
-    scheduleSources: string[];
+    eventCodes?: string[];
+    flexibleRuleCodes?: string[];
+    leavePolicyTypes?: string[];
+    payrollBlockRules?: string[];
+    scheduleSources?: string[];
+    trustMinimums?: number[];
   };
 }
 
@@ -388,6 +404,12 @@ function rangeLabel(range: AttendancePeriodRange) {
   return attendanceRangeOptions.find((option) => option.value === range)?.label ?? 'Weekly';
 }
 
+function riskTone(risk?: AttendancePeriodInsights['coverageRisk'] | 'HIGH' | 'LOW' | 'MEDIUM') {
+  if (risk === 'HIGH') return 'border-red-200 bg-red-50 text-red-700';
+  if (risk === 'MEDIUM') return 'border-amber-200 bg-amber-50 text-amber-700';
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700';
+}
+
 function currentWeekDays(today: Date) {
   const start = new Date(today);
   start.setDate(today.getDate() - today.getDay());
@@ -535,7 +557,11 @@ export function EmployeeDashboard() {
     { label: 'Schedules', values: attendancePeriodView?.policyEvidence.scheduleSources ?? [] },
     { label: 'Flex rules', values: attendancePeriodView?.policyEvidence.flexibleRuleCodes ?? [] },
     { label: 'Leave bridge', values: attendancePeriodView?.policyEvidence.leavePolicyTypes ?? [] },
+    { label: 'Policy events', values: attendancePeriodView?.policyEvidence.eventCodes ?? [] },
+    { label: 'Payroll blockers', values: attendancePeriodView?.policyEvidence.payrollBlockRules ?? [] },
+    { label: 'Trust threshold', values: (attendancePeriodView?.policyEvidence.trustMinimums ?? []).map((value) => `${value}+ score`) },
   ].filter((signal) => signal.values.length > 0), [attendancePeriodView?.policyEvidence]);
+  const attendanceInsights = attendancePeriodView?.insights;
 
   const dailyQuote = getDailyQuote(activeWorkerName || user?.email || 'employee');
   const journeyItems = React.useMemo(() => buildEmployeeJourneyItems({
@@ -865,6 +891,24 @@ export function EmployeeDashboard() {
         <KpiTile icon={CalendarDays} value={formatMinutes(attendanceSummary.summary.payableMinutes)} label={`Payable - ${rangeLabel(attendanceRange)}`} gradient="from-violet-400 to-purple-500" shadow="shadow-violet-500/15" />
         <KpiTile icon={TrendingUp} value={formatMinutes(attendanceSummary.summary.overtimeMinutes)} label={`Overtime - ${rangeLabel(attendanceRange)}`} gradient="from-teal-400 to-emerald-500" shadow="shadow-emerald-500/15" />
         <KpiTile icon={AlertTriangle} value={`${attendanceSummary.summary.lateMinutes} min`} label={`Late - ${rangeLabel(attendanceRange)}`} gradient="from-amber-400 to-orange-500" shadow="shadow-orange-500/15" />
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Attendance score</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-950">{attendanceInsights?.attendanceScore ?? 100}%</p>
+        </div>
+        <div className={cn('rounded-2xl border p-4 shadow-sm', riskTone(attendanceInsights?.coverageRisk))}>
+          <p className="text-xs font-bold uppercase tracking-wide">Coverage risk</p>
+          <p className="mt-2 text-2xl font-extrabold">{attendanceInsights?.coverageRisk ?? 'LOW'}</p>
+        </div>
+        <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Payroll blockers</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-950">{attendanceInsights?.payrollBlockers ?? 0}</p>
+        </div>
+        <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Trend</p>
+          <p className="mt-2 text-2xl font-extrabold text-slate-950">{attendanceInsights?.trend ?? 'STABLE'}</p>
+        </div>
       </div>
       <div className="fusion-glass rounded-[2rem] p-6 lg:p-8">
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1274,6 +1318,7 @@ export function EmployeeDashboard() {
                         <EvidenceMetric label="Undertime" value={`${attendanceSummary?.summary.undertimeMinutes ?? 0} min`} />
                         <EvidenceMetric label="Overtime" value={`${attendanceSummary?.summary.overtimeMinutes ?? 0} min`} />
                         <EvidenceMetric label="Geofence flags" value={`${attendanceSummary?.summary.geofenceViolations ?? 0}`} />
+                        <EvidenceMetric label="Policy violations" value={`${attendanceInsights?.policyViolations ?? 0}`} />
                       </div>
                     </div>
 

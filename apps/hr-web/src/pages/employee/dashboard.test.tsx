@@ -110,10 +110,20 @@ const periodView = {
       undertimeMinutes: 0,
     },
   ],
+  insights: {
+    attendanceScore: 82,
+    coverageRisk: 'MEDIUM',
+    payrollBlockers: 1,
+    policyViolations: 2,
+    trend: 'WATCH',
+  },
   policyEvidence: {
+    eventCodes: ['LATE'],
     flexibleRuleCodes: ['FLEX-CORE-09-15'],
     leavePolicyTypes: ['ANNUAL'],
+    payrollBlockRules: ['LATE'],
     scheduleSources: ['ROTATING_SHIFT_A'],
+    trustMinimums: [70],
   },
 };
 
@@ -148,6 +158,10 @@ describe('EmployeeDashboard attendance view', () => {
     expect(screen.getByText('Policy signals')).toBeInTheDocument();
     expect(screen.getByText('FLEX-CORE-09-15')).toBeInTheDocument();
     expect(screen.getByText('ROTATING_SHIFT_A')).toBeInTheDocument();
+    expect(screen.getAllByText('82%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('MEDIUM').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Payroll blockers').length).toBeGreaterThan(0);
+    expect(screen.getByText('70+ score')).toBeInTheDocument();
   });
 
   it('sends a stable idempotency key when recording employee check-in', async () => {

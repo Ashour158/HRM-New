@@ -48,6 +48,7 @@ function row(workerId: string, status: AttendanceDailyLedger['rows'][number]['st
       absent: status === 'ABSENT',
       geofenceViolation: false,
       lowTrustPunch: false,
+      events: status === 'ABSENT' ? ['ABSENCE'] : [],
     },
     exceptions: [],
     payrollInput: {
@@ -95,6 +96,17 @@ describe('AttendanceReportingService', () => {
   it('builds a policy-aware attendance period view with series and worker rollups', () => {
     const firstDay = row('EMP-001', 'OUT', 'Finance');
     firstDay.calculation.lateMinutes = 12;
+    firstDay.calculation.events = ['LATE'];
+    firstDay.exceptions.push({
+      code: 'LATE',
+      description: 'Late arrival after grace period',
+      severity: 'MEDIUM',
+      requiresApproval: true,
+      source: 'CALCULATED',
+      status: 'OPEN',
+      payrollImpactMinutes: 12,
+    });
+    firstDay.payrollInput.readyForPayroll = false;
     firstDay.policyEvidence.flexibleRuleCode = 'FLEX_CORE_CAIRO';
     firstDay.policyEvidence.schedule.source = 'WORKER_SCHEDULE';
 
@@ -140,5 +152,21 @@ describe('AttendanceReportingService', () => {
     expect(view.policyEvidence.scheduleSources).toEqual(['TENANT_DEFAULT', 'WORKER_SCHEDULE']);
     expect(view.policyEvidence.flexibleRuleCodes).toEqual(['FLEX_CORE_CAIRO']);
     expect(view.policyEvidence.leavePolicyTypes).toEqual(['ANNUAL']);
+    expect(view.policyEvidence.eventCodes).toEqual(['LATE']);
+    expect(view.policyEvidence.payrollBlockRules).toEqual(['LATE']);
+    expect(view.policyEvidence.trustMinimums).toEqual([60]);
+    expect(view.insights).toMatchObject({
+      coverageRisk: 'MEDIUM',
+      payrollBlockers: 1,
+      policyViolations: 2,
+      trend: 'IMPROVING',
+    });
+    expect(view.insights.attendanceScore).toBeLessThan(100);
+    expect(view.workers[0]).toMatchObject({
+      attendanceScore: expect.any(Number),
+      payrollBlockers: 1,
+      policyViolations: 2,
+      riskLevel: 'MEDIUM',
+    });
   });
 });

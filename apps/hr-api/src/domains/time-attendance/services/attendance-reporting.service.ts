@@ -41,6 +41,18 @@ export interface AttendancePeriodViewWorker extends AttendancePeriodViewMetrics 
   name: string;
   departmentName?: string;
   managerId?: string;
+  attendanceScore: number;
+  payrollBlockers: number;
+  policyViolations: number;
+  riskLevel: 'HIGH' | 'LOW' | 'MEDIUM';
+}
+
+export interface AttendancePeriodViewInsights {
+  attendanceScore: number;
+  coverageRisk: 'HIGH' | 'LOW' | 'MEDIUM';
+  payrollBlockers: number;
+  policyViolations: number;
+  trend: 'IMPROVING' | 'STABLE' | 'WATCH';
 }
 
 export interface AttendancePeriodView {
@@ -51,10 +63,14 @@ export interface AttendancePeriodView {
   totals: AttendancePeriodViewMetrics;
   series: AttendancePeriodViewDay[];
   workers: AttendancePeriodViewWorker[];
+  insights: AttendancePeriodViewInsights;
   policyEvidence: {
+    eventCodes: string[];
     flexibleRuleCodes: string[];
     leavePolicyTypes: string[];
+    payrollBlockRules: string[];
     scheduleSources: string[];
+    trustMinimums: number[];
   };
 }
 
@@ -139,6 +155,49 @@ function pushUnique(target: Set<string>, value?: string): void {
   if (value && value.trim().length > 0) target.add(value);
 }
 
+function riskFromMetrics(metrics: AttendancePeriodViewMetrics): 'HIGH' | 'LOW' | 'MEDIUM' {
+  const payrollBlockers = Math.max(metrics.employeeDays - metrics.payrollReady, 0);
+  if (metrics.geofenceViolations > 0 || metrics.missingCheckout > 0 || payrollBlockers > 2) return 'HIGH';
+  if (metrics.absent > 0 || metrics.exceptions > 0 || metrics.lateMinutes >= 30 || metrics.undertimeMinutes >= 60 || payrollBlockers > 0) {
+    return 'MEDIUM';
+  }
+  return 'LOW';
+}
+
+function scoreFromMetrics(metrics: AttendancePeriodViewMetrics): number {
+  const payrollBlockers = Math.max(metrics.employeeDays - metrics.payrollReady, 0);
+  const penalty =
+    metrics.absent * 18 +
+    metrics.exceptions * 10 +
+    metrics.geofenceViolations * 20 +
+    metrics.missingCheckout * 16 +
+    payrollBlockers * 12 +
+    Math.min(metrics.lateMinutes / 3, 24) +
+    Math.min(metrics.undertimeMinutes / 6, 20);
+  return Math.max(Math.round(100 - penalty), 0);
+}
+
+function policyViolationsFromMetrics(metrics: AttendancePeriodViewMetrics): number {
+  return metrics.exceptions +
+    metrics.geofenceViolations +
+    metrics.missingCheckout +
+    (metrics.lateMinutes > 0 ? 1 : 0) +
+    (metrics.undertimeMinutes > 0 ? 1 : 0);
+}
+
+function buildInsights(metrics: AttendancePeriodViewMetrics, series: AttendancePeriodViewDay[]): AttendancePeriodViewInsights {
+  const payrollBlockers = Math.max(metrics.employeeDays - metrics.payrollReady, 0);
+  const firstHalfLate = series.slice(0, Math.ceil(series.length / 2)).reduce((total, day) => total + day.lateMinutes + day.exceptions, 0);
+  const secondHalfLate = series.slice(Math.ceil(series.length / 2)).reduce((total, day) => total + day.lateMinutes + day.exceptions, 0);
+  return {
+    attendanceScore: scoreFromMetrics(metrics),
+    coverageRisk: riskFromMetrics(metrics),
+    payrollBlockers,
+    policyViolations: policyViolationsFromMetrics(metrics),
+    trend: secondHalfLate > firstHalfLate ? 'WATCH' : secondHalfLate < firstHalfLate ? 'IMPROVING' : 'STABLE',
+  };
+}
+
 @Injectable()
 export class AttendanceReportingService {
   buildPeriodSummary(input: {
@@ -210,6 +269,9 @@ export class AttendanceReportingService {
     const scheduleSources = new Set<string>();
     const flexibleRuleCodes = new Set<string>();
     const leavePolicyTypes = new Set<string>();
+    const eventCodes = new Set<string>();
+    const payrollBlockRules = new Set<string>();
+    const trustMinimums = new Set<string>();
 
     for (const ledger of input.ledgers) {
       const day = byDay.get(ledger.workDate) ?? { workDate: ledger.workDate, ...emptyMetrics() };
@@ -223,6 +285,10 @@ export class AttendanceReportingService {
           name: row.worker.name,
           departmentName: row.worker.departmentName,
           managerId: row.worker.managerId,
+          attendanceScore: 100,
+          payrollBlockers: 0,
+          policyViolations: 0,
+          riskLevel: 'LOW',
           ...emptyMetrics(),
         };
         addViewRow(worker, row);
@@ -231,9 +297,20 @@ export class AttendanceReportingService {
         pushUnique(scheduleSources, row.policyEvidence.schedule.source);
         pushUnique(flexibleRuleCodes, row.policyEvidence.flexibleRuleCode);
         pushUnique(leavePolicyTypes, row.policyEvidence.leave?.absenceType);
+        (row.calculation.events ?? []).forEach((code) => pushUnique(eventCodes, code));
+        row.exceptions
+          .filter((exception) => exception.requiresApproval || exception.payrollImpactMinutes > 0 || !row.payrollInput.readyForPayroll)
+          .forEach((exception) => pushUnique(payrollBlockRules, exception.code));
+        if (Number.isFinite(row.policyEvidence.trust.minClockTrustScore)) {
+          trustMinimums.add(String(row.policyEvidence.trust.minClockTrustScore));
+        }
       }
       byDay.set(ledger.workDate, day);
     }
+
+    const series = [...byDay.values()]
+      .map((day) => ({ ...roundMetrics(day), workDate: day.workDate }))
+      .sort((left, right) => left.workDate.localeCompare(right.workDate));
 
     return {
       periodStart: input.periodStart,
@@ -241,16 +318,32 @@ export class AttendanceReportingService {
       range: input.range,
       scope: input.scope,
       totals: roundMetrics(totals),
-      series: [...byDay.values()]
-        .map((day) => ({ ...roundMetrics(day), workDate: day.workDate }))
-        .sort((left, right) => left.workDate.localeCompare(right.workDate)),
+      series,
       workers: [...byWorker.values()]
-        .map((worker) => ({ ...roundMetrics(worker), workerId: worker.workerId, employeeId: worker.employeeId, name: worker.name, departmentName: worker.departmentName, managerId: worker.managerId }))
+        .map((worker) => {
+          const rounded = roundMetrics(worker);
+          return {
+            ...rounded,
+            workerId: worker.workerId,
+            employeeId: worker.employeeId,
+            name: worker.name,
+            departmentName: worker.departmentName,
+            managerId: worker.managerId,
+            attendanceScore: scoreFromMetrics(rounded),
+            payrollBlockers: Math.max(rounded.employeeDays - rounded.payrollReady, 0),
+            policyViolations: policyViolationsFromMetrics(rounded),
+            riskLevel: riskFromMetrics(rounded),
+          };
+        })
         .sort((left, right) => left.name.localeCompare(right.name)),
+      insights: buildInsights(roundMetrics(totals), series),
       policyEvidence: {
+        eventCodes: [...eventCodes].sort(),
         flexibleRuleCodes: [...flexibleRuleCodes].sort(),
         leavePolicyTypes: [...leavePolicyTypes].sort(),
+        payrollBlockRules: [...payrollBlockRules].sort(),
         scheduleSources: [...scheduleSources].sort(),
+        trustMinimums: [...trustMinimums].map(Number).sort((left, right) => left - right),
       },
     };
   }

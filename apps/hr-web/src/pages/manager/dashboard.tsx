@@ -73,6 +73,14 @@ interface AttendancePeriodMetrics {
   undertimeMinutes: number;
 }
 
+interface AttendancePeriodInsights {
+  attendanceScore: number;
+  coverageRisk: 'HIGH' | 'LOW' | 'MEDIUM';
+  payrollBlockers: number;
+  policyViolations: number;
+  trend: 'IMPROVING' | 'STABLE' | 'WATCH';
+}
+
 interface AttendancePeriodView {
   periodStart: string;
   periodEnd: string;
@@ -81,12 +89,17 @@ interface AttendancePeriodView {
   totals: AttendancePeriodMetrics;
   series: Array<AttendancePeriodMetrics & { workDate: string }>;
   workers: Array<AttendancePeriodMetrics & {
+    attendanceScore?: number;
     workerId: string;
     employeeId: string;
     name: string;
     departmentName?: string;
     managerId?: string;
+    payrollBlockers?: number;
+    policyViolations?: number;
+    riskLevel?: 'HIGH' | 'LOW' | 'MEDIUM';
   }>;
+  insights?: AttendancePeriodInsights;
 }
 
 const CHART_COLORS = ['#818cf8', '#a78bfa', '#2dd4bf', '#fbbf24'];
@@ -156,6 +169,12 @@ function formatHours(value?: number): string {
 
 function rangeLabel(range: AttendancePeriodRange): string {
   return attendanceRangeOptions.find((option) => option.value === range)?.label ?? 'Weekly';
+}
+
+function riskTone(risk?: AttendancePeriodInsights['coverageRisk'] | 'HIGH' | 'LOW' | 'MEDIUM'): string {
+  if (risk === 'HIGH') return 'border-red-200 bg-red-50 text-red-700';
+  if (risk === 'MEDIUM') return 'border-amber-200 bg-amber-50 text-amber-700';
+  return 'border-emerald-200 bg-emerald-50 text-emerald-700';
 }
 
 const alertDot: Record<string, string> = {
@@ -447,6 +466,14 @@ export function ManagerDashboard() {
               <AttendanceMiniMetric label="Late" value={`${ownAttendance?.totals.lateMinutes ?? 0}m`} />
               <AttendanceMiniMetric label="Exceptions" value={`${ownAttendance?.totals.exceptions ?? 0}`} />
             </div>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <AttendanceMiniMetric label="Score" value={`${ownAttendance?.insights?.attendanceScore ?? 100}%`} />
+              <AttendanceMiniMetric label="Payroll blockers" value={`${ownAttendance?.insights?.payrollBlockers ?? 0}`} />
+              <div className={cn('rounded-2xl border p-3 text-center', riskTone(ownAttendance?.insights?.coverageRisk))}>
+                <p className="text-[10px] font-bold uppercase tracking-wide">Risk</p>
+                <p className="mt-1 text-sm font-extrabold">{ownAttendance?.insights?.coverageRisk ?? 'LOW'}</p>
+              </div>
+            </div>
             <div className="mt-5 h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={ownAttendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -480,6 +507,14 @@ export function ManagerDashboard() {
               <AttendanceMiniMetric label="Absences" value={`${teamAttendance?.totals.absent ?? 0}`} />
               <AttendanceMiniMetric label="Exceptions" value={`${teamAttendance?.totals.exceptions ?? 0}`} />
             </div>
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <AttendanceMiniMetric label="Team score" value={`${teamAttendance?.insights?.attendanceScore ?? 100}%`} />
+              <AttendanceMiniMetric label="Payroll blockers" value={`${teamAttendance?.insights?.payrollBlockers ?? 0}`} />
+              <div className={cn('rounded-2xl border p-3 text-center', riskTone(teamAttendance?.insights?.coverageRisk))}>
+                <p className="text-[10px] font-bold uppercase tracking-wide">Coverage risk</p>
+                <p className="mt-1 text-sm font-extrabold">{teamAttendance?.insights?.coverageRisk ?? 'LOW'}</p>
+              </div>
+            </div>
             <div className="mt-5 h-48">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={teamAttendanceSeries} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -505,8 +540,8 @@ export function ManagerDashboard() {
                     </div>
                     <p className="font-semibold text-slate-700">Payable {formatHours(worker.payableHours)}</p>
                     <p className="font-semibold text-slate-700">Late {worker.lateMinutes}m</p>
-                    <p className={cn('font-semibold', worker.exceptions > 0 ? 'text-amber-700' : 'text-emerald-700')}>
-                      {worker.payrollReady > 0 ? 'Payroll ready' : `${worker.exceptions} exceptions`}
+                    <p className={cn('font-semibold', worker.riskLevel === 'HIGH' ? 'text-red-700' : worker.riskLevel === 'MEDIUM' ? 'text-amber-700' : 'text-emerald-700')}>
+                      {worker.payrollBlockers && worker.payrollBlockers > 0 ? `${worker.payrollBlockers} blockers` : `Score ${worker.attendanceScore ?? 100}%`}
                     </p>
                   </div>
                 ))}

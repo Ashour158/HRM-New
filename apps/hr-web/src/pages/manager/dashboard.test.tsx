@@ -96,14 +96,25 @@ const periodView = {
   scope: 'TEAM',
   totals: attendanceTotals,
   series: [{ ...attendanceTotals, workDate: '2026-06-09' }],
+  insights: {
+    attendanceScore: 88,
+    coverageRisk: 'MEDIUM',
+    payrollBlockers: 0,
+    policyViolations: 2,
+    trend: 'STABLE',
+  },
   workers: [
     {
       ...attendanceTotals,
+      attendanceScore: 88,
       workerId: directReport.id,
       employeeId: directReport.employeeId,
       name: 'Mina Soliman',
       departmentName: 'Operations',
       managerId: managerProfile.id,
+      payrollBlockers: 0,
+      policyViolations: 2,
+      riskLevel: 'MEDIUM',
     },
   ],
 };
@@ -133,6 +144,8 @@ describe('ManagerDashboard attendance view', () => {
     expect(screen.getAllByText('Mina Soliman').length).toBeGreaterThan(0);
     expect(screen.getByText('Payable 8h')).toBeInTheDocument();
     expect(screen.getByText('Late 10m')).toBeInTheDocument();
-    expect(screen.getByText('Payroll ready')).toBeInTheDocument();
+    expect(screen.getAllByText('88%').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('MEDIUM').length).toBeGreaterThan(0);
+    expect(screen.getByText('Score 88%')).toBeInTheDocument();
   });
 });
