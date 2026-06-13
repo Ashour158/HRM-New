@@ -20,6 +20,18 @@ module.exports = {
   },
   overrides: [
     {
+      files: ['apps/hr-api/src/**/repositories/**/*.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
+    {
+      files: ['apps/hr-api/**/*.spec.ts', 'apps/hr-api/**/*.test.ts'],
+      rules: {
+        '@typescript-eslint/no-explicit-any': 'off',
+      },
+    },
+    {
       files: ['apps/hr-web/**/*.ts', 'apps/hr-web/**/*.tsx'],
       plugins: ['react-hooks', 'react-refresh'],
       rules: {

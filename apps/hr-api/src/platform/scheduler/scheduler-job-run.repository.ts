@@ -60,6 +60,23 @@ export class SchedulerJobRunRepository implements SchedulerJobRunRepositoryPort 
     };
   }
 
+  async findLatestRunsByTenant(tenantId: Uuid): Promise<SchedulerJobRunRecord[]> {
+    const rows = await this.db
+      .selectFrom('scheduler_job_runs')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .orderBy('started_at', 'desc')
+      .limit(1000)
+      .execute();
+    const latestByJob = new Map<string, SchedulerJobRunRecord>();
+    for (const row of rows) {
+      if (!latestByJob.has(row.job_name)) {
+        latestByJob.set(row.job_name, toRecord(row));
+      }
+    }
+    return Array.from(latestByJob.values());
+  }
+
   async markSucceeded(input: { tenantId: Uuid; runId: Uuid; itemsProcessed: number; finishedAt: Date }): Promise<void> {
     await this.db
       .updateTable('scheduler_job_runs')

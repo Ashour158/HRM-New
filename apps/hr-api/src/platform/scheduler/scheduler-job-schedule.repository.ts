@@ -27,6 +27,15 @@ export class SchedulerJobScheduleRepository implements SchedulerJobScheduleRepos
     return row ? toOverride(row) : undefined;
   }
 
+  async listOverridesForTenant(tenantId: Uuid): Promise<SchedulerJobScheduleOverride[]> {
+    const rows = await this.db
+      .selectFrom('scheduler_job_schedules')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map(toOverride);
+  }
+
   async upsertSchedule(input: {
     tenantId: Uuid;
     jobName: string;

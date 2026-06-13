@@ -9,7 +9,7 @@ import { AuthGuard } from '../guards/auth.guard.js';
 import { PermissionGuard } from '../guards/permission.guard.js';
 import { RolesGuard } from '../guards/roles.guard.js';
 import { Public, PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
-import { Permissions, PERMISSIONS_KEY } from '../decorators/permissions.decorator.js';
+import { Permissions } from '../decorators/permissions.decorator.js';
 
 function contextFor(handler: () => void, actor?: { permissions?: string[] }): ExecutionContext {
   return {

@@ -17,6 +17,7 @@ describe('resolvePortalSearchPath', () => {
     expect(resolvePortalSearchPath('admin', 'department')).toBe('/admin/system-console/settings');
     expect(resolvePortalSearchPath('admin', 'audit evidence')).toBe('/admin/system-console/audit');
     expect(resolvePortalSearchPath('admin', 'event schema contracts')).toBe('/admin/system-console/event-contracts');
+    expect(resolvePortalSearchPath('admin', 'scheduler automation')).toBe('/admin/system-console/automation');
     expect(resolvePortalSearchPath('admin', 'service account access')).toBe('/admin/system-console/access-governance');
     expect(resolvePortalSearchPath('admin', 'apply leave')).toBe('/employee/time-off');
   });

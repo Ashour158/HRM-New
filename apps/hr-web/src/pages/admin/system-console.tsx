@@ -592,6 +592,7 @@ export function AdminSystemConsole() {
     { label: 'Production Readiness', description: 'Go-live gate across setup, policies, modules, integrations, queues, audit, and release controls.', group: 'Governance And Insights', path: '/admin/system-console/readiness', icon: Code2, tone: 'text-[#f59e0b]' },
     { label: 'System Operations', description: 'Recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
     { label: 'Failed Work Queue', description: 'Review failed background work, decide recovery actions, and export operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
+    { label: 'Automation', description: 'Manage scheduled jobs, tenant run windows, manual runs, and last-run health.', group: 'Governance And Insights', path: '/admin/system-console/automation', icon: Timer, tone: 'text-[#6366f1]' },
     { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#4f46e5]' },
     { label: 'Service Event Map', description: 'Review service event names, ownership, versioning, and consuming teams.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
   ];
