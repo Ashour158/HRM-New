@@ -7,7 +7,16 @@ import { getCurrentTransaction } from '../connection/transaction-context.js';
 type LooseDatabase = Record<string, Record<string, unknown>>;
 type LooseExecutor = Kysely<LooseDatabase> | Transaction<LooseDatabase>;
 
-export abstract class BaseRepository<TTable extends keyof Database, TAggregate = Database[TTable]> {
+/**
+ * Tables that carry a `tenant_id` column. `update()`/`delete()` enforce tenant
+ * scoping, so the base class is constrained to tenant-owned tables to keep that
+ * guarantee type-safe for future subclasses.
+ */
+export type TenantTableNames = {
+  [K in keyof Database]: 'tenant_id' extends keyof Database[K] ? K : never;
+}[keyof Database];
+
+export abstract class BaseRepository<TTable extends TenantTableNames, TAggregate = Database[TTable]> {
   protected abstract readonly tableName: TTable;
 
   constructor(protected readonly db: Kysely<Database>) {}
