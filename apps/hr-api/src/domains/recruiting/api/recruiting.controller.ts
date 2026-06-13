@@ -128,14 +128,15 @@ export class RecruitingController {
     @Query('department') departmentId?: string,
     @Query('position') positionId?: string,
   ) {
+    const tenantUuid = this.validUuid(tenantId, 'x-tenant-id');
     if (departmentId) {
-      return this.requisitionRepo.findByDepartment(new Uuid(departmentId));
+      return this.requisitionRepo.findByDepartment(tenantUuid, this.validUuid(departmentId, 'department'));
     }
     if (positionId) {
-      return this.requisitionRepo.findByPosition(new Uuid(positionId));
+      return this.requisitionRepo.findByPosition(tenantUuid, this.validUuid(positionId, 'position'));
     }
     // No generic findAll on repository; return open requisitions as default
-    return this.requisitionRepo.findOpen(new Uuid(tenantId));
+    return this.requisitionRepo.findOpen(tenantUuid);
   }
 
   @Get('requisitions/open')
@@ -429,6 +430,13 @@ export class RecruitingController {
   }
 
   /* ── Helpers ─────────────────────────────────────────────────── */
+
+  private validUuid(value: string | undefined, field: string): Uuid {
+    if (typeof value !== 'string' || !Uuid.isValid(value)) {
+      throw new BadRequestException(`${field} must be a valid UUID`);
+    }
+    return new Uuid(value);
+  }
 
   private buildCommand<TPayload>(
     commandName: string,

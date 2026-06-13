@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
@@ -141,7 +141,11 @@ export class PolicyCenterController {
   }
 
   private getTenantId(req: Request): Uuid {
-    return new Uuid((req.tenantId as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = req.tenantId;
+    if (typeof tenantId !== 'string' || !Uuid.isValid(tenantId)) {
+      throw new BadRequestException('Policy Center requires a valid tenant context');
+    }
+    return new Uuid(tenantId);
   }
 
   private getActor(req: Request): PolicyActor {

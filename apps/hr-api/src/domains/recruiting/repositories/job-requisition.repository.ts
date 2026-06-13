@@ -47,10 +47,11 @@ export class JobRequisitionRepository {
   /**
    * Find all requisitions for a given position.
    */
-  async findByPosition(positionId: Uuid): Promise<JobRequisition[]> {
+  async findByPosition(tenantId: Uuid, positionId: Uuid): Promise<JobRequisition[]> {
     const rows = await this.db
       .selectFrom('hr_recruiting.job_requisitions')
       .selectAll()
+      .where('tenant_id', '=', tenantId.value)
       .where('position_id', '=', positionId.value)
       .execute();
 
@@ -60,10 +61,11 @@ export class JobRequisitionRepository {
   /**
    * Find all requisitions for a given department.
    */
-  async findByDepartment(departmentId: Uuid): Promise<JobRequisition[]> {
+  async findByDepartment(tenantId: Uuid, departmentId: Uuid): Promise<JobRequisition[]> {
     const rows = await this.db
       .selectFrom('hr_recruiting.job_requisitions')
       .selectAll()
+      .where('tenant_id', '=', tenantId.value)
       .where('department_id', '=', departmentId.value)
       .execute();
 

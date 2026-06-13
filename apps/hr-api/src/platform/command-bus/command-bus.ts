@@ -78,6 +78,10 @@ type ActorScopeClaims = {
   departmentIds?: string[];
   orgUnitIds?: string[];
   locationCodes?: string[];
+  branchCodes?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
+  managerWorkerIds?: string[];
   employeeTypes?: string[];
 };
 
@@ -832,12 +836,19 @@ export class CommandBus implements OnModuleInit {
       && candidate.status === 'APPLIED'
       && this.policyScopeMatches(candidate.scope, command)
     ));
-    if (matching.length === 1) {
-      return this.buildAllowedPolicyDecisionEvidence(command, requiredArea, matching[0]);
-    }
-
-    if (matching.length > 1) {
-      const conflictingPolicyRevisionIds = matching.map((candidate) => candidate.revisionId);
+    if (matching.length > 0) {
+      const ranked = [...matching].sort((left, right) => this.policyScopeSpecificity(right.scope) - this.policyScopeSpecificity(left.scope));
+      const highestRank = this.policyScopeSpecificity(ranked[0].scope);
+      const mostSpecificMatches = ranked.filter((candidate) => this.policyScopeSpecificity(candidate.scope) === highestRank);
+      if (mostSpecificMatches.length === 1) {
+        return this.buildAllowedPolicyDecisionEvidence(
+          command,
+          requiredArea,
+          mostSpecificMatches[0],
+          ranked.map((candidate) => candidate.revisionId),
+        );
+      }
+      const conflictingPolicyRevisionIds = mostSpecificMatches.map((candidate) => candidate.revisionId);
       const reason = `${requiredArea} command ${command.commandName} has conflicting applied Policy Center revisions: ${conflictingPolicyRevisionIds.join(', ')}.`;
       throw this.makeError(
         command,
@@ -850,8 +861,8 @@ export class CommandBus implements OnModuleInit {
             command,
             requiredArea,
             reason,
-            revisions,
-            matching,
+            ranked,
+            mostSpecificMatches,
           ),
         },
       );
@@ -875,6 +886,7 @@ export class CommandBus implements OnModuleInit {
     command: HrCommandEnvelope<unknown>,
     serviceArea: RuntimePolicyArea,
     revision: RuntimePolicyRevisionEvidence,
+    evaluatedPolicyRevisionIds: string[] = [revision.revisionId],
   ): CommandPolicyDecisionEvidence {
     const subjectWorkerId = this.resolveSubjectWorkerId(command)?.value;
     return {
@@ -889,7 +901,7 @@ export class CommandBus implements OnModuleInit {
       aggregateType: command.aggregateType,
       subjectWorkerId,
       sourceRecordId: command.aggregateId?.value ?? subjectWorkerId,
-      evaluatedPolicyRevisionIds: [revision.revisionId],
+      evaluatedPolicyRevisionIds,
     };
   }
 
@@ -1109,6 +1121,10 @@ export class CommandBus implements OnModuleInit {
       && this.claimsMatch(scope.orgUnitIds, actorScope.orgUnitIds)
       && this.claimsMatch(scope.departmentIds, actorScope.departmentIds)
       && this.claimsMatch(scope.locationCodes, actorScope.locationCodes)
+      && this.claimsMatch(scope.branchCodes, actorScope.branchCodes)
+      && this.claimsMatch(scope.jobCodes, actorScope.jobCodes)
+      && this.claimsMatch(scope.gradeCodes, actorScope.gradeCodes)
+      && this.claimsMatch(scope.managerWorkerIds, actorScope.managerWorkerIds)
       && this.claimsMatch(scope.employeeTypes, actorScope.employeeTypes)
       && this.workerScopeMatches(scope.workerIds, command);
   }
@@ -1117,6 +1133,23 @@ export class CommandBus implements OnModuleInit {
     if (!policyValues || policyValues.length === 0) return true;
     const actorSet = new Set(actorValues ?? []);
     return policyValues.some((value) => actorSet.has(value));
+  }
+
+  private policyScopeSpecificity(scope: HcmPolicyScope | undefined): number {
+    if (!scope) return 0;
+    const rank = (values: string[] | undefined, weight: number) => (values && values.length > 0 ? weight : 0);
+    return rank(scope.workerIds, 100)
+      + rank(scope.managerWorkerIds, 90)
+      + rank(scope.jobCodes, 80)
+      + rank(scope.gradeCodes, 80)
+      + rank(scope.departmentIds, 70)
+      + rank(scope.orgUnitIds, 70)
+      + rank(scope.branchCodes, 65)
+      + rank(scope.locationCodes, 60)
+      + rank(scope.legalEntityIds, 50)
+      + rank(scope.countryCodes, 40)
+      + rank(scope.employeeTypes, 30)
+      + (scope.tenantId ? 10 : 0);
   }
 
   private workerScopeMatches(

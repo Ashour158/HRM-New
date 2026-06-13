@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
@@ -23,6 +23,7 @@ export class HcmSetupController {
   @Patch()
   async updateSetup(@Body() body: HcmSetupUpdate, @Req() req: Request) {
     this.assertSetupAdmin(req);
+    this.assertSetupUpdate(body);
     return this.service.updateSetup(this.getTenantId(req), body);
   }
 
@@ -35,5 +36,11 @@ export class HcmSetupController {
 
   private getTenantId(req: Request): Uuid {
     return new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+  }
+
+  private assertSetupUpdate(body: unknown): asserts body is HcmSetupUpdate {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      throw new BadRequestException('HCM setup update must be an object');
+    }
   }
 }

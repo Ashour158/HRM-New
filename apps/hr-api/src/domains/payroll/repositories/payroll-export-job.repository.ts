@@ -11,7 +11,22 @@ export class PayrollExportJobRepository {
   private readonly tableName = 'payroll_export_jobs' as const;
 
   async save(record: PayrollExportJobRecord): Promise<void> {
-    await this.db.insertInto(this.tableName).values(this.toRow(record)).execute();
+    const row = this.toRow(record);
+    await this.db
+      .insertInto(this.tableName)
+      .values(row)
+      .onConflict((oc: any) => oc
+        .columns(['tenant_id', 'payroll_cycle_id', 'export_type', 'purpose', 'file_hash'])
+        .doUpdateSet({
+          status: row.status,
+          requested_by: row.requested_by,
+          filters: row.filters,
+          row_count: row.row_count,
+          file_name: row.file_name,
+          data_classification: row.data_classification,
+          completed_at: row.completed_at,
+        }))
+      .execute();
   }
 
   async findByTenant(tenantId: Uuid, limit = 20): Promise<PayrollExportJobRecord[]> {

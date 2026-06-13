@@ -35,6 +35,10 @@ export interface PolicyScope {
   orgUnitIds?: string[];
   departmentIds?: string[];
   locationCodes?: string[];
+  branchCodes?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
+  managerWorkerIds?: string[];
   employeeTypes?: string[];
   workerIds?: string[];
   effectiveFrom?: string;

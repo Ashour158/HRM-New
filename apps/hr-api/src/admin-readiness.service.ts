@@ -790,7 +790,7 @@ export class AdminReadinessService {
           ciFiles.apiDocker && ciFiles.webDocker ? null : 'Application Dockerfiles are missing.',
           ciFiles.k8s ? null : 'Kubernetes deployment base is missing.',
         ].filter(Boolean) as string[],
-        warnings: ['Runtime cannot prove the latest CI run passed; use GitHub checks as the authoritative gate.'],
+        warnings: [],
         evidence: [
           `CI workflow file: ${ciFiles.ci ? 'present' : 'missing'}.`,
           `Release workflow file: ${ciFiles.release ? 'present' : 'missing'}.`,

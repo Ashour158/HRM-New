@@ -308,6 +308,10 @@ export interface AdminPolicyRevisionScopesTable {
   location_codes: unknown;
   employee_types: unknown;
   worker_ids: unknown;
+  branch_codes: unknown;
+  job_codes: unknown;
+  grade_codes: unknown;
+  manager_worker_ids: unknown;
   effective_from: Date | null;
   effective_until: Date | null;
   created_at: ColumnType<Date, string | undefined, never>;

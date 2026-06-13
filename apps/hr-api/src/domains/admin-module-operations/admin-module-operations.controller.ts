@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   ForbiddenException,
   Get,
@@ -427,7 +428,10 @@ export class AdminModuleOperationsController {
       }
       await this.nativeAdapter.syncNativeRecords(tenantId, moduleId, actorIdValue(req));
       const refreshedRecord = await this.repository.findRecord(tenantId, moduleId, recordId);
-      return this.serializeRecord(refreshedRecord ?? existingRecord);
+      if (!refreshedRecord) {
+        throw new ConflictException('Native operation status was applied, but the refreshed operation record is no longer available');
+      }
+      return this.serializeRecord(refreshedRecord);
     }
 
     const record = await this.repository.updateRecord(tenantId, moduleId, recordId, {

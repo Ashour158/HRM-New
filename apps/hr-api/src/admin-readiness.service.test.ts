@@ -63,6 +63,26 @@ describe('Admin production readiness', () => {
     expect(summary.warnings).toContain('CICD: Latest CI result is external.');
   });
 
+  it('marks the production gate ready when every domain is clean', () => {
+    const summary = summarizeProductionReadiness([
+      domain('AUTH', 'READY'),
+      domain('PAYROLL', 'READY'),
+      domain('POLICIES', 'READY'),
+      domain('CICD', 'READY'),
+    ]);
+
+    expect(summary.productionReady).toBe(true);
+    expect(summary.overallStatus).toBe('READY');
+    expect(summary.summary).toEqual({
+      READY: 4,
+      WARNING: 0,
+      BLOCKED: 0,
+      NOT_CONFIGURED: 0,
+    });
+    expect(summary.criticalBlockers).toEqual([]);
+    expect(summary.warnings).toEqual([]);
+  });
+
   it('summarizes pending work by open item weight and highest group priority', () => {
     const items: ProductionPendingWorkItem[] = [
       {

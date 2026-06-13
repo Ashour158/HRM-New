@@ -2013,17 +2013,39 @@ export class PolicyCenterService {
   }
 
   private withRuntimePolicyEvidence(revision: PolicyRevisionRecord, snapshot: HcmSetupUpdate): HcmSetupUpdate {
+    const nextEvidence = {
+      area: revision.area,
+      revisionId: revision.id,
+      status: 'APPLIED' as const,
+      appliedAt: nowIso(),
+      scope: revision.scope,
+      engineName: 'PolicyApplicationEngine',
+      engineVersion: ENGINE_VERSION,
+    };
+    const evidenceKey = (candidate: typeof nextEvidence) => JSON.stringify({
+      area: candidate.area,
+      tenantId: candidate.scope?.tenantId ?? '',
+      countryCodes: [...(candidate.scope?.countryCodes ?? [])].sort(),
+      legalEntityIds: [...(candidate.scope?.legalEntityIds ?? [])].sort(),
+      orgUnitIds: [...(candidate.scope?.orgUnitIds ?? [])].sort(),
+      departmentIds: [...(candidate.scope?.departmentIds ?? [])].sort(),
+      locationCodes: [...(candidate.scope?.locationCodes ?? [])].sort(),
+      branchCodes: [...(candidate.scope?.branchCodes ?? [])].sort(),
+      jobCodes: [...(candidate.scope?.jobCodes ?? [])].sort(),
+      gradeCodes: [...(candidate.scope?.gradeCodes ?? [])].sort(),
+      managerWorkerIds: [...(candidate.scope?.managerWorkerIds ?? [])].sort(),
+      employeeTypes: [...(candidate.scope?.employeeTypes ?? [])].sort(),
+      workerIds: [...(candidate.scope?.workerIds ?? [])].sort(),
+      effectiveFrom: candidate.scope?.effectiveFrom ?? '',
+      effectiveUntil: candidate.scope?.effectiveUntil ?? '',
+    });
+    const runtimePolicyRevisions = new Map(
+      (snapshot.runtimePolicyRevisions ?? []).map((candidate) => [evidenceKey(candidate as typeof nextEvidence), candidate]),
+    );
+    runtimePolicyRevisions.set(evidenceKey(nextEvidence), nextEvidence);
     return {
       ...snapshot,
-      runtimePolicyRevisions: [{
-        area: revision.area,
-        revisionId: revision.id,
-        status: 'APPLIED',
-        appliedAt: nowIso(),
-        scope: revision.scope,
-        engineName: 'PolicyApplicationEngine',
-        engineVersion: ENGINE_VERSION,
-      }],
+      runtimePolicyRevisions: Array.from(runtimePolicyRevisions.values()),
     };
   }
 

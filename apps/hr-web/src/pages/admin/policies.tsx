@@ -56,6 +56,10 @@ type PolicyScope = {
   orgUnitIds?: string[];
   departmentIds?: string[];
   locationCodes?: string[];
+  branchCodes?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
+  managerWorkerIds?: string[];
   employeeTypes?: string[];
   workerIds?: string[];
   effectiveFrom?: string;
@@ -296,6 +300,10 @@ type ScopeForm = {
   orgUnitIds: string;
   departmentIds: string;
   locationCodes: string;
+  branchCodes: string;
+  jobCodes: string;
+  gradeCodes: string;
+  managerWorkerIds: string;
   employeeTypes: string;
   workerIds: string;
   effectiveFrom: string;
@@ -338,6 +346,10 @@ const emptyScopeForm: ScopeForm = {
   orgUnitIds: '',
   departmentIds: '',
   locationCodes: '',
+  branchCodes: '',
+  jobCodes: '',
+  gradeCodes: '',
+  managerWorkerIds: '',
   employeeTypes: '',
   workerIds: '',
   effectiveFrom: '',
@@ -371,6 +383,10 @@ function scopeToForm(scope: PolicyScope | undefined): ScopeForm {
     orgUnitIds: csv(scope?.orgUnitIds),
     departmentIds: csv(scope?.departmentIds),
     locationCodes: csv(scope?.locationCodes),
+    branchCodes: csv(scope?.branchCodes),
+    jobCodes: csv(scope?.jobCodes),
+    gradeCodes: csv(scope?.gradeCodes),
+    managerWorkerIds: csv(scope?.managerWorkerIds),
     employeeTypes: csv(scope?.employeeTypes),
     workerIds: csv(scope?.workerIds),
     effectiveFrom: scope?.effectiveFrom ?? '',
@@ -385,6 +401,10 @@ function formToScope(form: ScopeForm): PolicyScope {
     orgUnitIds: splitCsv(form.orgUnitIds),
     departmentIds: splitCsv(form.departmentIds),
     locationCodes: splitCsv(form.locationCodes),
+    branchCodes: splitCsv(form.branchCodes),
+    jobCodes: splitCsv(form.jobCodes),
+    gradeCodes: splitCsv(form.gradeCodes),
+    managerWorkerIds: splitCsv(form.managerWorkerIds),
     employeeTypes: splitCsv(form.employeeTypes),
     workerIds: splitCsv(form.workerIds),
     effectiveFrom: form.effectiveFrom || undefined,
@@ -578,6 +598,22 @@ function ScopeInputs({ value, onChange, disabled = false }: { value: ScopeForm; 
       <div className="space-y-1.5">
         <Label htmlFor="policy-locations">Locations</Label>
         <Input id="policy-locations" disabled={disabled} placeholder="CAIRO_HQ" value={value.locationCodes} onChange={(event) => update('locationCodes', event.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="policy-branches">Branches</Label>
+        <Input id="policy-branches" disabled={disabled} placeholder="HQ, BRANCH_01" value={value.branchCodes} onChange={(event) => update('branchCodes', event.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="policy-jobs">Jobs</Label>
+        <Input id="policy-jobs" disabled={disabled} placeholder="RN, SALES_REP" value={value.jobCodes} onChange={(event) => update('jobCodes', event.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="policy-grades">Grades</Label>
+        <Input id="policy-grades" disabled={disabled} placeholder="G7, L3" value={value.gradeCodes} onChange={(event) => update('gradeCodes', event.target.value)} />
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="policy-managers">Managers</Label>
+        <Input id="policy-managers" disabled={disabled} placeholder="Manager worker IDs" value={value.managerWorkerIds} onChange={(event) => update('managerWorkerIds', event.target.value)} />
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="policy-types">Employee types</Label>

@@ -147,6 +147,9 @@ jobs:
     name: Candidate runtime smoke
     needs: publish-images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     env:
       RUNTIME_API_BASE_URL: ${{ vars.RUNTIME_API_BASE_URL }}
     steps:

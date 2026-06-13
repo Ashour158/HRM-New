@@ -687,6 +687,195 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it('enforces extended branch, job, grade, and manager policy scope claims', async () => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-unmatched-grade',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              scope: {
+                branchCodes: ['CAIRO_HQ'],
+                jobCodes: ['NURSE'],
+                gradeCodes: ['G9'],
+                managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+              },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-matched-scope',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              scope: {
+                branchCodes: ['CAIRO_HQ'],
+                jobCodes: ['NURSE'],
+                gradeCodes: ['G8'],
+                managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+              },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+          ],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName: 'RecordTimeClockEvent',
+      aggregateType: 'TimeClockEvent',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440012'),
+        roles: ['EMPLOYEE'],
+        permissions: ['ATTENDANCE_CLOCK'],
+        mfaAuthenticated: true,
+        branchCodes: ['CAIRO_HQ'],
+        jobCodes: ['NURSE'],
+        gradeCodes: ['G8'],
+        managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+      } as HrCommandEnvelope<unknown>['actor'],
+      payload: { workerId },
+    }))).resolves.toMatchObject({
+      serviceArea: 'ATTENDANCE',
+      policyRevisionId: 'attendance-matched-scope',
+      decision: 'ALLOWED',
+      evaluatedPolicyRevisionIds: ['attendance-matched-scope'],
+    });
+  });
+
+  it('uses the most specific manager, job, and grade policy when broader revisions also match', async () => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-tenant-default',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              scope: { tenantId: tenantId.value },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-country',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              scope: { tenantId: tenantId.value, countryCodes: ['EG'] },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-manager-job-grade',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              scope: {
+                tenantId: tenantId.value,
+                managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+                jobCodes: ['NURSE'],
+                gradeCodes: ['G8'],
+              },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+          ],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName: 'RecordTimeClockEvent',
+      aggregateType: 'TimeClockEvent',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440012'),
+        roles: ['EMPLOYEE'],
+        permissions: ['ATTENDANCE_CLOCK'],
+        mfaAuthenticated: true,
+        countryCodes: ['EG'],
+        managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+        jobCodes: ['NURSE'],
+        gradeCodes: ['G8'],
+      } as HrCommandEnvelope<unknown>['actor'],
+      payload: { workerId },
+    }))).resolves.toMatchObject({
+      serviceArea: 'ATTENDANCE',
+      policyRevisionId: 'attendance-manager-job-grade',
+      evaluatedPolicyRevisionIds: [
+        'attendance-manager-job-grade',
+        'attendance-country',
+        'attendance-tenant-default',
+      ],
+    });
+  });
+
+  it('fails closed when matching manager, job, and grade policies have the same precedence', async () => {
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-specific-a',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              scope: {
+                managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+                jobCodes: ['NURSE'],
+                gradeCodes: ['G8'],
+              },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+            {
+              area: 'ATTENDANCE',
+              revisionId: 'attendance-specific-b',
+              status: 'APPLIED',
+              appliedAt: '2026-06-08T10:00:00.000Z',
+              scope: {
+                managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+                jobCodes: ['NURSE'],
+                gradeCodes: ['G8'],
+              },
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+          ],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      commandName: 'RecordTimeClockEvent',
+      aggregateType: 'TimeClockEvent',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440012'),
+        roles: ['EMPLOYEE'],
+        permissions: ['ATTENDANCE_CLOCK'],
+        mfaAuthenticated: true,
+        managerWorkerIds: ['550e8400-e29b-41d4-a716-446655440077'],
+        jobCodes: ['NURSE'],
+        gradeCodes: ['G8'],
+      } as HrCommandEnvelope<unknown>['actor'],
+      payload: { workerId },
+    }))).rejects.toMatchObject({
+      errorCode: 'CONFLICTING_POLICY_REVISIONS_APPLIED',
+      errorDetails: {
+        policyDecisionEvidence: expect.objectContaining({
+          conflictingPolicyRevisionIds: ['attendance-specific-a', 'attendance-specific-b'],
+        }),
+      },
+    });
+  });
+
   it.each([
     ['GLOBAL_HR', 'CreateWorkAuthorizationCase', 'WorkAuthorizationCase'],
     ['DEI_ANALYTICS', 'ReviewDeiReport', 'DeiReport'],
