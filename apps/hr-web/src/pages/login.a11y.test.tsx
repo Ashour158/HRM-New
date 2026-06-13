@@ -35,7 +35,7 @@ describe('LoginPage accessibility and SSO state', () => {
           local: { enabled: true },
           oidc: { enabled: false },
           saml: { enabled: false },
-          mfa: { required: false, demoCodeEnabled: false },
+          mfa: { required: false },
           session: { accessTokenTtl: '15m', refreshTokenTtl: '8h' },
         },
       },

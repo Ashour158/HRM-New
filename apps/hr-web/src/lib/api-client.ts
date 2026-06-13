@@ -1,5 +1,14 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { ApiResponse, AuthRefreshResponse } from '@hcm/openapi-contracts';
+import type {
+  ApiResponse,
+  AuthPasswordResetConfirmRequest,
+  AuthPasswordResetConfirmResponse,
+  AuthPasswordResetRequest,
+  AuthPasswordResetRequestResponse,
+  AuthRefreshResponse,
+  AuthRegisterRequest,
+  AuthRegisterResponse,
+} from '@hcm/openapi-contracts';
 import { clearAuthSession, persistAuthSession, readAuthToken, readRefreshToken, readTenantId } from '@/lib/auth-storage';
 import { generateUUID } from './utils';
 import { createMockAdapter } from './mock-adapter';
@@ -122,3 +131,22 @@ function createApiClient(): AxiosInstance {
  * Global Axios instance for API requests.
  */
 export const apiClient = createApiClient();
+
+export async function registerAuthUser(payload: AuthRegisterRequest): Promise<AuthRegisterResponse> {
+  const response = await apiClient.post<ApiResponse<AuthRegisterResponse>>('/auth/register', payload);
+  return response.data.data;
+}
+
+export async function requestPasswordReset(
+  payload: AuthPasswordResetRequest,
+): Promise<AuthPasswordResetRequestResponse> {
+  const response = await apiClient.post<ApiResponse<AuthPasswordResetRequestResponse>>('/auth/password-reset/request', payload);
+  return response.data.data;
+}
+
+export async function confirmPasswordReset(
+  payload: AuthPasswordResetConfirmRequest,
+): Promise<AuthPasswordResetConfirmResponse> {
+  const response = await apiClient.post<ApiResponse<AuthPasswordResetConfirmResponse>>('/auth/password-reset/confirm', payload);
+  return response.data.data;
+}

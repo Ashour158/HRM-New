@@ -50,7 +50,14 @@ describe('auth hardening', () => {
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AppController.prototype.getReadiness)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AppController.prototype.getLiveness)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.login)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.refresh)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.register)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.requestPasswordReset)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.confirmPasswordReset)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.providers)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.me)).toBeUndefined();
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.invite)).toBeUndefined();
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.setupMfa)).toBeUndefined();
   });
 
   it('auth guard skips explicit public endpoints', () => {

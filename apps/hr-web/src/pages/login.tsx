@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
 import type { ApiResponse, AuthProvidersResponse } from '@hcm/openapi-contracts';
 import { useAuth } from '@/hooks/use-auth';
@@ -41,7 +41,6 @@ const authProvidersSchema = z.object({
   }),
   mfa: z.object({
     required: z.boolean(),
-    demoCodeEnabled: z.boolean(),
   }),
   session: z.object({
     accessTokenTtl: z.string(),
@@ -297,9 +296,9 @@ export function LoginPage() {
                   <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="password">
                     Password
                   </Label>
-                  <a className="text-sm font-semibold text-[#4f46e5] underline-offset-4 hover:underline" href="#">
+                  <Link className="text-sm font-semibold text-[#4f46e5] underline-offset-4 hover:underline" to="/forgot-password">
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94a3b8]" />
@@ -393,11 +392,11 @@ export function LoginPage() {
             </form>
 
             <div className="mt-8 border-t border-[#e2e8f0]/40 pt-6 text-center text-sm leading-6 text-[#475569]">
-              Need access or technical support?
+              Need access?
               <br />
-              <a className="font-semibold text-[#4f46e5] underline-offset-4 hover:underline" href="#">
-                Contact IT Helpdesk
-              </a>
+              <Link className="font-semibold text-[#4f46e5] underline-offset-4 hover:underline" to="/register">
+                Create an employee account
+              </Link>
             </div>
 
             <footer className="mt-8 border-t border-[#e2e8f0]/60 pt-5">

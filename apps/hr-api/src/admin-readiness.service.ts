@@ -249,7 +249,6 @@ export class AdminReadinessService {
           config.nodeEnv !== 'production' ? 'Runtime is not production mode.' : null,
           config.mfaRequired ? null : 'MFA step-up is not required by runtime config.',
           config.oidcIssuerUrl || config.samlMetadataUrl ? null : 'Enterprise SSO is not configured.',
-          config.mfaDemoCode ? 'Demo MFA code is enabled outside production.' : null,
         ].filter(Boolean) as string[],
         evidence: [
           `${counts.roles} roles and ${counts.permissions} permissions are stored.`,

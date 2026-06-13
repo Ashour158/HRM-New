@@ -21,8 +21,12 @@ export interface AppConfig {
   refreshTokenExpiresIn: string;
   /** Whether MFA step-up is required for sensitive sessions. */
   mfaRequired: boolean;
-  /** Non-production demo MFA code. Undefined in production unless explicitly configured. */
-  mfaDemoCode?: string;
+  /** Bcrypt cost factor for password hashes. */
+  bcryptCost: number;
+  /** Number of failed login attempts before account lockout. */
+  loginMaxAttempts: number;
+  /** Login lockout duration in minutes. */
+  lockoutMinutes: number;
   /** Optional OIDC identity provider issuer URL. */
   oidcIssuerUrl?: string;
   /** Optional OIDC client ID. */
@@ -61,7 +65,6 @@ export function loadAppConfig(): AppConfig {
   const systemApiKey = process.env.SYSTEM_API_KEY ?? (isProduction ? undefined : 'system-api-key');
   const integrationApiKey =
     process.env.INTEGRATION_API_KEY ?? (isProduction ? undefined : 'integration-api-key');
-  const mfaDemoCode = process.env.MFA_DEMO_CODE ?? (isProduction ? undefined : '123456');
 
   if (isProduction && jwtSecret === 'change-me-in-production') {
     throw new Error('JWT_SECRET must be configured to a non-placeholder value in production');
@@ -86,7 +89,9 @@ export function loadAppConfig(): AppConfig {
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
     refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN ?? '7d',
     mfaRequired: (process.env.MFA_REQUIRED ?? 'false').toLowerCase() === 'true',
-    mfaDemoCode,
+    bcryptCost: parseInt(process.env.BCRYPT_COST ?? '12', 10),
+    loginMaxAttempts: parseInt(process.env.LOGIN_MAX_ATTEMPTS ?? '5', 10),
+    lockoutMinutes: parseInt(process.env.LOCKOUT_MINUTES ?? '15', 10),
     oidcIssuerUrl: process.env.OIDC_ISSUER_URL,
     oidcClientId: process.env.OIDC_CLIENT_ID,
     oidcRedirectUri: process.env.OIDC_REDIRECT_URI,
