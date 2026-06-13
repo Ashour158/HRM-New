@@ -7,10 +7,15 @@
  * @controller hr/integrations
  */
 
-import { Controller, Get, Logger, NotFoundException, Param, Post, Query } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Logger, NotFoundException, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { IntegrationOrchestrator } from '../integration-orchestrator.service.js';
 import { IntegrationHealthService } from '../integration-health.service.js';
+import { AuthGuard } from '../../guards/auth.guard.js';
 
+const INTEGRATION_OPERATOR_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
+
+@UseGuards(AuthGuard)
 @Controller('hr/integrations')
 export class IntegrationsController {
   private readonly logger = new Logger(IntegrationsController.name);
@@ -50,7 +55,8 @@ export class IntegrationsController {
    * The payload is passed straight through to the adapter's `send()` method.
    */
   @Post(':adapterName/trigger')
-  async triggerAdapter(@Param('adapterName') adapterName: string) {
+  async triggerAdapter(@Param('adapterName') adapterName: string, @Req() req: Request) {
+    this.assertOperatorScope(req);
     this.logger.log({ type: 'MANUAL_TRIGGER', adapterName });
     const result = await this.orchestrator.send(adapterName, { action: 'MANUAL_TRIGGER' });
     return { adapterName, result };
@@ -58,7 +64,8 @@ export class IntegrationsController {
 
   /** POST /hr/integrations/:adapterName/commands/test - governed operator connection test. */
   @Post(':adapterName/commands/test')
-  async testAdapter(@Param('adapterName') adapterName: string) {
+  async testAdapter(@Param('adapterName') adapterName: string, @Req() req: Request) {
+    this.assertOperatorScope(req);
     const adapter = this.orchestrator.getAdapter(adapterName);
     if (!adapter) {
       throw new NotFoundException(`Integration adapter '${adapterName}' is not registered.`);
@@ -105,5 +112,15 @@ export class IntegrationsController {
         Number.isFinite(parsedLimit) ? parsedLimit : 50,
       ),
     };
+  }
+
+  private assertOperatorScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (!roles.some((role) => INTEGRATION_OPERATOR_ROLES.has(role))) {
+      throw new ForbiddenException('Only system administrators can operate integration commands');
+    }
+    if (req.actor?.mfaAuthenticated !== true) {
+      throw new ForbiddenException('Integration operations require MFA');
+    }
   }
 }

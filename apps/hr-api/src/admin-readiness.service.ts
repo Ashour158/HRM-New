@@ -35,6 +35,40 @@ export interface ProductionReadinessSnapshot {
   warnings: string[];
 }
 
+export type ProductionPendingWorkGroup =
+  | 'Setup And People'
+  | 'Policy And Payroll'
+  | 'Governance And Privacy'
+  | 'Operational Health'
+  | 'Release Gates';
+
+export interface ProductionPendingWorkItem {
+  id: string;
+  group: ProductionPendingWorkGroup;
+  title: string;
+  summary: string;
+  count: number;
+  status: 'live' | 'partial' | 'not-configured' | 'attention';
+  statusLabel: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  actionPath: string;
+  actionLabel: string;
+  signals: string[];
+}
+
+export interface ProductionPendingWorkSnapshot {
+  tenantId: string;
+  generatedAt: string;
+  totalOpenItems: number;
+  highPriorityItems: number;
+  items: ProductionPendingWorkItem[];
+  groups: Array<{
+    group: ProductionPendingWorkGroup;
+    openItems: number;
+    highestPriority: ProductionPendingWorkItem['priority'];
+  }>;
+}
+
 interface CountRow {
   count: string | number | bigint;
 }
@@ -99,6 +133,38 @@ export function summarizeProductionReadiness(domains: ProductionReadinessDomain[
         : 'READY';
 
   return { overallStatus, overallScore, productionReady, summary, criticalBlockers, warnings };
+}
+
+export function summarizeProductionPendingWork(items: ProductionPendingWorkItem[]): Pick<ProductionPendingWorkSnapshot, 'totalOpenItems' | 'highPriorityItems' | 'groups'> {
+  const totalOpenItems = items.reduce((sum, item) => sum + (item.status === 'live' ? 0 : Math.max(item.count, 1)), 0);
+  const highPriorityItems = items.filter((item) => item.priority === 'HIGH' || item.priority === 'CRITICAL').length;
+  const priorityRank: Record<ProductionPendingWorkItem['priority'], number> = {
+    LOW: 1,
+    MEDIUM: 2,
+    HIGH: 3,
+    CRITICAL: 4,
+  };
+  const groups = Array.from(
+    items.reduce((map, item) => {
+      const current = map.get(item.group);
+      const openContribution = item.status === 'live' ? 0 : Math.max(item.count, 1);
+      if (!current) {
+        map.set(item.group, {
+          group: item.group,
+          openItems: openContribution,
+          highestPriority: item.priority,
+        });
+        return map;
+      }
+      current.openItems += openContribution;
+      if (priorityRank[item.priority] > priorityRank[current.highestPriority]) {
+        current.highestPriority = item.priority;
+      }
+      return map;
+    }, new Map<ProductionPendingWorkGroup, ProductionPendingWorkSnapshot['groups'][number]>()),
+    ([, value]) => value,
+  );
+  return { totalOpenItems, highPriorityItems, groups };
 }
 
 function countValue(value: unknown): number {
@@ -179,6 +245,27 @@ export class AdminReadinessService {
     };
   }
 
+  async getPendingWork(tenantId: Uuid): Promise<ProductionPendingWorkSnapshot> {
+    const [setup, counts, appliedPolicyRows, queueCounts] = await Promise.all([
+      this.hcmSetup.getSetup(tenantId),
+      this.loadCounts(tenantId.value),
+      this.appliedPolicyCounts(tenantId.value),
+      this.loadQueueCounts(tenantId.value),
+    ]);
+    const items = this.buildPendingWork({
+      setup,
+      counts,
+      appliedPolicies: areaCounts(appliedPolicyRows),
+      queueCounts,
+    });
+    return {
+      tenantId: tenantId.value,
+      generatedAt: new Date().toISOString(),
+      items,
+      ...summarizeProductionPendingWork(items),
+    };
+  }
+
   private domain(input: {
     code: string;
     label: string;
@@ -234,6 +321,15 @@ export class AdminReadinessService {
       webDocker: hasRepoFile('apps/hr-web/Dockerfile'),
       k8s: hasRepoFile('deploy/k8s/base/kustomization.yaml'),
     };
+    const observabilityFiles = {
+      metricsEndpoint: hasRepoFile('apps/hr-api/src/observability/observability.controller.ts'),
+      metricsTests: hasRepoFile('apps/hr-api/src/observability/observability-metrics.service.spec.ts'),
+      tracingConfig: hasRepoFile('apps/hr-api/src/observability/opentelemetry.ts'),
+      alertRules: hasRepoFile('deploy/observability/prometheus-rules.yaml'),
+      runbook: hasRepoFile('docs/observability-runbook.md'),
+    };
+    const complianceRetentionRules = setup.compliancePolicyRuntime?.retentionRules?.length ?? 0;
+    const complianceLegalHoldRules = setup.compliancePolicyRuntime?.legalHoldRules?.length ?? 0;
 
     return [
       this.domain({
@@ -528,27 +624,66 @@ export class AdminReadinessService {
       this.domain({
         code: 'ACCESS_GOVERNANCE',
         label: 'Access Governance',
-        configured: counts.roles > 0 && counts.serviceAccounts > 0,
+        configured: counts.roles > 0 && counts.serviceAccounts > 0 && counts.serviceAccountCredentials > 0,
         summary: 'RBAC, ABAC, service accounts, access reviews, SoD rules, and privileged access readiness.',
         blockers: [
           counts.roles === 0 ? 'No roles are configured.' : null,
           counts.serviceAccounts === 0 ? 'No governed service accounts exist.' : null,
+          counts.serviceAccounts > 0 && counts.serviceAccountCredentials === 0 ? 'Service accounts have no governed credential records.' : null,
         ].filter(Boolean) as string[],
         warnings: [
           counts.accessReviewCampaigns === 0 ? 'No access review campaign exists.' : null,
           counts.sodRules === 0 ? 'No segregation-of-duties rule exists.' : null,
+          counts.accessReviewOverdueCampaigns > 0 ? `${counts.accessReviewOverdueCampaigns} access review campaign(s) are overdue.` : null,
+          counts.expiringServiceAccountCredentials > 0 ? `${counts.expiringServiceAccountCredentials} service account credential(s) expire within 14 days or are already expired.` : null,
+          counts.accessReviewWorkflowEvents === 0 ? 'Access review reminders, escalations, or completion events have not been recorded.' : null,
         ].filter(Boolean) as string[],
         evidence: [
           `${counts.roles} roles and ${counts.permissions} permissions.`,
           `${counts.serviceAccounts} service account(s).`,
+          `${counts.serviceAccountCredentials} service account credential record(s).`,
           `${counts.accessReviewCampaigns} access review campaign(s).`,
         ],
         metrics: {
           serviceAccounts: counts.serviceAccounts,
+          serviceAccountCredentials: counts.serviceAccountCredentials,
           accessReviewCampaigns: counts.accessReviewCampaigns,
+          overdueCampaigns: counts.accessReviewOverdueCampaigns,
           sodRules: counts.sodRules,
         },
         actionPath: '/admin/system-console/access-governance',
+      }),
+      this.domain({
+        code: 'DATA_GOVERNANCE',
+        label: 'Data Governance And Privacy',
+        configured: counts.fieldAccessPolicies > 0 && complianceRetentionRules > 0,
+        summary: 'Sensitive field controls, privacy notices, retention, legal holds, acknowledgements, and evidence exports.',
+        blockers: [
+          counts.fieldAccessPolicies === 0 ? 'No field access policy records exist.' : null,
+          complianceRetentionRules === 0 ? 'No compliance retention rule is configured.' : null,
+        ].filter(Boolean) as string[],
+        warnings: [
+          activeCount(setup.documentRequirements) === 0 ? 'No active document requirement is configured.' : null,
+          activeCount(setup.fieldRules) === 0 ? 'No active employee field catalog rule is configured.' : null,
+          complianceLegalHoldRules === 0 ? 'No legal-hold rule is configured.' : null,
+          counts.activeLegalHolds > 0 ? `${counts.activeLegalHolds} legal hold(s) are active.` : null,
+          counts.overduePolicyAcknowledgements > 0 ? `${counts.overduePolicyAcknowledgements} policy acknowledgement(s) are overdue.` : null,
+          counts.auditWithoutRetentionClass > 0 ? `${counts.auditWithoutRetentionClass} audit record(s) have no retention class evidence.` : null,
+        ].filter(Boolean) as string[],
+        evidence: [
+          `${activeCount(setup.fieldRules)} active employee field rule(s).`,
+          `${activeCount(setup.documentRequirements)} active document requirement(s).`,
+          `${counts.fieldAccessPolicies} field access policy record(s).`,
+          `${counts.policyDocuments} compliance policy document(s).`,
+        ],
+        metrics: {
+          fieldCatalogRules: activeCount(setup.fieldRules),
+          documentRequirements: activeCount(setup.documentRequirements),
+          activeLegalHolds: counts.activeLegalHolds,
+          overdueAcknowledgements: counts.overduePolicyAcknowledgements,
+          auditWithoutRetentionClass: counts.auditWithoutRetentionClass,
+        },
+        actionPath: '/admin/system-console/settings',
       }),
       this.domain({
         code: 'INTEGRATIONS',
@@ -577,6 +712,7 @@ export class AdminReadinessService {
         warnings: [
           counts.platformNotifications === 0 ? 'No platform notification projections exist.' : null,
           counts.fieldAccessPolicies === 0 ? 'No field access policy records exist.' : null,
+          counts.auditWithoutRetentionClass > 0 ? `${counts.auditWithoutRetentionClass} audit record(s) are missing retention class evidence.` : null,
         ].filter(Boolean) as string[],
         evidence: [
           `${counts.auditLog} audit log record(s).`,
@@ -587,6 +723,7 @@ export class AdminReadinessService {
           auditRecords: counts.auditLog,
           notifications: counts.platformNotifications,
           fieldAccessPolicies: counts.fieldAccessPolicies,
+          auditWithoutRetentionClass: counts.auditWithoutRetentionClass,
         },
         actionPath: '/admin/system-console/audit',
       }),
@@ -618,6 +755,31 @@ export class AdminReadinessService {
         actionPath: '/admin/system-console/dead-letter-events',
       }),
       this.domain({
+        code: 'OBSERVABILITY',
+        label: 'Observability And Operations',
+        configured: Object.values(observabilityFiles).every(Boolean),
+        summary: 'Structured logs, metrics, tracing, alert rules, and operator runbooks for production support.',
+        blockers: [
+          observabilityFiles.metricsEndpoint ? null : 'Metrics endpoint is missing.',
+          observabilityFiles.tracingConfig ? null : 'OpenTelemetry tracing configuration is missing.',
+          observabilityFiles.alertRules ? null : 'Prometheus alert rules are missing.',
+          observabilityFiles.runbook ? null : 'Observability runbook is missing.',
+        ].filter(Boolean) as string[],
+        warnings: [
+          queueCounts.outboxPending + queueCounts.inboxFailedRetryable + queueCounts.inboxFailedNonRetryable > 0
+            ? 'Queue health has unresolved backlog or failures.'
+            : null,
+        ].filter(Boolean) as string[],
+        evidence: [
+          `Metrics endpoint: ${observabilityFiles.metricsEndpoint ? 'present' : 'missing'}.`,
+          `Tracing config: ${observabilityFiles.tracingConfig ? 'present' : 'missing'}.`,
+          `Alert rules: ${observabilityFiles.alertRules ? 'present' : 'missing'}.`,
+          `Runbook: ${observabilityFiles.runbook ? 'present' : 'missing'}.`,
+        ],
+        metrics: observabilityFiles,
+        actionPath: '/admin/system-console#system-operations',
+      }),
+      this.domain({
         code: 'CICD',
         label: 'CI/CD, Deployment, And Release',
         configured: Object.values(ciFiles).every(Boolean),
@@ -640,6 +802,227 @@ export class AdminReadinessService {
     ];
   }
 
+  private buildPendingWork(input: {
+    setup: HcmSetupConfig;
+    counts: Awaited<ReturnType<AdminReadinessService['loadCounts']>>;
+    appliedPolicies: Record<string, number>;
+    queueCounts: Awaited<ReturnType<AdminReadinessService['loadQueueCounts']>>;
+  }): ProductionPendingWorkItem[] {
+    const { setup, counts, appliedPolicies, queueCounts } = input;
+    const requiredPolicyAreas: RuntimePolicyArea[] = ['LEAVE', 'ATTENDANCE', 'PAYROLL', 'ACCESS_GOVERNANCE', 'COMPLIANCE', 'BENEFITS'];
+    const runtimePolicyAreas = new Set((setup.runtimePolicyRevisions ?? []).map((revision) => revision.area));
+    const missingPolicyAreas = requiredPolicyAreas.filter((area) =>
+      (appliedPolicies[area] ?? 0) === 0 && !runtimePolicyAreas.has(area),
+    );
+    const integrationReadiness = this.integrationHealth.getAllReadiness();
+    const integrationBlockerCount = integrationReadiness.reduce((sum, entry) => sum + entry.blockers.length, 0);
+    const config = loadAppConfig();
+    const ciReady = hasRepoFile('.github/workflows/ci.yml')
+      && hasRepoFile('.github/workflows/release.yml')
+      && hasRepoFile('apps/hr-api/Dockerfile')
+      && hasRepoFile('apps/hr-web/Dockerfile')
+      && hasRepoFile('deploy/k8s/base/kustomization.yaml');
+    const observabilityReady = hasRepoFile('apps/hr-api/src/observability/observability.controller.ts')
+      && hasRepoFile('deploy/observability/prometheus-rules.yaml')
+      && hasRepoFile('docs/observability-runbook.md');
+    const setupGapCount = [
+      activeCount(setup.departments) === 0,
+      activeCount(setup.locations) === 0,
+      activeCount(setup.fieldRules) === 0,
+      activeCount(setup.documentRequirements) === 0,
+      counts.workersMissingDepartment > 0,
+      counts.workersMissingManager > 0,
+    ].filter(Boolean).length;
+    const queueDecisionCount = queueCounts.outboxExhausted + queueCounts.inboxFailedNonRetryable;
+    const queueWatchCount = queueCounts.outboxPending + queueCounts.inboxFailedRetryable + queueCounts.inboxInProgress;
+    const dataGovernanceCount = [
+      counts.fieldAccessPolicies === 0,
+      (setup.compliancePolicyRuntime?.retentionRules?.length ?? 0) === 0,
+      (setup.compliancePolicyRuntime?.legalHoldRules?.length ?? 0) === 0,
+      counts.overduePolicyAcknowledgements > 0,
+      counts.auditWithoutRetentionClass > 0,
+    ].filter(Boolean).length;
+    const accessGovernanceCount = [
+      counts.serviceAccounts === 0,
+      counts.serviceAccounts > 0 && counts.serviceAccountCredentials === 0,
+      counts.accessReviewCampaigns === 0,
+      counts.accessReviewOverdueCampaigns > 0,
+      counts.sodRules === 0,
+      counts.expiringServiceAccountCredentials > 0,
+    ].filter(Boolean).length;
+
+    const item = (inputItem: ProductionPendingWorkItem): ProductionPendingWorkItem => inputItem;
+    return [
+      item({
+        id: 'policy-missing-runtime-areas',
+        group: 'Policy And Payroll',
+        title: 'Apply Required Runtime Policies',
+        summary: missingPolicyAreas.length > 0
+          ? `Missing applied policy coverage for ${missingPolicyAreas.join(', ')}.`
+          : 'Required runtime policies are applied or present in the runtime snapshot.',
+        count: missingPolicyAreas.length,
+        status: missingPolicyAreas.length > 0 ? 'attention' : 'live',
+        statusLabel: missingPolicyAreas.length > 0 ? 'Apply' : 'Clear',
+        priority: missingPolicyAreas.length > 0 ? 'CRITICAL' : 'LOW',
+        actionPath: '/admin/system-console/policies',
+        actionLabel: 'Open Policy Center',
+        signals: [
+          `${Object.values(appliedPolicies).reduce((sum, value) => sum + value, 0)} applied policy revision(s).`,
+          `${setup.runtimePolicyRevisions?.length ?? 0} runtime policy snapshot(s).`,
+        ],
+      }),
+      item({
+        id: 'access-certification-and-credentials',
+        group: 'Governance And Privacy',
+        title: 'Access Certification And Credentials',
+        summary: accessGovernanceCount > 0
+          ? 'Access reviews, SoD, service account credentials, or credential expiry need administrator action.'
+          : 'Access certification, SoD, and service account credentials are covered.',
+        count: accessGovernanceCount,
+        status: accessGovernanceCount > 0 ? 'attention' : 'live',
+        statusLabel: accessGovernanceCount > 0 ? 'Review' : 'Clear',
+        priority: accessGovernanceCount > 0 ? 'HIGH' : 'LOW',
+        actionPath: '/admin/system-console/access-governance',
+        actionLabel: 'Open Access Governance',
+        signals: [
+          `${counts.accessReviewCampaigns} access review campaign(s), ${counts.pendingAccessReviews} pending item(s).`,
+          `${counts.serviceAccountCredentials} service credential record(s), ${counts.expiringServiceAccountCredentials} expiring soon.`,
+          `${counts.sodRules} SoD rule(s).`,
+        ],
+      }),
+      item({
+        id: 'data-governance-privacy-controls',
+        group: 'Governance And Privacy',
+        title: 'Data Governance And Privacy Controls',
+        summary: dataGovernanceCount > 0
+          ? 'Field controls, retention, legal hold, acknowledgements, or audit retention evidence need work.'
+          : 'Field controls, retention, legal hold, acknowledgements, and audit evidence are covered.',
+        count: dataGovernanceCount,
+        status: dataGovernanceCount > 0 ? 'attention' : 'live',
+        statusLabel: dataGovernanceCount > 0 ? 'Fix' : 'Clear',
+        priority: dataGovernanceCount > 0 ? 'HIGH' : 'LOW',
+        actionPath: '/admin/system-console/settings',
+        actionLabel: 'Open Data Rules',
+        signals: [
+          `${counts.fieldAccessPolicies} field access polic(ies).`,
+          `${counts.activeLegalHolds} active legal hold(s).`,
+          `${counts.overduePolicyAcknowledgements} overdue acknowledgement(s).`,
+        ],
+      }),
+      item({
+        id: 'setup-and-master-data-quality',
+        group: 'Setup And People',
+        title: 'Setup And Master Data Quality',
+        summary: setupGapCount > 0
+          ? 'Core setup or worker assignment data is incomplete.'
+          : 'Departments, locations, documents, fields, and worker assignments are configured.',
+        count: setupGapCount + counts.workersMissingDepartment + counts.workersMissingManager,
+        status: setupGapCount > 0 ? 'attention' : 'live',
+        statusLabel: setupGapCount > 0 ? 'Fix setup' : 'Ready',
+        priority: setupGapCount > 0 ? 'HIGH' : 'LOW',
+        actionPath: '/admin/system-console/settings',
+        actionLabel: 'Open Setup',
+        signals: [
+          `${activeCount(setup.departments)} active department(s), ${activeCount(setup.locations)} active location(s).`,
+          `${counts.workersMissingDepartment} worker(s) missing department.`,
+          `${counts.workersMissingManager} worker(s) missing manager.`,
+        ],
+      }),
+      item({
+        id: 'queue-operator-decisions',
+        group: 'Operational Health',
+        title: 'Failed Work Decisions',
+        summary: queueDecisionCount > 0
+          ? `${queueDecisionCount} exhausted or non-retryable queue item(s) require inspect, retry, skip, or export.`
+          : 'No exhausted or non-retryable queue item needs an operator decision.',
+        count: queueDecisionCount,
+        status: queueDecisionCount > 0 ? 'attention' : 'live',
+        statusLabel: queueDecisionCount > 0 ? 'Inspect' : 'Clear',
+        priority: queueDecisionCount > 0 ? 'CRITICAL' : 'LOW',
+        actionPath: '/admin/system-console/dead-letter-events',
+        actionLabel: 'Open Failed Work',
+        signals: [
+          `${queueCounts.outboxExhausted} exhausted outbox event(s).`,
+          `${queueCounts.inboxFailedNonRetryable} non-retryable inbox event(s).`,
+        ],
+      }),
+      item({
+        id: 'queue-backlog-watch',
+        group: 'Operational Health',
+        title: 'Recovery Queue Backlog',
+        summary: queueWatchCount > 0
+          ? `${queueWatchCount} pending, retryable, or in-progress event(s) need monitoring.`
+          : 'Outbox and inbox recovery backlog is clear.',
+        count: queueWatchCount,
+        status: queueWatchCount > 0 ? 'attention' : 'live',
+        statusLabel: queueWatchCount > 0 ? 'Watch' : 'Clear',
+        priority: queueWatchCount > 0 ? 'MEDIUM' : 'LOW',
+        actionPath: '/admin/system-console#system-operations',
+        actionLabel: 'Review Operations',
+        signals: [
+          `${queueCounts.outboxPending} pending outbox event(s).`,
+          `${queueCounts.inboxFailedRetryable} retryable inbox failure(s).`,
+          `${queueCounts.inboxInProgress} in-progress inbox event(s).`,
+        ],
+      }),
+      item({
+        id: 'integration-and-mail-readiness',
+        group: 'Operational Health',
+        title: 'Integration And Mail Readiness',
+        summary: integrationBlockerCount > 0
+          ? `${integrationBlockerCount} integration readiness blocker(s) need owner action.`
+          : 'Registered integrations report no readiness blockers.',
+        count: integrationBlockerCount,
+        status: integrationBlockerCount > 0 ? 'attention' : integrationReadiness.length > 0 ? 'live' : 'not-configured',
+        statusLabel: integrationBlockerCount > 0 ? 'Configure' : integrationReadiness.length > 0 ? 'Ready' : 'Setup',
+        priority: integrationBlockerCount > 0 ? 'HIGH' : 'LOW',
+        actionPath: '/admin/system-console/integrations',
+        actionLabel: 'Open Integrations',
+        signals: [
+          `${integrationReadiness.length} provider(s) registered.`,
+          `${integrationReadiness.filter((entry) => entry.ready).length} provider(s) ready.`,
+        ],
+      }),
+      item({
+        id: 'observability-runbook-and-alerts',
+        group: 'Operational Health',
+        title: 'Observability Runbook And Alerts',
+        summary: observabilityReady
+          ? 'Metrics endpoint, alert rules, and operator runbook are present.'
+          : 'Metrics, alerting, or runbook assets are missing from the release envelope.',
+        count: observabilityReady ? 0 : 1,
+        status: observabilityReady ? 'live' : 'attention',
+        statusLabel: observabilityReady ? 'Ready' : 'Fix',
+        priority: observabilityReady ? 'LOW' : 'HIGH',
+        actionPath: '/admin/system-console#system-operations',
+        actionLabel: 'Open Operations',
+        signals: [
+          `Production mode: ${config.nodeEnv === 'production' ? 'yes' : 'no'}.`,
+          `MFA required: ${config.mfaRequired ? 'yes' : 'no'}.`,
+        ],
+      }),
+      item({
+        id: 'release-envelope-gates',
+        group: 'Release Gates',
+        title: 'CI/CD And Deployment Envelope',
+        summary: ciReady
+          ? 'CI, release, Docker, and Kubernetes deployment files are present.'
+          : 'Release workflow, Docker image, or Kubernetes deployment assets are missing.',
+        count: ciReady ? 0 : 1,
+        status: ciReady ? 'live' : 'attention',
+        statusLabel: ciReady ? 'Ready' : 'Fix',
+        priority: ciReady ? 'LOW' : 'CRITICAL',
+        actionPath: '/admin/system-console/readiness',
+        actionLabel: 'Open Readiness Gate',
+        signals: [
+          `CI workflow: ${hasRepoFile('.github/workflows/ci.yml') ? 'present' : 'missing'}.`,
+          `Release workflow: ${hasRepoFile('.github/workflows/release.yml') ? 'present' : 'missing'}.`,
+          `Kubernetes base: ${hasRepoFile('deploy/k8s/base/kustomization.yaml') ? 'present' : 'missing'}.`,
+        ],
+      }),
+    ];
+  }
+
   private async loadCounts(tenantId: string) {
     const rows = await Promise.all([
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.tenants WHERE id = ${tenantId} AND status = 'ACTIVE'`),
@@ -647,8 +1030,12 @@ export class AdminReadinessService {
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.roles WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.permissions WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.service_accounts WHERE tenant_id = ${tenantId}`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.service_account_credentials WHERE tenant_id = ${tenantId}`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.service_account_credentials WHERE tenant_id = ${tenantId} AND status = 'ACTIVE' AND expires_at IS NOT NULL AND expires_at <= now() + interval '14 days'`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.access_review_campaigns WHERE tenant_id = ${tenantId}`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.access_review_campaigns WHERE tenant_id = ${tenantId} AND status NOT IN ('COMPLETED', 'CANCELLED') AND due_at IS NOT NULL AND due_at < now()`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.access_review_items WHERE tenant_id = ${tenantId} AND decision IN ('PENDING', 'ESCALATE')`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.access_review_workflow_events WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.sod_rules WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.field_access_policies WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_core.workers WHERE tenant_id = ${tenantId} AND status IN ('ACTIVE', 'REHIRED')`),
@@ -690,9 +1077,14 @@ export class AdminReadinessService {
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_reporting.report_schedules WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_reporting.calculated_fields WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.audit_log WHERE tenant_id = ${tenantId}`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.audit_log WHERE tenant_id = ${tenantId} AND retention_class IS NULL`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.platform_notifications WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.outbox_events WHERE tenant_id = ${tenantId}`),
       this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_platform.inbox_events WHERE tenant_id = ${tenantId}`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_compliance.policy_documents WHERE tenant_id = ${tenantId}`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_compliance.policy_acknowledgements WHERE tenant_id = ${tenantId} AND status IN ('PENDING', 'OVERDUE')`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_compliance.policy_acknowledgements WHERE tenant_id = ${tenantId} AND status IN ('PENDING', 'OVERDUE') AND due_date IS NOT NULL AND due_date < now()`),
+      this.count(sql<CountRow>`SELECT COUNT(*)::int AS count FROM hr_compliance.legal_holds WHERE tenant_id = ${tenantId} AND status = 'ACTIVE'`),
     ]);
 
     const [
@@ -701,8 +1093,12 @@ export class AdminReadinessService {
       roles,
       permissions,
       serviceAccounts,
+      serviceAccountCredentials,
+      expiringServiceAccountCredentials,
       accessReviewCampaigns,
+      accessReviewOverdueCampaigns,
       pendingAccessReviews,
+      accessReviewWorkflowEvents,
       sodRules,
       fieldAccessPolicies,
       activeWorkers,
@@ -744,9 +1140,14 @@ export class AdminReadinessService {
       reportSchedules,
       calculatedFields,
       auditLog,
+      auditWithoutRetentionClass,
       platformNotifications,
       outboxEvents,
       inboxEvents,
+      policyDocuments,
+      pendingPolicyAcknowledgements,
+      overduePolicyAcknowledgements,
+      activeLegalHolds,
     ] = rows;
 
     return {
@@ -755,8 +1156,12 @@ export class AdminReadinessService {
       roles,
       permissions,
       serviceAccounts,
+      serviceAccountCredentials,
+      expiringServiceAccountCredentials,
       accessReviewCampaigns,
+      accessReviewOverdueCampaigns,
       pendingAccessReviews,
+      accessReviewWorkflowEvents,
       sodRules,
       fieldAccessPolicies,
       activeWorkers,
@@ -798,9 +1203,14 @@ export class AdminReadinessService {
       reportSchedules,
       calculatedFields,
       auditLog,
+      auditWithoutRetentionClass,
       platformNotifications,
       outboxEvents,
       inboxEvents,
+      policyDocuments,
+      pendingPolicyAcknowledgements,
+      overduePolicyAcknowledgements,
+      activeLegalHolds,
     };
   }
 

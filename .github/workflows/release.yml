@@ -122,7 +122,9 @@ jobs:
 
   github-release:
     name: Create GitHub release
-    needs: publish-images
+    needs:
+      - publish-images
+      - runtime-smoke
     runs-on: ubuntu-latest
     steps:
       - name: Resolve release version
@@ -145,7 +147,6 @@ jobs:
     name: Candidate runtime smoke
     needs: publish-images
     runs-on: ubuntu-latest
-    if: ${{ vars.RUNTIME_API_BASE_URL != '' }}
     env:
       RUNTIME_API_BASE_URL: ${{ vars.RUNTIME_API_BASE_URL }}
     steps:
@@ -165,6 +166,14 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Require runtime smoke target
+        shell: bash
+        run: |
+          if [ -z "$RUNTIME_API_BASE_URL" ]; then
+            echo "::error::RUNTIME_API_BASE_URL is required before creating a production release."
+            exit 1
+          fi
 
       - name: Runtime API smoke
         run: pnpm runtime:smoke | tee runtime-smoke.log

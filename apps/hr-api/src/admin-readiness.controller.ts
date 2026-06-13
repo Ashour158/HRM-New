@@ -19,6 +19,12 @@ export class AdminReadinessController {
     return this.readiness.getReadiness(this.getTenantId(req));
   }
 
+  @Get('pending-work')
+  async getPendingWork(@Req() req: Request) {
+    this.assertSystemConsoleScope(req);
+    return this.readiness.getPendingWork(this.getTenantId(req));
+  }
+
   private assertSystemConsoleScope(req: Request): void {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => SYSTEM_CONSOLE_ROLES.has(role))) return;

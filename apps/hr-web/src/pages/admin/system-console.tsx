@@ -233,7 +233,12 @@ interface GuidedAdminJourney {
   signals: string[];
 }
 
-type PendingAdminWorkGroup = 'Setup And People' | 'Policy And Payroll' | 'Operational Health';
+type PendingAdminWorkGroup =
+  | 'Setup And People'
+  | 'Policy And Payroll'
+  | 'Governance And Privacy'
+  | 'Operational Health'
+  | 'Release Gates';
 
 interface PendingAdminWorkItem {
   title: string;
@@ -245,6 +250,33 @@ interface PendingAdminWorkItem {
   actionLabel: string;
   icon: React.ElementType;
   group: PendingAdminWorkGroup;
+}
+
+interface ServerPendingWorkItem {
+  id: string;
+  group: PendingAdminWorkGroup;
+  title: string;
+  summary: string;
+  count: number;
+  status: ConsoleStatus;
+  statusLabel: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  actionPath: string;
+  actionLabel: string;
+  signals: string[];
+}
+
+interface ServerPendingWorkSnapshot {
+  tenantId: string;
+  generatedAt: string;
+  totalOpenItems: number;
+  highPriorityItems: number;
+  items: ServerPendingWorkItem[];
+  groups: Array<{
+    group: PendingAdminWorkGroup;
+    openItems: number;
+    highestPriority: ServerPendingWorkItem['priority'];
+  }>;
 }
 
 function unwrapApiData<T>(payload: unknown): T {
@@ -286,6 +318,14 @@ function groupStatus(items: PendingAdminWorkItem[]): ConsoleStatus {
   if (items.some((item) => item.status === 'partial')) return 'partial';
   if (items.some((item) => item.status === 'not-configured')) return 'not-configured';
   return 'live';
+}
+
+function pendingWorkIcon(group: PendingAdminWorkGroup): React.ElementType {
+  if (group === 'Setup And People') return Building2;
+  if (group === 'Policy And Payroll') return ShieldCheck;
+  if (group === 'Governance And Privacy') return LockKeyhole;
+  if (group === 'Release Gates') return ClipboardCheck;
+  return Activity;
 }
 
 function StatusBadge({ status, label }: { status: ConsoleStatus; label: string }) {
@@ -464,6 +504,11 @@ export function AdminSystemConsole() {
   const readinessQuery = useQuery({
     queryKey: ['system-readiness'],
     queryFn: async () => unwrapApiData<ReadinessStatus>(await apiClient.get('/health/ready')),
+    retry: false,
+  });
+  const productionPendingWorkQuery = useQuery({
+    queryKey: ['production-pending-work', 'system-console'],
+    queryFn: async () => unwrapApiData<ServerPendingWorkSnapshot>(await apiClient.get('/admin/system-console/pending-work')),
     retry: false,
   });
   const integrationQuery = useQuery({
@@ -913,7 +958,7 @@ export function AdminSystemConsole() {
     },
   ];
 
-  const pendingAdminWork: PendingAdminWorkItem[] = [
+  const localPendingAdminWork: PendingAdminWorkItem[] = [
     {
       title: 'Policy Review And Apply Queue',
       helper: pendingPolicyActions > 0
@@ -1006,6 +1051,17 @@ export function AdminSystemConsole() {
       group: 'Operational Health',
     },
   ];
+  const pendingAdminWork: PendingAdminWorkItem[] = productionPendingWorkQuery.data?.items.map((item) => ({
+    title: item.title,
+    helper: item.summary,
+    count: item.count,
+    status: item.status,
+    statusLabel: item.statusLabel,
+    path: item.actionPath,
+    actionLabel: item.actionLabel,
+    icon: pendingWorkIcon(item.group),
+    group: item.group,
+  })) ?? localPendingAdminWork;
   const pendingWorkGroups = ([
     {
       title: 'Setup And People',
@@ -1018,9 +1074,19 @@ export function AdminSystemConsole() {
       icon: ShieldCheck,
     },
     {
+      title: 'Governance And Privacy',
+      helper: 'Access reviews, sensitive fields, legal holds, retention, and privacy controls.',
+      icon: LockKeyhole,
+    },
+    {
       title: 'Operational Health',
       helper: 'Readiness, recovery queues, integrations, notifications, and audit follow-up.',
       icon: Activity,
+    },
+    {
+      title: 'Release Gates',
+      helper: 'CI/CD, deployment envelope, runtime smoke, and release readiness evidence.',
+      icon: ClipboardCheck,
     },
   ] satisfies Array<{ title: PendingAdminWorkGroup; helper: string; icon: React.ElementType }>).map((group) => {
     const items = pendingAdminWork.filter((item) => item.group === group.title);
@@ -1133,7 +1199,7 @@ export function AdminSystemConsole() {
                 Pending Admin Work
               </CardTitle>
               <CardDescription>
-                Setup, policy, payroll, integration, queue, and health items grouped by administrator concern.
+                Setup, policy, privacy, access, integration, queue, and release items grouped by administrator concern.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4 p-5 pt-0 xl:grid-cols-3">

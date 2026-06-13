@@ -22,6 +22,15 @@ function registerAdapters(adapters: IntegrationAdapter[]) {
   return { healthService, orchestrator };
 }
 
+function operatorRequest(roles = ['PLATFORM_ADMIN'], mfaAuthenticated = true) {
+  return {
+    actor: {
+      roles,
+      mfaAuthenticated,
+    },
+  } as never;
+}
+
 describe('integration provider readiness', () => {
   const originalEnv = { ...process.env };
 
@@ -155,7 +164,7 @@ describe('integration provider readiness', () => {
     const { healthService, orchestrator } = registerAdapters([email]);
     const controller = new IntegrationsController(orchestrator, healthService);
 
-    const result = await controller.testAdapter(email.name);
+    const result = await controller.testAdapter(email.name, operatorRequest());
 
     expect(result).toEqual(expect.objectContaining({
       adapterName: 'email-notification',
@@ -179,5 +188,14 @@ describe('integration provider readiness', () => {
       expect.objectContaining({ operation: 'HEALTH_CHECK', status: 'FAILED' }),
       expect.objectContaining({ operation: 'TEST_CONNECTION', status: 'FAILED' }),
     ]));
+  });
+
+  it('requires admin role and MFA for integration operator commands', async () => {
+    const email = new EmailNotificationAdapter();
+    const { healthService, orchestrator } = registerAdapters([email]);
+    const controller = new IntegrationsController(orchestrator, healthService);
+
+    await expect(controller.testAdapter(email.name, operatorRequest(['EMPLOYEE'], true))).rejects.toThrow('Only system administrators');
+    await expect(controller.testAdapter(email.name, operatorRequest(['PLATFORM_ADMIN'], false))).rejects.toThrow('Integration operations require MFA');
   });
 });

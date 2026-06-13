@@ -1,0 +1,27 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hcm-production
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/your-org/hr-hcm-api
+    newName: ghcr.io/ashour158/hr-hcm-api
+    newTag: v1.4.0
+  - name: ghcr.io/your-org/hr-hcm-web
+    newName: ghcr.io/ashour158/hr-hcm-web
+    newTag: v1.4.0
+
+patches:
+  - target:
+      kind: Ingress
+      name: hcm-platform
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: hcm.company.internal
+      - op: replace
+        path: /spec/rules/0/host
+        value: hcm.company.internal

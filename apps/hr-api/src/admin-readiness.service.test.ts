@@ -1,6 +1,8 @@
 import {
   determineReadinessStatus,
+  summarizeProductionPendingWork,
   summarizeProductionReadiness,
+  type ProductionPendingWorkItem,
   type ProductionReadinessDomain,
 } from './admin-readiness.service.js';
 
@@ -59,5 +61,59 @@ describe('Admin production readiness', () => {
     });
     expect(summary.criticalBlockers).toContain('PAYROLL: Payroll cycle has blockers.');
     expect(summary.warnings).toContain('CICD: Latest CI result is external.');
+  });
+
+  it('summarizes pending work by open item weight and highest group priority', () => {
+    const items: ProductionPendingWorkItem[] = [
+      {
+        id: 'access',
+        group: 'Governance And Privacy',
+        title: 'Access review',
+        summary: 'Two access reviews are pending.',
+        count: 2,
+        status: 'attention',
+        statusLabel: 'Review',
+        priority: 'HIGH',
+        actionPath: '/admin/system-console/access-governance',
+        actionLabel: 'Open',
+        signals: [],
+      },
+      {
+        id: 'release',
+        group: 'Release Gates',
+        title: 'Release envelope',
+        summary: 'Release gates are ready.',
+        count: 0,
+        status: 'live',
+        statusLabel: 'Ready',
+        priority: 'LOW',
+        actionPath: '/admin/system-console/readiness',
+        actionLabel: 'Open',
+        signals: [],
+      },
+      {
+        id: 'queue',
+        group: 'Operational Health',
+        title: 'Queue decision',
+        summary: 'A non-retryable event needs a decision.',
+        count: 0,
+        status: 'attention',
+        statusLabel: 'Inspect',
+        priority: 'CRITICAL',
+        actionPath: '/admin/system-console/dead-letter-events',
+        actionLabel: 'Open',
+        signals: [],
+      },
+    ];
+
+    const summary = summarizeProductionPendingWork(items);
+
+    expect(summary.totalOpenItems).toBe(3);
+    expect(summary.highPriorityItems).toBe(2);
+    expect(summary.groups).toEqual(expect.arrayContaining([
+      expect.objectContaining({ group: 'Governance And Privacy', openItems: 2, highestPriority: 'HIGH' }),
+      expect.objectContaining({ group: 'Operational Health', openItems: 1, highestPriority: 'CRITICAL' }),
+      expect.objectContaining({ group: 'Release Gates', openItems: 0, highestPriority: 'LOW' }),
+    ]));
   });
 });
