@@ -7,7 +7,7 @@
  * @controller hr/integrations
  */
 
-import { Controller, Get, Logger, Param, Post } from '@nestjs/common';
+import { Controller, Get, Logger, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { IntegrationOrchestrator } from '../integration-orchestrator.service.js';
 import { IntegrationHealthService } from '../integration-health.service.js';
 
@@ -56,16 +56,54 @@ export class IntegrationsController {
     return { adapterName, result };
   }
 
+  /** POST /hr/integrations/:adapterName/commands/test - governed operator connection test. */
+  @Post(':adapterName/commands/test')
+  async testAdapter(@Param('adapterName') adapterName: string) {
+    const adapter = this.orchestrator.getAdapter(adapterName);
+    if (!adapter) {
+      throw new NotFoundException(`Integration adapter '${adapterName}' is not registered.`);
+    }
+
+    this.logger.log({ type: 'INTEGRATION_OPERATOR_TEST', adapterName });
+    const health = await this.healthService.check(adapter);
+    const log = this.healthService.recordTestResult(adapterName, {
+      success: health.healthy,
+      latencyMs: health.latencyMs,
+      message: health.errorMessage,
+      readinessReady: health.readiness?.ready,
+      blockers: health.readiness?.blockers,
+    });
+
+    return {
+      adapterName,
+      operatorAction: 'TEST_CONNECTION',
+      testedAt: log.createdAt,
+      health,
+      readiness: this.healthService.getReadiness(adapterName),
+      metrics: this.healthService.getMetrics(adapterName),
+      log,
+    };
+  }
+
   /** GET /hr/integrations/:adapterName/metrics – computed metrics for an adapter. */
   @Get(':adapterName/metrics')
   getMetrics(@Param('adapterName') adapterName: string) {
     return this.healthService.getMetrics(adapterName);
   }
 
-  /** GET /hr/integrations/:adapterName/logs – stub for recent integration logs. */
+  /** GET /hr/integrations/:adapterName/logs - recent governed integration operation logs. */
   @Get(':adapterName/logs')
-  getLogs(@Param('adapterName') adapterName: string) {
-    // In production this would query a log table or time-series store
-    return { adapterName, logs: [] };
+  getLogs(@Param('adapterName') adapterName: string, @Query('limit') limit?: string) {
+    if (!this.orchestrator.getAdapter(adapterName)) {
+      throw new NotFoundException(`Integration adapter '${adapterName}' is not registered.`);
+    }
+    const parsedLimit = Number.parseInt(limit ?? '50', 10);
+    return {
+      adapterName,
+      logs: this.healthService.getOperationLogs(
+        adapterName,
+        Number.isFinite(parsedLimit) ? parsedLimit : 50,
+      ),
+    };
   }
 }

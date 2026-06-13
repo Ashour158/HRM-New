@@ -337,6 +337,77 @@ describe('OrganizationController organization workflow', () => {
     })]);
   });
 
+  it('returns backend-owned setup journey and hierarchy warnings from persisted organization data', async () => {
+    const employee = worker({ legalEntityId, departmentId: orgUnitId, managerId });
+    const manager = worker({
+      id: managerId,
+      employeeNumber: 'EMP-002',
+      firstName: 'Omar',
+      lastName: 'Hassan',
+      email: new Email('omar.hassan@example.com'),
+    });
+    const { controller } = makeController({
+      legalEntityRepo: {
+        findByTenant: vi.fn(async () => [legalEntity()]),
+        findById: vi.fn(),
+      },
+      orgUnitRepo: {
+        findByTenant: vi.fn(async () => [orgUnit({ parentId: undefined, level: 0, path: '/People Operations' })]),
+        findTree: vi.fn(async () => []),
+        findById: vi.fn(),
+      },
+      workerRepo: {
+        findById: vi.fn(async (id: Uuid) => id.value === workerId.value ? employee : manager),
+        searchForTenant: vi.fn(async () => [employee, manager]),
+        save: vi.fn(),
+      },
+      positionRepo: {
+        findAll: vi.fn(async () => [position({ status: 'FILLED', filledByWorkerId: workerId })]),
+      },
+      managerRelationshipRepo: {
+        findByTenant: vi.fn(async () => [managerRelationship()]),
+        findByWorker: vi.fn(),
+        findActiveForWorker: vi.fn(),
+      },
+    });
+
+    const journey = await controller.getOrganizationSetupJourney(requestWithActor());
+    expect(journey.status).toBe('READY');
+    expect(journey.steps).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'legal-entities', status: 'READY', count: 1 }),
+      expect.objectContaining({ code: 'assignments', status: 'READY', count: 1 }),
+      expect.objectContaining({ code: 'manager-hierarchy', status: 'READY', count: 1 }),
+    ]));
+
+    const hierarchy = await controller.getHierarchyTree(requestWithActor());
+    expect(hierarchy.tree).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'LEGAL_ENTITY',
+        name: 'Nile Holding LLC',
+        children: [
+          expect.objectContaining({
+            type: 'ORG_UNIT',
+            name: 'People Operations',
+            workers: [expect.objectContaining({ id: workerId.value, managerName: 'Omar Hassan' })],
+            positions: [expect.objectContaining({ code: 'POS-001', filledByWorkerId: workerId.value })],
+          }),
+        ],
+      }),
+    ]));
+    expect(hierarchy.reportingEdges).toEqual([
+      expect.objectContaining({
+        workerId: workerId.value,
+        managerId: managerId.value,
+        workerName: 'Mona Saleh',
+        managerName: 'Omar Hassan',
+      }),
+    ]);
+    expect(hierarchy.warnings).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'MISSING_LEGAL_ENTITY', workerId: managerId.value }),
+      expect.objectContaining({ type: 'MISSING_DEPARTMENT', workerId: managerId.value }),
+    ]));
+  });
+
   it('assigns a worker to entity, department, manager, and title and creates the reporting relationship', async () => {
     const existingWorker = worker();
     const { controller, commandBus, workerRepo, managerRelationshipRepo } = makeController({

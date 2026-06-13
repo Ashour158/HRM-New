@@ -53,6 +53,11 @@ describe('PlatformNotificationService', () => {
         audience: 'EMPLOYEE',
         recipientWorkerId: envelope.privacy.subjectWorkerId,
         sourceEventId: envelope.eventId.value,
+        title: 'Leave request submitted',
+        payload: expect.objectContaining({
+          templateKey: 'leave.request.submitted',
+          templateVersion: 1,
+        }),
       }),
       expect.objectContaining({
         audience: 'MANAGER',

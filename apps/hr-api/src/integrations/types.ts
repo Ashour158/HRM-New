@@ -157,6 +157,19 @@ export interface IntegrationMetrics {
   p99LatencyMs?: number;
 }
 
+/** Governed operator and runtime operation log entry for integration evidence. */
+export interface IntegrationOperationLog {
+  id: string;
+  adapterName: string;
+  operation: 'HEALTH_CHECK' | 'TEST_CONNECTION' | 'SEND' | 'RECEIVE';
+  status: 'SUCCESS' | 'FAILED' | 'BLOCKED';
+  latencyMs?: number;
+  message?: string;
+  blockers?: string[];
+  readinessReady?: boolean;
+  createdAt: Date;
+}
+
 /** Time-series entry for integration logs. */
 export interface IntegrationLogEntry {
   id: Uuid;

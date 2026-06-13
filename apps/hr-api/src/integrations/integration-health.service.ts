@@ -11,6 +11,7 @@ import type {
   IntegrationCredentialState,
   IntegrationAdapter,
   IntegrationHealth,
+  IntegrationOperationLog,
   IntegrationIncidentState,
   IntegrationMetrics,
   IntegrationOutboundHealth,
@@ -26,6 +27,9 @@ interface CallRecord {
   success: boolean;
 }
 
+type IntegrationOperationName = IntegrationOperationLog['operation'];
+type IntegrationOperationStatus = IntegrationOperationLog['status'];
+
 @Injectable()
 export class IntegrationHealthService {
   private readonly logger = new Logger(IntegrationHealthService.name);
@@ -33,6 +37,7 @@ export class IntegrationHealthService {
   private readonly readiness = new Map<string, IntegrationReadinessMetadata>();
   private readonly outboundHealth = new Map<string, IntegrationOutboundHealth>();
   private readonly callHistory = new Map<string, CallRecord[]>();
+  private readonly operationLogs = new Map<string, IntegrationOperationLog[]>();
   private readonly maxHistory = 1000;
 
   /** Register a new adapter so metrics collection can begin. */
@@ -49,6 +54,7 @@ export class IntegrationHealthService {
         totalFailures: 0,
       });
       this.callHistory.set(adapter.name, []);
+      this.operationLogs.set(adapter.name, []);
       this.outboundHealth.set(adapter.name, {
         state: credentialState === 'CONFIGURED' ? 'UNKNOWN' : 'CREDENTIALS_NOT_CONFIGURED',
         consecutiveFailures: 0,
@@ -104,7 +110,7 @@ export class IntegrationHealthService {
       this.updateOutboundHealth(adapter.name, this.toOutboundHealthState(status.state), checkedAt);
     }
 
-    return {
+    const result = {
       adapterName: adapter.name,
       direction: adapter.direction,
       healthy,
@@ -113,6 +119,33 @@ export class IntegrationHealthService {
       errorMessage,
       readiness: this.getReadiness(adapter.name),
     };
+    this.recordOperation(adapter.name, {
+      operation: 'HEALTH_CHECK',
+      status: healthy ? 'SUCCESS' : 'FAILED',
+      latencyMs,
+      message: errorMessage,
+      readinessReady: result.readiness?.ready,
+      blockers: result.readiness?.blockers,
+    });
+    return result;
+  }
+
+  /** Record an operator-initiated connection test without leaking payloads or secrets. */
+  recordTestResult(adapterName: string, input: {
+    success: boolean;
+    latencyMs?: number;
+    message?: string;
+    readinessReady?: boolean;
+    blockers?: string[];
+  }): IntegrationOperationLog {
+    return this.recordOperation(adapterName, {
+      operation: 'TEST_CONNECTION',
+      status: input.success ? 'SUCCESS' : 'FAILED',
+      latencyMs: input.latencyMs,
+      message: input.message,
+      readinessReady: input.readinessReady,
+      blockers: input.blockers,
+    });
   }
 
   /** Record a successful adapter invocation. */
@@ -126,6 +159,13 @@ export class IntegrationHealthService {
       this.updateOutboundHealth(adapterName, 'HEALTHY', status.lastSuccessAt);
     }
     this.pushRecord(adapterName, { timestamp: new Date(), latencyMs, success: true });
+    this.recordOperation(adapterName, {
+      operation: 'SEND',
+      status: 'SUCCESS',
+      latencyMs,
+      readinessReady: this.getReadiness(adapterName)?.ready,
+      blockers: this.getReadiness(adapterName)?.blockers,
+    });
   }
 
   /** Record a failed adapter invocation. */
@@ -147,6 +187,13 @@ export class IntegrationHealthService {
       this.updateOutboundHealth(adapterName, this.toOutboundHealthState(status.state), status.lastFailureAt);
     }
     this.pushRecord(adapterName, { timestamp: new Date(), latencyMs: 0, success: false });
+    this.recordOperation(adapterName, {
+      operation: 'SEND',
+      status: 'FAILED',
+      message: error.message,
+      readinessReady: this.getReadiness(adapterName)?.ready,
+      blockers: this.getReadiness(adapterName)?.blockers,
+    });
     this.logger.error({ type: 'ADAPTER_FAILURE', adapter: adapterName, error: error.message });
   }
 
@@ -253,6 +300,13 @@ export class IntegrationHealthService {
     };
   }
 
+  /** Recent governed integration operation logs for operator consoles. */
+  getOperationLogs(adapterName: string, limit = 50): IntegrationOperationLog[] {
+    return [...(this.operationLogs.get(adapterName) ?? [])]
+      .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+      .slice(0, Math.max(1, Math.min(limit, this.maxHistory)));
+  }
+
   /** Get the current status for every registered adapter. */
   getAllStatuses(): IntegrationStatus[] {
     return Array.from(this.statuses.values());
@@ -270,6 +324,34 @@ export class IntegrationHealthService {
       history.shift();
     }
     this.callHistory.set(adapterName, history);
+  }
+
+  private recordOperation(adapterName: string, input: {
+    operation: IntegrationOperationName;
+    status: IntegrationOperationStatus;
+    latencyMs?: number;
+    message?: string;
+    blockers?: string[];
+    readinessReady?: boolean;
+  }): IntegrationOperationLog {
+    const entry: IntegrationOperationLog = {
+      id: `${adapterName}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`,
+      adapterName,
+      operation: input.operation,
+      status: input.status,
+      latencyMs: input.latencyMs,
+      message: input.message,
+      blockers: input.blockers ?? [],
+      readinessReady: input.readinessReady,
+      createdAt: new Date(),
+    };
+    const logs = this.operationLogs.get(adapterName) ?? [];
+    logs.push(entry);
+    if (logs.length > this.maxHistory) {
+      logs.shift();
+    }
+    this.operationLogs.set(adapterName, logs);
+    return entry;
   }
 
   private getCredentialState(adapterName: string): IntegrationCredentialState {

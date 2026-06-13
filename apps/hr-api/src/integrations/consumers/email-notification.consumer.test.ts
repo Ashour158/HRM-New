@@ -112,7 +112,12 @@ describe('EmailNotificationEventConsumer', () => {
     expect(orchestrator.send).toHaveBeenCalledWith('email-notification', expect.objectContaining({
       to: 'employee@example.com',
       subject: '[HRM Nexus] Leave Request Approved',
+      bodyText: expect.stringContaining(`Reference: ${envelope.aggregateId.value}`),
       correlationId: envelope.metadata.correlationId.value,
+    }));
+    expect(orchestrator.send).toHaveBeenCalledWith('email-notification', expect.objectContaining({
+      to: 'employee@example.com',
+      bodyText: expect.stringContaining(`Correlation: ${envelope.metadata.correlationId.value}`),
     }));
     expect(orchestrator.send).toHaveBeenCalledWith('email-notification', expect.objectContaining({ to: 'manager@example.com' }));
     expect(orchestrator.send).toHaveBeenCalledWith('email-notification', expect.objectContaining({ to: 'hr-ops@example.com' }));

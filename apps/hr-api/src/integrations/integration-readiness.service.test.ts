@@ -6,6 +6,7 @@ import {
   PayrollExportAdapter,
   TaxAuthorityAdapter,
 } from './adapters/index.js';
+import { IntegrationsController } from './api/integrations.controller.js';
 import { IntegrationHealthService } from './integration-health.service.js';
 import { IntegrationOrchestrator } from './integration-orchestrator.service.js';
 import type { IntegrationAdapter } from './types.js';
@@ -147,5 +148,36 @@ describe('integration provider readiness', () => {
     expect(readiness?.ready).toBe(false);
     expect(readiness?.blockers).toContain('ACTIVE_INCIDENT');
     expect(healthService.getStatus(iam.name)?.state).toBe('INCIDENT_ACTIVE');
+  });
+
+  it('records governed connection-test evidence and exposes integration logs', async () => {
+    const email = new EmailNotificationAdapter();
+    const { healthService, orchestrator } = registerAdapters([email]);
+    const controller = new IntegrationsController(orchestrator, healthService);
+
+    const result = await controller.testAdapter(email.name);
+
+    expect(result).toEqual(expect.objectContaining({
+      adapterName: 'email-notification',
+      operatorAction: 'TEST_CONNECTION',
+      health: expect.objectContaining({
+        healthy: false,
+        errorMessage: expect.stringContaining('credentials are not configured'),
+      }),
+      readiness: expect.objectContaining({
+        ready: false,
+        blockers: expect.arrayContaining(['CREDENTIALS_NOT_CONFIGURED']),
+      }),
+      log: expect.objectContaining({
+        adapterName: 'email-notification',
+        operation: 'TEST_CONNECTION',
+        status: 'FAILED',
+      }),
+    }));
+
+    expect(controller.getLogs(email.name, '10').logs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ operation: 'HEALTH_CHECK', status: 'FAILED' }),
+      expect.objectContaining({ operation: 'TEST_CONNECTION', status: 'FAILED' }),
+    ]));
   });
 });

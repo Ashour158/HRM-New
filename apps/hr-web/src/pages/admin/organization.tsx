@@ -64,6 +64,21 @@ type OrganizationSummary = {
   managerRelationships: ManagerRelationship[];
 };
 
+type OrganizationSetupJourneyResponse = {
+  status: 'READY' | 'ACTION_REQUIRED';
+  steps: Array<{
+    code: string;
+    label: string;
+    category: string;
+    status: 'READY' | 'ACTION_REQUIRED' | 'BLOCKED' | 'OPTIONAL';
+    count: number;
+    completed: boolean;
+    target: string;
+    blockers: string[];
+    nextAction: string;
+  }>;
+};
+
 type PlanningGroup = {
   id: string;
   name: string;
@@ -228,6 +243,31 @@ const setupToneClasses: Record<OrganizationSetupJourneyTone, string> = {
   success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   warning: 'border-orange-200 bg-orange-50 text-orange-700',
 };
+
+function setupToneForStatus(status: OrganizationSetupJourneyResponse['steps'][number]['status']): OrganizationSetupJourneyTone {
+  if (status === 'READY') return 'success';
+  if (status === 'BLOCKED') return 'warning';
+  if (status === 'OPTIONAL') return 'default';
+  return 'attention';
+}
+
+function setupTargetTab(target: string): OrganizationSetupTab | undefined {
+  const tab = new URLSearchParams(target.split('?')[1] ?? '').get('tab') as OrganizationSetupTab | null;
+  return tab ?? undefined;
+}
+
+function mapServerSetupJourney(response?: OrganizationSetupJourneyResponse) {
+  return response?.steps.map((step) => ({
+    actionLabel: step.completed ? 'Review' : step.nextAction,
+    category: step.category,
+    completed: step.completed,
+    href: step.target.startsWith('/admin/employees') ? step.target : undefined,
+    label: step.label,
+    status: step.status === 'READY' ? `${step.count} configured` : step.status === 'OPTIONAL' ? 'Optional' : step.status === 'BLOCKED' ? 'Needs prior step' : 'Needs setup',
+    targetTab: step.target.startsWith('/admin/organization') ? setupTargetTab(step.target) : undefined,
+    tone: setupToneForStatus(step.status),
+  })) ?? [];
+}
 
 const moneyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -406,6 +446,11 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     queryFn: async () => unwrap<OrganizationSummary>(await apiClient.get('/hr/organization/summary')),
   });
 
+  const setupJourneyQuery = useQuery({
+    queryKey: ['admin-organization-setup-journey'],
+    queryFn: async () => unwrap<OrganizationSetupJourneyResponse>(await apiClient.get('/hr/organization/setup-journey')),
+  });
+
   const workersQuery = useQuery({
     queryKey: ['admin-organization-workers'],
     queryFn: async () => {
@@ -426,6 +471,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
 
   const refreshOrg = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-organization-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-organization-setup-journey'] });
     queryClient.invalidateQueries({ queryKey: ['admin-workforce-planning'] });
     queryClient.invalidateQueries({ queryKey: ['admin-workforce-org-chart'] });
   };
@@ -549,6 +595,8 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     orgUnitCount: orgUnits.length,
     workerCount: workers.length,
   }), [assignedWorkerCount, legalEntities.length, managerRelationships.length, orgUnits.length, workers.length]);
+  const serverSetupJourney = React.useMemo(() => mapServerSetupJourney(setupJourneyQuery.data), [setupJourneyQuery.data]);
+  const effectiveSetupJourney = serverSetupJourney.length ? serverSetupJourney : setupJourney;
 
   const legalEntityColumns = [
     { key: 'name', header: 'Entity', cell: (row: LegalEntity) => <span className="font-medium">{row.name}</span> },
@@ -662,7 +710,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {setupJourney.map((step, index) => {
+        {effectiveSetupJourney.map((step, index) => {
           const content = (
             <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[1.5rem] border border-white/70 bg-white/65 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-md">
               <div>
@@ -729,7 +777,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
         </div>
       </div>
 
-      <ErrorMessage error={summaryQuery.error ?? workersQuery.error ?? planningQuery.error ?? dynamicChartQuery.error ?? actionError} />
+      <ErrorMessage error={summaryQuery.error ?? setupJourneyQuery.error ?? workersQuery.error ?? planningQuery.error ?? dynamicChartQuery.error ?? actionError} />
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OrganizationSetupTab)} className="space-y-4">
         <TabsList>

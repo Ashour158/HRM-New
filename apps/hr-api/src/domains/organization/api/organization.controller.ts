@@ -81,6 +81,18 @@ type PlanningData = {
   managerRelationships: ManagerRelationship[];
 };
 
+type OrganizationSetupStep = {
+  code: string;
+  label: string;
+  category: string;
+  status: 'READY' | 'ACTION_REQUIRED' | 'BLOCKED' | 'OPTIONAL';
+  count: number;
+  completed: boolean;
+  target: string;
+  blockers: string[];
+  nextAction: string;
+};
+
 const ORGANIZATION_ADMIN_ROLES = new Set([
   'APP_ADMIN',
   'PLATFORM_ADMIN',
@@ -129,6 +141,51 @@ export class OrganizationController {
       orgUnits: orgUnits.map((unit) => this.toOrgUnitView(unit)),
       orgChart: orgTree,
       managerRelationships: relationshipViews,
+    };
+  }
+
+  @Get('setup-journey')
+  async getOrganizationSetupJourney(@Req() req: Request) {
+    this.assertOrganizationAdminScope(req);
+    const data = await this.collectPlanningData(req);
+    const steps = this.buildOrganizationSetupJourney(data);
+    return {
+      tenantId: data.tenantId.value,
+      generatedAt: new Date().toISOString(),
+      status: steps.every((step) => step.status === 'READY' || step.status === 'OPTIONAL') ? 'READY' : 'ACTION_REQUIRED',
+      steps,
+      summary: {
+        legalEntities: data.legalEntities.length,
+        orgUnits: data.orgUnits.length,
+        positions: data.positions.length,
+        workers: data.workers.length,
+        activeWorkers: data.activeWorkers.length,
+        assignedWorkers: data.workers.filter((worker) => worker.legalEntityId || worker.departmentId).length,
+        managerRelationships: data.managerRelationships.filter((relationship) => relationship.status === 'ACTIVE').length,
+      },
+    };
+  }
+
+  @Get('hierarchy-tree')
+  async getHierarchyTree(@Req() req: Request) {
+    this.assertOrganizationAdminScope(req);
+    const data = await this.collectPlanningData(req);
+    return {
+      tenantId: data.tenantId.value,
+      generatedAt: new Date().toISOString(),
+      tree: this.buildOrganizationHierarchyTree(data),
+      reportingEdges: data.managerRelationships
+        .filter((relationship) => relationship.status === 'ACTIVE')
+        .map((relationship) => ({
+          relationshipId: relationship.id.value,
+          workerId: relationship.workerId.value,
+          workerName: this.workerNameById(relationship.workerId.value, data.workers),
+          managerId: relationship.managerId.value,
+          managerName: this.workerNameById(relationship.managerId.value, data.workers),
+          departmentId: relationship.departmentId?.value ?? null,
+          primary: relationship.isPrimary,
+        })),
+      warnings: this.buildHierarchyWarnings(data),
     };
   }
 
@@ -506,6 +563,145 @@ export class OrganizationController {
 
   private recordsByCategory(records: PersonalDataRecord[]): Map<string, Record<string, unknown>> {
     return new Map(records.map((record) => [record.dataCategory, (record.payload ?? {}) as Record<string, unknown>]));
+  }
+
+  private buildOrganizationSetupJourney(data: PlanningData): OrganizationSetupStep[] {
+    const assignedWorkers = data.workers.filter((worker) => worker.legalEntityId || worker.departmentId).length;
+    const activeManagerRelationships = data.managerRelationships.filter((relationship) => relationship.status === 'ACTIVE').length;
+    const hasLegalEntity = data.legalEntities.length > 0;
+    const hasOrgUnits = data.orgUnits.length > 0;
+    const hasWorkers = data.workers.length > 0;
+    const hasAssignments = assignedWorkers > 0;
+    const hasManagers = activeManagerRelationships > 0;
+
+    return [
+      this.setupStep('company-profile', 'Company profile', 'Foundation', true, 1, '/admin/system-console/settings', [], 'Review tenant and company profile'),
+      this.setupStep('legal-entities', 'Legal entities', 'Foundation', hasLegalEntity, data.legalEntities.length, '/admin/organization?tab=entities', [], 'Create the first legal entity'),
+      this.setupStep('org-units', 'Departments and org units', 'Structure', hasOrgUnits, data.orgUnits.length, '/admin/organization?tab=departments', hasLegalEntity ? [] : ['Create legal entity first'], 'Create departments or org units'),
+      this.setupStep('positions', 'Positions and headcount', 'Structure', data.positions.length > 0, data.positions.length, '/admin/organization?tab=planning', hasOrgUnits ? [] : ['Create departments first'], 'Create approved positions'),
+      this.setupStep('employees', 'Employee records', 'People', hasWorkers, data.workers.length, '/admin/employees/new', hasOrgUnits ? [] : ['Create departments first'], 'Create employee records'),
+      this.setupStep('assignments', 'Worker assignments', 'People', hasAssignments, assignedWorkers, '/admin/organization?tab=assignments', hasWorkers ? [] : ['Create employees first'], 'Assign entity, department, and job title'),
+      this.setupStep('manager-hierarchy', 'Manager hierarchy', 'Reporting', hasManagers, activeManagerRelationships, '/admin/organization?tab=managers', hasAssignments ? [] : ['Assign workers first'], 'Assign manager reporting lines'),
+    ];
+  }
+
+  private setupStep(
+    code: string,
+    label: string,
+    category: string,
+    completed: boolean,
+    count: number,
+    target: string,
+    blockers: string[],
+    nextAction: string,
+  ): OrganizationSetupStep {
+    const blocked = blockers.length > 0 && !completed;
+    return {
+      code,
+      label,
+      category,
+      status: completed ? 'READY' : blocked ? 'BLOCKED' : code === 'positions' ? 'OPTIONAL' : 'ACTION_REQUIRED',
+      count,
+      completed,
+      target,
+      blockers,
+      nextAction: completed ? 'Review' : nextAction,
+    };
+  }
+
+  private buildOrganizationHierarchyTree(data: PlanningData): Array<Record<string, unknown>> {
+    const roots = data.legalEntities.map((entity) => ({
+      id: entity.id,
+      type: 'LEGAL_ENTITY',
+      name: entity.name,
+      countryCode: entity.countryCode ?? null,
+      status: entity.status ?? 'UNKNOWN',
+      children: this.buildOrgUnitNodes(data, entity.id, null),
+      positions: data.positions
+        .filter((position) => position.legalEntityId?.value === entity.id && !position.departmentId)
+        .map((position) => this.positionNode(position)),
+      workers: data.workers
+        .filter((worker) => worker.legalEntityId?.value === entity.id && !worker.departmentId)
+        .map((worker) => this.workerNode(worker, data)),
+    }));
+    const unassignedWorkers = data.workers.filter((worker) => !worker.legalEntityId && !worker.departmentId);
+    if (unassignedWorkers.length > 0) {
+      roots.push({
+        id: 'unassigned',
+        type: 'LEGAL_ENTITY',
+        name: 'Unassigned',
+        countryCode: null,
+        status: 'ACTION_REQUIRED',
+        children: [],
+        positions: [],
+        workers: unassignedWorkers.map((worker) => this.workerNode(worker, data)),
+      });
+    }
+    return roots;
+  }
+
+  private buildOrgUnitNodes(data: PlanningData, legalEntityId: string, parentId: string | null): Array<Record<string, unknown>> {
+    return data.orgUnits
+      .filter((unit) => unit.legalEntityId === legalEntityId && (unit.parentId ?? null) === parentId)
+      .map((unit) => ({
+        id: unit.id,
+        type: 'ORG_UNIT',
+        name: unit.name,
+        status: unit.status ?? 'UNKNOWN',
+        parentId: unit.parentId ?? null,
+        positions: data.positions
+          .filter((position) => position.departmentId?.value === unit.id)
+          .map((position) => this.positionNode(position)),
+        workers: data.workers
+          .filter((worker) => worker.departmentId?.value === unit.id)
+          .map((worker) => this.workerNode(worker, data)),
+        children: this.buildOrgUnitNodes(data, legalEntityId, unit.id),
+      }));
+  }
+
+  private positionNode(position: Position) {
+    return {
+      id: position.id.value,
+      type: 'POSITION',
+      code: position.positionCode,
+      title: position.title,
+      status: position.status,
+      filledByWorkerId: position.filledByWorkerId?.value ?? null,
+    };
+  }
+
+  private workerNode(worker: WorkerProfile, data: PlanningData) {
+    return {
+      id: worker.id.value,
+      type: 'WORKER',
+      employeeNumber: worker.employeeNumber,
+      name: this.workerDisplayName(worker),
+      jobTitle: worker.jobTitle ?? null,
+      status: worker.status,
+      managerId: worker.managerId?.value ?? null,
+      managerName: worker.managerId ? this.workerNameById(worker.managerId.value, data.workers) : null,
+    };
+  }
+
+  private buildHierarchyWarnings(data: PlanningData) {
+    const workerIds = new Set(data.workers.map((worker) => worker.id.value));
+    const activeWorkerIds = new Set(data.workers.filter((worker) => worker.status === 'ACTIVE' || worker.status === 'REHIRED').map((worker) => worker.id.value));
+    const warnings: Array<{ type: string; severity: 'INFO' | 'WARNING' | 'BLOCKER'; message: string; workerId?: string; relationshipId?: string }> = [];
+    for (const worker of data.workers) {
+      if (!worker.legalEntityId) warnings.push({ type: 'MISSING_LEGAL_ENTITY', severity: 'WARNING', workerId: worker.id.value, message: `${this.workerDisplayName(worker)} is not assigned to a legal entity.` });
+      if (!worker.departmentId) warnings.push({ type: 'MISSING_DEPARTMENT', severity: 'WARNING', workerId: worker.id.value, message: `${this.workerDisplayName(worker)} is not assigned to a department.` });
+      if ((worker.status === 'ACTIVE' || worker.status === 'REHIRED') && !worker.managerId) warnings.push({ type: 'MISSING_MANAGER', severity: 'INFO', workerId: worker.id.value, message: `${this.workerDisplayName(worker)} has no manager assigned.` });
+      if (worker.managerId && !activeWorkerIds.has(worker.managerId.value)) warnings.push({ type: 'INACTIVE_OR_MISSING_MANAGER', severity: 'BLOCKER', workerId: worker.id.value, message: `${this.workerDisplayName(worker)} reports to a missing or inactive manager.` });
+    }
+    for (const relationship of data.managerRelationships.filter((item) => item.status === 'ACTIVE')) {
+      if (!workerIds.has(relationship.workerId.value) || !workerIds.has(relationship.managerId.value)) {
+        warnings.push({ type: 'ORPHAN_MANAGER_RELATIONSHIP', severity: 'BLOCKER', relationshipId: relationship.id.value, message: 'A manager relationship references a worker outside the tenant hierarchy.' });
+      }
+      if (relationship.workerId.value === relationship.managerId.value) {
+        warnings.push({ type: 'SELF_MANAGER_RELATIONSHIP', severity: 'BLOCKER', relationshipId: relationship.id.value, message: 'A worker cannot report to themselves.' });
+      }
+    }
+    return warnings;
   }
 
   private buildDynamicOrgChart(data: PlanningData, groupBy: string) {

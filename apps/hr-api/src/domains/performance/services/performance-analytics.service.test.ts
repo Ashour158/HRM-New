@@ -188,6 +188,97 @@ describe('PerformanceAnalyticsService', () => {
     expect(summary.feedbackSummaries['worker-a'].conciseFeedback).toContain('anonymous threshold');
   });
 
+  it('suppresses anonymous 360 feedback independently by source category', () => {
+    const service = new PerformanceAnalyticsService();
+
+    const summary = service.buildCycleAnalytics({
+      cycleId: 'cycle-1',
+      anonymityThreshold: 2,
+      workers: [
+        { id: 'worker-a', firstName: 'Alice', lastName: 'Smith' },
+      ],
+      reviews: [],
+      goals: [],
+      objectives: [],
+      keyResults: [],
+      feedbackResponses: [
+        {
+          id: 'feedback-peer-a',
+          revieweeId: 'worker-a',
+          reviewerId: 'peer-1',
+          relationshipType: 'PEER',
+          dimensionScores: { communication: 4 },
+          areaComments: { communication: 'Keeps the team aligned' },
+          overallRating: 4,
+          strengths: 'Clear team updates',
+          improvements: 'Keep delegating',
+          comments: 'Good peer signal',
+          isAnonymous: true,
+          status: 'SUBMITTED',
+        },
+        {
+          id: 'feedback-peer-b',
+          revieweeId: 'worker-a',
+          reviewerId: 'peer-2',
+          relationshipType: 'PEER',
+          dimensionScores: { communication: 5 },
+          areaComments: { communication: 'Reliable risk sharing' },
+          overallRating: 5,
+          strengths: 'Strong delivery partner',
+          improvements: 'More async notes',
+          comments: 'Strong peer signal',
+          isAnonymous: true,
+          status: 'SUBMITTED',
+        },
+        {
+          id: 'feedback-manager-a',
+          revieweeId: 'worker-a',
+          reviewerId: 'manager-1',
+          relationshipType: 'MANAGER',
+          dimensionScores: { communication: 1 },
+          areaComments: { communication: 'This single manager source must stay hidden' },
+          overallRating: 1,
+          strengths: 'Private manager strength',
+          improvements: 'Private manager concern',
+          comments: 'Single manager bucket',
+          isAnonymous: true,
+          status: 'SUBMITTED',
+        },
+      ],
+      developmentPlans: [],
+    });
+
+    expect(summary.feedbackSummaries['worker-a']).toEqual(expect.objectContaining({
+      responseCount: 3,
+      anonymousResponseCount: 3,
+      averageRating: 4.5,
+      anonymitySuppressionApplied: true,
+      sourceSuppression: expect.arrayContaining([
+        expect.objectContaining({ relationshipType: 'PEER', submitted: 2, threshold: 2, suppressed: false }),
+        expect.objectContaining({ relationshipType: 'MANAGER', submitted: 1, threshold: 2, suppressed: true }),
+      ]),
+      dimensionAverages: { communication: 4.5 },
+    }));
+    expect(summary.feedbackSummaries['worker-a'].strengths).toEqual([
+      'Clear team updates',
+      'Strong delivery partner',
+    ]);
+    expect(summary.feedbackSummaries['worker-a'].conciseFeedback).toContain('manager feedback is hidden');
+    expect(summary.peerFeedback).toEqual(expect.objectContaining({
+      submitted: 2,
+      anonymousSubmitted: 2,
+      averageRating: 4.5,
+      relationshipMix: { PEER: 2 },
+    }));
+    expect(summary.governance.inputCounts).toEqual(expect.objectContaining({
+      feedbackResponses: 3,
+      visibleFeedbackResponses: 2,
+    }));
+    expect(summary.governance.sourceSuppression).toEqual([
+      expect.objectContaining({ relationshipType: 'MANAGER', suppressed: true }),
+    ]);
+  });
+
   it('projects persisted improvement action plans while keeping submitted 360 outcomes current', () => {
     const service = new PerformanceAnalyticsService();
 

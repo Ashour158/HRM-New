@@ -5,6 +5,7 @@ import { EventBus } from '../../platform/event-bus/event-bus.js';
 import { InboxConsumer } from '../../platform/outbox-inbox/inbox-consumer.js';
 import { IntegrationOrchestrator } from '../integration-orchestrator.service.js';
 import { isEmailNotificationConfigured, type EmailNotificationPayload } from '../adapters/email-notification.adapter.js';
+import { buildNotificationTemplate } from '../../platform/notifications/notification-template.js';
 
 const EMAIL_NOTIFICATION_CONSUMER = 'email-notifications';
 const EMAIL_NOTIFICATION_CONSUMER_VERSION = '1';
@@ -112,8 +113,9 @@ export class EmailNotificationEventConsumer implements OnModuleInit {
       return;
     }
 
-    const subject = `[HRM Nexus] ${humanizeEventName(event.eventName)}`;
-    const bodyText = `${humanizeEventName(event.eventName)} was recorded for ${event.aggregateType}.\n\nReference: ${event.aggregateId.value}`;
+    const template = buildNotificationTemplate(event);
+    const subject = `[HRM Nexus] ${template.emailSubject}`;
+    const bodyText = template.emailBodyText;
     const correlationId = event.metadata.correlationId.value;
 
     for (const recipient of recipients) {
@@ -150,12 +152,4 @@ function dedupeRecipients(recipients: EmailNotificationRecipient[]): EmailNotifi
     seen.add(key);
     return true;
   });
-}
-
-function humanizeEventName(value: string): string {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }

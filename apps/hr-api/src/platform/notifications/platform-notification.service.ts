@@ -5,6 +5,7 @@ import {
   PlatformNotificationRepository,
   type PlatformNotificationInput,
 } from './platform-notification.repository.js';
+import { buildNotificationTemplate } from './notification-template.js';
 
 @Injectable()
 export class PlatformNotificationService {
@@ -26,11 +27,12 @@ export class PlatformNotificationService {
     const aggregateId = uuidValue(event.aggregateId);
     const correlationId = uuidValue(event.metadata.correlationId);
     const occurredAt = dateValue(event.occurredAt);
+    const template = buildNotificationTemplate(event);
     const base = {
       tenantId,
       category,
-      title: humanizeEventName(event.eventName),
-      body: `${humanizeEventName(event.eventName)} for ${event.aggregateType}.`,
+      title: template.title,
+      body: template.body,
       sourceEventId: eventId,
       sourceEventName: event.eventName,
       relatedAggregateType: event.aggregateType,
@@ -41,6 +43,8 @@ export class PlatformNotificationService {
         aggregateId,
         correlationId,
         occurredAt: occurredAt.toISOString(),
+        templateKey: template.templateKey,
+        templateVersion: template.templateVersion,
       },
     };
 
@@ -67,19 +71,11 @@ export class PlatformNotificationService {
       ...base,
       audience: 'HR_OPERATIONS',
       recipientRole: HR_OPERATIONS_NOTIFICATION_ROLE,
-      body: `${humanizeEventName(event.eventName)} was recorded in the HCM event stream.`,
+      body: `${template.body} Recorded for HR operations review.`,
     });
 
     return notifications;
   }
-}
-
-function humanizeEventName(value: string): string {
-  return value
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }
 
 function uuidValue(value: unknown): string {

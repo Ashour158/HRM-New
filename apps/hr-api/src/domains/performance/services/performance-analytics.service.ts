@@ -114,6 +114,12 @@ export interface PerformanceFeedbackSummary {
   improvements: string[];
   conciseFeedback: string;
   anonymitySuppressionApplied: boolean;
+  sourceSuppression: Array<{
+    relationshipType: string;
+    submitted: number;
+    threshold: number;
+    suppressed: boolean;
+  }>;
   dimensionAverages: Record<string, number>;
   areaThemes: Record<string, string[]>;
 }
@@ -200,7 +206,9 @@ export class PerformanceAnalyticsService {
       workerId: this.id(plan.workerId),
     }));
 
-    const feedbackSummaries = this.buildFeedbackSummaries(workers, feedbackResponses, input.anonymityThreshold ?? 3);
+    const anonymityThreshold = input.anonymityThreshold ?? 3;
+    const visibleFeedbackResponses = this.visibleFeedbackResponsesForAnalytics(feedbackResponses, anonymityThreshold);
+    const feedbackSummaries = this.buildFeedbackSummaries(workers, feedbackResponses, anonymityThreshold);
     const nineBox = workers.map((worker) => this.placeWorkerInNineBox(worker, reviews, goals, objectives, keyResults, feedbackSummaries));
     const actionPlans = this.actionPlans(workers, reviews, goals, feedbackSummaries, developmentPlans, improvementPlans);
     const recognitions = nineBox
@@ -219,17 +227,17 @@ export class PerformanceAnalyticsService {
       ratingDistribution: this.ratingDistribution(reviews),
       reviewCompletion: this.reviewCompletion(reviews),
       goalMetrics: this.goalMetrics(goals),
-      peerFeedback: this.peerFeedbackMetrics(feedbackResponses),
+      peerFeedback: this.peerFeedbackMetrics(visibleFeedbackResponses),
       calibrationHeatmap: this.calibrationHeatmap(reviews),
       nineBox,
       recognitions,
       feedbackSummaries,
       actionPlans,
       scoreExplainability: this.scoreExplainability(workers, reviews, goals, objectives, keyResults, feedbackSummaries),
-      biasChecks: this.biasChecks(workers, reviews, input.anonymityThreshold ?? 3),
+      biasChecks: this.biasChecks(workers, reviews, anonymityThreshold),
       trendSignals: this.trendSignals(actionPlans),
       governance: {
-        anonymityThreshold: input.anonymityThreshold ?? 3,
+        anonymityThreshold,
         performanceFormulaVersion: 'performance-analytics-v2',
         generatedAt: new Date().toISOString(),
         inputCounts: {
@@ -237,7 +245,11 @@ export class PerformanceAnalyticsService {
           reviews: reviews.length,
           goals: goals.length,
           feedbackResponses: feedbackResponses.length,
+          visibleFeedbackResponses: visibleFeedbackResponses.length,
         },
+        sourceSuppression: Object.values(feedbackSummaries)
+          .flatMap((summary) => summary.sourceSuppression)
+          .filter((entry) => entry.suppressed),
       },
     };
   }
@@ -250,13 +262,14 @@ export class PerformanceAnalyticsService {
     return workers.reduce<Record<string, PerformanceFeedbackSummary>>((acc, worker) => {
       const workerResponses = responses.filter((response) => response.revieweeId === worker.id);
       const anonymousResponseCount = workerResponses.filter((response) => response.isAnonymous).length;
-      const suppressAnonymousSummary = anonymousResponseCount > 0 && workerResponses.length < anonymityThreshold;
-      const ratings = workerResponses.map((response) => response.overallRating).filter((rating): rating is number => typeof rating === 'number');
-      const strengths = suppressAnonymousSummary ? [] : this.takeThemes(workerResponses.map((response) => response.strengths));
-      const improvements = suppressAnonymousSummary ? [] : this.takeThemes(workerResponses.map((response) => response.improvements));
-      const averageRating = suppressAnonymousSummary ? null : ratings.length ? this.round(ratings.reduce((sum, value) => sum + value, 0) / ratings.length) : null;
-      const dimensionAverages = suppressAnonymousSummary ? {} : this.dimensionAverages(workerResponses.map((response) => response.dimensionScores));
-      const areaThemes = suppressAnonymousSummary ? {} : this.areaThemes(workerResponses.map((response) => response.areaComments));
+      const { visibleResponses, sourceSuppression } = this.applySourceSuppression(workerResponses, anonymityThreshold);
+      const suppressAnonymousSummary = sourceSuppression.some((entry) => entry.suppressed);
+      const ratings = visibleResponses.map((response) => response.overallRating).filter((rating): rating is number => typeof rating === 'number');
+      const strengths = this.takeThemes(visibleResponses.map((response) => response.strengths));
+      const improvements = this.takeThemes(visibleResponses.map((response) => response.improvements));
+      const averageRating = ratings.length ? this.round(ratings.reduce((sum, value) => sum + value, 0) / ratings.length) : null;
+      const dimensionAverages = this.dimensionAverages(visibleResponses.map((response) => response.dimensionScores));
+      const areaThemes = this.areaThemes(visibleResponses.map((response) => response.areaComments));
       acc[worker.id] = {
         workerId: worker.id,
         responseCount: workerResponses.length,
@@ -264,15 +277,88 @@ export class PerformanceAnalyticsService {
         averageRating,
         strengths,
         improvements,
-        conciseFeedback: suppressAnonymousSummary
-          ? `Anonymous feedback is hidden until the anonymous threshold of ${anonymityThreshold} submitted responses is met.`
-          : this.conciseFeedback(strengths, improvements, averageRating),
+        conciseFeedback: this.conciseFeedbackWithSuppression(strengths, improvements, averageRating, sourceSuppression),
         anonymitySuppressionApplied: suppressAnonymousSummary,
+        sourceSuppression,
         dimensionAverages,
         areaThemes,
       };
       return acc;
     }, {});
+  }
+
+  private visibleFeedbackResponsesForAnalytics<T extends PerformanceAnalyticsFeedback & { revieweeId: string }>(
+    responses: T[],
+    anonymityThreshold: number,
+  ): T[] {
+    const buckets = new Map<string, T[]>();
+    for (const response of responses) {
+      if (!response.isAnonymous) continue;
+      const key = `${response.revieweeId}:${this.relationshipType(response.relationshipType)}`;
+      const current = buckets.get(key) ?? [];
+      current.push(response);
+      buckets.set(key, current);
+    }
+    const suppressedKeys = new Set(
+      Array.from(buckets.entries())
+        .filter(([, bucket]) => bucket.length < anonymityThreshold)
+        .map(([key]) => key),
+    );
+    return responses.filter((response) => (
+      !response.isAnonymous ||
+      !suppressedKeys.has(`${response.revieweeId}:${this.relationshipType(response.relationshipType)}`)
+    ));
+  }
+
+  private applySourceSuppression<T extends PerformanceAnalyticsFeedback>(
+    responses: T[],
+    anonymityThreshold: number,
+  ): {
+    visibleResponses: T[];
+    sourceSuppression: PerformanceFeedbackSummary['sourceSuppression'];
+  } {
+    const anonymousBuckets = new Map<string, T[]>();
+    for (const response of responses) {
+      if (!response.isAnonymous) continue;
+      const key = this.relationshipType(response.relationshipType);
+      const current = anonymousBuckets.get(key) ?? [];
+      current.push(response);
+      anonymousBuckets.set(key, current);
+    }
+
+    const sourceSuppression = Array.from(anonymousBuckets.entries()).map(([relationshipType, bucket]) => ({
+      relationshipType,
+      submitted: bucket.length,
+      threshold: anonymityThreshold,
+      suppressed: bucket.length < anonymityThreshold,
+    }));
+    const suppressedTypes = new Set(sourceSuppression.filter((entry) => entry.suppressed).map((entry) => entry.relationshipType));
+    const visibleResponses = responses.filter((response) => (
+      !response.isAnonymous || !suppressedTypes.has(this.relationshipType(response.relationshipType))
+    ));
+
+    return { visibleResponses, sourceSuppression };
+  }
+
+  private conciseFeedbackWithSuppression(
+    strengths: string[],
+    improvements: string[],
+    averageRating: number | null,
+    sourceSuppression: PerformanceFeedbackSummary['sourceSuppression'],
+  ): string {
+    const suppressedSources = sourceSuppression
+      .filter((entry) => entry.suppressed)
+      .map((entry) => entry.relationshipType.toLowerCase().replace(/_/g, ' '));
+    const visibleSummary = this.conciseFeedback(strengths, improvements, averageRating);
+    if (!suppressedSources.length) return visibleSummary;
+    const suppressedCopy = `Anonymous ${suppressedSources.join(', ')} feedback is hidden until each source reaches its anonymous threshold.`;
+    return averageRating === null && strengths.length === 0 && improvements.length === 0
+      ? suppressedCopy
+      : `${visibleSummary} ${suppressedCopy}`;
+  }
+
+  private relationshipType(value: string | undefined): string {
+    return (value ?? 'UNKNOWN').trim().toUpperCase() || 'UNKNOWN';
   }
 
   private conciseFeedback(strengths: string[], improvements: string[], averageRating: number | null): string {
