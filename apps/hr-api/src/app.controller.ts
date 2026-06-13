@@ -1,9 +1,11 @@
 import {
   Controller,
   Get,
+  Res,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { AppService } from './app.service.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
@@ -23,8 +25,12 @@ export class AppController {
 
   @Get('health/ready')
   @Public()
-  async getReadiness(): Promise<ReturnType<AppService['getReadiness']>> {
-    return this.appService.getReadiness();
+  async getReadiness(@Res({ passthrough: true }) res: Response): Promise<ReturnType<AppService['getReadiness']>> {
+    const readiness = await this.appService.getReadiness();
+    if (readiness.status !== 'ready') {
+      res.status(503);
+    }
+    return readiness;
   }
 
   @Get('health/live')

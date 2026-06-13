@@ -58,8 +58,13 @@ jobs:
           pnpm audit --prod --audit-level high
           pnpm ci:verify-deployment-envelope
           pnpm --filter @hcm/database migrate
+          pnpm lint
           pnpm typecheck
           pnpm test
+          pnpm --filter hr-web content:check
+          pnpm --filter hr-web test:a11y
+          pnpm --filter hr-web exec playwright install --with-deps chromium
+          pnpm --filter hr-web test:e2e
           pnpm build
 
   publish-images:
@@ -135,3 +140,42 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.value }}
           generate_release_notes: true
+
+  runtime-smoke:
+    name: Candidate runtime smoke
+    needs: publish-images
+    runs-on: ubuntu-latest
+    if: ${{ vars.RUNTIME_API_BASE_URL != '' }}
+    env:
+      RUNTIME_API_BASE_URL: ${{ vars.RUNTIME_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Runtime API smoke
+        run: pnpm runtime:smoke | tee runtime-smoke.log
+
+      - name: Golden workflow smoke
+        run: pnpm runtime:golden-workflow | tee golden-workflow-smoke.log
+
+      - name: Upload runtime smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-smoke-evidence
+          path: |
+            runtime-smoke.log
+            golden-workflow-smoke.log

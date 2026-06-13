@@ -6,7 +6,6 @@ namespace: hcm-production
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secret.example.yaml
   - api-deployment.yaml
   - api-service.yaml
   - web-deployment.yaml

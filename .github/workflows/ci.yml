@@ -55,6 +55,15 @@ jobs:
       - name: Web content cleanliness
         run: pnpm --filter hr-web content:check
 
+      - name: Web accessibility tests
+        run: pnpm --filter hr-web test:a11y
+
+      - name: Install Playwright browser
+        run: pnpm --filter hr-web exec playwright install --with-deps chromium
+
+      - name: Web browser smoke
+        run: pnpm --filter hr-web test:e2e
+
       - name: Build
         run: pnpm build
 

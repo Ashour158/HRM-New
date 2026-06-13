@@ -201,8 +201,8 @@ export function AdminReadiness() {
                 {readiness.productionReady ? 'Ready for production gate approval' : 'Not ready for production release'}
               </h2>
               <p className="mt-2 max-w-4xl text-sm leading-6 text-[#475569]">
-                This page does not certify the product by design alone. It requires real runtime evidence from data,
-                policies, queues, integrations, audit, and release controls.
+                This page does not certify the product by design alone. It requires live release checks across data,
+                policies, queues, integrations, audit, and deployment controls.
               </p>
             </div>
             <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-4 text-center">
