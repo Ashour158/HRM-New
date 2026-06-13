@@ -111,7 +111,7 @@ export function RecruiterWorkspace() {
     { retry: false },
   );
 
-  const requisitions = requisitionsQuery.data ?? [];
+  const requisitions = React.useMemo(() => requisitionsQuery.data ?? [], [requisitionsQuery.data]);
   const activeRequisitionId = selectedRequisitionId ?? requisitions[0]?.id;
 
   React.useEffect(() => {
@@ -201,7 +201,7 @@ export function RecruiterWorkspace() {
     },
   );
 
-  const candidates = candidatesQuery.data ?? [];
+  const candidates = React.useMemo(() => candidatesQuery.data ?? [], [candidatesQuery.data]);
   const offers = offersQuery.data ?? [];
   const selectedRequisition = requisitionDetailQuery.data ?? requisitions.find((requisition) => requisition.id === activeRequisitionId);
   const selectedCandidate = candidates.find((candidate) => candidate.id === selectedCandidateId) ?? candidates[0];

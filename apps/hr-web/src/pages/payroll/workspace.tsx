@@ -153,7 +153,7 @@ export function PayrollWorkspace() {
   );
 
   const preview = previewQuery.data;
-  const rows = preview?.rows ?? [];
+  const rows = React.useMemo(() => preview?.rows ?? [], [preview?.rows]);
   const selectedRow = rows.find((row) => row.workerId === selectedWorkerId) ?? rows[0];
   const cycleId = preview?.payrollCycleId ?? preview?.id;
   const cycleIsPersisted = isUuid(cycleId);

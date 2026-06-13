@@ -153,7 +153,7 @@ export function AdminFeedback360() {
     `/engagement/feedback-360-cycles/tenant/${tenantId}`,
     { enabled: Boolean(tenantId) },
   );
-  const cycles = cyclesQuery.data ?? [];
+  const cycles = React.useMemo(() => cyclesQuery.data ?? [], [cyclesQuery.data]);
 
   React.useEffect(() => {
     if (!selectedCycleId && cycles.length > 0) {
