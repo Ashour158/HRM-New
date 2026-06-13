@@ -23,6 +23,21 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<Feedback360Cycle[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
+  async findByReviewer(tenantId: Uuid, reviewerWorkerId: Uuid): Promise<Feedback360Cycle[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows
+      .map((r: any) => this.toAggregate(r as unknown as Record<string, never>))
+      .filter((cycle) => cycle.reviewers.some((reviewer) => {
+        const [, workerId] = reviewer.includes(':') ? reviewer.split(':') : ['', reviewer];
+        return reviewer === reviewerWorkerId.value || workerId === reviewerWorkerId.value;
+      }));
+  }
+
   async save(entity: Feedback360Cycle): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
@@ -39,6 +54,8 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
       tenantId: new Uuid(row.tenant_id),
       subjectWorkerId: new Uuid(row.subject_worker_id),
       reviewers: (row.reviewers as string[]) ?? [],
+      competencies: (row.competencies as string[]) ?? [],
+      responses: (row.responses as any[]) ?? [],
       startDate: row.start_date ?? undefined,
       endDate: row.end_date ?? undefined,
       status: (row.status as Feedback360CycleStatus) ?? 'DRAFT',
@@ -54,6 +71,8 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
       tenant_id: entity.tenantId.value,
       subject_worker_id: entity.subjectWorkerId.value,
       reviewers: entity.reviewers,
+      competencies: entity.competencies,
+      responses: entity.responses,
       start_date: entity.startDate ?? null,
       end_date: entity.endDate ?? null,
       status: entity.status,

@@ -43,6 +43,7 @@ export class CompleteSurveyResponseDto {
 export const CreateFeedback360CycleDtoSchema = z.object({
   subjectWorkerId: z.string().uuid(),
   reviewers: z.array(z.string()).optional(),
+  competencies: z.array(z.string().min(1)).optional(),
   startDate: z.coerce.date().optional(),
   endDate: z.coerce.date().optional(),
 });
@@ -50,8 +51,23 @@ export const CreateFeedback360CycleDtoSchema = z.object({
 export class CreateFeedback360CycleDto {
   @ApiProperty() subjectWorkerId!: string;
   @ApiPropertyOptional() reviewers?: string[];
+  @ApiPropertyOptional() competencies?: string[];
   @ApiPropertyOptional() startDate?: Date;
   @ApiPropertyOptional() endDate?: Date;
+}
+
+export const SubmitFeedback360ResponseDtoSchema = z.object({
+  reviewerWorkerId: z.string().uuid(),
+  relationship: z.string().min(1).optional(),
+  competencyScores: z.record(z.number()).optional(),
+  comments: z.string().optional(),
+});
+
+export class SubmitFeedback360ResponseDto {
+  @ApiProperty() reviewerWorkerId!: string;
+  @ApiPropertyOptional() relationship?: string;
+  @ApiPropertyOptional() competencyScores?: Record<string, number>;
+  @ApiPropertyOptional() comments?: string;
 }
 
 export const CreateRecognitionProgramDtoSchema = z.object({

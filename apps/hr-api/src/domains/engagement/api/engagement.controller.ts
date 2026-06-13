@@ -16,6 +16,7 @@ import type * as dtos from './dtos.js';
 import {
   CreateEngagementSurveyDtoSchema, CreateSurveyResponseDtoSchema,
   CompleteSurveyResponseDtoSchema, CreateFeedback360CycleDtoSchema,
+  SubmitFeedback360ResponseDtoSchema,
   CreateRecognitionProgramDtoSchema, CreateRecognitionRecordDtoSchema,
   ApproveRecognitionRecordDtoSchema,
   ZodValidationPipe,
@@ -162,14 +163,37 @@ export class EngagementController {
     return this.commandBus.execute(this.buildCommand('CompleteFeedback360Cycle', 'Feedback360Cycle', { feedback360CycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('feedback-360-cycles/:id')
-  async getFeedback360Cycle(@Param('id') id: string) {
-    return this.feedbackRepo.findById(new Uuid(id));
+  @Post('feedback-360-cycles/:id/commands/submit-response')
+  async submitFeedback360Response(@Param('id') id: string, @Body(new ZodValidationPipe(SubmitFeedback360ResponseDtoSchema)) dto: dtos.SubmitFeedback360ResponseDto, @Req() req: Request) {
+    const ar = await this.feedbackRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
+    return this.commandBus.execute(this.buildCommand('SubmitFeedback360Response', 'Feedback360Cycle', {
+      feedback360CycleId: new Uuid(id),
+      reviewerWorkerId: dto.reviewerWorkerId,
+      relationship: dto.relationship,
+      competencyScores: dto.competencyScores,
+      comments: dto.comments,
+    }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+  }
+
+  @Get('feedback-360-cycles/tenant/:tenantId')
+  async getFeedback360CyclesByTenant(@Param('tenantId') tenantId: string) {
+    return this.feedbackRepo.findByTenant(new Uuid(tenantId));
   }
 
   @Get('feedback-360-cycles/subject/:workerId')
   async getFeedback360CyclesBySubject(@Param('workerId') workerId: string) {
     return this.feedbackRepo.findBySubjectWorker(new Uuid(workerId));
+  }
+
+  @Get('feedback-360-cycles/reviewer/:workerId')
+  async getFeedback360CyclesByReviewer(@Param('workerId') workerId: string, @Req() req: Request) {
+    return this.feedbackRepo.findByReviewer(requireTenantId(req, 'Engagement'), new Uuid(workerId));
+  }
+
+  @Get('feedback-360-cycles/:id')
+  async getFeedback360Cycle(@Param('id') id: string) {
+    return this.feedbackRepo.findById(new Uuid(id));
   }
 
   /* Recognition Programs */

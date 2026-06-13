@@ -3,13 +3,12 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
-import { Feedback360Cycle } from '../aggregates/feedback-360-cycle.aggregate.js';
 import { Feedback360CycleRepository } from '../repositories/feedback-360-cycle.repository.js';
 import { EngagementEventsPublisher } from '../events/engagement-events.publisher.js';
 
-@CommandHandler('CreateFeedback360Cycle')
+@CommandHandler('SubmitFeedback360Response')
 @Injectable()
-export class CreateFeedback360CycleHandler {
+export class SubmitFeedback360ResponseHandler {
   constructor(
     private readonly repo: Feedback360CycleRepository,
     private readonly fsm: FsmFramework,
@@ -18,29 +17,25 @@ export class CreateFeedback360CycleHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      subjectWorkerId: Uuid;
-      reviewers?: string[];
-      competencies?: string[];
-      startDate?: Date;
-      endDate?: Date;
+      feedback360CycleId: Uuid;
+      reviewerWorkerId: string;
+      relationship?: string;
+      competencyScores?: Record<string, number>;
+      comments?: string;
     };
-    const ar = Feedback360Cycle.create(
-      {
-        id: Uuid.generate(),
-        tenantId: command.tenantId,
-        subjectWorkerId: payload.subjectWorkerId,
-        reviewers: payload.reviewers,
-        competencies: payload.competencies,
-        startDate: payload.startDate,
-        endDate: payload.endDate,
-      },
-      command.correlationId,
-    );
+    const ar = await this.repo.findById(payload.feedback360CycleId);
+    if (!ar) throw new Error('Feedback 360 cycle not found');
+    ar.submitResponse(payload, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {
       success: true,
-      data: { feedback360CycleId: ar.id.value, status: ar.status },
+      data: {
+        feedback360CycleId: ar.id.value,
+        reviewerWorkerId: payload.reviewerWorkerId,
+        status: ar.status,
+        submittedResponses: ar.responses.length,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: ar.id,

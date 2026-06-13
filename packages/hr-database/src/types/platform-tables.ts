@@ -153,6 +153,50 @@ export interface UserRolesTable {
   expires_at: Date | null;
 }
 
+export interface UsersTable {
+  id: string;
+  tenant_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  password_hash: string;
+  status: string;
+  roles: unknown;
+  permissions: unknown;
+  mfa_secret: string | null;
+  failed_login_count: number;
+  locked_until: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AuthSessionsTable {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  mfa_authenticated: boolean;
+  metadata: unknown;
+  expires_at: Date;
+  revoked_at: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AuthTokensTable {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  token_hash: string;
+  token_type: string;
+  email: string | null;
+  metadata: unknown;
+  expires_at: Date;
+  consumed_at: Date | null;
+  created_by: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface ServiceAccountsTable {
   id: string;
   tenant_id: string;
@@ -2021,6 +2065,9 @@ export interface Database {
   roles: RolesTable;
   permissions: PermissionsTable;
   user_roles: UserRolesTable;
+  users: UsersTable;
+  auth_sessions: AuthSessionsTable;
+  auth_tokens: AuthTokensTable;
   service_accounts: ServiceAccountsTable;
   service_account_credentials: ServiceAccountCredentialsTable;
   access_review_campaigns: AccessReviewCampaignsTable;

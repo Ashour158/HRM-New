@@ -2,11 +2,21 @@ import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-k
 
 export type Feedback360CycleStatus = 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CLOSED';
 
+export interface Feedback360CycleResponse {
+  reviewerWorkerId: string;
+  relationship: string;
+  competencyScores: Record<string, number>;
+  comments?: string;
+  submittedAt: string;
+}
+
 export interface Feedback360CycleProps {
   id: Uuid;
   tenantId: Uuid;
   subjectWorkerId: Uuid;
   reviewers?: string[];
+  competencies?: string[];
+  responses?: Feedback360CycleResponse[];
   startDate?: Date;
   endDate?: Date;
   status?: Feedback360CycleStatus;
@@ -39,6 +49,12 @@ export class Feedback360CycleCompleted extends DomainEvent {
   }
 }
 
+export class Feedback360ResponseSubmitted extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'Feedback360ResponseSubmitted', tenantId: props.tenantId, aggregateType: 'Feedback360Cycle', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
 /**
  * Feedback360Cycle aggregate manages 360-degree feedback cycles.
  */
@@ -47,6 +63,8 @@ export class Feedback360Cycle extends AggregateRoot {
   readonly tenantId: Uuid;
   subjectWorkerId: Uuid;
   reviewers: string[];
+  competencies: string[];
+  responses: Feedback360CycleResponse[];
   startDate?: Date;
   endDate?: Date;
   status: Feedback360CycleStatus;
@@ -62,6 +80,8 @@ export class Feedback360Cycle extends AggregateRoot {
     this.tenantId = props.tenantId;
     this.subjectWorkerId = props.subjectWorkerId;
     this.reviewers = props.reviewers ?? [];
+    this.competencies = props.competencies ?? [];
+    this.responses = props.responses ?? [];
     this.startDate = props.startDate;
     this.endDate = props.endDate;
     this.status = props.status ?? 'DRAFT';
@@ -96,6 +116,40 @@ export class Feedback360Cycle extends AggregateRoot {
     if (this.status !== 'IN_PROGRESS') throw new ValidationError(`Cannot complete from ${this.status}`);
     this.status = 'COMPLETED';
     this.addDomainEvent(new Feedback360CycleCompleted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
+    this.incrementVersion();
+    this.updatedAt = new Date();
+  }
+
+  submitResponse(
+    input: {
+      reviewerWorkerId: string;
+      relationship?: string;
+      competencyScores?: Record<string, number>;
+      comments?: string;
+    },
+    correlationId: Uuid,
+  ): void {
+    if (this.status !== 'IN_PROGRESS') throw new ValidationError(`Cannot submit feedback from ${this.status}`);
+    const reviewerToken = this.reviewers.find((reviewer) => {
+      const [, workerId] = reviewer.includes(':') ? reviewer.split(':') : ['', reviewer];
+      return reviewer === input.reviewerWorkerId || workerId === input.reviewerWorkerId;
+    });
+    if (!reviewerToken) throw new ValidationError('Reviewer is not assigned to this 360 cycle');
+    if (this.responses.some((response) => response.reviewerWorkerId === input.reviewerWorkerId)) {
+      throw new ValidationError('Reviewer response already submitted');
+    }
+    const [relationshipFromToken] = reviewerToken.includes(':') ? reviewerToken.split(':') : ['reviewer'];
+    this.responses = [
+      ...this.responses,
+      {
+        reviewerWorkerId: input.reviewerWorkerId,
+        relationship: input.relationship ?? relationshipFromToken,
+        competencyScores: input.competencyScores ?? {},
+        comments: input.comments,
+        submittedAt: new Date().toISOString(),
+      },
+    ];
+    this.addDomainEvent(new Feedback360ResponseSubmitted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
