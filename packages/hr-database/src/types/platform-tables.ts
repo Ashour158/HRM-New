@@ -303,10 +303,14 @@ export interface AdminPolicyRevisionScopesTable {
   revision_id: string;
   country_codes: unknown;
   legal_entity_ids: unknown;
+  branch_codes: unknown;
   org_unit_ids: unknown;
   department_ids: unknown;
+  job_codes: unknown;
+  grade_codes: unknown;
   location_codes: unknown;
   employee_types: unknown;
+  manager_worker_ids: unknown;
   worker_ids: unknown;
   effective_from: Date | null;
   effective_until: Date | null;

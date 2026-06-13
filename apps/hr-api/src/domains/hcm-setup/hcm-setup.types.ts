@@ -438,10 +438,14 @@ export type HcmPolicyScope = {
   tenantId?: string;
   countryCodes?: string[];
   legalEntityIds?: string[];
+  branchCodes?: string[];
   orgUnitIds?: string[];
   departmentIds?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
   locationCodes?: string[];
   employeeTypes?: string[];
+  managerWorkerIds?: string[];
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;

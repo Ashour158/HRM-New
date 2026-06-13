@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { EngagementSurveyRepository } from '../repositories/engagement-survey.repository.js';
 import { SurveyResponseRepository } from '../repositories/survey-response.repository.js';
 import { Feedback360CycleRepository } from '../repositories/feedback-360-cycle.repository.js';
@@ -39,13 +40,14 @@ export class EngagementController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'Engagement');
+    const actor = requireActor(req, 'Engagement');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['ENGAGEMENT_WRITE'], mfaAuthenticated: true },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -55,7 +57,7 @@ export class EngagementController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
   }
 

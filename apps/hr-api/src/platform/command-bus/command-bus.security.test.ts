@@ -632,6 +632,126 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it('uses the most-specific applied policy revision when broader revisions also match', async () => {
+    const actor = {
+      ...makeCommand().actor,
+      countryCodes: ['EG'],
+      legalEntityIds: ['legal-eg'],
+      departmentIds: ['dept-operations'],
+      employeeTypes: ['FULL_TIME'],
+    } as HrCommandEnvelope<unknown>['actor'];
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [
+            {
+              area: 'LEAVE',
+              revisionId: 'leave-tenant-default',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+            },
+            {
+              area: 'LEAVE',
+              revisionId: 'leave-eg-country',
+              status: 'APPLIED',
+              appliedAt: '2026-06-08T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+              scope: { tenantId: tenantId.value, countryCodes: ['EG'] },
+            },
+            {
+              area: 'LEAVE',
+              revisionId: 'leave-operations-department',
+              status: 'APPLIED',
+              appliedAt: '2026-06-09T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+              scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
+            },
+            {
+              area: 'LEAVE',
+              revisionId: 'leave-worker-exception',
+              status: 'APPLIED',
+              appliedAt: '2026-06-10T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+              scope: { tenantId: tenantId.value, workerIds: [workerId.value] },
+            },
+          ],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      actor,
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      payload: { workerId },
+    }))).resolves.toMatchObject({
+      serviceArea: 'LEAVE',
+      policyRevisionId: 'leave-worker-exception',
+      decision: 'ALLOWED',
+      evaluatedPolicyRevisionIds: [
+        'leave-tenant-default',
+        'leave-eg-country',
+        'leave-operations-department',
+        'leave-worker-exception',
+      ],
+    });
+  });
+
+  it('fails closed when multiple same-precedence applied policies match the command scope', async () => {
+    const actor = {
+      ...makeCommand().actor,
+      departmentIds: ['dept-operations'],
+      employeeTypes: ['FULL_TIME'],
+    } as HrCommandEnvelope<unknown>['actor'];
+    const bus = commandBusWith({
+      hcmSetup: {
+        getSetup: async () => ({
+          runtimePolicyRevisions: [
+            {
+              area: 'LEAVE',
+              revisionId: 'leave-operations-a',
+              status: 'APPLIED',
+              appliedAt: '2026-06-07T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+              scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
+            },
+            {
+              area: 'LEAVE',
+              revisionId: 'leave-operations-b',
+              status: 'APPLIED',
+              appliedAt: '2026-06-08T10:00:00.000Z',
+              engineName: 'PolicyApplicationEngine',
+              engineVersion: '1.0.0',
+              scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
+            },
+          ],
+        }),
+      },
+    });
+
+    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+      actor,
+      commandName: 'SubmitAbsenceRequest',
+      aggregateType: 'AbsenceRequest',
+      payload: { workerId },
+    }))).rejects.toMatchObject({
+      errorCode: 'CONFLICTING_POLICY_REVISIONS_APPLIED',
+      errorDetails: {
+        policyDecisionEvidence: expect.objectContaining({
+          serviceArea: 'LEAVE',
+          decision: 'DENIED',
+          conflictingPolicyRevisionIds: ['leave-operations-a', 'leave-operations-b'],
+        }),
+      },
+    });
+  });
+
   it.each([
     ['attendance', 'ATTENDANCE', 'RecordTimeClockEvent', 'TimeClockEvent'],
     ['leave approval', 'LEAVE', 'ApproveAbsenceRequest', 'AbsenceRequest'],

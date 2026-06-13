@@ -15,9 +15,9 @@ interface RetryConfig extends InternalAxiosRequestConfig {
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
-const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
+const AUTH_BYPASS_ENABLED = import.meta.env.DEV && import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
 
 function persistTokens(token: string, refreshToken?: string): void {
   persistAuthSession({ token, refreshToken });

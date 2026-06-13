@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertCircle, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck, FlaskConical } from 'lucide-react';
 
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
 const DEMO_PASSWORD = 'Password123!';
 
 const DEMO_ACCOUNTS = [

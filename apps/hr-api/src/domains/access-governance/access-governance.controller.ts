@@ -14,8 +14,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
+import { randomUUID } from 'node:crypto';
+import { createCommand, type CommandOutcome } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
+import { CommandBus } from '../../platform/command-bus/command-bus.js';
+import { actorClientType, requireActor, requireTenantId } from '../../platform/http/request-context.js';
 import { AccessGovernanceService } from './access-governance.service.js';
 import type {
   AssignUserRoleDto,
@@ -55,7 +59,10 @@ const ACCESS_GOVERNANCE_ADMIN_ROLES = new Set([
 @UseGuards(AuthGuard)
 @Controller('admin/access-governance')
 export class AccessGovernanceController {
-  constructor(private readonly service: AccessGovernanceService) {}
+  constructor(
+    private readonly service: AccessGovernanceService,
+    private readonly commandBus: CommandBus,
+  ) {}
 
   @Get()
   async getSummary(@Req() req: Request) {
@@ -71,25 +78,27 @@ export class AccessGovernanceController {
   @Post('roles')
   async createRole(@Body() dto: CreateRoleDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createRole(this.getTenantId(req), dto);
+    return this.executeAccessCommand(req, 'CreateAccessGovernanceRole', 'AccessGovernanceRole', { dto });
   }
 
   @Patch('roles/:roleId')
   async updateRole(@Param('roleId') roleId: string, @Body() dto: UpdateRoleDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.updateRole(this.getTenantId(req), this.uuid(roleId, 'roleId'), dto);
+    this.uuid(roleId, 'roleId');
+    return this.executeAccessCommand(req, 'UpdateAccessGovernanceRole', 'AccessGovernanceRole', { roleId, dto });
   }
 
   @Post('permissions')
   async createPermission(@Body() dto: CreatePermissionDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createPermission(this.getTenantId(req), dto);
+    return this.executeAccessCommand(req, 'CreateAccessGovernancePermission', 'AccessGovernancePermission', { dto });
   }
 
   @Patch('permissions/:permissionId')
   async updatePermission(@Param('permissionId') permissionId: string, @Body() dto: UpdatePermissionDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.updatePermission(this.getTenantId(req), this.uuid(permissionId, 'permissionId'), dto);
+    this.uuid(permissionId, 'permissionId');
+    return this.executeAccessCommand(req, 'UpdateAccessGovernancePermission', 'AccessGovernancePermission', { permissionId, dto });
   }
 
   @Put('roles/:roleId/permissions')
@@ -99,7 +108,8 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.replaceRolePermissions(this.getTenantId(req), this.uuid(roleId, 'roleId'), dto.permissionIds ?? []);
+    this.uuid(roleId, 'roleId');
+    return this.executeAccessCommand(req, 'ReplaceAccessGovernanceRolePermissions', 'AccessGovernanceRole', { roleId, dto });
   }
 
   @Post('roles/:roleId/permissions/:permissionId')
@@ -109,11 +119,9 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.assignRolePermission(
-      this.getTenantId(req),
-      this.uuid(roleId, 'roleId'),
-      this.uuid(permissionId, 'permissionId'),
-    );
+    this.uuid(roleId, 'roleId');
+    this.uuid(permissionId, 'permissionId');
+    return this.executeAccessCommand(req, 'AssignAccessGovernanceRolePermission', 'AccessGovernanceRole', { roleId, permissionId });
   }
 
   @Delete('roles/:roleId/permissions/:permissionId')
@@ -123,39 +131,36 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.removeRolePermission(
-      this.getTenantId(req),
-      this.uuid(roleId, 'roleId'),
-      this.uuid(permissionId, 'permissionId'),
-    );
+    this.uuid(roleId, 'roleId');
+    this.uuid(permissionId, 'permissionId');
+    return this.executeAccessCommand(req, 'RemoveAccessGovernanceRolePermission', 'AccessGovernanceRole', { roleId, permissionId });
   }
 
   @Post('user-roles')
   async assignUserRole(@Body() dto: AssignUserRoleDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.assignUserRole(this.getTenantId(req), dto, this.getActorId(req));
+    return this.executeAccessCommand(req, 'AssignAccessGovernanceUserRole', 'AccessGovernanceUserRole', { dto });
   }
 
   @Delete('user-roles/:userId/:roleId')
   async removeUserRole(@Param('userId') userId: string, @Param('roleId') roleId: string, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.removeUserRole(
-      this.getTenantId(req),
-      this.uuid(userId, 'userId'),
-      this.uuid(roleId, 'roleId'),
-    );
+    this.uuid(userId, 'userId');
+    this.uuid(roleId, 'roleId');
+    return this.executeAccessCommand(req, 'RemoveAccessGovernanceUserRole', 'AccessGovernanceUserRole', { userId, roleId });
   }
 
   @Post('service-accounts')
   async createServiceAccount(@Body() dto: CreateServiceAccountDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createServiceAccount(this.getTenantId(req), dto, this.getActorId(req));
+    return this.executeAccessCommand(req, 'CreateServiceAccount', 'ServiceAccount', { dto });
   }
 
   @Patch('service-accounts/:accountId')
   async updateServiceAccount(@Param('accountId') accountId: string, @Body() dto: UpdateServiceAccountDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.updateServiceAccount(this.getTenantId(req), this.uuid(accountId, 'accountId'), dto);
+    this.uuid(accountId, 'accountId');
+    return this.executeAccessCommand(req, 'UpdateServiceAccount', 'ServiceAccount', { accountId, dto });
   }
 
   @Post('service-accounts/:accountId/credentials/issue')
@@ -165,7 +170,8 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.issueServiceAccountCredential(this.getTenantId(req), this.uuid(accountId, 'accountId'), dto, this.getActorId(req));
+    this.uuid(accountId, 'accountId');
+    return this.executeAccessCommand(req, 'IssueServiceAccountCredential', 'ServiceAccount', { accountId, dto });
   }
 
   @Post('service-accounts/:accountId/credentials/:credentialId/rotate')
@@ -176,13 +182,9 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.rotateServiceAccountCredential(
-      this.getTenantId(req),
-      this.uuid(accountId, 'accountId'),
-      this.uuid(credentialId, 'credentialId'),
-      dto,
-      this.getActorId(req),
-    );
+    this.uuid(accountId, 'accountId');
+    this.uuid(credentialId, 'credentialId');
+    return this.executeAccessCommand(req, 'RotateServiceAccountCredential', 'ServiceAccount', { accountId, credentialId, dto });
   }
 
   @Post('service-accounts/:accountId/credentials/:credentialId/revoke')
@@ -193,19 +195,15 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.revokeServiceAccountCredential(
-      this.getTenantId(req),
-      this.uuid(accountId, 'accountId'),
-      this.uuid(credentialId, 'credentialId'),
-      dto,
-      this.getActorId(req),
-    );
+    this.uuid(accountId, 'accountId');
+    this.uuid(credentialId, 'credentialId');
+    return this.executeAccessCommand(req, 'RevokeServiceAccountCredential', 'ServiceAccount', { accountId, credentialId, dto });
   }
 
   @Post('access-reviews/campaigns')
   async createAccessReviewCampaign(@Body() dto: CreateAccessReviewCampaignDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createAccessReviewCampaign(this.getTenantId(req), dto, this.getActorId(req));
+    return this.executeAccessCommand(req, 'CreateAccessReviewCampaign', 'AccessReviewCampaign', { dto });
   }
 
   @Patch('access-reviews/campaigns/:campaignId')
@@ -215,13 +213,15 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.updateAccessReviewCampaign(this.getTenantId(req), this.uuid(campaignId, 'campaignId'), dto);
+    this.uuid(campaignId, 'campaignId');
+    return this.executeAccessCommand(req, 'UpdateAccessReviewCampaign', 'AccessReviewCampaign', { campaignId, dto });
   }
 
   @Post('access-reviews/campaigns/:campaignId/commands/launch')
   async launchAccessReviewCampaign(@Param('campaignId') campaignId: string, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.launchAccessReviewCampaign(this.getTenantId(req), this.uuid(campaignId, 'campaignId'), this.getActorId(req));
+    this.uuid(campaignId, 'campaignId');
+    return this.executeAccessCommand(req, 'LaunchAccessReviewCampaign', 'AccessReviewCampaign', { campaignId });
   }
 
   @Post('access-reviews/campaigns/:campaignId/commands/remind')
@@ -231,7 +231,8 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.sendAccessReviewReminders(this.getTenantId(req), this.uuid(campaignId, 'campaignId'), dto, this.getActorId(req));
+    this.uuid(campaignId, 'campaignId');
+    return this.executeAccessCommand(req, 'SendAccessReviewReminders', 'AccessReviewCampaign', { campaignId, dto });
   }
 
   @Post('access-reviews/campaigns/:campaignId/commands/escalate')
@@ -241,19 +242,21 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.escalateAccessReviewCampaign(this.getTenantId(req), this.uuid(campaignId, 'campaignId'), dto, this.getActorId(req));
+    this.uuid(campaignId, 'campaignId');
+    return this.executeAccessCommand(req, 'EscalateAccessReviewCampaign', 'AccessReviewCampaign', { campaignId, dto });
   }
 
   @Post('access-reviews/campaigns/:campaignId/commands/complete')
   async completeAccessReviewCampaign(@Param('campaignId') campaignId: string, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.completeAccessReviewCampaign(this.getTenantId(req), this.uuid(campaignId, 'campaignId'), this.getActorId(req));
+    this.uuid(campaignId, 'campaignId');
+    return this.executeAccessCommand(req, 'CompleteAccessReviewCampaign', 'AccessReviewCampaign', { campaignId });
   }
 
   @Post('access-reviews/items')
   async createAccessReviewItem(@Body() dto: CreateAccessReviewItemDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createAccessReviewItem(this.getTenantId(req), dto);
+    return this.executeAccessCommand(req, 'CreateAccessReviewItem', 'AccessReviewItem', { dto });
   }
 
   @Patch('access-reviews/items/:itemId')
@@ -263,43 +266,47 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.updateAccessReviewItem(this.getTenantId(req), this.uuid(itemId, 'itemId'), dto, this.getActorId(req));
+    this.uuid(itemId, 'itemId');
+    return this.executeAccessCommand(req, 'UpdateAccessReviewItem', 'AccessReviewItem', { itemId, dto });
   }
 
   @Post('abac-policies')
   async createAbacPolicy(@Body() dto: CreateAbacPolicyDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createAbacPolicy(this.getTenantId(req), dto);
+    return this.executeAccessCommand(req, 'CreateAbacPolicy', 'AccessGovernanceAbacPolicy', { dto });
   }
 
   @Patch('abac-policies/:policyId')
   async updateAbacPolicy(@Param('policyId') policyId: string, @Body() dto: UpdateAbacPolicyDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.updateAbacPolicy(this.getTenantId(req), this.uuid(policyId, 'policyId'), dto);
+    this.uuid(policyId, 'policyId');
+    return this.executeAccessCommand(req, 'UpdateAbacPolicy', 'AccessGovernanceAbacPolicy', { policyId, dto });
   }
 
   @Post('field-access-policies')
   async createFieldAccessPolicy(@Body() dto: CreateFieldAccessPolicyDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createFieldAccessPolicy(this.getTenantId(req), dto);
+    return this.executeAccessCommand(req, 'CreateFieldAccessPolicy', 'AccessGovernanceFieldPolicy', { dto });
   }
 
   @Patch('field-access-policies/:policyId')
   async updateFieldAccessPolicy(@Param('policyId') policyId: string, @Body() dto: UpdateFieldAccessPolicyDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.updateFieldAccessPolicy(this.getTenantId(req), this.uuid(policyId, 'policyId'), dto);
+    this.uuid(policyId, 'policyId');
+    return this.executeAccessCommand(req, 'UpdateFieldAccessPolicy', 'AccessGovernanceFieldPolicy', { policyId, dto });
   }
 
   @Post('sod-rules')
   async createSodRule(@Body() dto: CreateSodRuleDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.createSodRule(this.getTenantId(req), dto);
+    return this.executeAccessCommand(req, 'CreateSodRule', 'AccessGovernanceSodRule', { dto });
   }
 
   @Patch('sod-rules/:ruleId')
   async updateSodRule(@Param('ruleId') ruleId: string, @Body() dto: UpdateSodRuleDto, @Req() req: Request) {
     this.assertWriteScope(req);
-    return this.service.updateSodRule(this.getTenantId(req), this.uuid(ruleId, 'ruleId'), dto);
+    this.uuid(ruleId, 'ruleId');
+    return this.executeAccessCommand(req, 'UpdateSodRule', 'AccessGovernanceSodRule', { ruleId, dto });
   }
 
   @Post('sod-rules/:ruleId/remediations')
@@ -309,11 +316,41 @@ export class AccessGovernanceController {
     @Req() req: Request,
   ) {
     this.assertWriteScope(req);
-    return this.service.remediateSodViolation(
-      this.getTenantId(req),
-      { ...dto, ruleId: this.uuid(ruleId, 'ruleId').value },
-      this.getActorId(req),
-    );
+    this.uuid(ruleId, 'ruleId');
+    return this.executeAccessCommand(req, 'RemediateSodViolation', 'AccessGovernanceSodRule', {
+      ruleId,
+      dto: { ...dto, ruleId },
+    });
+  }
+
+  private async executeAccessCommand<TPayload, TResult>(
+    req: Request,
+    commandName: string,
+    aggregateType: string,
+    payload: TPayload,
+  ): Promise<TResult> {
+    const tenantId = this.getTenantId(req);
+    const actor = requireActor(req, 'Access governance');
+    const result = await this.commandBus.execute(createCommand(
+      commandName,
+      tenantId,
+      actor,
+      payload,
+      {
+        aggregateType,
+        idempotencyKey: randomUUID(),
+        correlationId: Uuid.generate(),
+        reason: 'Manage access governance from System Console',
+        metadata: {
+          clientType: actorClientType(actor),
+          hrDataSensitivity: 'RESTRICTED',
+        },
+      },
+    )) as CommandOutcome<TResult>;
+    if (!result.success) {
+      throw new BadRequestException(result.errorMessage);
+    }
+    return result.data;
   }
 
   private assertReadScope(req: Request): void {
@@ -328,14 +365,7 @@ export class AccessGovernanceController {
   }
 
   private getTenantId(req: Request): Uuid {
-    return new Uuid((req.tenantId as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
-  }
-
-  private getActorId(req: Request): Uuid | undefined {
-    const actorId = req.actor?.actorId;
-    if (actorId instanceof Uuid) return actorId;
-    if (typeof actorId === 'string' && Uuid.isValid(actorId)) return new Uuid(actorId);
-    return undefined;
+    return requireTenantId(req, 'Access governance');
   }
 
   private uuid(value: string, field: string): Uuid {

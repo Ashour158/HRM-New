@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { HrAiUseCaseRepository } from '../repositories/hr-ai-use-case.repository.js';
 import { HrAiModelRunRepository } from '../repositories/hr-ai-model-run.repository.js';
 import { HrAiBiasTestRepository } from '../repositories/hr-ai-bias-test.repository.js';
@@ -32,13 +33,14 @@ export class HrAiGovernanceController {
     commandName: string, aggregateType: string, payload: TPayload, req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'HR AI Governance');
+    const actor = requireActor(req, 'HR AI Governance');
     return {
       commandId: Uuid.generate(), commandName, commandSchemaVersion: 1, tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN', 'AI_GOVERNANCE_ADMIN'], permissions: ['AI_GOVERNANCE_CREATE', 'AI_GOVERNANCE_UPDATE', 'AI_GOVERNANCE_READ'], mfaAuthenticated: true },
+      actor,
       aggregateType, aggregateId: options?.aggregateId, expectedState: options?.expectedState, expectedVersion: options?.expectedVersion,
       idempotencyKey: randomUUID(), correlationId: Uuid.generate(), reason: 'API request', payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
   }
 

@@ -75,10 +75,14 @@ type AggregateStateRow = {
 type ActorScopeClaims = {
   legalEntityIds?: string[];
   countryCodes?: string[];
+  branchCodes?: string[];
   departmentIds?: string[];
   orgUnitIds?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
   locationCodes?: string[];
   employeeTypes?: string[];
+  managerWorkerIds?: string[];
 };
 
 type GovernedCommandPolicyRule = {
@@ -158,6 +162,8 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   PayrollResultLine: aggregateLoader('payroll_result_lines'),
   PayrollPaymentBatch: aggregateLoader('payroll_payment_batches'),
   PayrollPayslipArtifact: aggregateLoader('payroll_payslip_artifacts'),
+  PayrollExportJob: aggregateLoader('payroll_export_jobs'),
+  PayrollGlPosting: aggregateLoader('payroll_gl_postings'),
 
   ShiftSchedule: aggregateLoader('shift_schedules'),
   OpenShift: aggregateLoader('open_shifts'),
@@ -247,7 +253,7 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
   },
   {
     area: 'PAYROLL',
-    aggregateTypes: ['PayrollCycle', 'PayrollInput', 'PayrollCalculationRun', 'PayrollResultLine', 'PayrollPaymentBatch', 'PayrollPayslipArtifact'],
+    aggregateTypes: ['PayrollCycle', 'PayrollInput', 'PayrollCalculationRun', 'PayrollResultLine', 'PayrollPaymentBatch', 'PayrollPayslipArtifact', 'PayrollExportJob', 'PayrollGlPosting'],
     commandPatterns: [/Payroll/i, /Payslip/i],
   },
   {
@@ -289,7 +295,7 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
     area: 'ACCESS_GOVERNANCE',
     aggregateTypes: [],
     // Every business command must at least pass applied access governance.
-    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Award|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Create|Deactivate|Deprecate|Dispute|Draft|End|Enroll|Enter|Execute|Exempt|Expire|Extend|Fail|Fill|Finalize|Flag|Freeze|Generate|Implement|Investigate|Launch|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Run|Schedule|Screen|Send|Setup|Skip|Start|Submit|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
+    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Award|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Configure|Create|Deactivate|Deprecate|Dispute|Draft|End|Enroll|Enter|Execute|Exempt|Expire|Extend|Fail|Fill|Finalize|Flag|Freeze|Generate|Implement|Investigate|Launch|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Run|Schedule|Screen|Send|Setup|Simulate|Skip|Start|Submit|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
   },
 ];
 
@@ -832,13 +838,15 @@ export class CommandBus implements OnModuleInit {
       && candidate.status === 'APPLIED'
       && this.policyScopeMatches(candidate.scope, command)
     ));
-    if (matching.length === 1) {
-      return this.buildAllowedPolicyDecisionEvidence(command, requiredArea, matching[0]);
-    }
+    if (matching.length >= 1) {
+      const highestSpecificity = Math.max(...matching.map((candidate) => this.policyScopeSpecificity(candidate.scope)));
+      const mostSpecific = matching.filter((candidate) => this.policyScopeSpecificity(candidate.scope) === highestSpecificity);
+      if (mostSpecific.length === 1) {
+        return this.buildAllowedPolicyDecisionEvidence(command, requiredArea, mostSpecific[0], matching);
+      }
 
-    if (matching.length > 1) {
-      const conflictingPolicyRevisionIds = matching.map((candidate) => candidate.revisionId);
-      const reason = `${requiredArea} command ${command.commandName} has conflicting applied Policy Center revisions: ${conflictingPolicyRevisionIds.join(', ')}.`;
+      const conflictingPolicyRevisionIds = mostSpecific.map((candidate) => candidate.revisionId);
+      const reason = `${requiredArea} command ${command.commandName} has conflicting applied Policy Center revisions at the same scope precedence: ${conflictingPolicyRevisionIds.join(', ')}.`;
       throw this.makeError(
         command,
         CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE,
@@ -851,7 +859,7 @@ export class CommandBus implements OnModuleInit {
             requiredArea,
             reason,
             revisions,
-            matching,
+            mostSpecific,
           ),
         },
       );
@@ -875,6 +883,7 @@ export class CommandBus implements OnModuleInit {
     command: HrCommandEnvelope<unknown>,
     serviceArea: RuntimePolicyArea,
     revision: RuntimePolicyRevisionEvidence,
+    evaluatedRevisions: RuntimePolicyRevisionEvidence[] = [revision],
   ): CommandPolicyDecisionEvidence {
     const subjectWorkerId = this.resolveSubjectWorkerId(command)?.value;
     return {
@@ -889,7 +898,7 @@ export class CommandBus implements OnModuleInit {
       aggregateType: command.aggregateType,
       subjectWorkerId,
       sourceRecordId: command.aggregateId?.value ?? subjectWorkerId,
-      evaluatedPolicyRevisionIds: [revision.revisionId],
+      evaluatedPolicyRevisionIds: evaluatedRevisions.map((candidate) => candidate.revisionId),
     };
   }
 
@@ -1106,11 +1115,47 @@ export class CommandBus implements OnModuleInit {
     const actorScope = command.actor as typeof command.actor & ActorScopeClaims;
     return this.claimsMatch(scope.countryCodes, actorScope.countryCodes)
       && this.claimsMatch(scope.legalEntityIds, actorScope.legalEntityIds)
+      && this.claimsMatch(scope.branchCodes, actorScope.branchCodes)
       && this.claimsMatch(scope.orgUnitIds, actorScope.orgUnitIds)
       && this.claimsMatch(scope.departmentIds, actorScope.departmentIds)
+      && this.claimsMatch(scope.jobCodes, actorScope.jobCodes)
+      && this.claimsMatch(scope.gradeCodes, actorScope.gradeCodes)
       && this.claimsMatch(scope.locationCodes, actorScope.locationCodes)
       && this.claimsMatch(scope.employeeTypes, actorScope.employeeTypes)
+      && this.claimsMatch(scope.managerWorkerIds, actorScope.managerWorkerIds)
       && this.workerScopeMatches(scope.workerIds, command);
+  }
+
+  private policyScopeSpecificity(scope: HcmPolicyScope | undefined): number {
+    if (!scope) return 0;
+    const hasValues = (values: string[] | undefined) => Boolean(values && values.length > 0);
+    const specificityTieBreaker = [
+      scope.countryCodes,
+      scope.legalEntityIds,
+      scope.branchCodes,
+      scope.orgUnitIds,
+      scope.departmentIds,
+      scope.locationCodes,
+      scope.employeeTypes,
+      scope.jobCodes,
+      scope.gradeCodes,
+      scope.managerWorkerIds,
+      scope.workerIds,
+    ].filter(hasValues).length;
+
+    if (hasValues(scope.workerIds)) return 1000 + specificityTieBreaker;
+    if (hasValues(scope.managerWorkerIds)) return 900 + specificityTieBreaker;
+    if (hasValues(scope.jobCodes) || hasValues(scope.gradeCodes)) return 800 + specificityTieBreaker;
+    if (
+      hasValues(scope.departmentIds)
+      || hasValues(scope.orgUnitIds)
+      || hasValues(scope.locationCodes)
+      || hasValues(scope.branchCodes)
+      || hasValues(scope.employeeTypes)
+    ) return 700 + specificityTieBreaker;
+    if (hasValues(scope.legalEntityIds)) return 600 + specificityTieBreaker;
+    if (hasValues(scope.countryCodes)) return 500 + specificityTieBreaker;
+    return 100;
   }
 
   private claimsMatch(policyValues: string[] | undefined, actorValues: string[] | undefined): boolean {

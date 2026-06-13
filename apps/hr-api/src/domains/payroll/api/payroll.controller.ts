@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { AuthGuard } from '../../../guards/auth.guard.js';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
@@ -153,8 +154,8 @@ export class PayrollController {
     private readonly payrollInputOrchestration: PayrollInputOrchestrationService,
     private readonly payrollApprovedInputProjection: PayrollApprovedInputProjectionService,
     private readonly payrollArtifact: PayrollArtifactService,
-    private readonly payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
-    private readonly payrollBankFile: PayrollBankFileService,
+    _payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
+    _payrollBankFile: PayrollBankFileService,
     private readonly payrollGlPosting: PayrollGlPostingService,
   ) {}
 
@@ -165,14 +166,14 @@ export class PayrollController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
-    if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
+    const tenantId = requireTenantId(req, 'Payroll');
+    const actor = requireActor(req, 'Payroll');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: req.actor,
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -182,12 +183,12 @@ export class PayrollController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
   }
 
   private getTenantId(req: Request): Uuid {
-    return new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    return requireTenantId(req, 'Payroll');
   }
 
   private hasPayrollVisibility(req: Request): boolean {
@@ -216,6 +217,10 @@ export class PayrollController {
     } catch {
       return undefined;
     }
+  }
+
+  private safeUuid(value: string | undefined, fallback: Uuid): Uuid {
+    return value && Uuid.isValid(value) ? new Uuid(value) : fallback;
   }
 
   private async executeOrThrow<T>(command: HrCommandEnvelope<unknown>): Promise<CommandResult<T>> {
@@ -646,7 +651,8 @@ export class PayrollController {
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
     const employees = await this.buildPayrollEmployees(year, month, req);
     const preview = this.payrollCalculation.buildMonthlyCycle({ year, month, employees, setup, workLocationCode });
-    const actor = { roles: req.actor?.roles ?? ['HR_ADMIN'], workerId: req.actor?.actorId?.value };
+    const requestActor = requireActor(req, 'Payroll preview');
+    const actor = { roles: requestActor.roles, workerId: requestActor.actorId.value };
     return {
       ...preview,
       rows: preview.rows.map((row) => this.payrollCalculation.maskRowForActor(row, actor)),
@@ -1005,7 +1011,7 @@ export class PayrollController {
     }));
     const csv = toCsv(rows);
     const fileName = `payroll-${preview.id}.csv`;
-    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+    const exportJob = this.payrollArtifact.buildExportJobRecord({
       tenantId: this.getTenantId(req).value,
       requestedBy: this.getActorUuidString(req),
       exportType: 'PAYROLL_SUMMARY_CSV',
@@ -1014,6 +1020,9 @@ export class PayrollController {
       rowCount: rows.length,
       filters: { year: preview.year, month: preview.month, workLocationCode },
       purpose: 'Payroll summary export',
+    });
+    await this.executeOrThrow(this.buildCommand('SavePayrollExportJob', 'PayrollExportJob', { record: exportJob }, req, {
+      aggregateId: new Uuid(exportJob.id),
     }));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -1055,7 +1064,7 @@ export class PayrollController {
     }));
     const csv = toCsv(rows);
     const fileName = `bank-sheet-${preview.id}.csv`;
-    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+    const exportJob = this.payrollArtifact.buildExportJobRecord({
       tenantId: this.getTenantId(req).value,
       requestedBy: this.getActorUuidString(req),
       exportType: 'BANK_SHEET_CSV',
@@ -1064,6 +1073,9 @@ export class PayrollController {
       rowCount: rows.length,
       filters: { year: preview.year, month: preview.month, workLocationCode },
       purpose: 'Bank transfer sheet export',
+    });
+    await this.executeOrThrow(this.buildCommand('SavePayrollExportJob', 'PayrollExportJob', { record: exportJob }, req, {
+      aggregateId: new Uuid(exportJob.id),
     }));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -1283,7 +1295,10 @@ export class PayrollController {
       payslip,
       htmlContent: this.payrollInputOrchestration.renderPayslipHtml(payslip),
     }));
-    await this.payslipArtifactRepo.saveMany(payslipArtifacts);
+    await this.executeOrThrow(this.buildCommand('GeneratePayrollPayslipArtifacts', 'PayrollPayslipArtifact', {
+      payrollCycleId,
+      records: payslipArtifacts,
+    }, req, { aggregateId: new Uuid(payrollCycleId) }));
 
     const persistedPaymentBatch = {
       ...this.payrollInputOrchestration.buildPaymentBatch(calculationPreview, calculationBankRows),
@@ -1295,7 +1310,9 @@ export class PayrollController {
       batch: persistedPaymentBatch,
       createdBy: this.getActorUuidString(req),
     });
-    await this.paymentBatchRepo.save(paymentBatchRecord);
+    await this.executeOrThrow(this.buildCommand('CreatePayrollPaymentBatch', 'PayrollPaymentBatch', {
+      record: paymentBatchRecord,
+    }, req, { aggregateId: this.safeUuid(paymentBatchRecord.id, new Uuid(payrollCycleId)) }));
 
     const glPosting = this.payrollGlPosting.buildPosting({
       tenantId: this.getTenantId(req).value,
@@ -1304,7 +1321,9 @@ export class PayrollController {
       createdBy: this.getActorUuidString(req),
       accountMapping: this.resolvePayrollGlAccountMapping(setup, calculationPreview, body.workLocationCode),
     });
-    await this.glPostingRepo.save(glPosting);
+    await this.executeOrThrow(this.buildCommand('CreatePayrollGlPosting', 'PayrollGlPosting', {
+      record: glPosting,
+    }, req, { aggregateId: this.safeUuid(glPosting.id, new Uuid(payrollCycleId)) }));
 
     let finalCycleStatus = 'REVIEW';
     let finalReadiness = readiness;
@@ -1489,11 +1508,10 @@ export class PayrollController {
   @Post('payment-batches/:id/approve')
   async approvePaymentBatch(@Param('id') id: string, @Req() req: Request) {
     this.assertCanExportPayroll(req);
-    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
-    if (!batch) throw new BadRequestException('Payment batch not found');
-    const approved = this.payrollEnterpriseWorkflow.approvePaymentBatch(batch, this.getActorUuidString(req) ?? this.getActorId(req));
-    await this.paymentBatchRepo.save(approved);
-    return approved;
+    const result = await this.executeOrThrow(this.buildCommand('ApprovePayrollPaymentBatch', 'PayrollPaymentBatch', {
+      paymentBatchId: id,
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('payment-batches/:id/export')
@@ -1503,31 +1521,11 @@ export class PayrollController {
     @Req() req: Request,
   ) {
     this.assertCanExportPayroll(req);
-    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
-    if (!batch) throw new BadRequestException('Payment batch not found');
-    const format = body.format ?? 'CSV';
-    const bankFile = this.payrollBankFile.render(batch, format);
-    const exported = this.payrollEnterpriseWorkflow.markPaymentBatchExported(batch, format, this.getActorUuidString(req) ?? this.getActorId(req));
-    await this.paymentBatchRepo.save(exported);
-    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
-      tenantId: this.getTenantId(req).value,
-      payrollCycleId: batch.payrollCycleId,
-      requestedBy: this.getActorUuidString(req),
-      exportType: `BANK_PAYMENT_${format}`,
-      fileName: bankFile.fileName,
-      content: bankFile.content,
-      rowCount: bankFile.rowCount,
-      filters: { paymentBatchId: id, format },
-      purpose: 'Approved bank payment file export',
-    }));
-    return {
-      paymentBatch: exported,
-      fileName: bankFile.fileName,
-      contentType: bankFile.contentType,
-      content: bankFile.content,
-      rowCount: bankFile.rowCount,
-      events: ['PaymentBatchExported', 'PayrollBankFileRendered'],
-    };
+    const result = await this.executeOrThrow(this.buildCommand('ExportPayrollPaymentBatch', 'PayrollPaymentBatch', {
+      paymentBatchId: id,
+      format: body.format,
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('payment-batches/:id/reconcile')
@@ -1537,40 +1535,20 @@ export class PayrollController {
     @Req() req: Request,
   ) {
     this.assertCanExportPayroll(req);
-    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
-    if (!batch) throw new BadRequestException('Payment batch not found');
-    const reconciled = this.payrollEnterpriseWorkflow.reconcilePaymentBatch(
-      batch,
-      body.rows ?? [],
-      this.getActorUuidString(req) ?? this.getActorId(req),
-    );
-    await this.paymentBatchRepo.save(reconciled);
-    return reconciled;
+    const result = await this.executeOrThrow(this.buildCommand('ReconcilePayrollPaymentBatch', 'PayrollPaymentBatch', {
+      paymentBatchId: id,
+      rows: body.rows ?? [],
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('cycles/:id/payslips/publish')
   async publishPayrollCyclePayslips(@Param('id') id: string, @Req() req: Request) {
     this.assertCanExportPayroll(req);
-    const artifacts = await this.payslipArtifactRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
-    const actorId = this.getActorUuidString(req) ?? this.getActorId(req);
-    const published = artifacts.map((artifact) => (
-      artifact.status === 'GENERATED'
-        ? this.payrollEnterpriseWorkflow.publishPayslip(artifact, actorId)
-        : artifact
-    ));
-    await this.payslipArtifactRepo.saveMany(published);
-    return {
+    const result = await this.executeOrThrow(this.buildCommand('PublishPayrollCyclePayslips', 'PayrollPayslipArtifact', {
       payrollCycleId: id,
-      publishedCount: published.filter((artifact) => artifact.status === 'PUBLISHED').length,
-      artifacts: published.map((artifact) => ({
-        id: artifact.id,
-        workerId: artifact.workerId,
-        employeeId: artifact.employeeId,
-        status: artifact.status,
-        publishedAt: artifact.publishedAt,
-      })),
-      events: ['PayrollPayslipsPublished'],
-    };
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('cycles/:id/gl-posting')
@@ -1585,11 +1563,10 @@ export class PayrollController {
       createdBy: this.getActorUuidString(req),
       accountMapping: this.resolvePayrollGlAccountMapping(setup, preview),
     });
-    await this.glPostingRepo.save(posting);
-    return {
-      ...posting,
-      events: ['PayrollGlPostingBuilt'],
-    };
+    const result = await this.executeOrThrow(this.buildCommand('CreatePayrollGlPosting', 'PayrollGlPosting', {
+      record: posting,
+    }, req, { aggregateId: this.safeUuid(posting.id, new Uuid(id)) }));
+    return result.data;
   }
 
   @Get('cycles/:id/gl-posting')

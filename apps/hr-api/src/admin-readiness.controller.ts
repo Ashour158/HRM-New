@@ -1,8 +1,8 @@
 import { Controller, ForbiddenException, Get, Req, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from './guards/auth.guard.js';
+import { requireTenantId } from './platform/http/request-context.js';
 import { AdminReadinessService } from './admin-readiness.service.js';
 
 const SYSTEM_CONSOLE_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
@@ -25,7 +25,7 @@ export class AdminReadinessController {
     throw new ForbiddenException('Only system console administrators can view production readiness');
   }
 
-  private getTenantId(req: Request): Uuid {
-    return new Uuid((req.tenantId as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+  private getTenantId(req: Request) {
+    return requireTenantId(req, 'Production readiness');
   }
 }

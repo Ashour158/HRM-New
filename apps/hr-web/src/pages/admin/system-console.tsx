@@ -435,7 +435,7 @@ export function AdminSystemConsole() {
   const [adminToolQuery, setAdminToolQuery] = React.useState('');
   const mapsConfigured = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
-  const authBypassEnabled = import.meta.env.VITE_AUTH_BYPASS === 'true';
+  const authBypassEnabled = import.meta.env.DEV && import.meta.env.VITE_AUTH_BYPASS === 'true';
 
   const dashboardQuery = useApiQuery<AdminDashboardData>(['admin-dashboard', 'system-console'], '/admin/dashboard', {
     retry: false,

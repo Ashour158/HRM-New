@@ -14,6 +14,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { CountryRuleSetRepository } from '../repositories/country-rule-set.repository.js';
 import { StatutoryLeaveTypeRepository } from '../repositories/statutory-leave-type.repository.js';
 import { WorksCouncilConsultationRepository } from '../repositories/works-council-consultation.repository.js';
@@ -52,21 +53,14 @@ export class GlobalHrController {
       effectiveDate?: Date;
     },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid(
-      (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001',
-    );
+    const tenantId = requireTenantId(req, 'Global HR');
+    const actor = requireActor(req, 'Global HR');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: {
-        actorType: 'SYSTEM',
-        actorId: Uuid.generate(),
-        roles: ['HR_ADMIN', 'GLOBAL_HR_ADMIN'],
-        permissions: ['GLOBAL_HR_CREATE', 'GLOBAL_HR_UPDATE', 'GLOBAL_HR_READ'],
-        mfaAuthenticated: true,
-      },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -79,7 +73,7 @@ export class GlobalHrController {
       payload,
       metadata: {
         requestHash: computeRequestHash(payload),
-        clientType: 'HR_ADMIN',
+        clientType: actorClientType(actor),
       },
     };
   }

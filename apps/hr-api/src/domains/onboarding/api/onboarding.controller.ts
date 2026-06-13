@@ -4,7 +4,6 @@ import {
   Get,
   Param,
   Body,
-  Headers,
   Req,
   UseGuards,
   UsePipes,
@@ -18,6 +17,7 @@ import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import type { Request } from 'express';
 import { AuthGuard } from '../../../guards/auth.guard.js';
+import { requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 
 import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
 import { OnboardingPlanRepository } from '../repositories/onboarding-plan.repository.js';
@@ -53,16 +53,16 @@ export class OnboardingController {
 
   @Get('templates')
   @ApiOperation({ summary: 'List role-based onboarding track templates' })
-  async listTemplates(@Req() req?: Request) {
+  async listTemplates(@Req() req: Request) {
     this.assertOnboardingAdminScope(req);
     return this.templates.listTemplates();
   }
 
   @Get('workbench')
   @ApiOperation({ summary: 'Get onboarding admin workbench with readiness, checklists, and owner-group progress' })
-  async getWorkbench(@Headers('x-tenant-id') tenantId: string, @Req() req?: Request) {
+  async getWorkbench(@Req() req: Request) {
     this.assertOnboardingAdminScope(req);
-    const resolvedTenantId = this.resolveTenantId(tenantId, req);
+    const resolvedTenantId = this.resolveTenantId(req);
     const plans = await this.planRepo.findByTenant(new Uuid(resolvedTenantId));
     const allTasks = await this.taskRepo.findByTenant(new Uuid(resolvedTenantId));
     const planViews = plans.map((plan) => {
@@ -91,14 +91,10 @@ export class OnboardingController {
   @ApiOperation({ summary: 'Create a new onboarding plan' })
   async createPlan(
     @Body() dto: CreateOnboardingPlanDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CreateOnboardingPlan', tenantId, actorId, roles, dto, {
+    const envelope = this.buildCommand('CreateOnboardingPlan', dto, {
       aggregateType: 'OnboardingPlan',
       reason: 'Create onboarding plan via API',
     }, req);
@@ -111,10 +107,7 @@ export class OnboardingController {
   async applyTemplate(
     @Param('id') id: string,
     @Body() dto: ApplyOnboardingTemplateDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
     const plan = await this.planRepo.findById(new Uuid(id));
@@ -122,7 +115,6 @@ export class OnboardingController {
       throw new BadRequestException('Onboarding plan not found');
     }
 
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
     const template = this.templates.getTemplate(dto.trackCode);
     const taskPayloads = this.templates.materializeTasks(template, id, plan.startDate, {
       managerId: dto.managerId,
@@ -132,7 +124,7 @@ export class OnboardingController {
 
     const createdTasks = [];
     for (const taskPayload of taskPayloads) {
-      const envelope = this.buildCommand('CreateOnboardingTask', tenantId, actorId, roles, taskPayload, {
+      const envelope = this.buildCommand('CreateOnboardingTask', taskPayload, {
         aggregateType: 'OnboardingTask',
         reason: `Apply onboarding template ${template.code}`,
       }, req);
@@ -152,14 +144,10 @@ export class OnboardingController {
   @ApiParam({ name: 'id', description: 'Plan UUID' })
   async startPlan(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('StartOnboarding', tenantId, actorId, roles, { planId: id }, {
+    const envelope = this.buildCommand('StartOnboarding', { planId: id }, {
       aggregateType: 'OnboardingPlan',
       aggregateId: id,
       reason: 'Start onboarding via API',
@@ -172,14 +160,10 @@ export class OnboardingController {
   @ApiParam({ name: 'id', description: 'Plan UUID' })
   async completePlan(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CompleteOnboarding', tenantId, actorId, roles, { planId: id }, {
+    const envelope = this.buildCommand('CompleteOnboarding', { planId: id }, {
       aggregateType: 'OnboardingPlan',
       aggregateId: id,
       expectedState: 'IN_PROGRESS',
@@ -190,16 +174,16 @@ export class OnboardingController {
 
   @Get('plans')
   @ApiOperation({ summary: 'List onboarding plans' })
-  async listPlans(@Headers('x-tenant-id') tenantId: string, @Req() req?: Request) {
+  async listPlans(@Req() req: Request) {
     this.assertOnboardingAdminScope(req);
-    const plans = await this.planRepo.findByTenant(new Uuid(this.resolveTenantId(tenantId, req)));
+    const plans = await this.planRepo.findByTenant(new Uuid(this.resolveTenantId(req)));
     return plans.map((plan) => this.toPlanView(plan));
   }
 
   @Get('plans/by-id/:id')
   @ApiOperation({ summary: 'Get an onboarding plan by ID' })
   @ApiParam({ name: 'id', description: 'Plan UUID' })
-  async getPlan(@Param('id') id: string, @Req() req?: Request) {
+  async getPlan(@Param('id') id: string, @Req() req: Request) {
     const plan = await this.planRepo.findById(new Uuid(id));
     if (!plan) {
       throw new BadRequestException('Onboarding plan not found');
@@ -211,7 +195,7 @@ export class OnboardingController {
   @Get('plans/worker/:workerId')
   @ApiOperation({ summary: 'Get onboarding plan for a worker' })
   @ApiParam({ name: 'workerId', description: 'Worker UUID' })
-  async getPlanByWorker(@Param('workerId') workerId: string, @Req() req?: Request) {
+  async getPlanByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertCanAccessWorker(workerId, req);
     const plan = await this.planRepo.findByWorker(new Uuid(workerId));
     if (!plan) {
@@ -226,14 +210,10 @@ export class OnboardingController {
   @ApiOperation({ summary: 'Create an onboarding task' })
   async createTask(
     @Body() dto: CreateOnboardingTaskDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CreateOnboardingTask', tenantId, actorId, roles, dto, {
+    const envelope = this.buildCommand('CreateOnboardingTask', dto, {
       aggregateType: 'OnboardingTask',
       reason: 'Create onboarding task via API',
     }, req);
@@ -245,14 +225,10 @@ export class OnboardingController {
   @ApiParam({ name: 'id', description: 'Task UUID' })
   async completeTask(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     await this.assertCanMutateTask(id, req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CompleteOnboardingTask', tenantId, actorId, roles, { taskId: id }, {
+    const envelope = this.buildCommand('CompleteOnboardingTask', { taskId: id }, {
       aggregateType: 'OnboardingTask',
       aggregateId: id,
       reason: 'Complete onboarding task via API',
@@ -266,14 +242,10 @@ export class OnboardingController {
   async recordTaskEvidence(
     @Param('id') id: string,
     @Body() dto: RecordOnboardingTaskEvidenceDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     await this.assertCanMutateTask(id, req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('RecordOnboardingTaskEvidence', tenantId, actorId, roles, { ...dto, taskId: id }, {
+    const envelope = this.buildCommand('RecordOnboardingTaskEvidence', { ...dto, taskId: id }, {
       aggregateType: 'OnboardingTask',
       aggregateId: id,
       reason: 'Record onboarding task evidence via API',
@@ -286,14 +258,10 @@ export class OnboardingController {
   @ApiParam({ name: 'id', description: 'Task UUID' })
   async skipTask(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
-    @Req() req?: Request,
+    @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('SkipOnboardingTask', tenantId, actorId, roles, { taskId: id }, {
+    const envelope = this.buildCommand('SkipOnboardingTask', { taskId: id }, {
       aggregateType: 'OnboardingTask',
       aggregateId: id,
       reason: 'Skip onboarding task via API',
@@ -304,8 +272,8 @@ export class OnboardingController {
   @Get('tasks/plan/:planId')
   @ApiOperation({ summary: 'Get tasks for an onboarding plan' })
   @ApiParam({ name: 'planId', description: 'Plan UUID' })
-  async getTasksByPlan(@Param('planId') planId: string, @Req() req?: Request) {
-    if (req && !this.hasOnboardingAdminScope(req)) {
+  async getTasksByPlan(@Param('planId') planId: string, @Req() req: Request) {
+    if (!this.hasOnboardingAdminScope(req)) {
       const plan = await this.planRepo.findById(new Uuid(planId));
       if (!plan) throw new BadRequestException('Onboarding plan not found');
       this.assertCanAccessWorker(plan.workerId.value, req);
@@ -334,14 +302,11 @@ export class OnboardingController {
     };
   }
 
-  private resolveTenantId(headerTenantId: string | undefined, req?: Request): string {
-    const tenantId = req?.tenantId ?? headerTenantId;
-    if (!tenantId) throw new BadRequestException('Tenant ID missing');
-    return tenantId;
+  private resolveTenantId(req: Request): string {
+    return requireTenantId(req, 'Onboarding').value;
   }
 
-  private assertOnboardingAdminScope(req?: Request): void {
-    if (!req) return;
+  private assertOnboardingAdminScope(req: Request): void {
     if (this.hasOnboardingAdminScope(req)) return;
     throw new ForbiddenException('Only HR or talent administrators can access onboarding administration');
   }
@@ -359,14 +324,14 @@ export class OnboardingController {
     throw new ForbiddenException('Authenticated actor is required');
   }
 
-  private assertCanAccessWorker(workerId: string, req?: Request): void {
-    if (!req || this.hasOnboardingAdminScope(req)) return;
+  private assertCanAccessWorker(workerId: string, req: Request): void {
+    if (this.hasOnboardingAdminScope(req)) return;
     if (this.getActorId(req) === workerId) return;
     throw new ForbiddenException('Employees can only access their own onboarding');
   }
 
-  private async assertCanMutateTask(taskId: string, req?: Request): Promise<void> {
-    if (!req || this.hasOnboardingAdminScope(req)) return;
+  private async assertCanMutateTask(taskId: string, req: Request): Promise<void> {
+    if (this.hasOnboardingAdminScope(req)) return;
     const task = await this.taskRepo.findById(new Uuid(taskId));
     if (!task) throw new BadRequestException('Onboarding task not found');
 
@@ -405,9 +370,6 @@ export class OnboardingController {
 
   private buildCommand<TPayload>(
     commandName: string,
-    tenantId: string,
-    actorId: string | undefined,
-    roles: string[],
     payload: TPayload,
     options: {
       aggregateType: string;
@@ -415,18 +377,13 @@ export class OnboardingController {
       expectedState?: string;
       reason?: string;
     },
-    req?: Request,
+    req: Request,
   ): HrCommandEnvelope<TPayload> {
+    const actor = requireActor(req, 'Onboarding');
     return createCommand(
       commandName,
-      new Uuid(tenantId),
-      req?.actor ?? {
-        actorType: 'USER',
-        actorId: new Uuid(actorId ?? '00000000-0000-0000-0000-000000000010'),
-        roles,
-        permissions: roles,
-        mfaAuthenticated: true,
-      },
+      requireTenantId(req, 'Onboarding'),
+      actor,
       payload,
       {
         aggregateType: options.aggregateType,
