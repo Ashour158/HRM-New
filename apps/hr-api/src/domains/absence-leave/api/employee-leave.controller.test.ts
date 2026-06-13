@@ -76,6 +76,7 @@ function makeController(options?: {
     workerRepo as never,
     absenceRequestRepo as never,
     { findByWorker: vi.fn() } as never,
+    { findByWorker: vi.fn() } as never,
     { getSetup: vi.fn() } as never,
     {} as never,
   );

@@ -85,6 +85,58 @@ describe('PayrollCycleCalculationService', () => {
     );
   });
 
+  it('selects statutory payroll packs using the payroll period date', () => {
+    const periodScopedSetup = {
+      ...setup,
+      locations: [{ code: 'CAIRO_HQ', label: 'Cairo HQ', countryCode: 'EG' }],
+      statutoryPayrollPacks: [
+        {
+          code: 'EG_2026',
+          label: 'Egypt statutory pack 2026',
+          active: true,
+          countryCode: 'EG',
+          effectiveFrom: '2026-01-01',
+          effectiveUntil: '2026-12-31',
+          calculationPolicy: {
+            taxRatePercent: 20,
+            employeeInsuranceRatePercent: 5,
+            employerInsuranceRatePercent: 12,
+          },
+        },
+        {
+          code: 'EG_2027',
+          label: 'Egypt statutory pack 2027',
+          active: true,
+          countryCode: 'EG',
+          effectiveFrom: '2027-01-01',
+          calculationPolicy: {
+            taxRatePercent: 1,
+            employeeInsuranceRatePercent: 5,
+            employerInsuranceRatePercent: 12,
+          },
+        },
+      ],
+    } as HcmSetupConfig;
+
+    const [may2026] = service.buildMonthlyCycle({
+      year: 2026,
+      month: 5,
+      employees: [employee],
+      setup: periodScopedSetup,
+    }).rows;
+    const [jan2027] = service.buildMonthlyCycle({
+      year: 2027,
+      month: 1,
+      employees: [employee],
+      setup: periodScopedSetup,
+    }).rows;
+
+    expect(may2026.taxAmount).toBe(2000);
+    expect(may2026.explainability.map((line) => line.code)).toContain('EG_2026');
+    expect(jan2027.taxAmount).toBe(100);
+    expect(jan2027.explainability.map((line) => line.code)).toContain('EG_2027');
+  });
+
   it('masks salary data unless the actor owns the row or has payroll visibility', () => {
     const row = service.buildMonthlyCycle({ year: 2026, month: 5, employees: [employee], setup }).rows[0];
 

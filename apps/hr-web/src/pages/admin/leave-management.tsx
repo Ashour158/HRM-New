@@ -60,6 +60,17 @@ type AuditEntry = {
   details?: Record<string, unknown>;
 };
 
+type AbsenceBalanceMovement = {
+  id: string;
+  workerId: string;
+  leaveType: string;
+  movementType: string;
+  amountHours: number;
+  beforeHours: number;
+  afterHours: number;
+  occurredAt: string;
+};
+
 const emptyWorkers: Worker[] = [];
 const emptyPolicies: LeavePolicy[] = [];
 const emptyRequests: AbsenceRequest[] = [];
@@ -107,8 +118,22 @@ function unitLabel(unit: string) {
   return unit.toLowerCase();
 }
 
+function formatHours(hours: number) {
+  const value = Math.round(hours * 100) / 100;
+  return `${value} ${value === 1 ? 'hour' : 'hours'}`;
+}
+
 function formatEnum(value?: string) {
   return value ? value.replace(/_/g, ' ') : '-';
+}
+
+function periodLimitLabel(policy: LeavePolicy) {
+  const limit = policy.periodLimits?.find((item) => item.active !== false);
+  if (!limit) return 'No period cap';
+  const window = formatEnum(limit.window).toLowerCase();
+  const requests = limit.maxRequests !== undefined ? `${limit.maxRequests} req.` : undefined;
+  const amount = limit.maxAmount !== undefined ? `${limit.maxAmount} ${unitLabel(policy.unit)}` : undefined;
+  return [window, requests, amount].filter(Boolean).join(' / ');
 }
 
 function errorMessage(error: unknown) {
@@ -150,6 +175,7 @@ export function AdminLeaveManagement() {
     [requests],
   );
   const selectedAuditRequest = requests.find((request) => request.id === selectedAuditRequestId);
+  const selectedMovementWorkerId = balanceForm.workerId || requestForm.workerId || workers[0]?.id || '';
 
   React.useEffect(() => {
     if (!selectedAuditRequestId && requests.length > 0) {
@@ -167,6 +193,13 @@ export function AdminLeaveManagement() {
     },
   });
   const auditEntries = auditQuery.data ?? emptyAuditEntries;
+
+  const balanceMovementsQuery = useQuery({
+    queryKey: ['admin-leave-balance-movements', selectedMovementWorkerId],
+    enabled: Boolean(selectedMovementWorkerId),
+    queryFn: async () => unwrap<AbsenceBalanceMovement[]>(await apiClient.get(`/absence/leave/accrual-balances/worker/${selectedMovementWorkerId}/movements`)),
+  });
+  const balanceMovements = balanceMovementsQuery.data ?? [];
 
   const invalidateLeave = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-leave-requests'] });
@@ -241,6 +274,7 @@ export function AdminLeaveManagement() {
     }),
     onSuccess: () => {
       setBalanceForm(emptyBalance);
+      queryClient.invalidateQueries({ queryKey: ['admin-leave-balance-movements'] });
       addNotification({ title: 'Balance saved', message: 'The accrual balance was saved.', type: 'success', read: false });
     },
     onError: (error) => {
@@ -334,6 +368,7 @@ export function AdminLeaveManagement() {
     { key: 'unit', header: 'Unit', cell: (row: LeavePolicy) => row.unit },
     { key: 'entitlement', header: 'Annual Entitlement', cell: (row: LeavePolicy) => row.annualEntitlement ?? '-' },
     { key: 'workflow', header: 'Approval', cell: (row: LeavePolicy) => row.approvalWorkflow.replace(/_/g, ' ') },
+    { key: 'periodLimits', header: 'Period Limits', cell: (row: LeavePolicy) => periodLimitLabel(row) },
     { key: 'payroll', header: 'Payroll Impact', cell: (row: LeavePolicy) => <Badge variant={row.paid ? 'default' : 'outline'}>{row.payrollImpact.replace(/_/g, ' ')}</Badge> },
     { key: 'active', header: 'Employee Requestable', cell: (row: LeavePolicy) => row.active && row.requestableByEmployee ? 'Yes' : 'No' },
   ];
@@ -449,6 +484,7 @@ export function AdminLeaveManagement() {
                       <div className="mt-2 space-y-1 text-muted-foreground">
                         <p>{selectedPolicy.label} uses {selectedPolicy.unit.toLowerCase()} and {formatEnum(selectedPolicy.approvalWorkflow)} approval.</p>
                         <p>{selectedPolicy.maxPerRequest !== undefined ? `Max per request: ${selectedPolicy.maxPerRequest} ${unitLabel(selectedPolicy.unit)}` : 'No per-request maximum configured'}.</p>
+                        <p>Period cap: {periodLimitLabel(selectedPolicy)}.</p>
                         <p>{selectedPolicy.deductFromBalance ? 'Approval deducts from balance.' : 'Approval does not deduct from balance.'}</p>
                       </div>
                     ) : (
@@ -616,10 +652,46 @@ export function AdminLeaveManagement() {
                 <Scale className="h-5 w-5" />
                 Balance Operations
               </CardTitle>
-              <CardDescription>Use this area to seed balances. Employee balance review is available from the employee leave screen.</CardDescription>
+              <CardDescription>Seed balances and review the movement trail for the selected employee.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">Approved deductible leave reduces the employee balance and increases used hours. Seed balances here before approving balance-sensitive requests.</p>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">Approved deductible leave reduces the employee balance and writes a movement entry with before and after hours.</p>
+              <div className="space-y-2">
+                <Label htmlFor="movement-worker">Movement employee</Label>
+                <select
+                  id="movement-worker"
+                  className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm"
+                  value={selectedMovementWorkerId}
+                  onChange={(event) => setBalanceForm((current) => ({ ...current, workerId: event.target.value }))}
+                >
+                  <option value="">Select employee</option>
+                  {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.employeeId} - {workerName(worker)}</option>)}
+                </select>
+              </div>
+              {balanceMovementsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading balance movements...</p>
+              ) : balanceMovementsQuery.error ? (
+                <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                  Could not load balance movements: {errorMessage(balanceMovementsQuery.error)}
+                </p>
+              ) : balanceMovements.length > 0 ? (
+                <div className="space-y-3">
+                  {balanceMovements.slice(0, 8).map((movement) => (
+                    <div key={movement.id} className="rounded-md border p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-medium">{formatEnum(movement.movementType)}</p>
+                        <Badge variant={movement.amountHours < 0 ? 'outline' : 'secondary'}>
+                          {movement.amountHours > 0 ? '+' : ''}{formatHours(movement.amountHours)}
+                        </Badge>
+                      </div>
+                      <p className="mt-1 text-muted-foreground">{movement.leaveType} - {displayDate(movement.occurredAt)}</p>
+                      <p className="mt-1 text-muted-foreground">Balance {formatHours(movement.beforeHours)} to {formatHours(movement.afterHours)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No movement entries have been recorded for this employee yet.</p>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

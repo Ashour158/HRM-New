@@ -41,6 +41,16 @@ interface AbsenceBalance {
   unit: string;
 }
 
+interface AbsenceBalanceMovement {
+  id: string;
+  leaveType: string;
+  movementType: string;
+  amountHours: number;
+  beforeHours: number;
+  afterHours: number;
+  occurredAt: string;
+}
+
 interface LeavePolicyResponse {
   policies: LeavePolicy[];
   publicHolidays: AttendanceHolidayRule[];
@@ -83,6 +93,15 @@ function unitLabel(unit: string, amount?: number) {
 
 function formatEnum(value?: string) {
   return value ? value.replace(/_/g, ' ') : '-';
+}
+
+function periodLimitLabel(policy: LeavePolicy) {
+  const limit = policy.periodLimits?.find((item) => item.active !== false);
+  if (!limit) return 'No monthly or weekly cap configured';
+  const window = formatEnum(limit.window).toLowerCase();
+  const amount = limit.maxAmount !== undefined ? `${limit.maxAmount} ${unitLabel(policy.unit, limit.maxAmount)}` : undefined;
+  const requests = limit.maxRequests !== undefined ? `${limit.maxRequests} ${limit.maxRequests === 1 ? 'request' : 'requests'}` : undefined;
+  return [window, requests, amount].filter(Boolean).join(' - ');
 }
 
 function errorMessage(error: unknown) {
@@ -155,6 +174,11 @@ function requestDateLabel(row: AbsenceRequest) {
   return `${formatDate(row.startDate)} - ${formatDate(row.endDate)}${timeLabel}`;
 }
 
+function formatHours(hours: number) {
+  const value = Math.round(hours * 100) / 100;
+  return `${value} ${value === 1 ? 'hour' : 'hours'}`;
+}
+
 function dateKeyFromInput(value: string) {
   if (!value) return undefined;
   const date = new Date(`${value}T00:00:00.000Z`);
@@ -215,6 +239,11 @@ export function EmployeeTimeOff() {
   const { data: balances, isLoading: balancesLoading, error: balancesError } = useApiQuery<AbsenceBalance[]>(
     ['employee-absence-balance'],
     '/employee/absences/balance',
+  );
+
+  const { data: balanceMovements, isLoading: movementsLoading } = useApiQuery<AbsenceBalanceMovement[]>(
+    ['employee-absence-balance-movements'],
+    '/employee/absences/balance/movements',
   );
 
   const { data: leavePolicyResponse, isLoading: policiesLoading, error: policiesError } = useApiQuery<LeavePolicyResponse>(
@@ -282,6 +311,7 @@ export function EmployeeTimeOff() {
       selectedPolicy.maxPerRequest !== undefined ? `Max per request: ${selectedPolicy.maxPerRequest} ${unitLabel(selectedPolicy.unit, selectedPolicy.maxPerRequest)}` : 'No per-request maximum configured',
       selectedPolicy.minNoticeDays !== undefined ? `Minimum notice: ${selectedPolicy.minNoticeDays} days` : 'No minimum notice configured',
       selectedPolicy.requiresDocumentAfter !== undefined ? `Document required after ${selectedPolicy.requiresDocumentAfter} ${unitLabel(selectedPolicy.unit, selectedPolicy.requiresDocumentAfter)}` : 'No document threshold configured',
+      `Period limit: ${periodLimitLabel(selectedPolicy)}`,
       selectedPolicy.deductFromBalance ? 'Deducts from balance' : 'Does not deduct from balance',
     ]
     : [];
@@ -573,6 +603,7 @@ export function EmployeeTimeOff() {
                     <Badge variant="outline" className="shrink-0">{policy.unit}</Badge>
                   </div>
                   <p className="mt-1 text-[#475569]">{formatEnum(policy.approvalWorkflow)} approval</p>
+                  <p className="mt-1 text-xs text-[#64748b]">{periodLimitLabel(policy)}</p>
                 </div>
               ))}
               {policiesLoading ? <Skeleton className="h-20 rounded-lg" /> : null}
@@ -596,6 +627,33 @@ export function EmployeeTimeOff() {
               )) : (
                 <p className="text-sm text-[#475569]">No upcoming holidays configured.</p>
               )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="p-5">
+              <CardTitle className="text-xl">Balance Ledger</CardTitle>
+              <CardDescription>Recent accruals, adjustments, and approved leave deductions.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5 pt-0">
+              {movementsLoading ? <Skeleton className="h-20 rounded-lg" /> : null}
+              {!movementsLoading && (balanceMovements ?? []).length === 0 ? (
+                <p className="text-sm text-[#475569]">No balance movements recorded yet.</p>
+              ) : null}
+              {(balanceMovements ?? []).slice(0, 5).map((movement) => (
+                <div key={movement.id} className="rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-[#0f172a]">{formatEnum(movement.movementType)}</p>
+                    <Badge variant={movement.amountHours < 0 ? 'outline' : 'secondary'} className="shrink-0">
+                      {movement.amountHours > 0 ? '+' : ''}{formatHours(movement.amountHours)}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-[#94a3b8]">{movement.leaveType} - {formatDate(movement.occurredAt)}</p>
+                  <p className="mt-1 text-xs text-[#475569]">
+                    Balance {formatHours(movement.beforeHours)} to {formatHours(movement.afterHours)}
+                  </p>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>

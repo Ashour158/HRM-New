@@ -181,6 +181,7 @@ describe('absence balance enforcement', () => {
       findByWorker: vi.fn().mockResolvedValue([balance(8)]),
       save: vi.fn(),
     };
+    const movementRepo = { insertMovement: vi.fn() };
     const handler = new ApproveAbsenceRequestHandler(
       repo as never,
       balanceRepo as never,
@@ -188,6 +189,7 @@ describe('absence balance enforcement', () => {
       { publishFromAggregate: vi.fn() } as never,
       { getSetup: vi.fn().mockResolvedValue(DEFAULT_HCM_SETUP) } as never,
       new LeavePolicyService(),
+      movementRepo as never,
     );
 
     await expect(handler.handle(command({
@@ -201,6 +203,7 @@ describe('absence balance enforcement', () => {
     }))).rejects.toThrow(/available balance/);
     expect(repo.save).not.toHaveBeenCalled();
     expect(balanceRepo.save).not.toHaveBeenCalled();
+    expect(movementRepo.insertMovement).not.toHaveBeenCalled();
   });
 
   it('returns approved leave context required by notifications and payroll input sagas', async () => {
@@ -221,13 +224,16 @@ describe('absence balance enforcement', () => {
       payrollImpact: 'PAID_LEAVE',
     }, Uuid.generate());
     request.submit(Uuid.generate());
+    const activeBalance = balance(8);
+    const movementRepo = { insertMovement: vi.fn() };
     const handler = new ApproveAbsenceRequestHandler(
       { findById: vi.fn().mockResolvedValue(request), save: vi.fn() } as never,
-      { findByWorker: vi.fn().mockResolvedValue([balance(8)]), save: vi.fn() } as never,
+      { findByWorker: vi.fn().mockResolvedValue([activeBalance]), save: vi.fn() } as never,
       { getAllowedActionsFromState: vi.fn().mockReturnValue([]) } as never,
       { publishFromAggregate: vi.fn() } as never,
       { getSetup: vi.fn().mockResolvedValue(DEFAULT_HCM_SETUP) } as never,
       new LeavePolicyService(),
+      movementRepo as never,
     );
 
     const result = await handler.handle(command({
@@ -248,5 +254,17 @@ describe('absence balance enforcement', () => {
       durationUnit: 'DAYS',
       payrollImpact: 'PAID_LEAVE',
     });
+    expect(movementRepo.insertMovement).toHaveBeenCalledWith(expect.objectContaining({
+      tenantId,
+      workerId,
+      balanceId: activeBalance.id,
+      leaveType: 'VACATION',
+      movementType: 'DEDUCTION',
+      sourceType: 'AbsenceRequest',
+      sourceId: request.id,
+      amountHours: -8,
+      beforeHours: 8,
+      afterHours: 0,
+    }));
   });
 });

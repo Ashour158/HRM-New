@@ -14,6 +14,7 @@ import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import type { LeavePolicy } from '../../hcm-setup/hcm-setup.types.js';
 import { AbsenceRequest, type AbsenceRequestStatus } from '../aggregates/absence-request.aggregate.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
+import { AbsenceBalanceMovementRepository, type AbsenceBalanceMovementRecord } from '../repositories/absence-balance-movement.repository.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
 import { LeavePolicyService } from '../services/leave-policy.service.js';
 import { ZodValidationPipe } from './dtos.js';
@@ -61,6 +62,7 @@ export class EmployeeLeaveController {
     private readonly workerRepo: WorkerRepository,
     private readonly absenceRequestRepo: AbsenceRequestRepository,
     private readonly accrualBalanceRepo: AbsenceAccrualBalanceRepository,
+    private readonly balanceMovementRepo: AbsenceBalanceMovementRepository,
     private readonly hcmSetupService: HcmSetupService,
     private readonly leavePolicyService: LeavePolicyService,
   ) {}
@@ -205,6 +207,23 @@ export class EmployeeLeaveController {
       .sort((left, right) => right.requestedAt.localeCompare(left.requestedAt));
   }
 
+  private toBalanceMovementDto(movement: AbsenceBalanceMovementRecord) {
+    return {
+      id: movement.id,
+      workerId: movement.worker_id,
+      balanceId: movement.balance_id,
+      leaveType: movement.leave_type,
+      movementType: movement.movement_type,
+      sourceType: movement.source_type,
+      sourceId: movement.source_id,
+      amountHours: Number(movement.amount_hours),
+      beforeHours: Number(movement.before_hours),
+      afterHours: Number(movement.after_hours),
+      occurredAt: movement.occurred_at instanceof Date ? movement.occurred_at.toISOString() : String(movement.occurred_at),
+      correlationId: movement.correlation_id,
+    };
+  }
+
   @Get('employee/absences')
   async getEmployeeAbsences(@Req() req: Request) {
     const worker = await this.resolveSelfWorker(req);
@@ -241,6 +260,14 @@ export class EmployeeLeaveController {
         unit: policy.unit.toLowerCase(),
       };
     });
+  }
+
+  @Get('employee/absences/balance/movements')
+  async getEmployeeLeaveBalanceMovements(@Req() req: Request) {
+    const worker = await this.resolveSelfWorker(req);
+    if (!worker) throw new ForbiddenException('No employee profile is linked to the authenticated user');
+    const movements = await this.balanceMovementRepo.findByWorker(worker.id, { tenantId: this.getTenantId(req), limit: 20 });
+    return movements.map((movement) => this.toBalanceMovementDto(movement));
   }
 
   @Get('employee/absences/policies')

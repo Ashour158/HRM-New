@@ -10,6 +10,7 @@ import { AuthGuard } from '../../../guards/auth.guard.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
 import { LeaveCaseRepository } from '../repositories/leave-case.repository.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
+import { AbsenceBalanceMovementRepository, type AbsenceBalanceMovementRecord } from '../repositories/absence-balance-movement.repository.js';
 import { LeaveEntitlementCalculationRepository } from '../repositories/leave-entitlement-calculation.repository.js';
 import type * as dtos from './dtos.js';
 import {
@@ -26,6 +27,7 @@ export class AbsenceLeaveController {
     private readonly absenceRequestRepo: AbsenceRequestRepository,
     private readonly leaveCaseRepo: LeaveCaseRepository,
     private readonly accrualBalanceRepo: AbsenceAccrualBalanceRepository,
+    private readonly balanceMovementRepo: AbsenceBalanceMovementRepository,
     private readonly entitlementCalculationRepo: LeaveEntitlementCalculationRepository,
   ) {}
 
@@ -54,6 +56,23 @@ export class AbsenceLeaveController {
       reason: 'API request',
       payload,
       metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+    };
+  }
+
+  private toBalanceMovementDto(movement: AbsenceBalanceMovementRecord) {
+    return {
+      id: movement.id,
+      workerId: movement.worker_id,
+      balanceId: movement.balance_id,
+      leaveType: movement.leave_type,
+      movementType: movement.movement_type,
+      sourceType: movement.source_type,
+      sourceId: movement.source_id,
+      amountHours: Number(movement.amount_hours),
+      beforeHours: Number(movement.before_hours),
+      afterHours: Number(movement.after_hours),
+      occurredAt: movement.occurred_at instanceof Date ? movement.occurred_at.toISOString() : String(movement.occurred_at),
+      correlationId: movement.correlation_id,
     };
   }
 
@@ -193,6 +212,15 @@ export class AbsenceLeaveController {
   @Get('accrual-balances/worker/:workerId')
   async getAccrualBalancesByWorker(@Param('workerId') workerId: string) {
     return this.accrualBalanceRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('accrual-balances/worker/:workerId/movements')
+  async getAccrualBalanceMovementsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    const movements = await this.balanceMovementRepo.findByWorker(new Uuid(workerId), {
+      tenantId: new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001'),
+      limit: 50,
+    });
+    return movements.map((movement) => this.toBalanceMovementDto(movement));
   }
 
   /* Entitlement Calculations */

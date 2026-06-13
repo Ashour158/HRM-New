@@ -6,6 +6,7 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { AbsenceRequestRepository } from '../repositories/absence-request.repository.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
+import { AbsenceBalanceMovementRepository } from '../repositories/absence-balance-movement.repository.js';
 import { AbsenceLeaveEventsPublisher } from '../events/absence-leave-events.publisher.js';
 import { LeavePolicyService } from '../services/leave-policy.service.js';
 
@@ -19,6 +20,7 @@ export class ApproveAbsenceRequestHandler {
     private readonly publisher: AbsenceLeaveEventsPublisher,
     private readonly hcmSetupService: HcmSetupService,
     private readonly leavePolicyService: LeavePolicyService,
+    private readonly movementRepo?: AbsenceBalanceMovementRepository,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -69,11 +71,26 @@ export class ApproveAbsenceRequestHandler {
       && (candidate.leaveType === ar.absenceType || candidate.leaveType === ar.policyCode)
     ));
     if (!balance) return;
+    const beforeHours = balance.balanceHours;
+    const afterHours = balance.balanceHours - storedHours;
     balance.update({
-      balanceHours: balance.balanceHours - storedHours,
+      balanceHours: afterHours,
       usedHours: balance.usedHours + storedHours,
     }, correlationId);
     await this.balanceRepo.save(balance);
+    await this.movementRepo?.insertMovement({
+      tenantId: ar.tenantId,
+      workerId: ar.workerId,
+      balanceId: balance.id,
+      leaveType: balance.leaveType,
+      movementType: 'DEDUCTION',
+      sourceType: 'AbsenceRequest',
+      sourceId: ar.id,
+      amountHours: -storedHours,
+      beforeHours,
+      afterHours,
+      correlationId,
+    });
     await this.publisher.publishFromAggregate(balance);
   }
 

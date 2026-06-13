@@ -718,7 +718,11 @@ export class PayrollCycleCalculationService {
     const baseGrossSalary = roundMoney(isHourly && employee.hourlyRate !== undefined
       ? employee.hourlyRate * payableHours
       : employee.grossSalary);
-    const statutoryResolution = this.statutoryPolicy.resolveCalculationPolicy(setup, employee);
+    const statutoryResolution = this.statutoryPolicy.resolveCalculationPolicy(
+      setup,
+      employee,
+      new Date(`${calculationPeriod.periodEnd}T00:00:00.000Z`),
+    );
     const policy = statutoryResolution.policy;
     const salaryCompositionPlan = resolveSalaryCompositionPlan(setup, employee, calculationPeriod);
     const salaryComposition = buildSalaryComposition(salaryCompositionPlan, baseGrossSalary);

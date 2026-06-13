@@ -8,6 +8,7 @@ import { EmployeeLeaveController } from './api/employee-leave.controller.js';
 import { AbsenceRequestRepository } from './repositories/absence-request.repository.js';
 import { LeaveCaseRepository } from './repositories/leave-case.repository.js';
 import { AbsenceAccrualBalanceRepository } from './repositories/absence-accrual-balance.repository.js';
+import { AbsenceBalanceMovementRepository } from './repositories/absence-balance-movement.repository.js';
 import { LeaveEntitlementCalculationRepository } from './repositories/leave-entitlement-calculation.repository.js';
 import { CreateAbsenceRequestHandler } from './commands/create-absence-request.handler.js';
 import { SubmitAbsenceRequestHandler } from './commands/submit-absence-request.handler.js';
@@ -41,6 +42,7 @@ import { registerLeaveEntitlementCalculationFsm } from './fsm/leave-entitlement-
     AbsenceRequestRepository,
     LeaveCaseRepository,
     AbsenceAccrualBalanceRepository,
+    AbsenceBalanceMovementRepository,
     LeaveEntitlementCalculationRepository,
     CreateAbsenceRequestHandler,
     SubmitAbsenceRequestHandler,
@@ -63,7 +65,7 @@ import { registerLeaveEntitlementCalculationFsm } from './fsm/leave-entitlement-
     AbsenceLeaveEventsPublisher,
     LeavePolicyService,
   ],
-  exports: [AbsenceRequestRepository, LeaveCaseRepository, AbsenceAccrualBalanceRepository, LeaveEntitlementCalculationRepository, LeavePolicyService],
+  exports: [AbsenceRequestRepository, LeaveCaseRepository, AbsenceAccrualBalanceRepository, AbsenceBalanceMovementRepository, LeaveEntitlementCalculationRepository, LeavePolicyService],
 })
 export class AbsenceLeaveModule implements OnModuleInit {
   constructor(private readonly fsm: FsmFramework) {}

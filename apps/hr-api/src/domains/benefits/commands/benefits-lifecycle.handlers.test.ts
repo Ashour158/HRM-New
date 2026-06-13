@@ -6,6 +6,7 @@ import { BenefitsEnrollment } from '../aggregates/benefits-enrollment.aggregate.
 import { BenefitsLifeEvent } from '../aggregates/benefits-life-event.aggregate.js';
 import { CreateBenefitsEnrollmentHandler } from './create-benefits-enrollment.handler.js';
 import { ApproveBenefitsEnrollmentHandler } from './approve-benefits-enrollment.handler.js';
+import { RejectBenefitsEnrollmentHandler } from './reject-benefits-enrollment.handler.js';
 import { MakeEffectiveBenefitsEnrollmentHandler } from './make-effective-benefits-enrollment.handler.js';
 import { TerminateBenefitsEnrollmentHandler } from './terminate-benefits-enrollment.handler.js';
 import { CreateBenefitsLifeEventHandler } from './create-benefits-life-event.handler.js';
@@ -170,7 +171,39 @@ describe('Benefits lifecycle command handlers', () => {
     }));
   });
 
-  it('makes approved enrollment effective with the canonical effective event', async () => {
+  it('rejects submitted enrollment coverage through an explicit rejection command', async () => {
+    const existing = enrollment('SUBMITTED');
+    const repo = {
+      findById: vi.fn(async () => existing),
+      save: vi.fn(async () => undefined),
+    };
+    const handler = new RejectBenefitsEnrollmentHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    const result = await handler.handle(command('RejectBenefitsEnrollment', 'BenefitsEnrollment', {
+      enrollmentId,
+      rejectedBy: actorId,
+      reason: 'missing dependent evidence',
+    }, enrollmentId));
+
+    expect(existing.status).toBe('REJECTED');
+    expect(result).toEqual(expect.objectContaining({
+      newState: 'REJECTED',
+      eventsEmitted: ['BenefitsEnrollmentRejected'],
+    }));
+    expect(result.data).toEqual(expect.objectContaining({
+      enrollmentId: enrollmentId.value,
+      workerId: workerId.value,
+      rejectedBy: actorId.value,
+      reason: 'missing dependent evidence',
+      status: 'REJECTED',
+    }));
+  });
+
+  it('makes approved enrollment effective with carrier and payroll-ready coverage details', async () => {
     const existing = enrollment('APPROVED');
     const repo = {
       findById: vi.fn(async () => existing),
@@ -196,6 +229,17 @@ describe('Benefits lifecycle command handlers', () => {
       enrollmentId: enrollmentId.value,
       workerId: workerId.value,
       programId: programId.value,
+      coverageLevel: 'EMPLOYEE',
+      effectiveDate: '2026-01-01',
+      coverageStartDate: '2026-01-01',
+      dependentCount: 0,
+      dependents: [],
+      contribution: {
+        employeeAmount: 0,
+        employerAmount: 0,
+        currency: 'EGP',
+        deductionCode: 'BENEFITS_CONTRIBUTION',
+      },
       status: 'EFFECTIVE',
     }));
   });

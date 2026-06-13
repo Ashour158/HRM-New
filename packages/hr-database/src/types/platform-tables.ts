@@ -1290,6 +1290,24 @@ export interface AbsenceAccrualBalancesTable {
   updated_at: Date;
 }
 
+export interface AbsenceBalanceMovementsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  balance_id: string;
+  leave_type: string;
+  movement_type: string;
+  source_type: string;
+  source_id: string;
+  amount_hours: number;
+  before_hours: number;
+  after_hours: number;
+  occurred_at: ColumnType<Date, string | undefined, string | undefined>;
+  correlation_id: string;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface LeaveEntitlementCalculationsTable {
   id: string;
   tenant_id: string;
@@ -2083,6 +2101,7 @@ export interface Database {
   absence_requests: AbsenceRequestsTable;
   leave_cases: LeaveCasesTable;
   absence_accrual_balances: AbsenceAccrualBalancesTable;
+  absence_balance_movements: AbsenceBalanceMovementsTable;
   leave_entitlement_calculations: LeaveEntitlementCalculationsTable;
   payroll_cycles: PayrollCyclesTable;
   payroll_inputs: PayrollInputsTable;

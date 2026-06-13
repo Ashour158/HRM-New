@@ -5,6 +5,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { AbsenceAccrualBalance } from '../aggregates/absence-accrual-balance.aggregate.js';
 import { AbsenceAccrualBalanceRepository } from '../repositories/absence-accrual-balance.repository.js';
+import { AbsenceBalanceMovementRepository } from '../repositories/absence-balance-movement.repository.js';
 import { AbsenceLeaveEventsPublisher } from '../events/absence-leave-events.publisher.js';
 
 @CommandHandler('CreateAbsenceAccrualBalance')
@@ -14,6 +15,7 @@ export class CreateAbsenceAccrualBalanceHandler {
     private readonly repo: AbsenceAccrualBalanceRepository,
     private readonly fsm: FsmFramework,
     private readonly publisher: AbsenceLeaveEventsPublisher,
+    private readonly movementRepo?: AbsenceBalanceMovementRepository,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -41,6 +43,19 @@ export class CreateAbsenceAccrualBalanceHandler {
       command.correlationId,
     );
     await this.repo.save(ab);
+    await this.movementRepo?.insertMovement({
+      tenantId: ab.tenantId,
+      workerId: ab.workerId,
+      balanceId: ab.id,
+      leaveType: ab.leaveType,
+      movementType: 'ACCRUAL',
+      sourceType: 'AbsenceAccrualBalance',
+      sourceId: ab.id,
+      amountHours: ab.balanceHours,
+      beforeHours: 0,
+      afterHours: ab.balanceHours,
+      correlationId: command.correlationId,
+    });
     await this.publisher.publishFromAggregate(ab);
     return {
       success: true,
