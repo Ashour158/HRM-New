@@ -406,6 +406,33 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     queryFn: async () => unwrap<OrganizationSummary>(await apiClient.get('/hr/organization/summary')),
   });
 
+  const legalEntitiesQuery = useQuery({
+    queryKey: ['admin-organization-legal-entities'],
+    queryFn: async () => unwrap<LegalEntity[]>(await apiClient.get('/hr/organization/legal-entities')),
+  });
+
+  const orgUnitsQuery = useQuery({
+    queryKey: ['admin-organization-org-units'],
+    queryFn: async () => unwrap<OrgUnit[]>(await apiClient.get('/hr/organization/org-units')),
+  });
+
+  const orgUnitTreeQuery = useQuery({
+    queryKey: ['admin-organization-org-unit-tree'],
+    queryFn: async () => unwrap<OrgUnit[]>(await apiClient.get('/hr/organization/org-units/tree')),
+  });
+
+  const legalEntityDetailQuery = useQuery({
+    enabled: Boolean(legalEntityForm.id),
+    queryKey: ['admin-organization-legal-entity-detail', legalEntityForm.id],
+    queryFn: async () => unwrap<LegalEntity>(await apiClient.get(`/hr/organization/legal-entities/${legalEntityForm.id}`)),
+  });
+
+  const orgUnitDetailQuery = useQuery({
+    enabled: Boolean(orgUnitForm.id),
+    queryKey: ['admin-organization-org-unit-detail', orgUnitForm.id],
+    queryFn: async () => unwrap<OrgUnit>(await apiClient.get(`/hr/organization/org-units/${orgUnitForm.id}`)),
+  });
+
   const workersQuery = useQuery({
     queryKey: ['admin-organization-workers'],
     queryFn: async () => {
@@ -426,9 +453,34 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
 
   const refreshOrg = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-organization-summary'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-organization-legal-entities'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-organization-org-units'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-organization-org-unit-tree'] });
     queryClient.invalidateQueries({ queryKey: ['admin-workforce-planning'] });
     queryClient.invalidateQueries({ queryKey: ['admin-workforce-org-chart'] });
   };
+
+  React.useEffect(() => {
+    const entity = legalEntityDetailQuery.data;
+    if (!entity || legalEntityForm.id !== entity.id) return;
+    setLegalEntityForm({
+      id: entity.id,
+      name: entity.name,
+      countryCode: entity.countryCode,
+      registrationNumber: entity.registrationNumber ?? '',
+    });
+  }, [legalEntityDetailQuery.data, legalEntityForm.id]);
+
+  React.useEffect(() => {
+    const unit = orgUnitDetailQuery.data;
+    if (!unit || orgUnitForm.id !== unit.id) return;
+    setOrgUnitForm({
+      id: unit.id,
+      name: unit.name,
+      legalEntityId: unit.legalEntityId ?? '',
+      parentOrgUnitId: unit.parentId ?? '',
+    });
+  }, [orgUnitDetailQuery.data, orgUnitForm.id]);
 
   const saveLegalEntity = useMutation({
     mutationFn: async (form: LegalEntityForm) => {
@@ -531,10 +583,16 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
 
   const summary = summaryQuery.data;
   const workers = Array.isArray(workersQuery.data) ? workersQuery.data : emptyWorkers;
-  const orgUnits = Array.isArray(summary?.orgUnits) ? summary.orgUnits : emptyOrgUnits;
-  const legalEntities = Array.isArray(summary?.legalEntities) ? summary.legalEntities : emptyLegalEntities;
+  const orgUnits = Array.isArray(orgUnitsQuery.data)
+    ? orgUnitsQuery.data
+    : Array.isArray(summary?.orgUnits) ? summary.orgUnits : emptyOrgUnits;
+  const legalEntities = Array.isArray(legalEntitiesQuery.data)
+    ? legalEntitiesQuery.data
+    : Array.isArray(summary?.legalEntities) ? summary.legalEntities : emptyLegalEntities;
   const managerRelationships = Array.isArray(summary?.managerRelationships) ? summary.managerRelationships : emptyManagerRelationships;
-  const orgChart = Array.isArray(summary?.orgChart) ? summary.orgChart : emptyOrgChart;
+  const orgChart = Array.isArray(orgUnitTreeQuery.data)
+    ? orgUnitTreeQuery.data
+    : Array.isArray(summary?.orgChart) ? summary.orgChart : emptyOrgChart;
   const planning = planningQuery.data;
   const dynamicChart = dynamicChartQuery.data;
   const reportingTree = React.useMemo(
@@ -1072,7 +1130,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
               <CardDescription>Registered operating companies and countries.</CardDescription>
             </CardHeader>
             <CardContent>
-              <DataTable columns={legalEntityColumns} data={legalEntities} keyExtractor={(row) => row.id} isLoading={summaryQuery.isLoading} emptyMessage="No legal entities created" />
+              <DataTable columns={legalEntityColumns} data={legalEntities} keyExtractor={(row) => row.id} isLoading={legalEntitiesQuery.isLoading || summaryQuery.isLoading} emptyMessage="No legal entities created" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1122,7 +1180,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
               <CardDescription>Hierarchical org units under legal entities.</CardDescription>
             </CardHeader>
             <CardContent>
-              <DataTable columns={orgUnitColumns} data={orgUnits} keyExtractor={(row) => row.id} isLoading={summaryQuery.isLoading} emptyMessage="No departments or teams created" />
+              <DataTable columns={orgUnitColumns} data={orgUnits} keyExtractor={(row) => row.id} isLoading={orgUnitsQuery.isLoading || summaryQuery.isLoading} emptyMessage="No departments or teams created" />
             </CardContent>
           </Card>
         </TabsContent>

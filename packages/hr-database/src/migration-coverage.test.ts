@@ -141,4 +141,99 @@ describe('migration coverage', () => {
     expect(migrationTextContains(migrationName, 'CREATE INDEX IF NOT EXISTS report_executions_tenant_definition_idx')).toBe(true);
     expect(migrationTextContains(migrationName, 'CREATE INDEX IF NOT EXISTS calculated_fields_tenant_status_idx')).toBe(true);
   });
+
+  it('contains engagement tables required by engagement repositories', () => {
+    const migrationName = '20260613000001000_engagement_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'engagement_surveys')).toBe(true);
+    expect(migrationContains(migrationName, 'survey_responses')).toBe(true);
+    expect(migrationContains(migrationName, 'recognition_programs')).toBe(true);
+    expect(migrationContains(migrationName, 'recognition_records')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_engagement'")).toBe(true);
+    expect(migrationTextContains(migrationName, 'survey_responses_survey_fk')).toBe(true);
+    expect(migrationTextContains(migrationName, 'recognition_records_program_fk')).toBe(true);
+  });
+
+  it('contains learning tables required by learning repositories', () => {
+    const migrationName = '20260613000002000_learning_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'learning_courses')).toBe(true);
+    expect(migrationContains(migrationName, 'learning_assignments')).toBe(true);
+    expect(migrationContains(migrationName, 'learning_content_packages')).toBe(true);
+    expect(migrationContains(migrationName, 'certifications')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_learning'")).toBe(true);
+    expect(migrationTextContains(migrationName, 'learning_assignments_course_fk')).toBe(true);
+  });
+
+  it('contains skills and talent tables required by skills-talent repositories', () => {
+    const migrationName = '20260613000003000_skills_talent_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'skill_profiles')).toBe(true);
+    expect(migrationContains(migrationName, 'career_paths')).toBe(true);
+    expect(migrationContains(migrationName, 'succession_plans')).toBe(true);
+    expect(migrationContains(migrationName, 'talent_pools')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_skills'")).toBe(true);
+  });
+
+  it('contains employee relations tables required by employee-relations repositories', () => {
+    const migrationName = '20260613000004000_employee_relations_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'employee_relations_cases')).toBe(true);
+    expect(migrationContains(migrationName, 'accommodation_cases')).toBe(true);
+    expect(migrationContains(migrationName, 'disciplinary_actions')).toBe(true);
+    expect(migrationContains(migrationName, 'er_investigations')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_er'")).toBe(true);
+    expect(migrationTextContains(migrationName, 'er_investigations_case_fk')).toBe(true);
+    expect(migrationTextContains(migrationName, 'disciplinary_actions_case_fk')).toBe(true);
+  });
+
+  it('contains union labor tables required by union-labor repositories', () => {
+    const migrationName = '20260613000005000_union_labor_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'union_recognitions')).toBe(true);
+    expect(migrationContains(migrationName, 'collective_bargaining_sessions')).toBe(true);
+    expect(migrationContains(migrationName, 'grievances')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_union'")).toBe(true);
+    expect(migrationTextContains(migrationName, 'collective_bargaining_sessions_recognition_fk')).toBe(true);
+  });
+
+  it('contains wellbeing and EAP tables required by wellbeing-eap repositories', () => {
+    const migrationName = '20260613000006000_wellbeing_eap_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'wellness_programs')).toBe(true);
+    expect(migrationContains(migrationName, 'eap_referrals')).toBe(true);
+    expect(migrationContains(migrationName, 'mental_health_cases')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_wellbeing'")).toBe(true);
+    expect(migrationTextContains(migrationName, "['tenant_id', 'worker_id']")).toBe(true);
+  });
+
+  it('contains contingent workforce tables required by contingent-workforce repositories', () => {
+    const migrationName = '20260613000007000_contingent_workforce_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'sow_engagements')).toBe(true);
+    expect(migrationContains(migrationName, 'contingent_worker_assignments')).toBe(true);
+    expect(migrationContains(migrationName, 'contractor_rate_cards')).toBe(true);
+    expect(migrationContains(migrationName, 'misclassification_assessments')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_contingent'")).toBe(true);
+  });
+
+  it('contains HR AI governance tables required by hr-ai-governance repositories', () => {
+    const migrationName = '20260613000008000_hr_ai_governance_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'hr_ai_use_cases')).toBe(true);
+    expect(migrationContains(migrationName, 'hr_ai_bias_tests')).toBe(true);
+    expect(migrationContains(migrationName, 'hr_ai_model_runs')).toBe(true);
+    expect(migrationContains(migrationName, 'hr_ai_kill_switches')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_ai'")).toBe(true);
+    expect(migrationTextContains(migrationName, 'hr_ai_bias_tests_use_case_fk')).toBe(true);
+    expect(migrationTextContains(migrationName, 'hr_ai_model_runs_use_case_fk')).toBe(true);
+  });
 });

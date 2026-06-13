@@ -11,17 +11,17 @@ export class HrAiUseCaseRepository {
   constructor() { this.db = createKyselyInstance(getPool()); }
 
   async findById(id: Uuid): Promise<HrAiUseCase | undefined> {
-    const row = await this.db.selectFrom('hr_ai_governance.hr_ai_use_cases').selectAll().where('id', '=', id.value).executeTakeFirst();
+    const row = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('id', '=', id.value).executeTakeFirst();
     return row ? this.toAggregate(row) : undefined;
   }
 
   async findByStatus(status: string): Promise<HrAiUseCase[]> {
-    const rows = await this.db.selectFrom('hr_ai_governance.hr_ai_use_cases').selectAll().where('status', '=', status).execute();
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('status', '=', status).execute();
     return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: HrAiUseCase): Promise<void> {
-    const existing = await this.db.selectFrom('hr_ai_governance.hr_ai_use_cases').select('id').where('id', '=', entity.id.value).executeTakeFirst();
+    const existing = await this.db.selectFrom('hr_ai.hr_ai_use_cases').select('id').where('id', '=', entity.id.value).executeTakeFirst();
     const row = {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
@@ -36,9 +36,9 @@ export class HrAiUseCaseRepository {
       updated_at: new Date().toISOString(),
     };
     if (existing) {
-      await this.db.updateTable('hr_ai_governance.hr_ai_use_cases').set(row).where('id', '=', entity.id.value).execute();
+      await this.db.updateTable('hr_ai.hr_ai_use_cases').set(row).where('id', '=', entity.id.value).execute();
     } else {
-      await this.db.insertInto('hr_ai_governance.hr_ai_use_cases').values({ ...row, created_at: new Date().toISOString() } as never).execute();
+      await this.db.insertInto('hr_ai.hr_ai_use_cases').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
   }
 

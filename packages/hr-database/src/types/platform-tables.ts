@@ -1560,7 +1560,7 @@ export interface EmployeeRelationsCasesTable {
   id: string;
   tenant_id: string;
   subject_worker_id: string;
-  manager_id: string;
+  manager_id: string | null;
   case_number: string;
   case_type: string;
   status: string;
@@ -1587,6 +1587,7 @@ export interface DisciplinaryActionsTable {
   id: string;
   tenant_id: string;
   worker_id: string;
+  er_case_id: string;
   action_type: string;
   severity: string;
   effective_date: Date;
@@ -2130,10 +2131,10 @@ export interface Database {
   'hr_dei_analytics.pay_gap_reports': PayGapReportsTable;
   'hr_dei_analytics.pay_equity_reviews': PayEquityReviewsTable;
   'hr_dei_analytics.attrition_segment_reports': AttritionSegmentReportsTable;
-  'hr_ai_governance.hr_ai_use_cases': HrAiUseCasesTable;
-  'hr_ai_governance.hr_ai_model_runs': HrAiModelRunsTable;
-  'hr_ai_governance.hr_ai_bias_tests': HrAiBiasTestsTable;
-  'hr_ai_governance.hr_ai_kill_switches': HrAiKillSwitchesTable;
+  'hr_ai.hr_ai_use_cases': HrAiUseCasesTable;
+  'hr_ai.hr_ai_model_runs': HrAiModelRunsTable;
+  'hr_ai.hr_ai_bias_tests': HrAiBiasTestsTable;
+  'hr_ai.hr_ai_kill_switches': HrAiKillSwitchesTable;
   learning_courses: GeneratedWorkflowTable;
   learning_content_packages: GeneratedWorkflowTable;
   learning_assignments: GeneratedWorkflowTable;
