@@ -8,6 +8,7 @@ import { ReminderEmitter } from './reminder-emitter.js';
 import type { ReminderEscalationTier } from './reminder-emitter.js';
 import { EffectiveDatingActivator } from './effective-dating-activator.js';
 import type { EffectiveDatingCandidate } from './effective-dating-activator.js';
+import { parseOffsetString } from './scheduler-time.js';
 
 export interface AccrualBalanceJobRecord {
   id: Uuid;
@@ -4714,6 +4715,17 @@ function localDay(now: Date, timezone: string): number {
 }
 
 function localDateParts(now: Date, timezone: string): { year: number; month: number; day: number } {
+  // Offset-style timezones (e.g. "UTC+03:00") are not valid IANA zones and make Intl
+  // throw; route them through offset math instead.
+  const offsetMinutes = parseOffsetString(timezone);
+  if (offsetMinutes !== undefined) {
+    const adjusted = new Date(now.getTime() + offsetMinutes * 60_000);
+    return {
+      year: adjusted.getUTCFullYear(),
+      month: adjusted.getUTCMonth() + 1,
+      day: adjusted.getUTCDate(),
+    };
+  }
   const values = new Map(new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
     year: 'numeric',

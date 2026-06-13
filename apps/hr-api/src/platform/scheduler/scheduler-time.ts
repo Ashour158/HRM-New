@@ -71,6 +71,11 @@ function localTimeParts(now: Date, timezone: TenantTimezone | string): LocalTime
   }
   const timeZone = typeof timezone === 'string' ? timezone : timezone.timeZone;
   if (!timeZone) return offsetTimeParts(now, 0);
+  // Offset-style values (e.g. "UTC+03:00", "GMT-5", "+0530") are NOT valid IANA zones
+  // and make Intl throw. Tenant timezones are often stored/labelled this way, so route
+  // them through offset math instead of Intl.
+  const offsetFromString = parseOffsetString(timeZone);
+  if (offsetFromString !== undefined) return offsetTimeParts(now, offsetFromString);
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
     year: 'numeric',
@@ -90,6 +95,23 @@ function localTimeParts(now: Date, timezone: TenantTimezone | string): LocalTime
     minute: Number(values.get('minute')),
     dayOfWeek: weekdayIndex(values.get('weekday') ?? 'Sun'),
   };
+}
+
+/**
+ * Parse an offset-style timezone string into minutes east of UTC.
+ * Accepts "UTC", "GMT", "Z", "UTC+3", "GMT-5", "+03:00", "-0530", "+3".
+ * Returns undefined for IANA names (e.g. "Asia/Riyadh") so they fall through to Intl.
+ */
+export function parseOffsetString(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (/^(utc|gmt|z)$/i.test(trimmed)) return 0;
+  const match = trimmed.match(/^(?:UTC|GMT)?\s*([+-])(\d{1,2})(?::?(\d{2}))?$/i);
+  if (!match) return undefined;
+  const sign = match[1] === '-' ? -1 : 1;
+  const hours = Number(match[2]);
+  const minutes = match[3] !== undefined ? Number(match[3]) : 0;
+  if (hours > 14 || minutes > 59) return undefined;
+  return sign * (hours * 60 + minutes);
 }
 
 function offsetTimeParts(now: Date, offsetMinutes: number): LocalTimeParts {
