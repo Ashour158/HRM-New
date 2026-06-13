@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { formatDate, generateUUID } from '@/lib/utils';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
+import { useTenant } from '@/hooks/use-tenant';
 import { useUIStore } from '@/stores/ui-store';
 
 type RequisitionStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'PUBLISHED' | 'OPEN' | 'FILLED' | 'CLOSED' | 'REJECTED';
@@ -99,6 +100,8 @@ function commandSummary(result: CommandResultView | null) {
 
 export function RecruiterWorkspace() {
   const addNotification = useUIStore((state) => state.addNotification);
+  const { tenantConfig } = useTenant();
+  const tenantCurrency = tenantConfig.currency;
   const [selectedRequisitionId, setSelectedRequisitionId] = React.useState<string | undefined>();
   const [selectedCandidateId, setSelectedCandidateId] = React.useState<string | undefined>();
   const [lastCommand, setLastCommand] = React.useState<CommandResultView | null>(null);
@@ -234,12 +237,22 @@ export function RecruiterWorkspace() {
 
   const createOffer = () => {
     if (!selectedCandidate || !activeRequisitionId) return;
+    const parsedSalary = Number(offerAmount);
+    if (!Number.isFinite(parsedSalary) || parsedSalary <= 0) {
+      addNotification({
+        title: 'Invalid salary',
+        message: 'Enter a valid positive salary amount before creating the offer.',
+        type: 'error',
+        read: false,
+      });
+      return;
+    }
     createOfferMutation.mutateAsync({
       offerId: generateUUID(),
       candidateId: selectedCandidate.id,
       requisitionId: activeRequisitionId,
-      proposedSalary: Number(offerAmount || 0),
-      currency: 'EGP',
+      proposedSalary: parsedSalary,
+      currency: tenantCurrency,
       startDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       benefitsPackage: 'Standard employment benefits',
     });
@@ -407,7 +420,7 @@ export function RecruiterWorkspace() {
             <div key={offer.id} className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-slate-900">{offer.currency ?? 'EGP'} {offer.proposedSalary ?? '-'}</p>
+                  <p className="font-semibold text-slate-900">{offer.currency ?? tenantCurrency} {offer.proposedSalary ?? '-'}</p>
                   <p className="text-xs font-medium text-slate-500">Start {formatDate(offer.startDate)}</p>
                 </div>
                 <Badge className={statusBadgeTone(offer.status)}>{offer.status}</Badge>

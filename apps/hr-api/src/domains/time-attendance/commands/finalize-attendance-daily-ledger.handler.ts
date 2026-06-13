@@ -88,12 +88,13 @@ export class FinalizeAttendanceDailyLedgerHandler {
       } as CommandResult<unknown>;
     }
 
-    const setup = await this.hcmSetupService.getSetup(command.tenantId);
+    const currency = payload.currency
+      ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(command.tenantId));
     const result = this.finalization.finalizeDailyLedger(ledger, {
       tenantId: command.tenantId.value,
       lockedBy: command.actor.actorId.value,
       payrollCycleId: payload.payrollCycleId,
-      currency: payload.currency ?? resolveTenantCurrency(setup),
+      currency,
     });
 
     if (!result.canFinalize) {

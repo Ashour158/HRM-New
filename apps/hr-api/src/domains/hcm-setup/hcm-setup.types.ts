@@ -14,6 +14,7 @@ export type WorkLocationOption = SetupOption & {
   flag: string;
   city: string;
   currency: string;
+  timezone?: string;
   addressLine1?: string;
   addressLine2?: string;
   latitude?: number;
@@ -24,6 +25,7 @@ export type CityOption = SetupOption & {
   countryCode: string;
   flag: string;
   currency: string;
+  timezone?: string;
 };
 
 export type EmployeeIdPolicy = {
@@ -270,6 +272,7 @@ export type AttendancePolicy = {
   overtimeAfterMinutes: number;
   geofenceEnabled: boolean;
   allowedRadiusMeters?: number;
+  timezone?: string;
   timezoneOffsetMinutes?: number;
   workDays?: number[];
   holidays?: Array<{ date: string; name: string }>;
@@ -559,6 +562,7 @@ export type RuntimePolicyRevisionEvidence = {
 };
 
 export interface HcmSetupConfig {
+  timezone?: string;
   genderOptions: GenderOption[];
   workPhoneEnabled: boolean;
   locations: WorkLocationOption[];

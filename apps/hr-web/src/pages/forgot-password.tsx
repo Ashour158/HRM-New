@@ -59,8 +59,9 @@ export function ForgotPasswordPage() {
     setRequestErrors({});
     setSubmitting(true);
     try {
-      const result = await requestPasswordReset(parsed.data);
-      if (result.resetToken) setConfirmForm((current) => ({ ...current, token: result.resetToken ?? current.token }));
+      await requestPasswordReset(parsed.data);
+      // The reset token is delivered strictly out-of-band (email). Never bootstrap it
+      // into the confirm form from the response — doing so enables account takeover.
       setStep('confirm');
       setMessage('If the account exists, a reset message has been sent.');
     } catch (error) {

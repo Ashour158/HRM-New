@@ -463,6 +463,50 @@ export interface GeneratedWorkflowTable {
   [column: string]: unknown;
 }
 
+export interface SchedulerJobsTable {
+  id: string;
+  tenant_id: string;
+  job_key: string;
+  label: string;
+  description: string | null;
+  job_type: string;
+  schedule_kind: string;
+  status: string;
+  enabled: boolean;
+  command_name: string | null;
+  aggregate_type: string;
+  aggregate_id: string | null;
+  payload_template: unknown;
+  event_name: string | null;
+  event_payload_template: unknown;
+  next_run_at: Date | null;
+  last_run_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface SchedulerJobRunsTable {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  job_key: string;
+  period_key: string;
+  run_kind: string;
+  status: string;
+  idempotency_key: string;
+  command_id: string | null;
+  correlation_id: string;
+  event_id: string | null;
+  started_at: Date;
+  finished_at: Date | null;
+  error_message: string | null;
+  result_payload: unknown;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface WorkersTable {
   id: string;
   tenant_id: string;
@@ -2209,4 +2253,6 @@ export interface Database {
   goals: GeneratedWorkflowTable;
   performance_feedback_360_responses: GeneratedWorkflowTable;
   performance_feedback_360_cycles: GeneratedWorkflowTable;
+  'hr_scheduler.scheduler_jobs': SchedulerJobsTable;
+  'hr_scheduler.scheduler_job_runs': SchedulerJobRunsTable;
 }

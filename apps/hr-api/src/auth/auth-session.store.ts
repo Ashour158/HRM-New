@@ -58,7 +58,7 @@ export class AuthSessionStore implements AuthSessionStoreLike {
       .selectAll()
       .where('id', '=', sessionId)
       .executeTakeFirst();
-    if (!row || row.revoked_at) return undefined;
+    if (!row || row.revoked_at || row.expires_at.getTime() <= Date.now()) return undefined;
     const session: AuthSession = {
       sessionId: row.id,
       userId: row.user_id,
@@ -77,10 +77,11 @@ export class AuthSessionStore implements AuthSessionStoreLike {
       .set({
         mfa_authenticated: session.mfaAuthenticated,
         expires_at: new Date(session.expiresAt),
-        revoked_at: null,
         updated_at: new Date().toISOString(),
       })
       .where('id', '=', session.sessionId)
+      // Never resurrect a revoked session through a routine save.
+      .where('revoked_at', 'is', null)
       .execute();
     await this.writeCache(session);
   }

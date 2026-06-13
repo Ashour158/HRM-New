@@ -99,8 +99,13 @@ export class AuthController {
   @Post('invite')
   async invite(@Req() req: Request, @Body() dto: InviteDto) {
     if (!req.actor) throw new UnauthorizedException('Authenticated actor missing');
+    // Privileged action: bind the target tenant to the authenticated request context
+    // only. Never trust a DTO/header tenant for invite, which would allow cross-tenant
+    // user creation.
+    const actorTenantId = (req as Request & { tenantId?: string }).tenantId;
+    if (!actorTenantId) throw new UnauthorizedException('Authenticated tenant context missing');
     const result = await this.authService.invite(req.actor, {
-      tenantId: this.resolveTenantId(req, dto.tenantId),
+      tenantId: actorTenantId,
       email: dto.email,
       firstName: dto.firstName,
       lastName: dto.lastName,

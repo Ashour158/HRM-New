@@ -379,7 +379,7 @@ export class PayrollController {
     const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     for (const row of rows) {
       if (!row.employeeId) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, this.getTenantId(req));
       if (!worker) {
         throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       }
@@ -439,11 +439,11 @@ export class PayrollController {
     };
   }
 
-  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[], tenantCurrency: string): Promise<PayrollApprovedInputRecord[]> {
+  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[], tenantCurrency: string, tenantId: Uuid): Promise<PayrollApprovedInputRecord[]> {
     const inputs: PayrollApprovedInputRecord[] = [];
     for (const row of rows) {
       if (!row.employeeId) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, tenantId);
       if (!worker) {
         throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       }
@@ -484,11 +484,11 @@ export class PayrollController {
     return inputs;
   }
 
-  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[], tenantCurrency: string): Promise<PayrollApprovedInputRecord[]> {
+  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[], tenantCurrency: string, tenantId: Uuid): Promise<PayrollApprovedInputRecord[]> {
     const inputs: PayrollApprovedInputRecord[] = [];
     for (const row of rows) {
       if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, tenantId);
       if (!worker) throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       inputs.push({
         workerId: worker.id.value,
@@ -513,9 +513,13 @@ export class PayrollController {
     }));
   }
 
-  private async findWorkerByEmployeeId(employeeId: string) {
-    const activeWorkers = await this.workerRepo.findActive();
-    const fallbackWorkers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.search('', { limit: 1000 });
+  private async findWorkerByEmployeeId(employeeId: string, tenantId: Uuid) {
+    // Resolve strictly within the request tenant so colliding employee numbers across
+    // tenants cannot leak/cross-apply another tenant's worker.
+    const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
+    const fallbackWorkers = activeWorkers.length > 0
+      ? activeWorkers
+      : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
     return fallbackWorkers.find((worker) => worker.employeeNumber === employeeId);
   }
 
@@ -1195,7 +1199,7 @@ export class PayrollController {
     const tenantCurrency = resolveTenantCurrency(setup);
     const projectedReadinessPreview = this.payrollApprovedInputProjection.applyApprovedInputs(
       preview,
-      await this.buildMassUpdateProjectionInputs(massUpdateRows, tenantCurrency),
+      await this.buildMassUpdateProjectionInputs(massUpdateRows, tenantCurrency, this.getTenantId(req)),
     );
     const readinessBankRows = this.payrollCalculation.buildBankTransferRows(projectedReadinessPreview.rows);
     const readiness = this.mergeReadiness(this.payrollGovernance.evaluateCloseToPayReadiness({
@@ -1470,7 +1474,7 @@ export class PayrollController {
       rowCount: rows.length,
       preview: this.payrollApprovedInputProjection.applyApprovedInputs(
         preview,
-        await this.buildOffCycleProjectionInputs(rows, await this.resolvePayrollCurrencyForRequest(req)),
+        await this.buildOffCycleProjectionInputs(rows, await this.resolvePayrollCurrencyForRequest(req), this.getTenantId(req)),
       ),
       events: ['PayrollOffCyclePreviewBuilt'],
     };
@@ -1500,7 +1504,7 @@ export class PayrollController {
     const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     for (const row of rows) {
       if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, this.getTenantId(req));
       if (!worker) throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       await this.approvePayrollInputThroughWorkflow({
         workerId: worker.id.value,

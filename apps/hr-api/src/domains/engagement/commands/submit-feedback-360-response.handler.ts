@@ -17,13 +17,17 @@ export class SubmitFeedback360ResponseHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      feedback360CycleId: Uuid;
+      feedback360CycleId: Uuid | string;
       reviewerWorkerId: string;
       relationship?: string;
       competencyScores?: Record<string, number>;
       comments?: string;
     };
-    const ar = await this.repo.findById(payload.feedback360CycleId);
+    const feedback360CycleId =
+      payload.feedback360CycleId instanceof Uuid
+        ? payload.feedback360CycleId
+        : new Uuid(payload.feedback360CycleId);
+    const ar = await this.repo.findById(feedback360CycleId);
     if (!ar) throw new Error('Feedback 360 cycle not found');
     ar.submitResponse(payload, command.correlationId);
     await this.repo.save(ar);

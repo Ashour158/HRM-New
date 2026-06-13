@@ -20,8 +20,12 @@ export class LoginRateLimitGuard implements CanActivate {
     const ip = request.ip ?? request.socket?.remoteAddress ?? 'unknown';
     const key = `${ip}:${email}`;
     const now = Date.now();
+    // Purge expired buckets so the map cannot grow unbounded across unique ip/email keys.
+    for (const [bucketKey, entry] of buckets) {
+      if (entry.resetAt <= now) buckets.delete(bucketKey);
+    }
     const bucket = buckets.get(key);
-    const maxAttempts = Math.max(this.config.loginMaxAttempts * 3, this.config.loginMaxAttempts);
+    const maxAttempts = Math.max(1, this.config.loginMaxAttempts);
 
     if (!bucket || bucket.resetAt <= now) {
       buckets.set(key, { count: 1, resetAt: now + this.windowMs });

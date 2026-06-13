@@ -141,7 +141,8 @@ function defaultForm(): Feedback360CreatePayload & {
 export function AdminFeedback360() {
   const { user } = useAuth();
   const addNotification = useUIStore((state) => state.addNotification);
-  const tenantId = user?.tenantId ?? '00000000-0000-0000-0000-000000000001';
+  // Require authenticated tenant context; never default to a hardcoded tenant.
+  const tenantId = user?.tenantId ?? '';
   const [createOpen, setCreateOpen] = React.useState(false);
   const [form, setForm] = React.useState(defaultForm);
   const [selectedCycleId, setSelectedCycleId] = React.useState<string>('');
@@ -213,6 +214,7 @@ export function AdminFeedback360() {
 
   const submitCreate = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!tenantId) return;
     const reviewers = [
       ...(form.selfReviewerId ? [`self:${form.selfReviewerId}`] : []),
       ...reviewerTokens('manager', form.managerReviewerIds),
@@ -229,6 +231,7 @@ export function AdminFeedback360() {
   };
 
   const runCycleCommand = (cycle: Feedback360Cycle, command: Feedback360Command) => {
+    if (!tenantId) return;
     commandMutation.mutateAsync({ id: idValue(cycle.id), command });
   };
 

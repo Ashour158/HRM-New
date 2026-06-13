@@ -351,8 +351,13 @@ class InMemoryTokenRepository {
   }
 
   async findActiveByHash(tokenHash: string, tokenType: AuthTokenType): Promise<AuthTokenRecord | undefined> {
+    const now = Date.now();
     return Array.from(this.tokens.values()).find(
-      (token) => token.tokenHash === tokenHash && token.tokenType === tokenType && !token.consumedAt,
+      (token) =>
+        token.tokenHash === tokenHash
+        && token.tokenType === tokenType
+        && !token.consumedAt
+        && Date.parse(token.expiresAt) > now,
     );
   }
 

@@ -51,13 +51,11 @@ export function CommandPalette({ items }: CommandPaletteProps) {
           <Search aria-hidden="true" />
           <Input className="border-0 bg-transparent shadow-none focus-visible:ring-0" autoFocus placeholder="Search pages, reports, people..." value={query} onChange={(event) => setQuery(event.target.value)} />
         </div>
-        <div role="listbox" aria-label="Command palette results" className="max-h-72 overflow-auto">
+        <div aria-label="Command palette results" className="max-h-72 overflow-auto">
           {filtered.map((item) => (
             <button
               key={item.path}
               type="button"
-              role="option"
-              aria-selected="false"
               className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
               onClick={() => runCommand(item.path)}
             >

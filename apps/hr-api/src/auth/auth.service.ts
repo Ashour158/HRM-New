@@ -277,8 +277,16 @@ export class AuthService {
       throw new UnauthorizedException('Refresh session expired');
     }
 
-    const user = await this.findById(session.userId);
-    if (!user) throw new UnauthorizedException('Authenticated user no longer exists');
+    const storedUser = await this.users.findById(session.userId);
+    if (
+      !storedUser
+      || storedUser.status !== 'ACTIVE'
+      || (storedUser.lockedUntil && Date.parse(storedUser.lockedUntil) > Date.now())
+    ) {
+      await this.sessions.revoke(session.sessionId);
+      throw new UnauthorizedException('Authenticated user is not active');
+    }
+    const user = this.toAuthUser(storedUser);
 
     const rotatedSession: AuthSession = {
       ...session,

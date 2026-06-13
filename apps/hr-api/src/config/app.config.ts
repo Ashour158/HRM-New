@@ -58,6 +58,12 @@ export interface AppConfig {
 /**
  * Load configuration from environment variables with sensible defaults.
  */
+function parsePositiveIntEnv(name: string, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) return fallback;
+  return parsed;
+}
+
 export function loadAppConfig(): AppConfig {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
@@ -89,9 +95,9 @@ export function loadAppConfig(): AppConfig {
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
     refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN ?? '7d',
     mfaRequired: (process.env.MFA_REQUIRED ?? 'false').toLowerCase() === 'true',
-    bcryptCost: parseInt(process.env.BCRYPT_COST ?? '12', 10),
-    loginMaxAttempts: parseInt(process.env.LOGIN_MAX_ATTEMPTS ?? '5', 10),
-    lockoutMinutes: parseInt(process.env.LOCKOUT_MINUTES ?? '15', 10),
+    bcryptCost: parsePositiveIntEnv('BCRYPT_COST', 12, 8, 16),
+    loginMaxAttempts: parsePositiveIntEnv('LOGIN_MAX_ATTEMPTS', 5, 1, 20),
+    lockoutMinutes: parsePositiveIntEnv('LOCKOUT_MINUTES', 15, 1, 1440),
     oidcIssuerUrl: process.env.OIDC_ISSUER_URL,
     oidcClientId: process.env.OIDC_CLIENT_ID,
     oidcRedirectUri: process.env.OIDC_REDIRECT_URI,

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -173,12 +173,18 @@ export class EngagementController {
       relationship: dto.relationship,
       competencyScores: dto.competencyScores,
       comments: dto.comments,
-    }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+      // Scope the submission to the reviewer worker so platform worker-scope
+      // authorization governs who may submit on that reviewer's behalf.
+    }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: new Uuid(dto.reviewerWorkerId) }));
   }
 
   @Get('feedback-360-cycles/tenant/:tenantId')
-  async getFeedback360CyclesByTenant(@Param('tenantId') tenantId: string) {
-    return this.feedbackRepo.findByTenant(new Uuid(tenantId));
+  async getFeedback360CyclesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    const scopedTenantId = requireTenantId(req, 'Engagement');
+    if (scopedTenantId.value !== tenantId) {
+      throw new ForbiddenException('Cross-tenant access is not allowed');
+    }
+    return this.feedbackRepo.findByTenant(scopedTenantId);
   }
 
   @Get('feedback-360-cycles/subject/:workerId')

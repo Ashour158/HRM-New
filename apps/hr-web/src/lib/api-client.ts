@@ -19,6 +19,9 @@ import { createMockAdapter } from './mock-adapter';
 interface RetryConfig extends InternalAxiosRequestConfig {
   retryCount?: number;
   authRefreshAttempted?: boolean;
+  // Public/unauthenticated auth flows (register, password reset) must surface 401s
+  // inline rather than being bounced to /login.
+  suppressAuthRedirect?: boolean;
 }
 
 const MAX_RETRIES = 3;
@@ -100,7 +103,7 @@ function createApiClient(): AxiosInstance {
           }
         }
 
-        if (!AUTH_BYPASS_ENABLED) {
+        if (!AUTH_BYPASS_ENABLED && !config.suppressAuthRedirect) {
           clearAuthSession();
           if (window.location.pathname !== '/login') {
             window.location.replace('/login?reason=session_expired');
@@ -133,20 +136,32 @@ function createApiClient(): AxiosInstance {
 export const apiClient = createApiClient();
 
 export async function registerAuthUser(payload: AuthRegisterRequest): Promise<AuthRegisterResponse> {
-  const response = await apiClient.post<ApiResponse<AuthRegisterResponse>>('/auth/register', payload);
+  const response = await apiClient.post<ApiResponse<AuthRegisterResponse>>(
+    '/auth/register',
+    payload,
+    { suppressAuthRedirect: true } as RetryConfig,
+  );
   return response.data.data;
 }
 
 export async function requestPasswordReset(
   payload: AuthPasswordResetRequest,
 ): Promise<AuthPasswordResetRequestResponse> {
-  const response = await apiClient.post<ApiResponse<AuthPasswordResetRequestResponse>>('/auth/password-reset/request', payload);
+  const response = await apiClient.post<ApiResponse<AuthPasswordResetRequestResponse>>(
+    '/auth/password-reset/request',
+    payload,
+    { suppressAuthRedirect: true } as RetryConfig,
+  );
   return response.data.data;
 }
 
 export async function confirmPasswordReset(
   payload: AuthPasswordResetConfirmRequest,
 ): Promise<AuthPasswordResetConfirmResponse> {
-  const response = await apiClient.post<ApiResponse<AuthPasswordResetConfirmResponse>>('/auth/password-reset/confirm', payload);
+  const response = await apiClient.post<ApiResponse<AuthPasswordResetConfirmResponse>>(
+    '/auth/password-reset/confirm',
+    payload,
+    { suppressAuthRedirect: true } as RetryConfig,
+  );
   return response.data.data;
 }

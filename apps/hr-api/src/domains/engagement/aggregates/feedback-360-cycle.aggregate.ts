@@ -3,9 +3,12 @@ import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-k
 export type Feedback360CycleStatus = 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CLOSED';
 
 export interface Feedback360CycleResponse {
+  /** @hrDataClassification CONFIDENTIAL — reviewer identity linked to feedback */
   reviewerWorkerId: string;
   relationship: string;
+  /** @hrDataClassification CONFIDENTIAL — reviewer-linked competency scores */
   competencyScores: Record<string, number>;
+  /** @hrDataClassification CONFIDENTIAL — free-text reviewer commentary */
   comments?: string;
   submittedAt: string;
 }
@@ -130,19 +133,24 @@ export class Feedback360Cycle extends AggregateRoot {
     correlationId: Uuid,
   ): void {
     if (this.status !== 'IN_PROGRESS') throw new ValidationError(`Cannot submit feedback from ${this.status}`);
+    // Canonicalize to the bare worker id so the same reviewer cannot submit twice via
+    // different token forms (e.g. "peer:worker-id" vs "worker-id").
+    const canonicalReviewerId = input.reviewerWorkerId.includes(':')
+      ? input.reviewerWorkerId.split(':')[1]
+      : input.reviewerWorkerId;
     const reviewerToken = this.reviewers.find((reviewer) => {
       const [, workerId] = reviewer.includes(':') ? reviewer.split(':') : ['', reviewer];
-      return reviewer === input.reviewerWorkerId || workerId === input.reviewerWorkerId;
+      return reviewer === canonicalReviewerId || workerId === canonicalReviewerId;
     });
     if (!reviewerToken) throw new ValidationError('Reviewer is not assigned to this 360 cycle');
-    if (this.responses.some((response) => response.reviewerWorkerId === input.reviewerWorkerId)) {
+    if (this.responses.some((response) => response.reviewerWorkerId === canonicalReviewerId)) {
       throw new ValidationError('Reviewer response already submitted');
     }
     const [relationshipFromToken] = reviewerToken.includes(':') ? reviewerToken.split(':') : ['reviewer'];
     this.responses = [
       ...this.responses,
       {
-        reviewerWorkerId: input.reviewerWorkerId,
+        reviewerWorkerId: canonicalReviewerId,
         relationship: input.relationship ?? relationshipFromToken,
         competencyScores: input.competencyScores ?? {},
         comments: input.comments,

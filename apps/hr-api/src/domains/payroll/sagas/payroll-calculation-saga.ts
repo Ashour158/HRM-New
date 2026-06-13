@@ -44,6 +44,10 @@ export class PayrollCalculationSaga implements OnModuleInit {
 
     const correlationId = new Uuid(event.metadata.correlationId.value);
 
+    // Resolve tenant setup before any persisted/published state transition so a setup
+    // failure cannot leave the saga partially progressed (deterministic retries).
+    const setup = await this.hcmSetupService.getSetup(cycle.tenantId);
+
     this.logger.log({ type: 'SAGA_STEP', step: 1, message: 'Collect payroll inputs', payrollCycleId: cycle.id.value });
     cycle.startInputCollection(correlationId);
     await this.payrollCycleRepo.save(cycle);
@@ -63,7 +67,6 @@ export class PayrollCalculationSaga implements OnModuleInit {
     await this.payrollCycleRepo.save(cycle);
     await this.eventsPublisher.publishFromAggregate(cycle);
 
-    const setup = await this.hcmSetupService.getSetup(cycle.tenantId);
     const run = PayrollCalculationRun.start(
       { id: Uuid.generate(), tenantId: cycle.tenantId, payrollCycleId: cycle.id, currency: resolveTenantCurrency(setup) },
       correlationId,

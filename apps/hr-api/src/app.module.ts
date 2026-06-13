@@ -35,6 +35,7 @@ import { HcmSetupModule } from './domains/hcm-setup/hcm-setup.module.js';
 import { AdminModuleOperationsModule } from './domains/admin-module-operations/admin-module-operations.module.js';
 import { AccessGovernanceModule } from './domains/access-governance/access-governance.module.js';
 import { PolicyCenterModule } from './domains/policy-center/policy-center.module.js';
+import { SchedulerModule } from './domains/scheduler/scheduler.module.js';
 import { AuditInterceptor } from './interceptors/audit.interceptor.js';
 import { TenantInterceptor } from './interceptors/tenant.interceptor.js';
 import { TransformInterceptor } from './interceptors/transform.interceptor.js';
@@ -51,7 +52,7 @@ import { RolesGuard } from './guards/roles.guard.js';
 import { PermissionGuard } from './guards/permission.guard.js';
 
 @Module({
-  imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule],
+  imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule],
   controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController],
   providers: [
     AppService,

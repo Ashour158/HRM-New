@@ -89,14 +89,18 @@ export class EmployeePayrollController {
     const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
     const basic = payloadByCategory.BASIC ?? {};
     const compensation = payloadByCategory.COMPENSATION ?? {};
-    const setup = await this.hcmSetupService.getSetup(tenantId);
+    const salaryCurrency = typeof compensation.salaryCurrency === 'string' && compensation.salaryCurrency
+      ? compensation.salaryCurrency
+      : undefined;
+    const currency = salaryCurrency
+      ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(tenantId));
     const employee: PayrollCycleEmployeeInput = {
       workerId: worker.id.value,
       employeeId: worker.employeeNumber,
       name: `${worker.firstName} ${worker.lastName}`.trim(),
       email: String(basic.workEmail ?? basic.personalEmail ?? worker.email.toString()),
       grossSalary: Number(compensation.grossSalaryAmount ?? compensation.salaryAmount ?? 0),
-      currency: String(compensation.salaryCurrency ?? resolveTenantCurrency(setup)),
+      currency: String(currency),
     };
 
     const lockedLines = (await this.resultLineRepo.findByWorker(worker.id))
