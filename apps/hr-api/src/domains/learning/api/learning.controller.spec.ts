@@ -45,10 +45,12 @@ function makeController() {
     findById: vi.fn(),
     findByWorker: vi.fn(),
     findByCourse: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as LearningAssignmentRepository;
   const certificationRepo = {
     findById: vi.fn(),
     findByWorker: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as CertificationRepository;
   const contentPackageRepo = {
     findById: vi.fn(),
@@ -63,7 +65,7 @@ function makeController() {
     contentPackageRepo,
   );
 
-  return { controller, commandBus, assignmentRepo, certificationRepo };
+  return { controller, commandBus, courseRepo, assignmentRepo, certificationRepo, contentPackageRepo };
 }
 
 describe('LearningController', () => {
@@ -176,5 +178,22 @@ describe('LearningController', () => {
         newExpiryDate,
       },
     }));
+  });
+
+  it('lists learning records by the authenticated tenant only', async () => {
+    const { controller, courseRepo, assignmentRepo, certificationRepo, contentPackageRepo } = makeController();
+    (courseRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(courseId) }]);
+    (assignmentRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(assignmentId) }]);
+    (certificationRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(certificationId) }]);
+    (contentPackageRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await expect(controller.getCoursesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getAssignmentsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getCertificationsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getContentPackagesByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getCoursesByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
+
+    expect(assignmentRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
+    expect(certificationRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
   });
 });

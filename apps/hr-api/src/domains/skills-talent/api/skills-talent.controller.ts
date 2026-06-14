@@ -59,6 +59,14 @@ export class SkillsTalentController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Skills and Talent');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   /* Skill Profiles */
   @Post('skill-profiles')
   async createSkillProfile(@Body(new ZodValidationPipe(CreateSkillProfileDtoSchema)) dto: dtos.CreateSkillProfileDto, @Req() req: Request) {
@@ -94,6 +102,11 @@ export class SkillsTalentController {
   @Get('skill-profiles/worker/:workerId')
   async getSkillProfileByWorker(@Param('workerId') workerId: string) {
     return this.skillProfileRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('skill-profiles/tenant/:tenantId')
+  async getSkillProfilesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.skillProfileRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Talent Pools */
@@ -136,8 +149,8 @@ export class SkillsTalentController {
   }
 
   @Get('talent-pools/tenant/:tenantId')
-  async getTalentPoolsByTenant(@Param('tenantId') tenantId: string) {
-    return this.talentPoolRepo.findByTenant(new Uuid(tenantId));
+  async getTalentPoolsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.talentPoolRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Career Paths */
@@ -173,8 +186,8 @@ export class SkillsTalentController {
   }
 
   @Get('career-paths/tenant/:tenantId')
-  async getCareerPathsByTenant(@Param('tenantId') tenantId: string) {
-    return this.careerPathRepo.findByTenant(new Uuid(tenantId));
+  async getCareerPathsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.careerPathRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Succession Plans */
@@ -226,5 +239,10 @@ export class SkillsTalentController {
   @Get('succession-plans/position/:positionId')
   async getSuccessionPlanByPosition(@Param('positionId') positionId: string) {
     return this.successionPlanRepo.findByPosition(new Uuid(positionId));
+  }
+
+  @Get('succession-plans/tenant/:tenantId')
+  async getSuccessionPlansByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.successionPlanRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

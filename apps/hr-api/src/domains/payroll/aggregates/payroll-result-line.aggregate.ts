@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification HIGH_SENSITIVITY - payroll cycle, input, calculation, result-line, taxable, insurable, deduction, and net-pay fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type PayrollResultLineStatus = 'CALCULATED' | 'EXPLAINED' | 'REVIEWED' | 'LOCKED';

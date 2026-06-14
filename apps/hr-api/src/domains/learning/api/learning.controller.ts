@@ -58,6 +58,14 @@ export class LearningController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Learning');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   /* Learning Courses */
   @Post('courses')
   async createCourse(@Body(new ZodValidationPipe(CreateLearningCourseDtoSchema)) dto: dtos.CreateLearningCourseDto, @Req() req: Request) {
@@ -91,8 +99,8 @@ export class LearningController {
   }
 
   @Get('courses/tenant/:tenantId')
-  async getCoursesByTenant(@Param('tenantId') tenantId: string) {
-    return this.courseRepo.findByTenant(new Uuid(tenantId));
+  async getCoursesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.courseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Learning Assignments */
@@ -144,6 +152,11 @@ export class LearningController {
     return this.assignmentRepo.findByCourse(new Uuid(courseId));
   }
 
+  @Get('assignments/tenant/:tenantId')
+  async getAssignmentsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.assignmentRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   /* Certifications */
   @Post('certifications')
   async createCertification(@Body(new ZodValidationPipe(CreateCertificationDtoSchema)) dto: dtos.CreateCertificationDto, @Req() req: Request) {
@@ -179,6 +192,11 @@ export class LearningController {
   @Get('certifications/worker/:workerId')
   async getCertificationsByWorker(@Param('workerId') workerId: string) {
     return this.certificationRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('certifications/tenant/:tenantId')
+  async getCertificationsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.certificationRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Learning Content Packages */
@@ -221,7 +239,7 @@ export class LearningController {
   }
 
   @Get('content-packages/tenant/:tenantId')
-  async getContentPackagesByTenant(@Param('tenantId') tenantId: string) {
-    return this.contentPackageRepo.findByTenant(new Uuid(tenantId));
+  async getContentPackagesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.contentPackageRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

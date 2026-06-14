@@ -20,6 +20,11 @@ export class HrAiKillSwitchRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<HrAiKillSwitch[]> {
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: HrAiKillSwitch): Promise<void> {
     const existing = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').select('id').where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).executeTakeFirst();
     const row = {

@@ -56,6 +56,14 @@ export class UnionLaborController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Union and Labor');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   @Post('union-recognitions')
   async createRecognition(@Body(new ZodValidationPipe(CreateUnionRecognitionDto)) dto: dtos.CreateUnionRecognitionDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateUnionRecognition', 'UnionRecognition', dto, req));
@@ -99,6 +107,11 @@ export class UnionLaborController {
   @Get('union-recognitions/:id')
   async getRecognition(@Param('id') id: string) {
     return this.unionRecognitionRepo.findById(new Uuid(id));
+  }
+
+  @Get('union-recognitions/tenant/:tenantId')
+  async getRecognitionsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.unionRecognitionRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Post('grievances')
@@ -146,6 +159,11 @@ export class UnionLaborController {
     return this.grievanceRepo.findById(new Uuid(id));
   }
 
+  @Get('grievances/tenant/:tenantId')
+  async getGrievancesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.grievanceRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('collective-bargaining-sessions')
   async createSession(@Body(new ZodValidationPipe(CreateCollectiveBargainingSessionDto)) dto: dtos.CreateCollectiveBargainingSessionDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateCollectiveBargainingSession', 'CollectiveBargainingSession', dto, req));
@@ -189,5 +207,10 @@ export class UnionLaborController {
   @Get('collective-bargaining-sessions/:id')
   async getSession(@Param('id') id: string) {
     return this.cbsRepo.findById(new Uuid(id));
+  }
+
+  @Get('collective-bargaining-sessions/tenant/:tenantId')
+  async getSessionsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.cbsRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

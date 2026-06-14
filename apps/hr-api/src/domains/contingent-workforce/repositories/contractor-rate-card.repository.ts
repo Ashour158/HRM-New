@@ -18,6 +18,11 @@ export class ContractorRateCardRepository extends BaseRepository<'contractor_rat
     return row ? this.toAggregate(row as unknown as Database['contractor_rate_cards']) : undefined;
   }
 
+  async findByTenant(tenantId: Uuid): Promise<ContractorRateCard[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['contractor_rate_cards']));
+  }
+
   async save(entity: ContractorRateCard): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

@@ -20,6 +20,11 @@ export class PayGapReportRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<PayGapReport[]> {
+    const rows = await this.db.selectFrom('hr_dei_analytics.pay_gap_reports').selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: PayGapReport): Promise<void> {
     const existing = await this.db.selectFrom('hr_dei_analytics.pay_gap_reports').select('id').where('id', '=', entity.id.value).executeTakeFirst();
     const row = {

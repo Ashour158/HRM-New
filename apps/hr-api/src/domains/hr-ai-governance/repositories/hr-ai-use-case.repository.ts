@@ -20,6 +20,11 @@ export class HrAiUseCaseRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<HrAiUseCase[]> {
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: HrAiUseCase): Promise<void> {
     const existing = await this.db.selectFrom('hr_ai.hr_ai_use_cases').select('id').where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).executeTakeFirst();
     const row = {

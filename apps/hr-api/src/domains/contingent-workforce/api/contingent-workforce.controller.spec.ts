@@ -40,12 +40,15 @@ function makeController() {
   const cwaRepo = {
     findById: vi.fn(),
     findByWorker: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as ContingentWorkerAssignmentRepository;
   const sowRepo = {
     findById: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as SowEngagementRepository;
   const rateCardRepo = {
     findById: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as ContractorRateCardRepository;
   const assessmentRepo = {
     findById: vi.fn(),
@@ -60,7 +63,7 @@ function makeController() {
     assessmentRepo,
   );
 
-  return { controller, commandBus, assessmentRepo };
+  return { controller, commandBus, cwaRepo, sowRepo, rateCardRepo, assessmentRepo };
 }
 
 describe('ContingentWorkforceController', () => {
@@ -191,5 +194,19 @@ describe('ContingentWorkforceController', () => {
         misclassificationAssessmentId: new Uuid(assessmentId),
       },
     }));
+  });
+
+  it('lists contingent workforce records by the authenticated tenant only', async () => {
+    const { controller, cwaRepo, sowRepo, rateCardRepo, assessmentRepo } = makeController();
+    (cwaRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(workerId) }]);
+    (sowRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (rateCardRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (assessmentRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(assessmentId) }]);
+
+    await expect(controller.getAssignmentsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getSowsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getRateCardsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getAssessmentsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getAssessmentsByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
   });
 });

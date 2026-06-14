@@ -31,7 +31,7 @@ export class SchedulerJobRunRepository implements SchedulerJobRunRepositoryPort 
         status: 'RUNNING',
         items_processed: 0,
         error: null,
-        started_at: input.startedAt,
+        started_at: input.startedAt.toISOString(),
         finished_at: null,
         aggregate_version: 0,
         created_at: new Date().toISOString(),
@@ -53,10 +53,52 @@ export class SchedulerJobRunRepository implements SchedulerJobRunRepositoryPort 
       .where('period_key', '=', input.periodKey)
       .executeTakeFirst();
 
+    if (!existing) {
+      return { acquired: false, skipReason: 'RUNNING' };
+    }
+
+    if (existing.status === 'SUCCEEDED') {
+      return { acquired: false, run: toRecord(existing), skipReason: 'ALREADY_SUCCEEDED' };
+    }
+
+    if (existing.status === 'RUNNING') {
+      return { acquired: false, run: toRecord(existing), skipReason: 'RUNNING' };
+    }
+
+    const retried = await this.db
+      .updateTable('scheduler_job_runs')
+      .set({
+        status: 'RUNNING',
+        items_processed: 0,
+        error: null,
+        started_at: input.startedAt.toISOString(),
+        finished_at: null,
+        updated_at: new Date().toISOString(),
+        aggregate_version: (eb) => eb('aggregate_version', '+', 1),
+      })
+      .where('tenant_id', '=', input.tenantId.value)
+      .where('job_name', '=', input.jobName)
+      .where('period_key', '=', input.periodKey)
+      .where('status', 'not in', ['SUCCEEDED', 'RUNNING'])
+      .returningAll()
+      .executeTakeFirst();
+
+    if (retried) {
+      return { acquired: true, run: toRecord(retried) };
+    }
+
+    const current = await this.db
+      .selectFrom('scheduler_job_runs')
+      .selectAll()
+      .where('tenant_id', '=', input.tenantId.value)
+      .where('job_name', '=', input.jobName)
+      .where('period_key', '=', input.periodKey)
+      .executeTakeFirst();
+
     return {
       acquired: false,
-      run: existing ? toRecord(existing) : undefined,
-      skipReason: existing?.status === 'SUCCEEDED' ? 'ALREADY_SUCCEEDED' : 'RUNNING',
+      run: current ? toRecord(current) : toRecord(existing),
+      skipReason: current?.status === 'SUCCEEDED' ? 'ALREADY_SUCCEEDED' : 'RUNNING',
     };
   }
 

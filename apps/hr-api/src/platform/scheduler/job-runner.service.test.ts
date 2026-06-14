@@ -130,6 +130,32 @@ describe('JobRunner', () => {
     expect(processed).toBe(1);
   });
 
+  it('allows a failed run to retry for the same tenant/job/period key', async () => {
+    let attempts = 0;
+    const job: ScheduledJob = {
+      name: 'attendance-anomaly-alert',
+      cron: '* * * * *',
+      async runForTenant() {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new Error('temporary reporting outage');
+        }
+        return { itemsProcessed: 3 };
+      },
+    };
+    const runRepository = new FakeRunRepository();
+    const { runner } = buildRunner({ job, runRepository });
+    const now = new Date('2026-06-13T10:01:00.000Z');
+
+    const first = await runner.runJobAcrossTenants(job.name, now);
+    const second = await runner.runJobAcrossTenants(job.name, now);
+
+    expect(first.tenants[0]?.status).toBe('FAILED');
+    expect(second.tenants[0]?.status).toBe('SUCCEEDED');
+    expect(second.tenants[0]?.itemsProcessed).toBe(3);
+    expect(attempts).toBe(2);
+  });
+
   it('does not double-process concurrent runners for the same tenant/job/period', async () => {
     let processed = 0;
     const job: ScheduledJob = {
@@ -222,6 +248,14 @@ class FakeRunRepository implements SchedulerJobRunRepositoryPort {
     const key = ledgerKey(input.tenantId, input.jobName, input.periodKey);
     const existing = this.runs.get(key);
     if (existing) {
+      if (existing.status !== 'SUCCEEDED' && existing.status !== 'RUNNING') {
+        existing.status = 'RUNNING';
+        existing.itemsProcessed = 0;
+        existing.error = undefined;
+        existing.startedAt = input.startedAt;
+        existing.finishedAt = undefined;
+        return { acquired: true as const, run: existing };
+      }
       return {
         acquired: false as const,
         run: existing,

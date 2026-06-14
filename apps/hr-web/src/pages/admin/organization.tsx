@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { buildOrganizationSetupJourney, type OrganizationSetupJourneyTone, type OrganizationSetupTab } from '@/lib/organization-setup-journey';
 import { cn } from '@/lib/utils';
-import { BarChart3, Brain, Building2, Calculator, GitBranch, Network, Save, Sparkles, UserCog } from 'lucide-react';
+import { BarChart3, Brain, Briefcase, Building2, Calculator, GitBranch, Network, Save, Sparkles, UserCog } from 'lucide-react';
 
 type LegalEntity = {
   id: string;
@@ -202,9 +202,73 @@ type ReportingNode = {
   directReports: ReportingNode[];
 };
 
+type PositionControlPosition = {
+  id: string;
+  positionCode: string;
+  title: string;
+  status: string;
+  departmentId?: string | null;
+  legalEntityId?: string | null;
+  employmentType?: string | null;
+  jobFamily?: string | null;
+  jobLevel?: string | null;
+  filledByWorkerId?: string | null;
+  headcountRequestId?: string | null;
+};
+
+type PositionAllowedActionsResponse = {
+  allowedActions: string[];
+  currentState: string;
+  positionId: string;
+};
+
+type HeadcountRequest = {
+  id: string;
+  requestNumber: string;
+  status: string;
+  justification?: string;
+  requestedBy: string;
+  positionsRequested: number;
+  positionsApproved?: number | null;
+  approvedBy?: string | null;
+  approvedAt?: string | null;
+};
+
+type PositionForm = {
+  departmentId: string;
+  employmentType: string;
+  jobFamily: string;
+  jobLevel: string;
+  legalEntityId: string;
+  positionCode: string;
+  title: string;
+};
+
+type HeadcountForm = {
+  departmentId: string;
+  justification: string;
+  legalEntityId: string;
+  requestedPositions: string;
+};
+
 const emptyLegalEntity: LegalEntityForm = { name: '', countryCode: 'EG', registrationNumber: '' };
 const emptyOrgUnit: OrgUnitForm = { name: '', legalEntityId: '', parentOrgUnitId: '' };
 const emptyAssignment: AssignmentForm = { workerId: '', legalEntityId: '', departmentId: '', managerId: '', jobTitle: '' };
+const emptyPosition: PositionForm = {
+  departmentId: '',
+  employmentType: 'FULL_TIME',
+  jobFamily: '',
+  jobLevel: '',
+  legalEntityId: '',
+  positionCode: '',
+  title: '',
+};
+const emptyHeadcount: HeadcountForm = {
+  departmentId: '',
+  justification: '',
+  legalEntityId: '',
+  requestedPositions: '1',
+};
 const emptyScenario: ScenarioForm = {
   name: 'Growth plan',
   branchExpansionCount: '0',
@@ -221,6 +285,8 @@ const emptyOrgUnits: OrgUnit[] = [];
 const emptyLegalEntities: LegalEntity[] = [];
 const emptyManagerRelationships: ManagerRelationship[] = [];
 const emptyOrgChart: OrgUnit[] = [];
+const emptyPositions: PositionControlPosition[] = [];
+const emptyHeadcountRequests: HeadcountRequest[] = [];
 
 const setupToneClasses: Record<OrganizationSetupJourneyTone, string> = {
   attention: 'border-red-200 bg-red-50 text-red-700',
@@ -390,11 +456,115 @@ function ReportingTree({ nodes, depth = 0, visited = new Set<string>() }: { node
   );
 }
 
+const positionCommandRoutes: Record<string, string> = {
+  Activate: 'activate',
+  Close: 'close',
+  Freeze: 'freeze',
+  Unfreeze: 'unfreeze',
+};
+
+function normalizePositionId(position: PositionControlPosition): string {
+  if (typeof position.id === 'string') return position.id;
+  const maybeValue = (position.id as unknown as { value?: unknown })?.value;
+  return typeof maybeValue === 'string' ? maybeValue : '';
+}
+
+function PositionLifecycleActions({
+  onCommand,
+  position,
+}: {
+  onCommand: (input: { command: string; positionId: string }) => void;
+  position: PositionControlPosition;
+}) {
+  const positionId = normalizePositionId(position);
+  const allowedActionsQuery = useQuery({
+    enabled: Boolean(positionId),
+    queryKey: ['admin-position-control-position-actions', positionId],
+    queryFn: async () => unwrap<PositionAllowedActionsResponse>(await apiClient.get(`/hr/position-control/positions/${positionId}/allowed-actions`)),
+    staleTime: 30 * 1000,
+  });
+
+  const allowedActions = allowedActionsQuery.data?.allowedActions ?? [];
+  if (allowedActions.length === 0) {
+    return <span className="text-xs text-muted-foreground">No actions</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {allowedActions.map((action) => {
+        const route = positionCommandRoutes[action];
+        return (
+          <Button
+            key={action}
+            disabled={!route}
+            size="sm"
+            variant={action === 'Activate' ? 'default' : 'outline'}
+            onClick={() => route && onCommand({ command: route, positionId })}
+          >
+            {action}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function HeadcountLifecycleActions({
+  onCommand,
+  request,
+}: {
+  onCommand: (input: { command: string; payload?: Record<string, unknown>; requestId: string }) => void;
+  request: HeadcountRequest;
+}) {
+  const actions: Array<{ command: string; label: string; payload?: Record<string, unknown>; variant?: 'default' | 'outline' }> = [];
+
+  if (request.status === 'SUBMITTED') {
+    actions.push({ command: 'start-review', label: 'Start Review' });
+  }
+  if (request.status === 'UNDER_REVIEW') {
+    actions.push({
+      command: 'approve',
+      label: 'Approve',
+      payload: { positionsApproved: Math.max(request.positionsApproved ?? request.positionsRequested, 1) },
+    });
+    actions.push({
+      command: 'reject',
+      label: 'Reject',
+      payload: { reason: 'Rejected from organization admin' },
+      variant: 'outline',
+    });
+  }
+  if (request.status === 'DRAFT' || request.status === 'SUBMITTED') {
+    actions.push({ command: 'cancel', label: 'Cancel', variant: 'outline' });
+  }
+
+  if (actions.length === 0) {
+    return <span className="text-xs text-muted-foreground">No actions</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {actions.map((action) => (
+        <Button
+          key={action.command}
+          size="sm"
+          variant={action.variant ?? 'default'}
+          onClick={() => onCommand({ command: action.command, payload: action.payload, requestId: request.id })}
+        >
+          {action.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: string }) {
   const queryClient = useQueryClient();
   const [legalEntityForm, setLegalEntityForm] = React.useState<LegalEntityForm>(emptyLegalEntity);
   const [orgUnitForm, setOrgUnitForm] = React.useState<OrgUnitForm>(emptyOrgUnit);
   const [assignmentForm, setAssignmentForm] = React.useState<AssignmentForm>(emptyAssignment);
+  const [positionForm, setPositionForm] = React.useState<PositionForm>(emptyPosition);
+  const [headcountForm, setHeadcountForm] = React.useState<HeadcountForm>(emptyHeadcount);
   const [activeTab, setActiveTab] = React.useState<OrganizationSetupTab>(initialTab as OrganizationSetupTab);
   const [chartGroupBy, setChartGroupBy] = React.useState('department');
   const [scenarioForm, setScenarioForm] = React.useState<ScenarioForm>(emptyScenario);
@@ -451,6 +621,21 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     queryFn: async () => unwrap<DynamicOrgChartResponse>(await apiClient.get(`/hr/organization/org-chart?groupBy=${chartGroupBy}`)),
   });
 
+  const positionsQuery = useQuery({
+    queryKey: ['admin-position-control-positions'],
+    queryFn: async () => unwrap<PositionControlPosition[]>(await apiClient.get('/hr/position-control/positions')),
+  });
+
+  const vacantPositionsQuery = useQuery({
+    queryKey: ['admin-position-control-vacant'],
+    queryFn: async () => unwrap<PositionControlPosition[]>(await apiClient.get('/hr/position-control/positions/vacant')),
+  });
+
+  const headcountRequestsQuery = useQuery({
+    queryKey: ['admin-position-control-headcount-requests'],
+    queryFn: async () => unwrap<HeadcountRequest[]>(await apiClient.get('/hr/position-control/headcount-requests')),
+  });
+
   const refreshOrg = () => {
     queryClient.invalidateQueries({ queryKey: ['admin-organization-summary'] });
     queryClient.invalidateQueries({ queryKey: ['admin-organization-legal-entities'] });
@@ -458,6 +643,14 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     queryClient.invalidateQueries({ queryKey: ['admin-organization-org-unit-tree'] });
     queryClient.invalidateQueries({ queryKey: ['admin-workforce-planning'] });
     queryClient.invalidateQueries({ queryKey: ['admin-workforce-org-chart'] });
+  };
+
+  const refreshPositionControl = () => {
+    queryClient.invalidateQueries({ queryKey: ['admin-position-control-positions'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-position-control-vacant'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-position-control-headcount-requests'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-position-control-position-actions'] });
+    refreshOrg();
   };
 
   React.useEffect(() => {
@@ -581,6 +774,63 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     },
   });
 
+  const createPosition = useMutation({
+    mutationFn: async (form: PositionForm) => apiClient.post('/hr/position-control/positions', {
+      departmentId: form.departmentId || undefined,
+      employmentType: form.employmentType,
+      jobFamily: form.jobFamily || undefined,
+      jobLevel: form.jobLevel || undefined,
+      legalEntityId: form.legalEntityId || undefined,
+      positionCode: form.positionCode,
+      title: form.title,
+    }),
+    onMutate: () => setActionError(null),
+    onError: (error) => setActionError(error),
+    onSuccess: () => {
+      setPositionForm(emptyPosition);
+      setActionError(null);
+      refreshPositionControl();
+    },
+  });
+
+  const submitHeadcountRequest = useMutation({
+    mutationFn: async (form: HeadcountForm) => apiClient.post('/hr/position-control/headcount-requests', {
+      departmentId: form.departmentId || undefined,
+      justification: form.justification,
+      legalEntityId: form.legalEntityId || undefined,
+      requestedPositions: Math.max(numberOrUndefined(form.requestedPositions) ?? 1, 1),
+    }),
+    onMutate: () => setActionError(null),
+    onError: (error) => setActionError(error),
+    onSuccess: () => {
+      setHeadcountForm(emptyHeadcount);
+      setActionError(null);
+      refreshPositionControl();
+    },
+  });
+
+  const runPositionCommand = useMutation({
+    mutationFn: async ({ command, positionId }: { command: string; positionId: string }) =>
+      apiClient.post(`/hr/position-control/positions/${positionId}/commands/${command}`, {}),
+    onMutate: () => setActionError(null),
+    onError: (error) => setActionError(error),
+    onSuccess: () => {
+      setActionError(null);
+      refreshPositionControl();
+    },
+  });
+
+  const runHeadcountCommand = useMutation({
+    mutationFn: async ({ command, payload, requestId }: { command: string; payload?: Record<string, unknown>; requestId: string }) =>
+      apiClient.post(`/hr/position-control/headcount-requests/${requestId}/commands/${command}`, payload ?? {}),
+    onMutate: () => setActionError(null),
+    onError: (error) => setActionError(error),
+    onSuccess: () => {
+      setActionError(null);
+      refreshPositionControl();
+    },
+  });
+
   const summary = summaryQuery.data;
   const workers = Array.isArray(workersQuery.data) ? workersQuery.data : emptyWorkers;
   const orgUnits = Array.isArray(orgUnitsQuery.data)
@@ -595,6 +845,18 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     : Array.isArray(summary?.orgChart) ? summary.orgChart : emptyOrgChart;
   const planning = planningQuery.data;
   const dynamicChart = dynamicChartQuery.data;
+  const positions = Array.isArray(positionsQuery.data) ? positionsQuery.data : emptyPositions;
+  const vacantPositions = Array.isArray(vacantPositionsQuery.data) ? vacantPositionsQuery.data : emptyPositions;
+  const headcountRequests = Array.isArray(headcountRequestsQuery.data) ? headcountRequestsQuery.data : emptyHeadcountRequests;
+  const positionStatusCounts = React.useMemo(() => positions.reduce<Record<string, number>>((acc, position) => {
+    acc[position.status] = (acc[position.status] ?? 0) + 1;
+    return acc;
+  }, {}), [positions]);
+  const approvedHeadcountRequests = React.useMemo(
+    () => headcountRequests.filter((request) => request.status === 'APPROVED'),
+    [headcountRequests],
+  );
+  const approvedSagaPositionCount = approvedHeadcountRequests.reduce((total, request) => total + (request.positionsApproved ?? 0), 0);
   const reportingTree = React.useMemo(
     () => buildReportingTree(workers, managerRelationships),
     [workers, managerRelationships],
@@ -700,6 +962,51 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
     { key: 'start', header: 'Start Date', cell: (row: ManagerRelationship) => row.startDate ? new Date(row.startDate).toLocaleDateString() : '-' },
   ];
 
+  const positionColumns = [
+    { key: 'code', header: 'Position', cell: (row: PositionControlPosition) => <span className="font-medium">{row.positionCode}</span> },
+    { key: 'title', header: 'Title', cell: (row: PositionControlPosition) => row.title },
+    { key: 'department', header: 'Department', cell: (row: PositionControlPosition) => orgUnits.find((unit) => unit.id === row.departmentId)?.name ?? row.departmentId ?? '-' },
+    { key: 'entity', header: 'Entity', cell: (row: PositionControlPosition) => legalEntities.find((entity) => entity.id === row.legalEntityId)?.name ?? row.legalEntityId ?? '-' },
+    { key: 'employment', header: 'Type', cell: (row: PositionControlPosition) => row.employmentType ?? '-' },
+    { key: 'status', header: 'Status', cell: (row: PositionControlPosition) => <Badge variant={row.status === 'ACTIVE' || row.status === 'FILLED' ? 'default' : 'outline'}>{row.status}</Badge> },
+    {
+      key: 'actions',
+      header: 'Actions',
+      cell: (row: PositionControlPosition) => (
+        <PositionLifecycleActions
+          onCommand={(input) => runPositionCommand.mutate(input)}
+          position={row}
+        />
+      ),
+    },
+  ];
+
+  const vacancyColumns = [
+    { key: 'code', header: 'Position', cell: (row: PositionControlPosition) => <span className="font-medium">{row.positionCode}</span> },
+    { key: 'title', header: 'Title', cell: (row: PositionControlPosition) => row.title },
+    { key: 'department', header: 'Department', cell: (row: PositionControlPosition) => orgUnits.find((unit) => unit.id === row.departmentId)?.name ?? row.departmentId ?? '-' },
+    { key: 'source', header: 'Source', cell: (row: PositionControlPosition) => row.headcountRequestId ? 'Approved headcount' : 'Manual position' },
+    { key: 'status', header: 'Status', cell: (row: PositionControlPosition) => <Badge variant="outline">{row.status}</Badge> },
+  ];
+
+  const headcountColumns = [
+    { key: 'request', header: 'Request', cell: (row: HeadcountRequest) => <span className="font-medium">{row.requestNumber}</span> },
+    { key: 'requested', header: 'Requested', cell: (row: HeadcountRequest) => row.positionsRequested },
+    { key: 'approved', header: 'Approved', cell: (row: HeadcountRequest) => row.positionsApproved ?? '-' },
+    { key: 'status', header: 'Status', cell: (row: HeadcountRequest) => <Badge variant={row.status === 'APPROVED' ? 'default' : row.status === 'REJECTED' ? 'destructive' : 'outline'}>{row.status}</Badge> },
+    { key: 'saga', header: 'Saga Output', cell: (row: HeadcountRequest) => row.status === 'APPROVED' && row.positionsApproved ? `${row.positionsApproved} positions auto-created when approved` : 'Waiting for approval' },
+    {
+      key: 'actions',
+      header: 'Actions',
+      cell: (row: HeadcountRequest) => (
+        <HeadcountLifecycleActions
+          onCommand={(input) => runHeadcountCommand.mutate(input)}
+          request={row}
+        />
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -787,12 +1094,24 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
         </div>
       </div>
 
-      <ErrorMessage error={summaryQuery.error ?? workersQuery.error ?? planningQuery.error ?? dynamicChartQuery.error ?? actionError} />
+      <ErrorMessage error={
+        summaryQuery.error
+        ?? workersQuery.error
+        ?? planningQuery.error
+        ?? dynamicChartQuery.error
+        ?? positionsQuery.error
+        ?? vacantPositionsQuery.error
+        ?? headcountRequestsQuery.error
+        ?? actionError
+      } />
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OrganizationSetupTab)} className="space-y-4">
         <TabsList>
           <TabsTrigger value="structure">Structure</TabsTrigger>
           <TabsTrigger value="planning">Workforce Planning</TabsTrigger>
+          <TabsTrigger value="positions">Positions</TabsTrigger>
+          <TabsTrigger value="vacancies">Vacancies</TabsTrigger>
+          <TabsTrigger value="headcount">Headcount</TabsTrigger>
           <TabsTrigger value="entities">Legal Entities</TabsTrigger>
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="assignments">Employee Assignments</TabsTrigger>
@@ -1089,6 +1408,196 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="positions" className="grid gap-4 lg:grid-cols-[24rem_1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Briefcase className="h-5 w-5" />
+                Create Position
+              </CardTitle>
+              <CardDescription>Approved headcount slots that can be activated, frozen, filled, vacated, or closed.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="space-y-4" onSubmit={(event) => {
+                event.preventDefault();
+                createPosition.mutate(positionForm);
+              }}>
+                <div className="space-y-2">
+                  <Label htmlFor="position-code">Position Code</Label>
+                  <Input id="position-code" value={positionForm.positionCode} onChange={(event) => setPositionForm({ ...positionForm, positionCode: event.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position-title">Title</Label>
+                  <Input id="position-title" value={positionForm.title} onChange={(event) => setPositionForm({ ...positionForm, title: event.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position-employment-type">Employment Type</Label>
+                  <select id="position-employment-type" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.employmentType} onChange={(event) => setPositionForm({ ...positionForm, employmentType: event.target.value })}>
+                    <option value="FULL_TIME">Full time</option>
+                    <option value="PART_TIME">Part time</option>
+                    <option value="CONTRACTOR">Contractor</option>
+                    <option value="INTERN">Intern</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position-entity">Legal Entity</Label>
+                  <select id="position-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.legalEntityId} onChange={(event) => setPositionForm({ ...positionForm, legalEntityId: event.target.value })}>
+                    <option value="">No entity</option>
+                    {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="position-department">Department</Label>
+                  <select id="position-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.departmentId} onChange={(event) => setPositionForm({ ...positionForm, departmentId: event.target.value })}>
+                    <option value="">No department</option>
+                    {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="position-job-family">Job Family</Label>
+                    <Input id="position-job-family" value={positionForm.jobFamily} onChange={(event) => setPositionForm({ ...positionForm, jobFamily: event.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="position-job-level">Job Level</Label>
+                    <Input id="position-job-level" value={positionForm.jobLevel} onChange={(event) => setPositionForm({ ...positionForm, jobLevel: event.target.value })} />
+                  </div>
+                </div>
+                <Button type="submit" disabled={createPosition.isPending || !positionForm.positionCode || !positionForm.title}>
+                  <Save className="mr-2 h-4 w-4" />
+                  Save Position
+                </Button>
+                <ErrorMessage error={createPosition.error} />
+              </form>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              {[
+                ['Draft', positionStatusCounts.DRAFT ?? 0],
+                ['Active', positionStatusCounts.ACTIVE ?? 0],
+                ['Filled', positionStatusCounts.FILLED ?? 0],
+                ['Frozen', positionStatusCounts.FROZEN ?? 0],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="fusion-glass rounded-[1.5rem] p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
+                  <p className="mt-1 text-2xl font-bold">{value}</p>
+                </div>
+              ))}
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Positions</CardTitle>
+                <CardDescription>Position control records from the position-control aggregate.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <DataTable columns={positionColumns} data={positions} keyExtractor={(row) => normalizePositionId(row)} isLoading={positionsQuery.isLoading} emptyMessage="No positions created" />
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="vacancies">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Briefcase className="h-5 w-5" />
+                Vacancies
+              </CardTitle>
+              <CardDescription>Vacant positions created manually or by the headcount approval saga.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={vacancyColumns} data={vacantPositions} keyExtractor={(row) => normalizePositionId(row)} isLoading={vacantPositionsQuery.isLoading} emptyMessage="No vacant positions" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="headcount" className="grid gap-4 xl:grid-cols-[24rem_1fr]">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Request Headcount</CardTitle>
+                <CardDescription>Submit demand for new approved positions.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form className="space-y-4" onSubmit={(event) => {
+                  event.preventDefault();
+                  submitHeadcountRequest.mutate(headcountForm);
+                }}>
+                  <div className="space-y-2">
+                    <Label htmlFor="headcount-positions">Positions Requested</Label>
+                    <Input id="headcount-positions" min="1" type="number" value={headcountForm.requestedPositions} onChange={(event) => setHeadcountForm({ ...headcountForm, requestedPositions: event.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="headcount-entity">Legal Entity</Label>
+                    <select id="headcount-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={headcountForm.legalEntityId} onChange={(event) => setHeadcountForm({ ...headcountForm, legalEntityId: event.target.value })}>
+                      <option value="">No entity</option>
+                      {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="headcount-department">Department</Label>
+                    <select id="headcount-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={headcountForm.departmentId} onChange={(event) => setHeadcountForm({ ...headcountForm, departmentId: event.target.value })}>
+                      <option value="">No department</option>
+                      {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="headcount-justification">Justification</Label>
+                    <Input id="headcount-justification" value={headcountForm.justification} onChange={(event) => setHeadcountForm({ ...headcountForm, justification: event.target.value })} required />
+                  </div>
+                  <Button type="submit" disabled={submitHeadcountRequest.isPending || !headcountForm.justification}>
+                    Submit Headcount
+                  </Button>
+                  <ErrorMessage error={submitHeadcountRequest.error} />
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Headcount automation</CardTitle>
+                <CardDescription>Approved requests are consumed by the position-headcount saga to create approved position records.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg bg-[#f1f5f9] p-3">
+                    <p className="text-xs text-muted-foreground">Approved Requests</p>
+                    <p className="text-2xl font-bold">{approvedHeadcountRequests.length}</p>
+                  </div>
+                  <div className="rounded-lg bg-[#f1f5f9] p-3">
+                    <p className="text-xs text-muted-foreground">Saga Positions</p>
+                    <p className="text-2xl font-bold">{approvedSagaPositionCount}</p>
+                  </div>
+                </div>
+                {approvedHeadcountRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {approvedHeadcountRequests.map((request) => (
+                      <div key={request.id} className="rounded-lg border p-3 text-sm">
+                        <p className="font-semibold">{request.requestNumber}</p>
+                        <p className="text-muted-foreground">{request.positionsApproved ?? 0} positions auto-created when approved</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No approved headcount requests have produced positions yet.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Headcount Requests</CardTitle>
+              <CardDescription>Demand approvals with state transitions and downstream position creation.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <DataTable columns={headcountColumns} data={headcountRequests} keyExtractor={(row) => row.id} isLoading={headcountRequestsQuery.isLoading} emptyMessage="No headcount requests submitted" />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="entities" className="grid gap-4 lg:grid-cols-[22rem_1fr]">

@@ -56,6 +56,14 @@ export class WellbeingEapController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Wellbeing EAP');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   @Post('eap-referrals')
   async createReferral(@Body(new ZodValidationPipe(CreateEapReferralDto)) dto: dtos.CreateEapReferralDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateEapReferral', 'EapReferral', dto, req));
@@ -99,6 +107,11 @@ export class WellbeingEapController {
   @Get('eap-referrals/:id')
   async getReferral(@Param('id') id: string) {
     return this.eapReferralRepo.findById(new Uuid(id));
+  }
+
+  @Get('eap-referrals/tenant/:tenantId')
+  async getReferralsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.eapReferralRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Post('wellness-programs')
@@ -146,6 +159,11 @@ export class WellbeingEapController {
     return this.wellnessProgramRepo.findById(new Uuid(id));
   }
 
+  @Get('wellness-programs/tenant/:tenantId')
+  async getProgramsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.wellnessProgramRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('mental-health-cases')
   async createMhCase(@Body(new ZodValidationPipe(CreateMentalHealthCaseDto)) dto: dtos.CreateMentalHealthCaseDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateMentalHealthCase', 'MentalHealthCase', dto, req));
@@ -182,5 +200,10 @@ export class WellbeingEapController {
   @Get('mental-health-cases/:id')
   async getMhCase(@Param('id') id: string) {
     return this.mentalHealthCaseRepo.findById(new Uuid(id));
+  }
+
+  @Get('mental-health-cases/tenant/:tenantId')
+  async getMhCasesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.mentalHealthCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

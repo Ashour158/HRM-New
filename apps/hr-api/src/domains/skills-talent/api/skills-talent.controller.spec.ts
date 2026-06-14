@@ -39,6 +39,7 @@ function makeController() {
   const skillProfileRepo = {
     findById: vi.fn(),
     findByWorker: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as SkillProfileRepository;
   const talentPoolRepo = {
     findById: vi.fn(),
@@ -51,6 +52,7 @@ function makeController() {
   const successionPlanRepo = {
     findById: vi.fn(),
     findByPosition: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as SuccessionPlanRepository;
 
   const controller = new SkillsTalentController(
@@ -61,7 +63,7 @@ function makeController() {
     successionPlanRepo,
   );
 
-  return { controller, commandBus, talentPoolRepo };
+  return { controller, commandBus, skillProfileRepo, talentPoolRepo, careerPathRepo, successionPlanRepo };
 }
 
 describe('SkillsTalentController', () => {
@@ -178,5 +180,19 @@ describe('SkillsTalentController', () => {
         memberId: workerId,
       },
     }));
+  });
+
+  it('lists talent records by the authenticated tenant only', async () => {
+    const { controller, skillProfileRepo, talentPoolRepo, careerPathRepo, successionPlanRepo } = makeController();
+    (skillProfileRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(workerId) }]);
+    (talentPoolRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(talentPoolId) }]);
+    (careerPathRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (successionPlanRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(positionId) }]);
+
+    await expect(controller.getSkillProfilesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getTalentPoolsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getCareerPathsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getSuccessionPlansByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getTalentPoolsByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
   });
 });

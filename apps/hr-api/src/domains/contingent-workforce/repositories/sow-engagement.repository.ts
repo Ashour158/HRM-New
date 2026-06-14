@@ -18,6 +18,11 @@ export class SowEngagementRepository extends BaseRepository<'sow_engagements', S
     return row ? this.toAggregate(row as unknown as Database['sow_engagements']) : undefined;
   }
 
+  async findByTenant(tenantId: Uuid): Promise<SowEngagement[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['sow_engagements']));
+  }
+
   async save(entity: SowEngagement): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

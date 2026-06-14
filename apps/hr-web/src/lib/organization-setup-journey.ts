@@ -1,6 +1,15 @@
 export type OrganizationSetupJourneyTone = 'attention' | 'default' | 'success' | 'warning';
 
-export type OrganizationSetupTab = 'assignments' | 'departments' | 'entities' | 'managers' | 'planning' | 'structure';
+export type OrganizationSetupTab =
+  | 'assignments'
+  | 'departments'
+  | 'entities'
+  | 'headcount'
+  | 'managers'
+  | 'planning'
+  | 'positions'
+  | 'structure'
+  | 'vacancies';
 
 export interface OrganizationSetupJourneyStep {
   actionLabel: string;

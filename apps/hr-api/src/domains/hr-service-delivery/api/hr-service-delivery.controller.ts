@@ -94,6 +94,14 @@ export class HrServiceDeliveryController {
     throw new ForbiddenException('Only HR service delivery administrators can perform this action');
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = this.getTenantId(req);
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   private async assertTaskMutationScope(req: Request, task: { assignedTo?: Uuid }): Promise<void> {
     if (this.hasServiceAdminScope(req)) return;
     const self = await this.resolveSelfWorker(req);
@@ -216,6 +224,12 @@ export class HrServiceDeliveryController {
   async listMyHrServiceCases(@Req() req: Request) {
     const self = await this.resolveSelfWorker(req);
     return (await this.hrServiceCaseRepo.findByRequester(this.getTenantId(req), self.id)).map((serviceCase) => this.serializeHrServiceCase(serviceCase));
+  }
+
+  @Get('cases/tenant/:tenantId')
+  async listHrServiceCasesForTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertServiceAdminScope(req);
+    return (await this.hrServiceCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId))).map((serviceCase) => this.serializeHrServiceCase(serviceCase));
   }
 
   @Post('cases/:id/commands/mark-in-progress')

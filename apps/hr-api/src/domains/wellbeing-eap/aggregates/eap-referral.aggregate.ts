@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification SPECIAL_CATEGORY - wellness, EAP referral, mental-health case, accommodation, and worker health-support fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type EapReferralStatus = 'REQUESTED' | 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CLOSED' | 'CANCELLED';

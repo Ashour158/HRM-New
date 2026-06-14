@@ -23,6 +23,11 @@ export class ContingentWorkerAssignmentRepository extends BaseRepository<'contin
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['contingent_worker_assignments']));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<ContingentWorkerAssignment[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['contingent_worker_assignments']));
+  }
+
   async save(entity: ContingentWorkerAssignment): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

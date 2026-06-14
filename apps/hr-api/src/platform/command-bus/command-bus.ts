@@ -139,6 +139,7 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   StatutoryLeaveType: aggregateLoader('hr_global_hr.statutory_leave_types'),
   WorksCouncilConsultation: aggregateLoader('hr_global_hr.works_council_consultations'),
   WorkAuthorizationCase: aggregateLoader('hr_global_hr.work_authorization_cases'),
+  InternationalAssignment: aggregateLoader('hr_global_hr.international_assignments'),
   CountryPolicyPack: aggregateLoader('hr_country_policy.policy_packs'),
   CountryPolicyValidationRun: aggregateLoader('hr_country_policy.validation_runs'),
   CountryPolicyImpactSimulation: aggregateLoader('hr_country_policy.impact_simulations'),
@@ -268,8 +269,8 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
   },
   {
     area: 'GLOBAL_HR',
-    aggregateTypes: ['CountryRuleSet', 'StatutoryLeaveType', 'WorksCouncilConsultation', 'WorkAuthorizationCase'],
-    commandPatterns: [/CountryRuleSet/i, /StatutoryLeaveType/i, /WorksCouncil/i, /WorkAuthorization/i],
+    aggregateTypes: ['CountryRuleSet', 'StatutoryLeaveType', 'WorksCouncilConsultation', 'WorkAuthorizationCase', 'InternationalAssignment'],
+    commandPatterns: [/CountryRuleSet/i, /StatutoryLeaveType/i, /WorksCouncil/i, /WorkAuthorization/i, /InternationalAssignment/i],
   },
   {
     area: 'DEI_ANALYTICS',

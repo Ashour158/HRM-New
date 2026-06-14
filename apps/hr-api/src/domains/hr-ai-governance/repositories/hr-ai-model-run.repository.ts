@@ -20,6 +20,11 @@ export class HrAiModelRunRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<HrAiModelRun[]> {
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_model_runs').selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: HrAiModelRun): Promise<void> {
     const existing = await this.db.selectFrom('hr_ai.hr_ai_model_runs').select('id').where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).executeTakeFirst();
     const row = {

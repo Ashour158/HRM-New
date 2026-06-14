@@ -23,6 +23,11 @@ export class CertificationRepository extends BaseRepository<'certifications', Ce
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<Certification[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: Certification): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

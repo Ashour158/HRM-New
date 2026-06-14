@@ -3,12 +3,12 @@ import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-k
 export type Feedback360CycleStatus = 'DRAFT' | 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED' | 'CLOSED';
 
 export interface Feedback360CycleResponse {
-  /** @hrDataClassification CONFIDENTIAL — reviewer identity linked to feedback */
+  /** @hrDataClassification CONFIDENTIAL - reviewer identity linked to feedback */
   reviewerWorkerId: string;
   relationship: string;
-  /** @hrDataClassification CONFIDENTIAL — reviewer-linked competency scores */
+  /** @hrDataClassification CONFIDENTIAL - reviewer-linked competency scores */
   competencyScores: Record<string, number>;
-  /** @hrDataClassification CONFIDENTIAL — free-text reviewer commentary */
+  /** @hrDataClassification CONFIDENTIAL - free-text reviewer commentary */
   comments?: string;
   submittedAt: string;
 }

@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { requireTenantId } from '../../../platform/http/request-context.js';
 import { ShiftScheduleRepository } from '../repositories/shift-schedule.repository.js';
 import { OpenShiftRepository } from '../repositories/open-shift.repository.js';
 import { ShiftBidRepository } from '../repositories/shift-bid.repository.js';
@@ -39,6 +40,14 @@ export class WorkforceManagementController {
     return req.actor;
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Workforce Management');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   private buildCommand<TPayload>(
     commandName: string,
     aggregateType: string,
@@ -46,7 +55,7 @@ export class WorkforceManagementController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'Workforce Management');
     return {
       commandId: Uuid.generate(),
       commandName,
@@ -93,14 +102,19 @@ export class WorkforceManagementController {
     return this.commandBus.execute(this.buildCommand('ArchiveShiftSchedule', 'ShiftSchedule', { shiftScheduleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('shift-schedules/:id')
-  async getShiftSchedule(@Param('id') id: string) {
-    return this.shiftScheduleRepo.findById(new Uuid(id));
+  @Get('shift-schedules/tenant/:tenantId')
+  async getShiftSchedulesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.shiftScheduleRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Get('shift-schedules/worker/:workerId')
   async getShiftSchedulesByWorker(@Param('workerId') workerId: string) {
     return this.shiftScheduleRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('shift-schedules/:id')
+  async getShiftSchedule(@Param('id') id: string) {
+    return this.shiftScheduleRepo.findById(new Uuid(id));
   }
 
   /* Open Shifts */
@@ -137,14 +151,19 @@ export class WorkforceManagementController {
     return this.commandBus.execute(this.buildCommand('CancelOpenShift', 'OpenShift', { openShiftId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('open-shifts/:id')
-  async getOpenShift(@Param('id') id: string) {
-    return this.openShiftRepo.findById(new Uuid(id));
+  @Get('open-shifts/tenant/:tenantId')
+  async getOpenShiftsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.openShiftRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Get('open-shifts/department/:departmentId')
   async getOpenShiftsByDepartment(@Param('departmentId') departmentId: string) {
     return this.openShiftRepo.findByDepartment(new Uuid(departmentId));
+  }
+
+  @Get('open-shifts/:id')
+  async getOpenShift(@Param('id') id: string) {
+    return this.openShiftRepo.findById(new Uuid(id));
   }
 
   /* Shift Bids */
@@ -174,14 +193,19 @@ export class WorkforceManagementController {
     return this.commandBus.execute(this.buildCommand('CancelShiftBid', 'ShiftBid', { shiftBidId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('shift-bids/:id')
-  async getShiftBid(@Param('id') id: string) {
-    return this.shiftBidRepo.findById(new Uuid(id));
+  @Get('shift-bids/tenant/:tenantId')
+  async getShiftBidsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.shiftBidRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Get('shift-bids/worker/:workerId')
   async getShiftBidsByWorker(@Param('workerId') workerId: string) {
     return this.shiftBidRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('shift-bids/:id')
+  async getShiftBid(@Param('id') id: string) {
+    return this.shiftBidRepo.findById(new Uuid(id));
   }
 
   /* Shift Swap Requests */
@@ -211,14 +235,19 @@ export class WorkforceManagementController {
     return this.commandBus.execute(this.buildCommand('CancelShiftSwapRequest', 'ShiftSwapRequest', { shiftSwapRequestId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('shift-swap-requests/:id')
-  async getShiftSwapRequest(@Param('id') id: string) {
-    return this.shiftSwapRequestRepo.findById(new Uuid(id));
+  @Get('shift-swap-requests/tenant/:tenantId')
+  async getShiftSwapRequestsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.shiftSwapRequestRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Get('shift-swap-requests/requester/:workerId')
   async getShiftSwapRequestsByRequester(@Param('workerId') workerId: string) {
     return this.shiftSwapRequestRepo.findByRequester(new Uuid(workerId));
+  }
+
+  @Get('shift-swap-requests/:id')
+  async getShiftSwapRequest(@Param('id') id: string) {
+    return this.shiftSwapRequestRepo.findById(new Uuid(id));
   }
 
   /* Overtime Approvals */
@@ -248,14 +277,19 @@ export class WorkforceManagementController {
     return this.commandBus.execute(this.buildCommand('CancelWfmOvertime', 'WfmOvertimeApproval', { overtimeApprovalId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('overtime-approvals/:id')
-  async getOvertimeApproval(@Param('id') id: string) {
-    return this.overtimeApprovalRepo.findById(new Uuid(id));
+  @Get('overtime-approvals/tenant/:tenantId')
+  async getOvertimeApprovalsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.overtimeApprovalRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Get('overtime-approvals/worker/:workerId')
   async getOvertimeApprovalsByWorker(@Param('workerId') workerId: string) {
     return this.overtimeApprovalRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('overtime-approvals/:id')
+  async getOvertimeApproval(@Param('id') id: string) {
+    return this.overtimeApprovalRepo.findById(new Uuid(id));
   }
 
   /* Coverage Gaps */
@@ -285,13 +319,18 @@ export class WorkforceManagementController {
     return this.commandBus.execute(this.buildCommand('CloseCoverageGap', 'CoverageGap', { coverageGapId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('coverage-gaps/:id')
-  async getCoverageGap(@Param('id') id: string) {
-    return this.coverageGapRepo.findById(new Uuid(id));
+  @Get('coverage-gaps/tenant/:tenantId')
+  async getCoverageGapsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.coverageGapRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Get('coverage-gaps/department/:departmentId')
   async getCoverageGapsByDepartment(@Param('departmentId') departmentId: string) {
     return this.coverageGapRepo.findByDepartment(new Uuid(departmentId));
+  }
+
+  @Get('coverage-gaps/:id')
+  async getCoverageGap(@Param('id') id: string) {
+    return this.coverageGapRepo.findById(new Uuid(id));
   }
 }

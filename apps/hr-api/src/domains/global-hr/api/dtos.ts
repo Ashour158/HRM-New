@@ -100,6 +100,52 @@ export class CreateWorkAuthorizationCaseDto {
   @ApiPropertyOptional() validUntil?: Date;
 }
 
+export const ApproveWorkAuthorizationCaseDtoSchema = z.object({
+  validFrom: z.coerce.date(),
+  validUntil: z.coerce.date(),
+  documentNumber: z.string().optional(),
+});
+
+export class ApproveWorkAuthorizationCaseDto {
+  @ApiProperty() validFrom!: Date;
+  @ApiProperty() validUntil!: Date;
+  @ApiPropertyOptional() documentNumber?: string;
+}
+
+export const RenewWorkAuthorizationCaseDtoSchema = z.object({
+  newValidUntil: z.coerce.date(),
+});
+
+export class RenewWorkAuthorizationCaseDto {
+  @ApiProperty() newValidUntil!: Date;
+}
+
+/* ------------------------------------------------------------------ */
+/*  International Assignment DTOs                                      */
+/* ------------------------------------------------------------------ */
+
+export const CreateInternationalAssignmentDtoSchema = z.object({
+  assignmentId: z.string().uuid(),
+  workerId: z.string().uuid(),
+  homeCountry: z.string().length(2),
+  hostCountry: z.string().length(2),
+  legalEntityId: z.string().uuid().optional(),
+  startDate: z.coerce.date(),
+  endDate: z.coerce.date(),
+  assignmentReason: z.string().min(1),
+});
+
+export class CreateInternationalAssignmentDto {
+  @ApiProperty() assignmentId!: string;
+  @ApiProperty() workerId!: string;
+  @ApiProperty() homeCountry!: string;
+  @ApiProperty() hostCountry!: string;
+  @ApiPropertyOptional() legalEntityId?: string;
+  @ApiProperty() startDate!: Date;
+  @ApiProperty() endDate!: Date;
+  @ApiProperty() assignmentReason!: string;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Zod Validation Pipe                                                */
 /* ------------------------------------------------------------------ */

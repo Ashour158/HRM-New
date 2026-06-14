@@ -23,6 +23,11 @@ export class SuccessionPlanRepository extends BaseRepository<'succession_plans',
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
+  async findByTenant(tenantId: Uuid): Promise<SuccessionPlan[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: SuccessionPlan): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

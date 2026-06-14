@@ -117,7 +117,7 @@ export interface PlatformSchedulerJobRunsTable {
   status: string;
   items_processed: number;
   error: string | null;
-  started_at: ColumnType<Date, string | Date | undefined, never>;
+  started_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
   finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
@@ -1171,6 +1171,22 @@ export interface WorkAuthorizationCasesTable {
   document_number: string | null;
   valid_from: Date | null;
   valid_until: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface InternationalAssignmentsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  home_country: string;
+  host_country: string;
+  legal_entity_id: string | null;
+  start_date: Date;
+  end_date: Date;
+  assignment_reason: string;
   status: string;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
@@ -2231,6 +2247,7 @@ export interface Database {
   'hr_global_hr.statutory_leave_types': StatutoryLeaveTypesTable;
   'hr_global_hr.works_council_consultations': WorksCouncilConsultationsTable;
   'hr_global_hr.work_authorization_cases': WorkAuthorizationCasesTable;
+  'hr_global_hr.international_assignments': InternationalAssignmentsTable;
   'hr_country_policy.policy_packs': CountryPolicyPacksTable;
   'hr_country_policy.validation_runs': CountryPolicyValidationRunsTable;
   'hr_country_policy.impact_simulations': CountryPolicyImpactSimulationsTable;

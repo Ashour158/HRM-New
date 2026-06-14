@@ -59,6 +59,14 @@ export class ContingentWorkforceController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Contingent Workforce');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   @Post('contingent-worker-assignments')
   async createAssignment(@Body(new ZodValidationPipe(CreateContingentWorkerAssignmentDto)) dto: dtos.CreateContingentWorkerAssignmentDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateContingentWorkerAssignment', 'ContingentWorkerAssignment', dto, req));
@@ -88,6 +96,11 @@ export class ContingentWorkforceController {
   @Get('contingent-worker-assignments/:id')
   async getAssignment(@Param('id') id: string) {
     return this.cwaRepo.findById(new Uuid(id));
+  }
+
+  @Get('contingent-worker-assignments/tenant/:tenantId')
+  async getAssignmentsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.cwaRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Post('sow-engagements')
@@ -128,6 +141,11 @@ export class ContingentWorkforceController {
     return this.sowRepo.findById(new Uuid(id));
   }
 
+  @Get('sow-engagements/tenant/:tenantId')
+  async getSowsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.sowRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('contractor-rate-cards')
   async createRateCard(@Body(new ZodValidationPipe(CreateContractorRateCardDto)) dto: dtos.CreateContractorRateCardDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateContractorRateCard', 'ContractorRateCard', dto, req));
@@ -157,6 +175,11 @@ export class ContingentWorkforceController {
   @Get('contractor-rate-cards/:id')
   async getRateCard(@Param('id') id: string) {
     return this.rateCardRepo.findById(new Uuid(id));
+  }
+
+  @Get('contractor-rate-cards/tenant/:tenantId')
+  async getRateCardsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.rateCardRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   @Post('misclassification-assessments')
@@ -195,5 +218,10 @@ export class ContingentWorkforceController {
   @Get('misclassification-assessments/:id')
   async getAssessment(@Param('id') id: string) {
     return this.assessmentRepo.findById(new Uuid(id));
+  }
+
+  @Get('misclassification-assessments/tenant/:tenantId')
+  async getAssessmentsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.assessmentRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

@@ -155,6 +155,21 @@ function statusTone(status: HrServiceCase['status']) {
   return 'border-indigo-200 bg-indigo-50 text-indigo-700';
 }
 
+function slaHealth(serviceCase: Pick<HrServiceCase, 'slaDeadline' | 'status'>) {
+  if (!serviceCase.slaDeadline) return { label: 'SLA not set', tone: 'border-slate-200 bg-slate-50 text-slate-600' };
+  if (serviceCase.status === 'RESOLVED' || serviceCase.status === 'CLOSED') {
+    return { label: 'SLA complete', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
+  }
+
+  const deadline = new Date(serviceCase.slaDeadline).getTime();
+  if (Number.isNaN(deadline)) return { label: 'SLA not set', tone: 'border-slate-200 bg-slate-50 text-slate-600' };
+
+  const hoursRemaining = (deadline - Date.now()) / 36e5;
+  if (hoursRemaining < 0) return { label: 'SLA breached', tone: 'border-red-200 bg-red-50 text-red-700' };
+  if (hoursRemaining <= 24) return { label: 'SLA due soon', tone: 'border-amber-200 bg-amber-50 text-amber-700' };
+  return { label: 'SLA on track', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
+}
+
 function employeeVisibleModules() {
   return commercialModules.filter((module) => (
     module.personas.some((persona) => ['Employee', 'New Hire'].includes(persona))
@@ -525,32 +540,36 @@ export function EmployeeServices() {
                 <p className="mt-1 max-w-md text-sm text-slate-500">Choose a service above and submit your first HR request.</p>
               </div>
             ) : null}
-            {cases.map((serviceCase) => (
-              <div key={serviceCase.id} className="grid gap-3 p-4 md:grid-cols-[170px_minmax(0,1fr)_180px_150px] md:items-center">
-                <div>
-                  <p className="font-mono text-sm font-semibold text-slate-950">{serviceCase.caseNumber}</p>
-                  <p className="mt-1 text-xs text-slate-500">{formatDate(serviceCase.createdAt)}</p>
+            {cases.map((serviceCase) => {
+              const health = slaHealth(serviceCase);
+              return (
+                <div key={serviceCase.id} className="grid gap-3 p-4 md:grid-cols-[170px_minmax(0,1fr)_220px_170px] md:items-center">
+                  <div>
+                    <p className="font-mono text-sm font-semibold text-slate-950">{serviceCase.caseNumber}</p>
+                    <p className="mt-1 text-xs text-slate-500">{formatDate(serviceCase.createdAt)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-slate-950">{serviceCase.caseType?.replace(/_/g, ' ') ?? 'Case'}</p>
+                    <p className="mt-1 truncate text-sm text-slate-600">{serviceCase.description}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {serviceCase.status === 'RESOLVED' || serviceCase.status === 'CLOSED' ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    ) : serviceCase.status === 'ESCALATED' ? (
+                      <AlertTriangle className="h-4 w-4 text-red-600" />
+                    ) : (
+                      <Clock3 className="h-4 w-4 text-indigo-600" />
+                    )}
+                    <Badge variant="outline" className={statusTone(serviceCase.status)}>{serviceCase.status?.replace(/_/g, ' ') ?? 'unknown'}</Badge>
+                    <Badge variant="outline" className={health.tone}>{health.label}</Badge>
+                  </div>
+                  <div className="text-sm text-slate-500 md:text-right">
+                    <p>Priority {serviceCase.priority}</p>
+                    <p className="text-xs">SLA {formatDate(serviceCase.slaDeadline)}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-slate-950">{serviceCase.caseType?.replace(/_/g, ' ') ?? 'Case'}</p>
-                  <p className="mt-1 truncate text-sm text-slate-600">{serviceCase.description}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  {serviceCase.status === 'RESOLVED' || serviceCase.status === 'CLOSED' ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  ) : serviceCase.status === 'ESCALATED' ? (
-                    <AlertTriangle className="h-4 w-4 text-red-600" />
-                  ) : (
-                    <Clock3 className="h-4 w-4 text-indigo-600" />
-                  )}
-                  <Badge variant="outline" className={statusTone(serviceCase.status)}>{serviceCase.status?.replace(/_/g, ' ') ?? 'unknown'}</Badge>
-                </div>
-                <div className="text-sm text-slate-500 md:text-right">
-                  <p>Priority {serviceCase.priority}</p>
-                  <p className="text-xs">SLA {formatDate(serviceCase.slaDeadline)}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {casesError ? (
             <p className="border-t border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">

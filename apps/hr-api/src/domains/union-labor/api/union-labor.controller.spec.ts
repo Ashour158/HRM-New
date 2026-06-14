@@ -51,7 +51,7 @@ function makeController() {
 
   const controller = new UnionLaborController(commandBus, unionRecognitionRepo, grievanceRepo, cbsRepo);
 
-  return { controller, commandBus, grievanceRepo, cbsRepo };
+  return { controller, commandBus, unionRecognitionRepo, grievanceRepo, cbsRepo };
 }
 
 describe('UnionLaborController', () => {
@@ -148,5 +148,17 @@ describe('UnionLaborController', () => {
         grievanceId: new Uuid(grievanceId),
       },
     }));
+  });
+
+  it('lists labor records by the authenticated tenant only', async () => {
+    const { controller, unionRecognitionRepo, grievanceRepo, cbsRepo } = makeController();
+    (unionRecognitionRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(unionRecognitionId) }]);
+    (grievanceRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(grievanceId) }]);
+    (cbsRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    await expect(controller.getRecognitionsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getGrievancesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getSessionsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getGrievancesByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
   });
 });

@@ -44,6 +44,14 @@ export class HrAiGovernanceController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'HR AI Governance');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   @Post('use-cases')
   async registerHrAiUseCase(@Body(new ZodValidationPipe(RegisterHrAiUseCaseDtoSchema)) dto: dtos.RegisterHrAiUseCaseDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('RegisterHrAiUseCase', 'HrAiUseCase', dto, req));
@@ -86,6 +94,10 @@ export class HrAiGovernanceController {
   }
   @Get('use-cases')
   async listHrAiUseCases(@Query('status') status?: string) { return this.useCaseRepo.findByStatus(status ?? 'REGISTERED'); }
+  @Get('use-cases/tenant/:tenantId')
+  async listHrAiUseCasesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.useCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
   @Get('use-cases/:id')
   async getHrAiUseCase(@Param('id') id: string) { return this.useCaseRepo.findById(new Uuid(id)); }
 
@@ -116,6 +128,10 @@ export class HrAiGovernanceController {
     if (useCaseId) return this.modelRunRepo.findByUseCaseId(new Uuid(useCaseId));
     return [];
   }
+  @Get('model-runs/tenant/:tenantId')
+  async listHrAiModelRunsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.modelRunRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
   @Get('model-runs/:id')
   async getHrAiModelRun(@Param('id') id: string) { return this.modelRunRepo.findById(new Uuid(id)); }
 
@@ -145,6 +161,10 @@ export class HrAiGovernanceController {
   async listHrAiBiasTests(@Query('useCaseId') useCaseId?: string) {
     if (useCaseId) return this.biasTestRepo.findByUseCaseId(new Uuid(useCaseId));
     return [];
+  }
+  @Get('bias-tests/tenant/:tenantId')
+  async listHrAiBiasTestsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.biasTestRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
   @Get('bias-tests/:id')
   async getHrAiBiasTest(@Param('id') id: string) { return this.biasTestRepo.findById(new Uuid(id)); }
@@ -181,6 +201,10 @@ export class HrAiGovernanceController {
   async listHrAiKillSwitches(@Query('useCaseId') useCaseId?: string) {
     if (useCaseId) return this.killSwitchRepo.findByUseCaseId(new Uuid(useCaseId));
     return [];
+  }
+  @Get('kill-switches/tenant/:tenantId')
+  async listHrAiKillSwitchesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.killSwitchRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
   @Get('kill-switches/:id')
   async getHrAiKillSwitch(@Param('id') id: string) { return this.killSwitchRepo.findById(new Uuid(id)); }

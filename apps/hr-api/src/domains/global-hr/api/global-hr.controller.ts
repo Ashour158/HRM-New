@@ -6,6 +6,7 @@ import {
   Param,
   Query,
   Req,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -19,6 +20,7 @@ import { CountryRuleSetRepository } from '../repositories/country-rule-set.repos
 import { StatutoryLeaveTypeRepository } from '../repositories/statutory-leave-type.repository.js';
 import { WorksCouncilConsultationRepository } from '../repositories/works-council-consultation.repository.js';
 import { WorkAuthorizationCaseRepository } from '../repositories/work-authorization-case.repository.js';
+import { InternationalAssignmentRepository } from '../repositories/international-assignment.repository.js';
 
 import type * as dtos from './dtos.js';
 import {
@@ -26,6 +28,9 @@ import {
   CreateStatutoryLeaveTypeDtoSchema,
   CreateWorksCouncilConsultationDtoSchema,
   CreateWorkAuthorizationCaseDtoSchema,
+  ApproveWorkAuthorizationCaseDtoSchema,
+  RenewWorkAuthorizationCaseDtoSchema,
+  CreateInternationalAssignmentDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
 
@@ -38,6 +43,7 @@ export class GlobalHrController {
     private readonly statutoryLeaveTypeRepo: StatutoryLeaveTypeRepository,
     private readonly worksCouncilConsultationRepo: WorksCouncilConsultationRepository,
     private readonly workAuthorizationCaseRepo: WorkAuthorizationCaseRepository,
+    private readonly internationalAssignmentRepo: InternationalAssignmentRepository,
   ) {}
 
   private buildCommand<TPayload>(
@@ -76,6 +82,26 @@ export class GlobalHrController {
         clientType: actorClientType(actor),
       },
     };
+  }
+
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Global HR');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
+  private async getWorkAuthorizationForCommand(id: string) {
+    const authCase = await this.workAuthorizationCaseRepo.findById(new Uuid(id));
+    if (!authCase) throw new BadRequestException('Work authorization case not found');
+    return authCase;
+  }
+
+  private async getInternationalAssignmentForCommand(id: string) {
+    const assignment = await this.internationalAssignmentRepo.findById(new Uuid(id));
+    if (!assignment) throw new BadRequestException('International assignment not found');
+    return assignment;
   }
 
   /* ---------------------------------------------------------------- */
@@ -166,6 +192,126 @@ export class GlobalHrController {
     return this.commandBus.execute(command);
   }
 
+  @Post('work-authorization-cases/:id/commands/start-review')
+  async startWorkAuthorizationReview(@Param('id') id: string, @Req() req: Request) {
+    const authCase = await this.getWorkAuthorizationForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'StartWorkAuthorizationReview',
+      'WorkAuthorizationCase',
+      { workAuthorizationCaseId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: authCase.status,
+        expectedVersion: authCase.aggregateVersion,
+        subjectWorkerId: authCase.workerId,
+      },
+    ));
+  }
+
+  @Post('work-authorization-cases/:id/commands/approve')
+  async approveWorkAuthorizationCase(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ApproveWorkAuthorizationCaseDtoSchema)) dto: dtos.ApproveWorkAuthorizationCaseDto,
+    @Req() req: Request,
+  ) {
+    const authCase = await this.getWorkAuthorizationForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'ApproveWorkAuthorizationCase',
+      'WorkAuthorizationCase',
+      {
+        workAuthorizationCaseId: new Uuid(id),
+        validFrom: dto.validFrom,
+        validUntil: dto.validUntil,
+        documentNumber: dto.documentNumber,
+      },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: authCase.status,
+        expectedVersion: authCase.aggregateVersion,
+        subjectWorkerId: authCase.workerId,
+      },
+    ));
+  }
+
+  @Post('work-authorization-cases/:id/commands/expire')
+  async expireWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
+    const authCase = await this.getWorkAuthorizationForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'ExpireWorkAuthorizationCase',
+      'WorkAuthorizationCase',
+      { workAuthorizationCaseId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: authCase.status,
+        expectedVersion: authCase.aggregateVersion,
+        subjectWorkerId: authCase.workerId,
+      },
+    ));
+  }
+
+  @Post('work-authorization-cases/:id/commands/renew')
+  async renewWorkAuthorizationCase(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RenewWorkAuthorizationCaseDtoSchema)) dto: dtos.RenewWorkAuthorizationCaseDto,
+    @Req() req: Request,
+  ) {
+    const authCase = await this.getWorkAuthorizationForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'RenewWorkAuthorizationCase',
+      'WorkAuthorizationCase',
+      { workAuthorizationCaseId: new Uuid(id), newValidUntil: dto.newValidUntil },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: authCase.status,
+        expectedVersion: authCase.aggregateVersion,
+        subjectWorkerId: authCase.workerId,
+      },
+    ));
+  }
+
+  @Post('work-authorization-cases/:id/commands/close')
+  async closeWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
+    const authCase = await this.getWorkAuthorizationForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'CloseWorkAuthorizationCase',
+      'WorkAuthorizationCase',
+      { workAuthorizationCaseId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: authCase.status,
+        expectedVersion: authCase.aggregateVersion,
+        subjectWorkerId: authCase.workerId,
+      },
+    ));
+  }
+
+  @Post('work-authorization-cases/:id/commands/reject')
+  async rejectWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
+    const authCase = await this.getWorkAuthorizationForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'RejectWorkAuthorizationCase',
+      'WorkAuthorizationCase',
+      { workAuthorizationCaseId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: authCase.status,
+        expectedVersion: authCase.aggregateVersion,
+        subjectWorkerId: authCase.workerId,
+      },
+    ));
+  }
+
+  @Get('work-authorization-cases/tenant/:tenantId')
+  async getWorkAuthorizationCasesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.workAuthorizationCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Get('work-authorization-cases/worker/:workerId')
   async getWorkAuthorizationCasesByWorker(@Param('workerId') workerId: string) {
     return this.workAuthorizationCaseRepo.findByWorker(new Uuid(workerId));
@@ -174,5 +320,121 @@ export class GlobalHrController {
   @Get('work-authorization-cases/:id')
   async getWorkAuthorizationCase(@Param('id') id: string) {
     return this.workAuthorizationCaseRepo.findById(new Uuid(id));
+  }
+
+  /* ---------------------------------------------------------------- */
+  /*  International Assignments                                        */
+  /* ---------------------------------------------------------------- */
+
+  @Post('international-assignments')
+  async createInternationalAssignment(
+    @Body(new ZodValidationPipe(CreateInternationalAssignmentDtoSchema)) dto: dtos.CreateInternationalAssignmentDto,
+    @Req() req: Request,
+  ) {
+    const command = this.buildCommand('CreateInternationalAssignment', 'InternationalAssignment', dto, req, {
+      subjectWorkerId: new Uuid(dto.workerId),
+      effectiveDate: dto.startDate,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('international-assignments/:id/commands/approve')
+  async approveInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
+    const assignment = await this.getInternationalAssignmentForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'ApproveInternationalAssignment',
+      'InternationalAssignment',
+      { internationalAssignmentId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.status,
+        expectedVersion: assignment.aggregateVersion,
+        subjectWorkerId: assignment.workerId,
+      },
+    ));
+  }
+
+  @Post('international-assignments/:id/commands/activate')
+  async activateInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
+    const assignment = await this.getInternationalAssignmentForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'ActivateInternationalAssignment',
+      'InternationalAssignment',
+      { internationalAssignmentId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.status,
+        expectedVersion: assignment.aggregateVersion,
+        subjectWorkerId: assignment.workerId,
+      },
+    ));
+  }
+
+  @Post('international-assignments/:id/commands/complete')
+  async completeInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
+    const assignment = await this.getInternationalAssignmentForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'CompleteInternationalAssignment',
+      'InternationalAssignment',
+      { internationalAssignmentId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.status,
+        expectedVersion: assignment.aggregateVersion,
+        subjectWorkerId: assignment.workerId,
+      },
+    ));
+  }
+
+  @Post('international-assignments/:id/commands/expire')
+  async expireInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
+    const assignment = await this.getInternationalAssignmentForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'ExpireInternationalAssignment',
+      'InternationalAssignment',
+      { internationalAssignmentId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.status,
+        expectedVersion: assignment.aggregateVersion,
+        subjectWorkerId: assignment.workerId,
+      },
+    ));
+  }
+
+  @Post('international-assignments/:id/commands/cancel')
+  async cancelInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
+    const assignment = await this.getInternationalAssignmentForCommand(id);
+    return this.commandBus.execute(this.buildCommand(
+      'CancelInternationalAssignment',
+      'InternationalAssignment',
+      { internationalAssignmentId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.status,
+        expectedVersion: assignment.aggregateVersion,
+        subjectWorkerId: assignment.workerId,
+      },
+    ));
+  }
+
+  @Get('international-assignments/tenant/:tenantId')
+  async getInternationalAssignmentsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.internationalAssignmentRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
+  @Get('international-assignments/worker/:workerId')
+  async getInternationalAssignmentsByWorker(@Param('workerId') workerId: string) {
+    return this.internationalAssignmentRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('international-assignments/:id')
+  async getInternationalAssignment(@Param('id') id: string) {
+    return this.internationalAssignmentRepo.findById(new Uuid(id));
   }
 }

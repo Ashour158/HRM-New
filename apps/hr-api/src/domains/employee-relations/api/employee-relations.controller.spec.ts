@@ -62,7 +62,7 @@ function makeController() {
     accommodationCaseRepo,
   );
 
-  return { controller, commandBus };
+  return { controller, commandBus, erCaseRepo, erInvestigationRepo, disciplinaryActionRepo, accommodationCaseRepo };
 }
 
 describe('EmployeeRelationsController', () => {
@@ -161,5 +161,19 @@ describe('EmployeeRelationsController', () => {
         medicalDocumentation: 'encrypted-doc-ref-001',
       }),
     }));
+  });
+
+  it('lists employee relations records by the authenticated tenant only', async () => {
+    const { controller, erCaseRepo, erInvestigationRepo, disciplinaryActionRepo, accommodationCaseRepo } = makeController();
+    (erCaseRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(erCaseId) }]);
+    (erInvestigationRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (disciplinaryActionRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (accommodationCaseRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(workerId) }]);
+
+    await expect(controller.getErCasesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getErInvestigationsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getDisciplinaryActionsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getAccommodationCasesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getErCasesByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
   });
 });

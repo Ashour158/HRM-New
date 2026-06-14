@@ -32,12 +32,12 @@ function request(): Request {
 
 function buildController() {
   const commandBus = { execute: vi.fn(async () => ({ success: true })) };
-  const shiftScheduleRepo = { findById: vi.fn(), findByWorker: vi.fn() };
-  const openShiftRepo = { findById: vi.fn(), findByDepartment: vi.fn() };
-  const shiftBidRepo = { findById: vi.fn(), findByWorker: vi.fn() };
-  const shiftSwapRequestRepo = { findById: vi.fn(), findByRequester: vi.fn() };
-  const overtimeApprovalRepo = { findById: vi.fn(), findByWorker: vi.fn() };
-  const coverageGapRepo = { findById: vi.fn(), findByDepartment: vi.fn() };
+  const shiftScheduleRepo = { findById: vi.fn(), findByWorker: vi.fn(), findByTenant: vi.fn() };
+  const openShiftRepo = { findById: vi.fn(), findByDepartment: vi.fn(), findByTenant: vi.fn() };
+  const shiftBidRepo = { findById: vi.fn(), findByWorker: vi.fn(), findByTenant: vi.fn() };
+  const shiftSwapRequestRepo = { findById: vi.fn(), findByRequester: vi.fn(), findByTenant: vi.fn() };
+  const overtimeApprovalRepo = { findById: vi.fn(), findByWorker: vi.fn(), findByTenant: vi.fn() };
+  const coverageGapRepo = { findById: vi.fn(), findByDepartment: vi.fn(), findByTenant: vi.fn() };
   const controller = new WorkforceManagementController(
     commandBus as unknown as CommandBus,
     shiftScheduleRepo as never,
@@ -48,7 +48,7 @@ function buildController() {
     coverageGapRepo as never,
   );
 
-  return { controller, commandBus, shiftScheduleRepo };
+  return { controller, commandBus, shiftScheduleRepo, openShiftRepo, shiftBidRepo, shiftSwapRequestRepo, overtimeApprovalRepo, coverageGapRepo };
 }
 
 describe('WorkforceManagementController', () => {
@@ -93,5 +93,34 @@ describe('WorkforceManagementController', () => {
       payload: { shiftScheduleId: new Uuid(scheduleId) },
     }));
     expect(shiftScheduleRepo.findById).toHaveBeenCalledWith(new Uuid(scheduleId));
+  });
+
+  it('lists workforce records by the authenticated tenant only', async () => {
+    const {
+      controller,
+      shiftScheduleRepo,
+      openShiftRepo,
+      shiftBidRepo,
+      shiftSwapRequestRepo,
+      overtimeApprovalRepo,
+      coverageGapRepo,
+    } = buildController();
+    shiftScheduleRepo.findByTenant.mockResolvedValue([{ id: new Uuid(scheduleId), status: 'PUBLISHED' }]);
+    openShiftRepo.findByTenant.mockResolvedValue([{ id: new Uuid('00000000-0000-0000-0000-000000000601'), status: 'OPEN' }]);
+    shiftBidRepo.findByTenant.mockResolvedValue([]);
+    shiftSwapRequestRepo.findByTenant.mockResolvedValue([]);
+    overtimeApprovalRepo.findByTenant.mockResolvedValue([]);
+    coverageGapRepo.findByTenant.mockResolvedValue([{ id: new Uuid('00000000-0000-0000-0000-000000000602'), status: 'DETECTED' }]);
+
+    await expect(controller.getShiftSchedulesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getOpenShiftsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getShiftBidsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getShiftSwapRequestsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getOvertimeApprovalsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getCoverageGapsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getShiftSchedulesByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
+
+    expect(shiftScheduleRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
+    expect(coverageGapRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
   });
 });

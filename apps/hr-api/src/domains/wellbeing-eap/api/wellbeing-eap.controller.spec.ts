@@ -55,7 +55,7 @@ function makeController() {
     mentalHealthCaseRepo,
   );
 
-  return { controller, commandBus, wellnessProgramRepo, mentalHealthCaseRepo };
+  return { controller, commandBus, eapReferralRepo, wellnessProgramRepo, mentalHealthCaseRepo };
 }
 
 describe('WellbeingEapController', () => {
@@ -150,5 +150,17 @@ describe('WellbeingEapController', () => {
         providerId: new Uuid(providerId),
       },
     }));
+  });
+
+  it('lists wellbeing records by the authenticated tenant only', async () => {
+    const { controller, eapReferralRepo, wellnessProgramRepo, mentalHealthCaseRepo } = makeController();
+    (eapReferralRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (wellnessProgramRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(workerId) }]);
+    (mentalHealthCaseRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(mentalHealthCaseId) }]);
+
+    await expect(controller.getReferralsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.getProgramsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getMhCasesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.getProgramsByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
   });
 });

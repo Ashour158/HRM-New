@@ -40,18 +40,22 @@ function makeController() {
   const useCaseRepo = {
     findById: vi.fn(),
     findByStatus: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as HrAiUseCaseRepository;
   const modelRunRepo = {
     findById: vi.fn(),
     findByUseCaseId: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as HrAiModelRunRepository;
   const biasTestRepo = {
     findById: vi.fn(),
     findByUseCaseId: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as HrAiBiasTestRepository;
   const killSwitchRepo = {
     findById: vi.fn(),
     findByUseCaseId: vi.fn(),
+    findByTenant: vi.fn(),
   } as unknown as HrAiKillSwitchRepository;
 
   const controller = new HrAiGovernanceController(
@@ -62,7 +66,7 @@ function makeController() {
     killSwitchRepo,
   );
 
-  return { controller, commandBus, killSwitchRepo };
+  return { controller, commandBus, useCaseRepo, modelRunRepo, biasTestRepo, killSwitchRepo };
 }
 
 describe('HrAiGovernanceController', () => {
@@ -176,5 +180,19 @@ describe('HrAiGovernanceController', () => {
         hrAiKillSwitchId: killSwitchId,
       },
     }));
+  });
+
+  it('lists HR AI governance records by the authenticated tenant only', async () => {
+    const { controller, useCaseRepo, modelRunRepo, biasTestRepo, killSwitchRepo } = makeController();
+    (useCaseRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(useCaseId) }]);
+    (modelRunRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(modelRunId) }]);
+    (biasTestRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (killSwitchRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: new Uuid(killSwitchId) }]);
+
+    await expect(controller.listHrAiUseCasesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.listHrAiModelRunsByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.listHrAiBiasTestsByTenant(tenantId, request())).resolves.toEqual([]);
+    await expect(controller.listHrAiKillSwitchesByTenant(tenantId, request())).resolves.toHaveLength(1);
+    await expect(controller.listHrAiUseCasesByTenant('00000000-0000-0000-0000-000000000999', request())).rejects.toThrow('Tenant mismatch');
   });
 });

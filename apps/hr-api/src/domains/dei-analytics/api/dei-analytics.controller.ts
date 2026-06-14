@@ -45,6 +45,14 @@ export class DeiAnalyticsController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'DEI Analytics');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   @Post('dei-reports')
   async createDeiReport(@Body(new ZodValidationPipe(CreateDeiReportDtoSchema)) dto: dtos.CreateDeiReportDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateDeiReport', 'DeiReport', dto, req));
@@ -69,6 +77,10 @@ export class DeiAnalyticsController {
   }
   @Get('dei-reports')
   async listDeiReports(@Query('status') status?: string) { return this.deiReportRepo.findByStatus(status ?? 'DRAFT'); }
+  @Get('dei-reports/tenant/:tenantId')
+  async listDeiReportsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.deiReportRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
   @Get('dei-reports/:id')
   async getDeiReport(@Param('id') id: string) { return this.deiReportRepo.findById(new Uuid(id)); }
 
@@ -96,6 +108,10 @@ export class DeiAnalyticsController {
   }
   @Get('pay-gap-reports')
   async listPayGapReports(@Query('status') status?: string) { return this.payGapReportRepo.findByStatus(status ?? 'DRAFT'); }
+  @Get('pay-gap-reports/tenant/:tenantId')
+  async listPayGapReportsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.payGapReportRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
   @Get('pay-gap-reports/:id')
   async getPayGapReport(@Param('id') id: string) { return this.payGapReportRepo.findById(new Uuid(id)); }
 
@@ -129,6 +145,10 @@ export class DeiAnalyticsController {
   }
   @Get('pay-equity-reviews')
   async listPayEquityReviews(@Query('status') status?: string) { return this.payEquityReviewRepo.findByStatus(status ?? 'PLANNED'); }
+  @Get('pay-equity-reviews/tenant/:tenantId')
+  async listPayEquityReviewsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.payEquityReviewRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
   @Get('pay-equity-reviews/:id')
   async getPayEquityReview(@Param('id') id: string) { return this.payEquityReviewRepo.findById(new Uuid(id)); }
 
@@ -150,6 +170,10 @@ export class DeiAnalyticsController {
   }
   @Get('attrition-segment-reports')
   async listAttritionSegmentReports(@Query('status') status?: string) { return this.attritionSegmentReportRepo.findByStatus(status ?? 'DRAFT'); }
+  @Get('attrition-segment-reports/tenant/:tenantId')
+  async listAttritionSegmentReportsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.attritionSegmentReportRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
   @Get('attrition-segment-reports/:id')
   async getAttritionSegmentReport(@Param('id') id: string) { return this.attritionSegmentReportRepo.findById(new Uuid(id)); }
 }

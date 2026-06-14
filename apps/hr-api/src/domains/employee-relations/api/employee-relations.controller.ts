@@ -57,6 +57,14 @@ export class EmployeeRelationsController {
     };
   }
 
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Employee Relations');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
+  }
+
   /* Employee Relations Cases */
   @Post('cases')
   async createErCase(@Body(new ZodValidationPipe(CreateEmployeeRelationsCaseDtoSchema)) dto: dtos.CreateEmployeeRelationsCaseDto, @Req() req: Request) {
@@ -108,6 +116,11 @@ export class EmployeeRelationsController {
     return this.erCaseRepo.findBySubjectWorker(new Uuid(workerId));
   }
 
+  @Get('cases/tenant/:tenantId')
+  async getErCasesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.erCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   /* ER Investigations */
   @Post('investigations')
   async createErInvestigation(@Body(new ZodValidationPipe(CreateErInvestigationDtoSchema)) dto: dtos.CreateErInvestigationDto, @Req() req: Request) {
@@ -138,6 +151,11 @@ export class EmployeeRelationsController {
   @Get('investigations/:id')
   async getErInvestigation(@Param('id') id: string) {
     return this.erInvestigationRepo.findById(new Uuid(id));
+  }
+
+  @Get('investigations/tenant/:tenantId')
+  async getErInvestigationsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.erInvestigationRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Disciplinary Actions */
@@ -186,6 +204,11 @@ export class EmployeeRelationsController {
     return this.disciplinaryActionRepo.findById(new Uuid(id));
   }
 
+  @Get('disciplinary-actions/tenant/:tenantId')
+  async getDisciplinaryActionsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.disciplinaryActionRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   /* Accommodation Cases */
   @Post('accommodation-cases')
   async createAccommodationCase(@Body(new ZodValidationPipe(CreateAccommodationCaseDtoSchema)) dto: dtos.CreateAccommodationCaseDto, @Req() req: Request) {
@@ -230,5 +253,10 @@ export class EmployeeRelationsController {
   @Get('accommodation-cases/:id')
   async getAccommodationCase(@Param('id') id: string) {
     return this.accommodationCaseRepo.findById(new Uuid(id));
+  }
+
+  @Get('accommodation-cases/tenant/:tenantId')
+  async getAccommodationCasesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.accommodationCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

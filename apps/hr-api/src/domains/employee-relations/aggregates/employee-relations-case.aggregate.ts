@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification SPECIAL_CATEGORY - ER allegations, investigation evidence, disciplinary outcomes, accommodation, and worker-linked case fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type EmployeeRelationsCaseStatus = 'OPEN' | 'UNDER_REVIEW' | 'INVESTIGATION' | 'DISCIPLINARY' | 'RESOLVED' | 'CLOSED' | 'ESCALATED';
@@ -54,7 +57,7 @@ export class EmployeeRelationsCaseClosed extends DomainEvent {
   }
 }
 
-/** EmployeeRelationsCase aggregate. Restricted access — case subject/manager cannot be investigation owner (SoD). */
+/** EmployeeRelationsCase aggregate. Restricted access - case subject/manager cannot be investigation owner (SoD). */
 export class EmployeeRelationsCase extends AggregateRoot {
   private _aggregateVersion = 0;
   readonly tenantId: Uuid;

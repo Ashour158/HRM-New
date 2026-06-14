@@ -162,6 +162,27 @@ describe('HrServiceDeliveryController employee services', () => {
     expect(serviceCaseRepo.findByTenant).not.toHaveBeenCalled();
   });
 
+  it('lists the tenant HR service case queue for service admins only inside the request tenant', async () => {
+    const { instance, serviceCaseRepo } = controller();
+    const adminReq = {
+      ...request(),
+      actor: {
+        actorType: 'USER',
+        actorId: workerId,
+        roles: ['HR_ADMIN'],
+        permissions: [],
+        mfaAuthenticated: true,
+        email: 'hr.admin@example.com',
+      },
+    } as unknown as Request;
+
+    await instance.listHrServiceCasesForTenant(tenantId.value, adminReq);
+
+    expect(serviceCaseRepo.findByTenant).toHaveBeenCalledWith(tenantId);
+    await expect(instance.listHrServiceCasesForTenant(otherWorkerId.value, adminReq)).rejects.toThrow('Tenant mismatch');
+    await expect(instance.listHrServiceCasesForTenant(tenantId.value, request())).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('rejects employee attempts to mutate HR service catalog items', async () => {
     const { instance, commandBus } = controller();
 
