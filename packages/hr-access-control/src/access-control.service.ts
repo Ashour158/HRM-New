@@ -264,6 +264,24 @@ export class AccessControlService {
       return ['REPORT_READ'];
     }
 
+    // Domains that follow the <DOMAIN>_READ / <DOMAIN>_WRITE permission convention.
+    // Reads require _READ; every other transition requires _WRITE (finer-grained
+    // approve separation is enforced by the SoD matrix, not the permission code).
+    const writeReadPrefixes = [
+      'SKILLS_TALENT', 'GLOBAL_HR', 'EMPLOYEE_RELATIONS', 'ENGAGEMENT',
+      'CONTINGENT_WORKFORCE', 'UNION_LABOR', 'WELLBEING_EAP', 'HR_AI_GOVERNANCE',
+      'DEI_ANALYTICS',
+    ];
+    if (writeReadPrefixes.includes(prefix)) {
+      if (
+        commandName.includes('GET') || commandName.includes('READ') ||
+        commandName.includes('FIND') || commandName.includes('LIST')
+      ) {
+        return [`${prefix}_READ`];
+      }
+      return [`${prefix}_WRITE`];
+    }
+
     switch (command.commandType) {
       case 'CREATE':
         perms.push(`${prefix}_CREATE`);
@@ -373,6 +391,51 @@ export class AccessControlService {
       Report: 'REPORT',
       Dashboard: 'REPORT',
       Analytics: 'REPORT',
+      // Skills & talent
+      SkillProfile: 'SKILLS_TALENT',
+      TalentPool: 'SKILLS_TALENT',
+      CareerPath: 'SKILLS_TALENT',
+      SuccessionPlan: 'SKILLS_TALENT',
+      // Global HR
+      CountryRuleSet: 'GLOBAL_HR',
+      InternationalAssignment: 'GLOBAL_HR',
+      StatutoryLeaveType: 'GLOBAL_HR',
+      WorkAuthorizationCase: 'GLOBAL_HR',
+      WorksCouncilConsultation: 'GLOBAL_HR',
+      // Employee relations
+      EmployeeRelationsCase: 'EMPLOYEE_RELATIONS',
+      ErInvestigation: 'EMPLOYEE_RELATIONS',
+      DisciplinaryAction: 'EMPLOYEE_RELATIONS',
+      AccommodationCase: 'EMPLOYEE_RELATIONS',
+      // Engagement
+      EngagementSurvey: 'ENGAGEMENT',
+      SurveyResponse: 'ENGAGEMENT',
+      RecognitionProgram: 'ENGAGEMENT',
+      RecognitionRecord: 'ENGAGEMENT',
+      Feedback360Cycle: 'ENGAGEMENT',
+      // Contingent workforce
+      ContingentWorkerAssignment: 'CONTINGENT_WORKFORCE',
+      ContractorRateCard: 'CONTINGENT_WORKFORCE',
+      MisclassificationAssessment: 'CONTINGENT_WORKFORCE',
+      SowEngagement: 'CONTINGENT_WORKFORCE',
+      // Union & labor
+      UnionRecognition: 'UNION_LABOR',
+      CollectiveBargainingSession: 'UNION_LABOR',
+      Grievance: 'UNION_LABOR',
+      // Wellbeing & EAP
+      WellnessProgram: 'WELLBEING_EAP',
+      EapReferral: 'WELLBEING_EAP',
+      MentalHealthCase: 'WELLBEING_EAP',
+      // HR AI governance
+      HrAiUseCase: 'HR_AI_GOVERNANCE',
+      HrAiBiasTest: 'HR_AI_GOVERNANCE',
+      HrAiModelRun: 'HR_AI_GOVERNANCE',
+      HrAiKillSwitch: 'HR_AI_GOVERNANCE',
+      // DEI analytics
+      DeiReport: 'DEI_ANALYTICS',
+      PayGapReport: 'DEI_ANALYTICS',
+      PayEquityReview: 'DEI_ANALYTICS',
+      AttritionSegmentReport: 'DEI_ANALYTICS',
     };
     return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }
