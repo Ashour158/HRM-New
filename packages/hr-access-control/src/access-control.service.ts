@@ -264,9 +264,9 @@ export class AccessControlService {
       return ['REPORT_READ'];
     }
 
-    // Domains that follow the <DOMAIN>_READ / <DOMAIN>_WRITE permission convention.
-    // Reads require _READ; every other transition requires _WRITE (finer-grained
-    // approve separation is enforced by the SoD matrix, not the permission code).
+    // Domains that follow the <DOMAIN>_READ / <DOMAIN>_WRITE / <DOMAIN>_APPROVE convention.
+    // Approval-like commands need a separate permission so maker/checker is enforced
+    // before the SoD matrix evaluates the transition.
     const writeReadPrefixes = [
       'SKILLS_TALENT', 'GLOBAL_HR', 'EMPLOYEE_RELATIONS', 'ENGAGEMENT',
       'CONTINGENT_WORKFORCE', 'UNION_LABOR', 'WELLBEING_EAP', 'HR_AI_GOVERNANCE',
@@ -278,6 +278,9 @@ export class AccessControlService {
         commandName.includes('FIND') || commandName.includes('LIST')
       ) {
         return [`${prefix}_READ`];
+      }
+      if (commandName.includes('APPROVE') || commandName.includes('REJECT') || commandName.includes('UPHOLD')) {
+        return [`${prefix}_APPROVE`];
       }
       return [`${prefix}_WRITE`];
     }
@@ -335,6 +338,10 @@ export class AccessControlService {
       PayrollResultLine: 'PAYROLL',
       PayrollRun: 'PAYROLL',
       Payslip: 'PAYROLL',
+      PayrollPaymentBatch: 'PAYROLL',
+      PayrollGlPosting: 'PAYROLL',
+      PayrollPayslipArtifact: 'PAYROLL',
+      PayrollExportJob: 'PAYROLL',
       BenefitsProgram: 'BENEFITS',
       BenefitsEnrollment: 'BENEFITS',
       BenefitsLifeEvent: 'BENEFITS',
@@ -348,6 +355,9 @@ export class AccessControlService {
       CompensationBand: 'COMPENSATION',
       CompensationChange: 'COMPENSATION',
       CompensationPlan: 'COMPENSATION',
+      PayScale: 'COMPENSATION',
+      VariableCompPlan: 'COMPENSATION',
+      TotalCompensationStatement: 'COMPENSATION',
       BonusCycle: 'COMPENSATION',
       EquityGrant: 'COMPENSATION',
       Requisition: 'RECRUITING',
@@ -380,6 +390,7 @@ export class AccessControlService {
       PerformanceImprovementPlan: 'PERFORMANCE',
       LearningCourse: 'LEARNING',
       LearningAssignment: 'LEARNING',
+      LearningContentPackage: 'LEARNING',
       Certification: 'LEARNING',
       Course: 'LEARNING',
       PolicyDocument: 'COMPLIANCE',
@@ -391,6 +402,10 @@ export class AccessControlService {
       Report: 'REPORT',
       Dashboard: 'REPORT',
       Analytics: 'REPORT',
+      ReportDefinition: 'REPORT',
+      ReportExecution: 'REPORT',
+      ReportSchedule: 'REPORT',
+      CalculatedField: 'REPORT',
       // Skills & talent
       SkillProfile: 'SKILLS_TALENT',
       TalentPool: 'SKILLS_TALENT',
