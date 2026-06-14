@@ -155,6 +155,17 @@ describe('migration coverage', () => {
     expect(migrationTextContains(migrationName, 'recognition_records_program_fk')).toBe(true);
   });
 
+  it('contains global-hr tables required by global-hr repositories', () => {
+    const migrationName = '20260613000016000_global_hr_country_and_authorization_tables.js';
+
+    expect(existsSync(join(migrationsDir, migrationName))).toBe(true);
+    expect(migrationContains(migrationName, 'country_rule_sets')).toBe(true);
+    expect(migrationContains(migrationName, 'statutory_leave_types')).toBe(true);
+    expect(migrationContains(migrationName, 'work_authorization_cases')).toBe(true);
+    expect(migrationContains(migrationName, 'works_council_consultations')).toBe(true);
+    expect(migrationTextContains(migrationName, "schema: 'hr_global_hr'")).toBe(true);
+  });
+
   it('contains learning tables required by learning repositories', () => {
     const migrationName = '20260613000002000_learning_tables.js';
 
