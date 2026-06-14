@@ -19,7 +19,16 @@ export class CreateHrServiceCatalogItemHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as { serviceCode: string; serviceName: string; description: string; category: string; slaHours: number; fulfillmentProcess: string };
     const ar = HrServiceCatalogItem.create(
-      { id: Uuid.generate(), tenantId: command.tenantId, ...payload },
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        serviceCode: payload.serviceCode,
+        serviceName: payload.serviceName,
+        description: payload.description,
+        category: payload.category,
+        slaHours: payload.slaHours,
+        fulfillmentProcess: payload.fulfillmentProcess,
+      },
       command.correlationId,
     );
     await this.repo.save(ar);

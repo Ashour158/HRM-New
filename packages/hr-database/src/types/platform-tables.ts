@@ -1730,6 +1730,7 @@ export interface EmployeeRelationsCasesTable {
   case_type: string;
   status: string;
   opened_at: Date;
+  opened_by: string;
   assigned_to: string | null;
   aggregate_version: number;
   created_at: Date;

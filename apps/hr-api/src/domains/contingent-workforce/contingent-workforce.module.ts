@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { ContingentWorkforceController } from './api/contingent-workforce.controller.js';
 import { ContingentWorkforceEventsPublisher } from './events/contingent-workforce-events.publisher.js';
@@ -65,7 +65,7 @@ const REPOS = [
   exports: REPOS,
 })
 export class ContingentWorkforceModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit() {
     registerContingentWorkerAssignmentFsm(this.fsm);

@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toUuid } from '../../common/uuid-normalizer.js';
 import { AccommodationCase } from '../aggregates/accommodation-case.aggregate.js';
 import { AccommodationCaseRepository } from '../repositories/accommodation-case.repository.js';
 import { EmployeeRelationsEventsPublisher } from '../events/employee-relations-events.publisher.js';
@@ -18,7 +19,7 @@ export class CreateAccommodationCaseHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      workerId: Uuid;
+      workerId: Uuid | string;
       requestType: string;
       description: string;
       medicalDocumentation?: string;
@@ -28,7 +29,11 @@ export class CreateAccommodationCaseHandler {
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        ...payload,
+        workerId: toUuid(payload.workerId),
+        requestType: payload.requestType,
+        description: payload.description,
+        medicalDocumentation: payload.medicalDocumentation,
+        accommodationDetails: payload.accommodationDetails,
       },
       command.correlationId,
     );

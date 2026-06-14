@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
@@ -64,7 +64,7 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
   exports: [WorkerRepository, EmploymentRelationshipRepository, JobAssignmentRepository, PersonalDataRecordRepository],
 })
 export class HrCoreModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerWorkerProfileFsm(this.fsm);

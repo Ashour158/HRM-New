@@ -1,9 +1,9 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 
 @Injectable()
 export class AttritionSegmentReportFsmRegistrar implements OnModuleInit {
-  constructor(private readonly fsmFramework: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsmFramework: FsmFramework) {}
   onModuleInit(): void {
     this.fsmFramework.register({
       aggregateType: 'AttritionSegmentReport',

@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { WellbeingEapController } from './api/wellbeing-eap.controller.js';
 import { WellbeingEapEventsPublisher } from './events/wellbeing-eap-events.publisher.js';
@@ -56,7 +56,7 @@ const REPOS = [EapReferralRepository, WellnessProgramRepository, MentalHealthCas
   exports: REPOS,
 })
 export class WellbeingEapModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit() {
     registerEapReferralFsm(this.fsm);

@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toDate, toUuid } from '../../common/uuid-normalizer.js';
 import { HrCaseSlaInstance } from '../aggregates/hr-case-sla-instance.aggregate.js';
 import { HrCaseSlaInstanceRepository } from '../repositories/hr-case-sla-instance.repository.js';
 import { HrServiceDeliveryEventsPublisher } from '../events/hr-service-delivery-events.publisher.js';
@@ -17,9 +18,15 @@ export class CreateHrCaseSlaInstanceHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { caseId: Uuid; slaDefinitionId: Uuid; deadlineAt: Date };
+    const payload = command.payload as { caseId: Uuid | string; slaDefinitionId: Uuid | string; deadlineAt: Date | string };
     const ar = HrCaseSlaInstance.create(
-      { id: Uuid.generate(), tenantId: command.tenantId, ...payload },
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        caseId: toUuid(payload.caseId),
+        slaDefinitionId: toUuid(payload.slaDefinitionId),
+        deadlineAt: toDate(payload.deadlineAt),
+      },
       command.correlationId,
     );
     await this.repo.save(ar);

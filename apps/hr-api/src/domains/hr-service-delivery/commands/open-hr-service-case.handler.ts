@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toOptionalDate, toOptionalUuid, toUuid } from '../../common/uuid-normalizer.js';
 import { HrServiceCase } from '../aggregates/hr-service-case.aggregate.js';
 import { HrServiceCaseRepository } from '../repositories/hr-service-case.repository.js';
 import { HrServiceDeliveryEventsPublisher } from '../events/hr-service-delivery-events.publisher.js';
@@ -30,20 +31,13 @@ export class OpenHrServiceCaseHandler {
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        ...payload,
-        requesterWorkerId: payload.requesterWorkerId instanceof Uuid
-          ? payload.requesterWorkerId
-          : new Uuid(payload.requesterWorkerId),
-        assignedTo: payload.assignedTo
-          ? payload.assignedTo instanceof Uuid
-            ? payload.assignedTo
-            : new Uuid(payload.assignedTo)
-          : undefined,
-        slaDeadline: payload.slaDeadline
-          ? payload.slaDeadline instanceof Date
-            ? payload.slaDeadline
-            : new Date(payload.slaDeadline)
-          : undefined,
+        caseNumber: payload.caseNumber,
+        requesterWorkerId: toUuid(payload.requesterWorkerId),
+        caseType: payload.caseType,
+        priority: payload.priority,
+        description: payload.description,
+        assignedTo: toOptionalUuid(payload.assignedTo),
+        slaDeadline: toOptionalDate(payload.slaDeadline),
       },
       command.correlationId,
     );

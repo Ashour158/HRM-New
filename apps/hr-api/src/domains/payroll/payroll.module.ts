@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
@@ -141,7 +141,7 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
   ],
 })
 export class PayrollModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerPayrollCycleFsm(this.fsm);

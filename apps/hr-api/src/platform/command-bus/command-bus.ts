@@ -213,7 +213,7 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   Certification: aggregateLoader('certifications'),
   EngagementSurvey: aggregateLoader('engagement_surveys'),
   SurveyResponse: aggregateLoader('survey_responses'),
-  Feedback360Cycle: aggregateLoader('feedback_360_cycles'),
+  Feedback360Cycle: aggregateLoader('hr_engagement.feedback_360_cycles'),
   RecognitionProgram: aggregateLoader('recognition_programs'),
   RecognitionRecord: aggregateLoader('recognition_records'),
   SkillProfile: aggregateLoader('skill_profiles'),
@@ -358,13 +358,13 @@ export class CommandBus implements OnModuleInit {
   private readonly tenantValidator: TenantValidator;
 
   constructor(
-    private readonly discovery: DiscoveryService,
-    private readonly reflector: Reflector,
-    private readonly redisCache: RedisCacheService,
-    private readonly accessControl: AccessControlService,
-    private readonly fsmFramework: FsmFramework,
-    private readonly transitionLedger: TransitionLedgerService,
-    _eventBus: EventBus,
+    @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(RedisCacheService) private readonly redisCache: RedisCacheService,
+    @Inject(AccessControlService) private readonly accessControl: AccessControlService,
+    @Inject(FsmFramework) private readonly fsmFramework: FsmFramework,
+    @Inject(TransitionLedgerService) private readonly transitionLedger: TransitionLedgerService,
+    @Inject(EventBus) _eventBus: EventBus,
     @Optional() @Inject(HcmSetupService) private readonly hcmSetup?: Pick<HcmSetupService, 'getSetup'>,
   ) {
     this.db = createKyselyInstance(getPool());
@@ -1490,13 +1490,13 @@ export class CommandBus implements OnModuleInit {
       history: [],
     };
     const allowed = this.fsmFramework.getAllowedActions(fsmInstance);
-    const action = this.inferActionFromCommand(command.commandName);
-    if (!allowed.includes(action)) {
+    const actionCandidates = this.inferFsmActionCandidates(command.commandName, command.aggregateType);
+    if (!actionCandidates.some((action) => allowed.includes(action))) {
       throw this.makeError(
         command,
         CommandPipelineStep.EVALUATE_WORKFLOW_GUARD_EXPECTED_STATE_VERSION_EFFECTIVE_DATE,
         'FSM_TRANSITION_NOT_ALLOWED',
-        `Action ${action} not allowed from state ${fsmInstance.currentState}`,
+        `Action ${actionCandidates[0]} not allowed from state ${fsmInstance.currentState}`,
         false,
       );
     }
@@ -1749,6 +1749,16 @@ export class CommandBus implements OnModuleInit {
 
   private inferActionFromCommand(commandName: string): string {
     return commandName.split('.').pop() ?? commandName;
+  }
+
+  private inferFsmActionCandidates(commandName: string, aggregateType: string): string[] {
+    const action = this.inferActionFromCommand(commandName);
+    const candidates = [action];
+    const normalizedAggregate = aggregateType.charAt(0).toUpperCase() + aggregateType.slice(1);
+    if (action.endsWith(normalizedAggregate) && action.length > normalizedAggregate.length) {
+      candidates.push(action.slice(0, -normalizedAggregate.length));
+    }
+    return [...new Set(candidates)];
   }
 
   private inferEventNameFromCommand(commandName: string, aggregateType: string): string {

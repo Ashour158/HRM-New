@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { AllHrTopics, type HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus, type EventHandler } from '../event-bus/event-bus.js';
 import { InboxConsumer } from '../outbox-inbox/inbox-consumer.js';
@@ -12,9 +12,9 @@ export class EventNotificationBridge implements OnModuleInit {
   private readonly logger = new Logger(EventNotificationBridge.name);
 
   constructor(
-    private readonly eventBus: EventBus,
-    private readonly inboxConsumer: InboxConsumer,
-    private readonly notificationService: PlatformNotificationService,
+    @Inject(EventBus) private readonly eventBus: EventBus,
+    @Inject(InboxConsumer) private readonly inboxConsumer: InboxConsumer,
+    @Inject(PlatformNotificationService) private readonly notificationService: PlatformNotificationService,
   ) {}
 
   onModuleInit(): void {

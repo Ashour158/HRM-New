@@ -5,6 +5,19 @@ import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { HrKnowledgeArticle, type HrKnowledgeArticleStatus } from '../aggregates/hr-knowledge-article.aggregate.js';
 
+function stringArrayFromJsonb(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 @Injectable()
 export class HrKnowledgeArticleRepository extends BaseRepository<'hr_knowledge_articles', HrKnowledgeArticle> {
   protected readonly tableName = 'hr_knowledge_articles' as const;
@@ -42,7 +55,7 @@ export class HrKnowledgeArticleRepository extends BaseRepository<'hr_knowledge_a
       title: row.title,
       content: typeof row.content === 'string' ? row.content : '',
       category: row.category,
-      tags: Array.isArray(row.tags) ? (row.tags as string[]) : [],
+      tags: stringArrayFromJsonb(row.tags),
       status: row.status as HrKnowledgeArticleStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -55,9 +68,9 @@ export class HrKnowledgeArticleRepository extends BaseRepository<'hr_knowledge_a
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       title: entity.title,
-      content: entity.content,
+      content: JSON.stringify(entity.content),
       category: entity.category,
-      tags: entity.tags ?? [],
+      tags: JSON.stringify(entity.tags ?? []),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

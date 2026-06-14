@@ -5,9 +5,31 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { Feedback360Cycle, type Feedback360CycleStatus } from '../aggregates/feedback-360-cycle.aggregate.js';
 
+function parseStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseArray(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 @Injectable()
 export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cycles', Feedback360Cycle> {
-  protected readonly tableName = 'feedback_360_cycles' as const;
+  protected readonly tableName = 'hr_engagement.feedback_360_cycles' as unknown as 'feedback_360_cycles';
 
   constructor() {
     super(createKyselyInstance(getPool()));
@@ -53,9 +75,9 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       subjectWorkerId: new Uuid(row.subject_worker_id),
-      reviewers: (row.reviewers as string[]) ?? [],
-      competencies: (row.competencies as string[]) ?? [],
-      responses: (row.responses as any[]) ?? [],
+      reviewers: parseStringArray(row.reviewers),
+      competencies: parseStringArray(row.competencies),
+      responses: parseArray(row.responses) as any[],
       startDate: row.start_date ?? undefined,
       endDate: row.end_date ?? undefined,
       status: (row.status as Feedback360CycleStatus) ?? 'DRAFT',
@@ -70,9 +92,9 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       subject_worker_id: entity.subjectWorkerId.value,
-      reviewers: entity.reviewers,
-      competencies: entity.competencies,
-      responses: entity.responses,
+      reviewers: JSON.stringify(entity.reviewers),
+      competencies: JSON.stringify(entity.competencies),
+      responses: JSON.stringify(entity.responses),
       start_date: entity.startDate ?? null,
       end_date: entity.endDate ?? null,
       status: entity.status,

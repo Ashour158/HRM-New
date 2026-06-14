@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { EngagementController } from './api/engagement.controller.js';
@@ -72,7 +72,7 @@ import { registerRecognitionRecordFsm } from './fsm/recognition-record.fsm.js';
   exports: [EngagementSurveyRepository, SurveyResponseRepository, Feedback360CycleRepository, RecognitionProgramRepository, RecognitionRecordRepository],
 })
 export class EngagementModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerEngagementSurveyFsm(this.fsm);

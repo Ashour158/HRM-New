@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
@@ -71,7 +71,7 @@ import { registerHrCaseSlaInstanceFsm } from './fsm/hr-case-sla-instance.fsm.js'
   exports: [HrServiceCaseRepository, HrCaseTaskRepository, HrKnowledgeArticleRepository, HrServiceCatalogItemRepository, HrCaseSlaInstanceRepository],
 })
 export class HrServiceDeliveryModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerHrServiceCaseFsm(this.fsm);

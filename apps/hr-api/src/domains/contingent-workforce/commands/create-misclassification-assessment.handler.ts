@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toDate, toStringArray, toUuid } from '../../common/uuid-normalizer.js';
 import { MisclassificationAssessment } from '../aggregates/misclassification-assessment.aggregate.js';
 import { MisclassificationAssessmentRepository } from '../repositories/misclassification-assessment.repository.js';
 import { ContingentWorkforceEventsPublisher } from '../events/contingent-workforce-events.publisher.js';
@@ -17,8 +18,15 @@ export class CreateMisclassificationAssessmentHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { workerId: Uuid; assessmentDate: Date; riskScore?: number; riskFactors?: string[] };
-    const ar = MisclassificationAssessment.create({ id: Uuid.generate(), tenantId: command.tenantId, ...payload }, command.correlationId);
+    const payload = command.payload as { workerId: Uuid | string; assessmentDate: Date | string; riskScore?: number; riskFactors?: string[] };
+    const ar = MisclassificationAssessment.create({
+      id: Uuid.generate(),
+      tenantId: command.tenantId,
+      workerId: toUuid(payload.workerId),
+      assessmentDate: toDate(payload.assessmentDate),
+      riskScore: payload.riskScore,
+      riskFactors: toStringArray(payload.riskFactors),
+    }, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {

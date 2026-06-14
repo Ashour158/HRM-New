@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toOptionalUuid, toUuid } from '../../common/uuid-normalizer.js';
 import { MentalHealthCase } from '../aggregates/mental-health-case.aggregate.js';
 import { MentalHealthCaseRepository } from '../repositories/mental-health-case.repository.js';
 import { WellbeingEapEventsPublisher } from '../events/wellbeing-eap-events.publisher.js';
@@ -17,8 +18,15 @@ export class CreateMentalHealthCaseHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { workerId: Uuid; severity: string; providerId?: Uuid; notes?: string };
-    const ar = MentalHealthCase.create({ id: Uuid.generate(), tenantId: command.tenantId, ...payload }, command.correlationId);
+    const payload = command.payload as { workerId: Uuid | string; severity: string; providerId?: Uuid | string; notes?: string };
+    const ar = MentalHealthCase.create({
+      id: Uuid.generate(),
+      tenantId: command.tenantId,
+      workerId: toUuid(payload.workerId),
+      severity: payload.severity,
+      providerId: toOptionalUuid(payload.providerId),
+      notes: payload.notes,
+    }, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {

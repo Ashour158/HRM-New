@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toOptionalDate, toUuid } from '../../common/uuid-normalizer.js';
 import { UnionRecognition } from '../aggregates/union-recognition.aggregate.js';
 import { UnionRecognitionRepository } from '../repositories/union-recognition.repository.js';
 import { UnionLaborEventsPublisher } from '../events/union-labor-events.publisher.js';
@@ -17,8 +18,16 @@ export class CreateUnionRecognitionHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { unionName: string; bargainingUnitId: Uuid; effectiveDate?: Date; expirationDate?: Date; agreementDocument?: string };
-    const ar = UnionRecognition.create({ id: Uuid.generate(), tenantId: command.tenantId, ...payload }, command.correlationId);
+    const payload = command.payload as { unionName: string; bargainingUnitId: Uuid | string; effectiveDate?: Date | string; expirationDate?: Date | string; agreementDocument?: string };
+    const ar = UnionRecognition.create({
+      id: Uuid.generate(),
+      tenantId: command.tenantId,
+      unionName: payload.unionName,
+      bargainingUnitId: toUuid(payload.bargainingUnitId),
+      effectiveDate: toOptionalDate(payload.effectiveDate),
+      expirationDate: toOptionalDate(payload.expirationDate),
+      agreementDocument: payload.agreementDocument,
+    }, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {
