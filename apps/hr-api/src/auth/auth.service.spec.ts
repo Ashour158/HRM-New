@@ -129,6 +129,27 @@ describe('AuthService persisted users', () => {
     expect(refreshed.token).toBeTruthy();
   });
 
+  it('detects refresh-token reuse and revokes the session', async () => {
+    const sharedSessions = new InMemorySessionStore();
+    const service = AuthService.createForTest({
+      users: new InMemoryUsersRepository(await demoUsers()),
+      sessions: sharedSessions,
+      tokens: new InMemoryTokenRepository(),
+      config: testConfig,
+    });
+    const user = await service.validateCredentials('employee@example.com', 'Password123!', tenantId);
+    const credentials = await service.createSession(user);
+
+    // First refresh rotates the token id; the original refresh token is now superseded.
+    const rotated = await service.refreshSession(credentials.refreshToken);
+    expect(rotated.refreshToken).not.toBe(credentials.refreshToken);
+
+    // Replaying the original (stolen) refresh token must be rejected as reuse...
+    await expect(service.refreshSession(credentials.refreshToken)).rejects.toThrow(/reuse/i);
+    // ...and the whole session is revoked, so even the rotated token no longer works.
+    await expect(service.refreshSession(rotated.refreshToken)).rejects.toThrow();
+  });
+
   it('provisions and verifies real TOTP MFA', async () => {
     const { service, users } = await buildService();
     const user = await service.validateCredentials('employee@example.com', 'Password123!', tenantId);

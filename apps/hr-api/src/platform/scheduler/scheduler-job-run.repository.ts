@@ -11,6 +11,10 @@ import type {
 
 type SchedulerJobRunRow = Selectable<Database['scheduler_job_runs']>;
 
+// A RUNNING row older than this is treated as a crashed/abandoned run and reclaimed,
+// so a runner that died mid-job cannot permanently block the (tenant, job, period).
+const STALE_RUNNING_MS = 30 * 60_000;
+
 @Injectable()
 export class SchedulerJobRunRepository implements SchedulerJobRunRepositoryPort {
   private readonly db: Kysely<Database>;
@@ -61,10 +65,17 @@ export class SchedulerJobRunRepository implements SchedulerJobRunRepositoryPort 
       return { acquired: false, run: toRecord(existing), skipReason: 'ALREADY_SUCCEEDED' };
     }
 
-    if (existing.status === 'RUNNING') {
+    const existingStartedAt = existing.started_at ? new Date(existing.started_at).getTime() : 0;
+    const runningIsStale = existing.status === 'RUNNING'
+      && input.startedAt.getTime() - existingStartedAt > STALE_RUNNING_MS;
+
+    if (existing.status === 'RUNNING' && !runningIsStale) {
       return { acquired: false, run: toRecord(existing), skipReason: 'RUNNING' };
     }
 
+    // Reclaim FAILED/SKIPPED runs (retry) and stale RUNNING runs (crashed runner).
+    // The status guard makes reclamation atomic under concurrent runners: only one
+    // updater matches the pre-reclaim status + started_at, the rest fall through to skip.
     const retried = await this.db
       .updateTable('scheduler_job_runs')
       .set({
@@ -79,7 +90,14 @@ export class SchedulerJobRunRepository implements SchedulerJobRunRepositoryPort 
       .where('tenant_id', '=', input.tenantId.value)
       .where('job_name', '=', input.jobName)
       .where('period_key', '=', input.periodKey)
-      .where('status', 'not in', ['SUCCEEDED', 'RUNNING'])
+      .where((eb) => {
+        const reclaimable = [eb('status', 'not in', ['SUCCEEDED', 'RUNNING'])];
+        if (runningIsStale) {
+          // Pin to the observed started_at so only one concurrent runner reclaims it.
+          reclaimable.push(eb.and([eb('status', '=', 'RUNNING'), eb('started_at', '=', existing.started_at)]));
+        }
+        return eb.or(reclaimable);
+      })
       .returningAll()
       .executeTakeFirst();
 

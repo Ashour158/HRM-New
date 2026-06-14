@@ -34,13 +34,14 @@ export class AuthSessionStore implements AuthSessionStoreLike {
         tenant_id: session.tenantId,
         user_id: session.userId,
         mfa_authenticated: session.mfaAuthenticated,
-        metadata: {},
+        metadata: { refreshTokenId: session.refreshTokenId ?? null },
         expires_at: new Date(session.expiresAt),
         created_at: session.createdAt,
         updated_at: new Date().toISOString(),
       })
       .onConflict((oc) => oc.column('id').doUpdateSet({
         mfa_authenticated: session.mfaAuthenticated,
+        metadata: { refreshTokenId: session.refreshTokenId ?? null },
         expires_at: new Date(session.expiresAt),
         revoked_at: null,
         updated_at: new Date().toISOString(),
@@ -59,6 +60,7 @@ export class AuthSessionStore implements AuthSessionStoreLike {
       .where('id', '=', sessionId)
       .executeTakeFirst();
     if (!row || row.revoked_at || row.expires_at.getTime() <= Date.now()) return undefined;
+    const metadata = (row.metadata ?? {}) as { refreshTokenId?: string | null };
     const session: AuthSession = {
       sessionId: row.id,
       userId: row.user_id,
@@ -66,6 +68,7 @@ export class AuthSessionStore implements AuthSessionStoreLike {
       createdAt: row.created_at.toISOString(),
       expiresAt: row.expires_at.toISOString(),
       mfaAuthenticated: row.mfa_authenticated,
+      refreshTokenId: metadata.refreshTokenId ?? undefined,
     };
     await this.writeCache(session);
     return session;
@@ -76,6 +79,7 @@ export class AuthSessionStore implements AuthSessionStoreLike {
       .updateTable('auth_sessions')
       .set({
         mfa_authenticated: session.mfaAuthenticated,
+        metadata: { refreshTokenId: session.refreshTokenId ?? null },
         expires_at: new Date(session.expiresAt),
         updated_at: new Date().toISOString(),
       })

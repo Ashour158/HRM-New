@@ -35,6 +35,9 @@ export interface AuthSession {
   createdAt: string;
   expiresAt: string;
   mfaAuthenticated: boolean;
+  /** Current refresh-token id (jti). Rotated on every refresh; reuse of a prior id
+   *  signals token theft and revokes the session. */
+  refreshTokenId?: string;
 }
 
 export interface AuthTokenPair {
@@ -95,6 +98,7 @@ interface RefreshPayload {
   tenant_id: string;
   session_id: string;
   token_type: 'refresh';
+  rtid?: string;
 }
 
 class EmailTokenNotifier implements AuthTokenNotifierLike {
@@ -256,6 +260,7 @@ export class AuthService {
       createdAt: new Date().toISOString(),
       expiresAt: new Date(Date.now() + this.durationMs(this.config.refreshTokenExpiresIn)).toISOString(),
       mfaAuthenticated,
+      refreshTokenId: randomUUID(),
     };
     await this.sessions.create(session);
 
@@ -277,6 +282,13 @@ export class AuthService {
       throw new UnauthorizedException('Refresh session expired');
     }
 
+    // Refresh-token reuse detection: a valid-but-superseded token id means the token was
+    // rotated already (likely stolen/replayed). Revoke the whole session as a theft signal.
+    if (session.refreshTokenId && payload.rtid !== session.refreshTokenId) {
+      await this.sessions.revoke(session.sessionId);
+      throw new UnauthorizedException('Refresh token reuse detected');
+    }
+
     const storedUser = await this.users.findById(session.userId);
     if (
       !storedUser
@@ -291,6 +303,8 @@ export class AuthService {
     const rotatedSession: AuthSession = {
       ...session,
       expiresAt: new Date(Date.now() + this.durationMs(this.config.refreshTokenExpiresIn)).toISOString(),
+      // Rotate the refresh-token id so the just-presented token cannot be replayed.
+      refreshTokenId: randomUUID(),
     };
     await this.sessions.save(rotatedSession);
 
@@ -460,6 +474,7 @@ export class AuthService {
         tenant_id: user.tenantId,
         session_id: session.sessionId,
         token_type: 'refresh',
+        rtid: session.refreshTokenId,
       },
       this.config.jwtSecret,
       { expiresIn: this.config.refreshTokenExpiresIn as `${number}${'s'|'m'|'h'|'d'|'w'|'y'}` },
