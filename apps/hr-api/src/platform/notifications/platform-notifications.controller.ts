@@ -32,6 +32,14 @@ export class PlatformNotificationsController {
     return this.repository.markWorkerRead(tenantId, id, workerId);
   }
 
+  @Post('commands/read-all')
+  async markAllMyNotificationsRead(@Req() req: Request) {
+    const tenantId = this.getTenantId(req);
+    const workerId = await this.resolveActorWorkerId(req, tenantId);
+    const markedRead = await this.repository.markAllWorkerRead(tenantId, workerId);
+    return { markedRead };
+  }
+
   @Get('hr-operations')
   async getHrOperationsNotifications(@Req() req: Request) {
     this.assertHrNotificationRole(req);
