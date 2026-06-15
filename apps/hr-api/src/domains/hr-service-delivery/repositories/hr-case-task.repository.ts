@@ -23,6 +23,16 @@ export class HrCaseTaskRepository extends BaseRepository<'hr_case_tasks', HrCase
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_case_tasks']));
   }
 
+  async findByAssignee(assigneeId: Uuid): Promise<HrCaseTask[]> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('assigned_to', '=', assigneeId.value)
+      .orderBy('due_date', 'asc')
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_case_tasks']));
+  }
+
   async save(entity: HrCaseTask): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

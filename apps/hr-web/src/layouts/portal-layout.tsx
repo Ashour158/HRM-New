@@ -1,7 +1,10 @@
 import * as React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { resolvePortalSearchPath } from '@/lib/portal-search';
+import { buildCommandActions } from '@/lib/command-actions';
+import type { MeInbox } from '@/lib/me-inbox';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
@@ -86,7 +89,8 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
     description: 'Manage your profile, benefits, payslips, leave, and attendance',
     theme: 'employee',
     navItems: [
-      { label: 'Dashboard', path: '/employee' },
+      { label: 'Home', path: '/employee' },
+      { label: 'Dashboard', path: '/employee/dashboard' },
       { label: 'Profile', path: '/employee/profile' },
       { label: 'Payroll', path: '/employee/payslip' },
       { label: 'Benefits', path: '/employee/benefits' },
@@ -103,7 +107,8 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
     description: 'Manage your team and approvals',
     theme: 'manager',
     navItems: [
-      { label: 'Dashboard', path: '/manager' },
+      { label: 'Home', path: '/manager' },
+      { label: 'Dashboard', path: '/manager/dashboard' },
       { label: 'Team', path: '/manager/team' },
       { label: 'Approvals', path: '/manager/approvals' },
     ],
@@ -113,7 +118,8 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
     description: 'Full administrative access to all HR domains',
     theme: 'admin',
     navItems: [
-      { label: 'Dashboard', path: '/admin' },
+      { label: 'Home', path: '/admin' },
+      { label: 'Dashboard', path: '/admin/dashboard' },
       { label: 'Employees', path: '/admin/employees' },
       { label: 'Organization', path: '/admin/organization' },
       { label: 'Attendance', path: '/admin/attendance' },
@@ -164,7 +170,8 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
 };
 
 const employeeRailItems: PortalRailItem[] = [
-  { label: 'Dashboard', path: '/employee', icon: Home },
+  { label: 'Home', path: '/employee', icon: Home },
+  { label: 'Dashboard', path: '/employee/dashboard', icon: BarChart3 },
   { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
   { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
   { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
@@ -178,13 +185,15 @@ const employeeRailItems: PortalRailItem[] = [
 ];
 
 const managerRailItems: PortalRailItem[] = [
-  { label: 'Dashboard', path: '/manager', icon: Home },
+  { label: 'Home', path: '/manager', icon: Home },
+  { label: 'Dashboard', path: '/manager/dashboard', icon: BarChart3 },
   { label: 'Team', path: '/manager/team', icon: Users },
   { label: 'Approvals', path: '/manager/approvals', icon: BarChart3 },
 ];
 
 const adminRailItems: PortalRailItem[] = [
-  { label: 'Dashboard', path: '/admin', icon: Home },
+  { label: 'Home', path: '/admin', icon: Home },
+  { label: 'Dashboard', path: '/admin/dashboard', icon: BarChart3 },
   { label: 'Employees', path: '/admin/employees', icon: Users },
   { label: 'Organization', path: '/admin/organization', icon: Network },
   { label: 'Attendance', path: '/admin/attendance', icon: Clock3 },
@@ -247,7 +256,8 @@ function WorkspaceShell({
 }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { t } = useTranslation();
+  const { user, logout, hasPermission } = useAuth();
   const [searchTerm, setSearchTerm] = React.useState('');
   const [mobileNavOpen, setMobileNavOpen] = React.useState(false);
   React.useEffect(() => {
@@ -256,7 +266,15 @@ function WorkspaceShell({
   const roleNames = React.useMemo(() => new Set((user?.roles ?? []).map((role) => role.name)), [user?.roles]);
   const canSeeAdminSettings = roleNames.has('HR_ADMIN') || roleNames.has('SUPER_ADMIN');
   const canSeeSystemConsole = hasSystemAdminRole(roleNames);
-  const railItems = portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole);
+  const railItems = React.useMemo(
+    () => portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole),
+    [canSeeSystemConsole, portalType],
+  );
+  const { data: meInbox } = useApiQuery<MeInbox>(
+    ['me-inbox', 'command-palette', portalType],
+    '/me/inbox',
+    { enabled: Boolean(user), retry: false, staleTime: 30_000 },
+  );
   const commandItems = React.useMemo<CommandPaletteItem[]>(() => {
     const items = [
       ...config.navItems.filter((item) => !item.systemOnly || canSeeSystemConsole),
@@ -266,7 +284,7 @@ function WorkspaceShell({
       ...(canSeeSystemConsole ? [{ label: 'System Console', path: '/admin/system-console' }] : []),
     ];
     const seen = new Set<string>();
-    return items
+    const navigationItems = items
       .filter((item) => {
         if (seen.has(item.path)) return false;
         seen.add(item.path);
@@ -275,9 +293,27 @@ function WorkspaceShell({
       .map((item) => ({
         label: item.label,
         path: item.path,
+        group: item.systemOnly ? t('commandPalette.groupGovernance') : t('commandPalette.groupNavigate'),
         keywords: [portalType, config.title],
       }));
-  }, [canSeeSystemConsole, config.navItems, config.title, portalType, railItems]);
+    return buildCommandActions({
+      navigationItems,
+      inbox: meInbox,
+      can: hasPermission,
+      portalType,
+      portalKeywords: [portalType, config.title],
+      labels: {
+        createEmployee: t('commandPalette.createEmployee'),
+        openReportBuilder: t('commandPalette.openReportBuilder'),
+        configureApprovals: t('commandPalette.configureApprovals'),
+        groupNavigate: t('commandPalette.groupNavigate'),
+        groupCreate: t('commandPalette.groupCreate'),
+        groupCommand: t('commandPalette.groupCommand'),
+        groupSearch: t('commandPalette.groupSearch'),
+        searchResult: (query) => t('commandPalette.searchResult', { query }),
+      },
+    });
+  }, [canSeeSystemConsole, config.navItems, config.title, hasPermission, meInbox, portalType, railItems, t]);
   const notificationPath = portalType === 'admin' || portalType === 'recruiter' || portalType === 'payroll'
     ? '/notifications/hr-operations'
     : '/notifications/me';

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BrowserRouter } from 'react-router-dom';
@@ -15,8 +16,8 @@ import { BulkActionToolbar } from './bulk-action-toolbar';
 import { LineChartPanel, BarChartPanel, DonutChartPanel } from './charts';
 
 const navItems = [
-  { label: 'Dashboard', path: '/employee' },
-  { label: 'Reports', path: '/admin/reports' },
+  { id: 'nav:employee', kind: 'navigate' as const, label: 'Dashboard', group: 'Navigate', path: '/employee' },
+  { id: 'nav:reports', kind: 'navigate' as const, label: 'Reports', group: 'Navigate', path: '/admin/reports' },
 ];
 
 describe('design-system primitives accessibility', () => {
@@ -25,48 +26,51 @@ describe('design-system primitives accessibility', () => {
     const onThemeChange = vi.fn();
     const onBulkApprove = vi.fn();
     const onPageChange = vi.fn();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 
     const { container } = render(
-      <BrowserRouter>
-        <div>
-          <ThemeToggle onThemeChange={onThemeChange} />
-          <DateRangePicker
-            label="Report period"
-            value={{ from: '2026-06-01', to: '2026-06-30' }}
-            onChange={vi.fn()}
-          />
-          <Combobox
-            label="Choose department"
-            value="people"
-            options={[
-              { value: 'people', label: 'People Operations' },
-              { value: 'payroll', label: 'Payroll' },
-            ]}
-            onChange={vi.fn()}
-          />
-          <CommandPalette items={navItems} />
-          <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Reports' }]} />
-          <Tooltip content="Open payroll controls">
-            <button type="button">Payroll hint</button>
-          </Tooltip>
-          <Sheet>
-            <SheetTrigger asChild><button type="button">Open drawer</button></SheetTrigger>
-            <SheetContent>
-              <SheetTitle>Drawer title</SheetTitle>
-              <p>Drawer body</p>
-            </SheetContent>
-          </Sheet>
-          <Pagination page={2} pageCount={5} onPageChange={onPageChange} />
-          <BulkActionToolbar
-            selectedCount={3}
-            actions={[{ label: 'Approve selected', onClick: onBulkApprove }]}
-            onClearSelection={vi.fn()}
-          />
-          <LineChartPanel title="Attendance trend" data={[{ label: 'Mon', value: 8 }, { label: 'Tue', value: 7 }]} />
-          <BarChartPanel title="Leave by type" data={[{ label: 'Annual', value: 4 }, { label: 'Sick', value: 1 }]} />
-          <DonutChartPanel title="Gender distribution" data={[{ label: 'Women', value: 55 }, { label: 'Men', value: 45 }]} />
-        </div>
-      </BrowserRouter>,
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <div>
+            <ThemeToggle onThemeChange={onThemeChange} />
+            <DateRangePicker
+              label="Report period"
+              value={{ from: '2026-06-01', to: '2026-06-30' }}
+              onChange={vi.fn()}
+            />
+            <Combobox
+              label="Choose department"
+              value="people"
+              options={[
+                { value: 'people', label: 'People Operations' },
+                { value: 'payroll', label: 'Payroll' },
+              ]}
+              onChange={vi.fn()}
+            />
+            <CommandPalette items={navItems} />
+            <Breadcrumbs items={[{ label: 'Admin', href: '/admin' }, { label: 'Reports' }]} />
+            <Tooltip content="Open payroll controls">
+              <button type="button">Payroll hint</button>
+            </Tooltip>
+            <Sheet>
+              <SheetTrigger asChild><button type="button">Open drawer</button></SheetTrigger>
+              <SheetContent>
+                <SheetTitle>Drawer title</SheetTitle>
+                <p>Drawer body</p>
+              </SheetContent>
+            </Sheet>
+            <Pagination page={2} pageCount={5} onPageChange={onPageChange} />
+            <BulkActionToolbar
+              selectedCount={3}
+              actions={[{ label: 'Approve selected', onClick: onBulkApprove }]}
+              onClearSelection={vi.fn()}
+            />
+            <LineChartPanel title="Attendance trend" data={[{ label: 'Mon', value: 8 }, { label: 'Tue', value: 7 }]} />
+            <BarChartPanel title="Leave by type" data={[{ label: 'Annual', value: 4 }, { label: 'Sick', value: 1 }]} />
+            <DonutChartPanel title="Gender distribution" data={[{ label: 'Women', value: 55 }, { label: 'Men', value: 45 }]} />
+          </div>
+        </BrowserRouter>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByLabelText('Report period from')).toBeInTheDocument();

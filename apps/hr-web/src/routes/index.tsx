@@ -7,6 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
 const RegisterPage = lazy(() => import('@/pages/register').then((module) => ({ default: module.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
+const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
 const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
 const EmployeeAttendanceAction = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeAttendanceAction })));
 const EmployeeProfile = lazy(() => import('@/pages/employee/profile').then((module) => ({ default: module.EmployeeProfile })));
@@ -157,7 +158,8 @@ export function AppRoutes() {
             <AppLayout>
               <PortalLayout>
                 <Routes>
-                  <Route index element={<EmployeeDashboard />} />
+                  <Route index element={<HomePage />} />
+                  <Route path="dashboard" element={<EmployeeDashboard />} />
                   <Route path="profile" element={<EmployeeProfile />} />
                   <Route path="payslip" element={<EmployeePayslip />} />
                   <Route path="benefits/*" element={<EmployeeBenefits />} />
@@ -185,7 +187,8 @@ export function AppRoutes() {
               <AppLayout>
                 <PortalLayout>
                   <Routes>
-                    <Route index element={<ManagerDashboard />} />
+                    <Route index element={<HomePage />} />
+                    <Route path="dashboard" element={<ManagerDashboard />} />
                     <Route path="team" element={<ManagerTeam />} />
                     <Route path="approvals" element={<ManagerApprovals />} />
                     <Route path="*" element={<Navigate to="/manager" replace />} />
@@ -206,7 +209,8 @@ export function AppRoutes() {
               <AppLayout>
                 <PortalLayout>
                   <Routes>
-                    <Route index element={<AdminDashboard />} />
+                    <Route index element={<HomePage />} />
+                    <Route path="dashboard" element={<AdminDashboard />} />
                     <Route
                       path="system-console"
                       element={

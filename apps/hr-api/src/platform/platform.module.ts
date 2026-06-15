@@ -37,6 +37,12 @@ import { PlatformNotificationsController } from './notifications/platform-notifi
 import { EventContractsRegistryController } from './event-contracts-registry.controller.js';
 import { EventContractsRegistryService } from './event-contracts-registry.service.js';
 import { HcmSetupModule } from '../domains/hcm-setup/hcm-setup.module.js';
+import { WorkerRepository } from '../domains/hr-core/repositories/worker.repository.js';
+import { HrCaseTaskRepository } from '../domains/hr-service-delivery/repositories/hr-case-task.repository.js';
+import { HrServiceCaseRepository } from '../domains/hr-service-delivery/repositories/hr-service-case.repository.js';
+import { IntelligenceRepository } from '../domains/intelligence/repositories/intelligence.repository.js';
+import { LearningAssignmentRepository } from '../domains/learning/repositories/learning-assignment.repository.js';
+import { OnboardingTaskRepository } from '../domains/onboarding/repositories/onboarding-task.repository.js';
 import { JobRunner } from './scheduler/job-runner.service.js';
 import {
   HCM_SCHEDULED_JOB_PROVIDERS,
@@ -56,6 +62,8 @@ import { SCHEDULED_JOBS } from './scheduler/scheduled-job.js';
 import type { ScheduledJob } from './scheduler/scheduled-job.js';
 import { SystemActorFactory } from './scheduler/system-actor.factory.js';
 import { TenantDirectoryService } from './scheduler/tenant-directory.service.js';
+import { MeInboxController } from './me/me-inbox.controller.js';
+import { MeInboxService } from './me/me-inbox.service.js';
 
 const eventBusProvider = {
   provide: EventBus,
@@ -77,6 +85,7 @@ const eventBusProvider = {
     EventContractsRegistryController,
     SchedulerController,
     ApprovalChainController,
+    MeInboxController,
   ],
   providers: [
     eventBusProvider,
@@ -113,6 +122,12 @@ const eventBusProvider = {
     PlatformNotificationService,
     EventNotificationBridge,
     EventContractsRegistryService,
+    OnboardingTaskRepository,
+    HrCaseTaskRepository,
+    HrServiceCaseRepository,
+    LearningAssignmentRepository,
+    IntelligenceRepository,
+    WorkerRepository,
     TenantDirectoryService,
     SystemActorFactory,
     HcmSchedulerReadRepository,
@@ -132,6 +147,7 @@ const eventBusProvider = {
     EffectiveDatingActivationLogRepository,
     EffectiveDatingActivator,
     JobRunner,
+    MeInboxService,
   ],
   exports: [
     CommandBus,
