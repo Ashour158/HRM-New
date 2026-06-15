@@ -152,14 +152,21 @@ function snakeCase(value: string): string {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
-function collectRecords(value: unknown): JsonRecord[] {
+function collectRecords(value: unknown, seen = new WeakSet<object>()): JsonRecord[] {
+  if (!value || typeof value !== 'object') {
+    return [];
+  }
+  if (seen.has(value)) {
+    return [];
+  }
+  seen.add(value);
   if (Array.isArray(value)) {
     return value.map(asRecord).filter((record) => Object.keys(record).length > 0);
   }
   const record = asRecord(value);
   for (const key of ['items', 'records', 'rows', 'results', 'events', 'data']) {
     const nested = record[key];
-    const nestedRecords = collectRecords(nested);
+    const nestedRecords = collectRecords(nested, seen);
     if (nestedRecords.length > 0) return nestedRecords;
   }
   return Object.keys(record).length > 0 ? [record] : [];
@@ -406,6 +413,21 @@ async function expectAllowedActions(path: string): Promise<void> {
   const response = await apiGet(path);
   const data = expectSuccessful(response, `GET ${path}`);
   expect(Array.isArray(data.allowedActions ?? data.allowedNextActions)).toBe(true);
+}
+
+async function findInboxApprovalAction(approvalChainId: string, stepId: string): Promise<JsonRecord> {
+  const response = await apiGet('/me/inbox');
+  const inbox = expectSuccessful(response, 'GET /me/inbox');
+  const sections = collectRecords(inbox.sections);
+  const approvals = sections.find((section) => section.key === 'approvals');
+  const approvalItems = collectRecords(approvals?.items);
+  const action = approvalItems
+    .flatMap((item) => collectRecords(item.actions))
+    .find((candidate) => stringField(candidate, 'commandPath') === `/platform/workflow/approval-chains/${approvalChainId}/steps/${stepId}/commands/approve`);
+  if (!action) {
+    throw new Error(`Could not find inbox approval action for chain ${approvalChainId} step ${stepId}: ${JSON.stringify(inbox)}`);
+  }
+  return action;
 }
 
 async function eventually<T>(fn: () => Promise<T | undefined>, timeoutMs = 5_000): Promise<T> {
@@ -774,11 +796,19 @@ describe.sequential('runtime HTTP lifecycle coverage', () => {
     );
     const secondStepId = expectStepId(collectRecords(afterFirstStep.steps ?? asRecord(afterFirstStep.data).steps), 'PENDING');
 
-    const finalApproval = await apiPost(`/platform/workflow/approval-chains/${approvalChainId}/steps/${secondStepId}/commands/approve`, {
-      reason: 'Final sign-off complete',
-    });
+    const inboxAction = await findInboxApprovalAction(approvalChainId, secondStepId);
+    const finalApproval = await apiPost(
+      String(inboxAction.commandPath),
+      asRecord(inboxAction.body),
+    );
     const finalData = expectSuccessful(finalApproval, 'approve final approval step');
     expect(finalData.newState ?? finalData.status ?? asRecord(finalData.data).status).toBe('APPROVED');
+
+    const inboxAfterApproval = expectSuccessful(await apiGet('/me/inbox'), 'GET /me/inbox after approval');
+    const remainingActions = collectRecords(inboxAfterApproval.sections)
+      .flatMap((section) => collectRecords(section.items))
+      .flatMap((item) => collectRecords(item.actions));
+    expect(remainingActions.some((action) => String(action.commandPath).includes(`/approval-chains/${approvalChainId}/`))).toBe(false);
 
     const afterApproval = await expectDetail(`/employee-relations/disciplinary-actions/${disciplinaryActionId}`, ['workerId', 'erCaseId']);
     expect(afterApproval.status).toBe('APPROVED');

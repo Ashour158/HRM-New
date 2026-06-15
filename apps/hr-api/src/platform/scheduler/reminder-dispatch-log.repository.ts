@@ -1,7 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { createKyselyInstance, getPool, type Database } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 
 export interface ReminderDispatchLogInput {
   tenantId: Uuid;
@@ -21,8 +21,23 @@ export interface ReminderDispatchLogResult {
   dispatchKey: string;
 }
 
+export interface ReminderDispatchLogRecord {
+  id: string;
+  tenantId: string;
+  dispatchKey: string;
+  reminderType: string;
+  subjectId: string;
+  subjectType: string;
+  dueDateBucket: string;
+  escalationTier: string;
+  audienceWorkerIds: string[];
+  dispatchedAt: Date;
+  expiresAt: Date;
+}
+
 export interface ReminderDispatchLogRepositoryPort {
   tryRecordDispatch(input: ReminderDispatchLogInput): Promise<ReminderDispatchLogResult>;
+  findRecentForAudience?(tenantId: Uuid, workerId: Uuid, limit?: number): Promise<ReminderDispatchLogRecord[]>;
 }
 
 @Injectable()
@@ -81,5 +96,52 @@ export class ReminderDispatchLogRepository implements ReminderDispatchLogReposit
       })
       .execute();
     return { recorded: true, dispatchKey: input.dispatchKey };
+  }
+
+  async findRecentForAudience(tenantId: Uuid, workerId: Uuid, limit = 20): Promise<ReminderDispatchLogRecord[]> {
+    const result = await sql<{
+      id: string;
+      tenant_id: string;
+      dispatch_key: string;
+      reminder_type: string;
+      subject_id: string;
+      subject_type: string;
+      due_date_bucket: string;
+      escalation_tier: string;
+      audience_worker_ids: string[];
+      dispatched_at: Date;
+      expires_at: Date;
+    }>`
+      SELECT id,
+             tenant_id,
+             dispatch_key,
+             reminder_type,
+             subject_id,
+             subject_type,
+             due_date_bucket,
+             escalation_tier,
+             audience_worker_ids,
+             dispatched_at,
+             expires_at
+      FROM hr_platform.reminder_dispatch_log
+      WHERE tenant_id = ${tenantId.value}
+        AND audience_worker_ids @> ARRAY[${workerId.value}]::text[]
+      ORDER BY dispatched_at DESC
+      LIMIT ${limit}
+    `.execute(this.db);
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      tenantId: row.tenant_id,
+      dispatchKey: row.dispatch_key,
+      reminderType: row.reminder_type,
+      subjectId: row.subject_id,
+      subjectType: row.subject_type,
+      dueDateBucket: row.due_date_bucket,
+      escalationTier: row.escalation_tier,
+      audienceWorkerIds: row.audience_worker_ids,
+      dispatchedAt: row.dispatched_at,
+      expiresAt: row.expires_at,
+    }));
   }
 }
