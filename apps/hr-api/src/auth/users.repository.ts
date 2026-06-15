@@ -18,6 +18,8 @@ export interface StoredAuthUser {
   mfaSecret?: string;
   failedLoginCount: number;
   lockedUntil?: string;
+  idpProvider?: string;
+  externalId?: string;
 }
 
 export interface CreateAuthUserInput {
@@ -30,6 +32,8 @@ export interface CreateAuthUserInput {
   status?: AuthUserStatus;
   roles?: string[];
   permissions?: string[];
+  idpProvider?: string;
+  externalId?: string;
 }
 
 @Injectable()
@@ -59,6 +63,17 @@ export class UsersRepository {
     return row ? toStoredAuthUser(row) : undefined;
   }
 
+  async findByExternalId(tenantId: string, idpProvider: string, externalId: string): Promise<StoredAuthUser | undefined> {
+    const row = await this.db
+      .selectFrom('users')
+      .selectAll()
+      .where('tenant_id', '=', tenantId)
+      .where('idp_provider', '=', idpProvider)
+      .where('external_id', '=', externalId)
+      .executeTakeFirst();
+    return row ? toStoredAuthUser(row) : undefined;
+  }
+
   async create(input: CreateAuthUserInput): Promise<StoredAuthUser> {
     const now = new Date().toISOString();
     const row = await this.db
@@ -73,6 +88,8 @@ export class UsersRepository {
         status: input.status ?? 'ACTIVE',
         roles: input.roles ?? [],
         permissions: input.permissions ?? [],
+        idp_provider: input.idpProvider ?? null,
+        external_id: input.externalId ?? null,
         failed_login_count: 0,
         created_at: now,
         updated_at: now,
@@ -80,6 +97,30 @@ export class UsersRepository {
       .returningAll()
       .executeTakeFirstOrThrow();
     return toStoredAuthUser(row);
+  }
+
+  async createWithIdentityProvider(
+    input: Omit<CreateAuthUserInput, 'passwordHash'> & { idpProvider: string; externalId: string },
+  ): Promise<StoredAuthUser> {
+    return this.create({
+      ...input,
+      passwordHash: 'SSO_ONLY_UNUSABLE_PASSWORD',
+      status: 'ACTIVE',
+    });
+  }
+
+  async linkIdentityProvider(userId: string, idpProvider: string, externalId: string): Promise<StoredAuthUser | undefined> {
+    const row = await this.db
+      .updateTable('users')
+      .set({
+        idp_provider: idpProvider,
+        external_id: externalId,
+        updated_at: new Date().toISOString(),
+      })
+      .where('id', '=', userId)
+      .returningAll()
+      .executeTakeFirst();
+    return row ? toStoredAuthUser(row) : undefined;
   }
 
   async updateMfaSecret(userId: string, mfaSecret: string): Promise<void> {
@@ -149,5 +190,7 @@ function toStoredAuthUser(row: Selectable<Database['users']>): StoredAuthUser {
     mfaSecret: row.mfa_secret ?? undefined,
     failedLoginCount: row.failed_login_count,
     lockedUntil: row.locked_until ? row.locked_until.toISOString() : undefined,
+    idpProvider: row.idp_provider ?? undefined,
+    externalId: row.external_id ?? undefined,
   };
 }

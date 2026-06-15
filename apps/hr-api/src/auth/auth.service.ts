@@ -83,6 +83,9 @@ export interface AuthServiceDependencies {
     | 'resetFailedLoginState'
     | 'recordFailedLogin'
     | 'updatePassword'
+    | 'findByExternalId'
+    | 'linkIdentityProvider'
+    | 'createWithIdentityProvider'
   >;
   sessions?: AuthSessionStoreLike;
   tokens?: Pick<AuthTokenRepository, 'create' | 'findActiveByHash' | 'consume'>;
@@ -235,6 +238,9 @@ export class AuthService {
     }
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('Account is not active');
+    }
+    if (user.idpProvider) {
+      throw new UnauthorizedException('Use SSO to sign in to this account');
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);

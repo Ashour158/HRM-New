@@ -285,6 +285,31 @@ export interface UsersTable {
   mfa_secret: string | null;
   failed_login_count: number;
   locked_until: Date | null;
+  idp_provider: string | null;
+  external_id: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface TenantIdentityProvidersTable {
+  id: string;
+  tenant_id: string;
+  protocol: string;
+  display_name: string;
+  enabled: boolean;
+  jit_provisioning: boolean;
+  default_roles: unknown;
+  attribute_mapping: unknown;
+  group_role_mapping: unknown;
+  oidc_issuer_url: string | null;
+  oidc_client_id: string | null;
+  oidc_client_secret_enc: string | null;
+  oidc_scopes: unknown;
+  saml_idp_entity_id: string | null;
+  saml_idp_sso_url: string | null;
+  saml_idp_x509_cert: string | null;
+  saml_sp_private_key_enc: string | null;
+  aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
@@ -2292,6 +2317,7 @@ export interface Database {
   permissions: PermissionsTable;
   user_roles: UserRolesTable;
   users: UsersTable;
+  tenant_identity_providers: TenantIdentityProvidersTable;
   auth_sessions: AuthSessionsTable;
   auth_tokens: AuthTokensTable;
   service_accounts: ServiceAccountsTable;

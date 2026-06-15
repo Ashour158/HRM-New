@@ -66,6 +66,10 @@ export {
   generateCorrelationId,
   generateCausationId,
 } from './crypto/hash.js';
+export {
+  encryptSecret,
+  decryptSecret,
+} from './crypto/secret-encryption.js';
 
 // Config
 export { loadFromEnv } from './config/platform-config.js';

@@ -1,9 +1,24 @@
-import { BadRequestException, Body, Controller, Get, Post, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { Public } from '../decorators/public.decorator.js';
+import { Permissions } from '../decorators/permissions.decorator.js';
 import { AuthService, type AuthUser } from './auth.service.js';
 import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
+import { SsoConfigService, type SsoConfigInput } from './sso-config.service.js';
 
 interface LoginDto {
   email: string;
@@ -47,7 +62,10 @@ interface PasswordResetConfirmDto {
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly ssoConfigService: SsoConfigService,
+  ) {}
 
   @Post('login')
   @Public()
@@ -163,8 +181,44 @@ export class AuthController {
 
   @Get('providers')
   @Public()
-  async providers() {
+  async providers(@Req() req: Request, @Query('tenantId') tenantId?: string) {
+    if (tenantId) {
+      return this.ssoConfigService.discovery(tenantId);
+    }
+    const header = req.headers['x-tenant-id'];
+    const headerTenantId = Array.isArray(header) ? header[0] : header;
+    if (typeof headerTenantId === 'string') {
+      return this.ssoConfigService.discovery(headerTenantId);
+    }
     return this.authService.authProviders();
+  }
+
+  @Get('sso/config')
+  @Permissions('SSO_MANAGE')
+  async listSsoConfig(@Req() req: Request) {
+    if (!req.actor) throw new UnauthorizedException('Authenticated actor missing');
+    return this.ssoConfigService.list(req.actor, this.authenticatedTenantId(req));
+  }
+
+  @Post('sso/config')
+  @Permissions('SSO_MANAGE')
+  async createSsoConfig(@Req() req: Request, @Body() dto: SsoConfigInput) {
+    if (!req.actor) throw new UnauthorizedException('Authenticated actor missing');
+    return this.ssoConfigService.create(req.actor, this.authenticatedTenantId(req), dto);
+  }
+
+  @Patch('sso/config/:id')
+  @Permissions('SSO_MANAGE')
+  async updateSsoConfig(@Req() req: Request, @Param('id') id: string, @Body() dto: Partial<SsoConfigInput>) {
+    if (!req.actor) throw new UnauthorizedException('Authenticated actor missing');
+    return this.ssoConfigService.update(req.actor, this.authenticatedTenantId(req), id, dto);
+  }
+
+  @Delete('sso/config/:id')
+  @Permissions('SSO_MANAGE')
+  async deleteSsoConfig(@Req() req: Request, @Param('id') id: string) {
+    if (!req.actor) throw new UnauthorizedException('Authenticated actor missing');
+    return this.ssoConfigService.remove(req.actor, this.authenticatedTenantId(req), id);
   }
 
   private resolveTenantId(req: Request, tenantId?: string): string {
@@ -176,6 +230,13 @@ export class AuthController {
       throw new BadRequestException('Tenant ID is required');
     }
     return resolved;
+  }
+
+  private authenticatedTenantId(req: Request): string {
+    const actorWithTenant = req.actor as (typeof req.actor & { tenantId?: { value?: string } }) | undefined;
+    const actorTenantId = actorWithTenant?.tenantId?.value ?? (req as Request & { tenantId?: string }).tenantId;
+    if (!actorTenantId) throw new UnauthorizedException('Authenticated tenant context missing');
+    return actorTenantId;
   }
 
   private toUserResponse(user: AuthUser) {

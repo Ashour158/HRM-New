@@ -183,6 +183,37 @@ describe('AuthService persisted users', () => {
 
     expect(user.id).toBe(employeeId);
   });
+
+  it('rejects password login for IdP-linked users', async () => {
+    const { service, users } = await buildService();
+    const employee = await users.findByEmail(tenantId, 'employee@example.com');
+    expect(employee).toBeTruthy();
+    await users.linkIdentityProvider(employee!.id, 'OIDC', 'okta-user-123');
+
+    await expect(
+      service.validateCredentials('employee@example.com', 'Password123!', tenantId),
+    ).rejects.toThrow(/SSO/i);
+  });
+
+  it('creates and finds users by external identity provider id', async () => {
+    const { users } = await buildService();
+
+    const created = await users.createWithIdentityProvider({
+      tenantId,
+      email: 'jit.user@example.com',
+      firstName: 'Jit',
+      lastName: 'User',
+      idpProvider: 'SAML',
+      externalId: 'saml-subject-123',
+      roles: ['EMPLOYEE'],
+      permissions: ['SELF_READ'],
+    });
+
+    const found = await users.findByExternalId(tenantId, 'SAML', 'saml-subject-123');
+    expect(found?.id).toBe(created.id);
+    expect(found?.idpProvider).toBe('SAML');
+    expect(found?.externalId).toBe('saml-subject-123');
+  });
 });
 
 async function buildService(options: { notifications?: AuthTokenNotification[] } = {}) {
@@ -229,6 +260,8 @@ async function demoUsers(): Promise<StoredAuthUser[]> {
       roles: ['EMPLOYEE'],
       permissions: ['SELF_READ'],
       failedLoginCount: 0,
+      idpProvider: undefined,
+      externalId: undefined,
     },
   ];
 }
@@ -285,9 +318,33 @@ class InMemoryUsersRepository {
       roles: input.roles ?? [],
       permissions: input.permissions ?? [],
       failedLoginCount: 0,
+      idpProvider: input.idpProvider,
+      externalId: input.externalId,
     };
     this.byId.set(user.id, user);
     return user;
+  }
+
+  async createWithIdentityProvider(input: Omit<CreateAuthUserInput, 'passwordHash'> & { idpProvider: string; externalId: string }): Promise<StoredAuthUser> {
+    return this.create({
+      ...input,
+      passwordHash: '!',
+      status: 'ACTIVE',
+    });
+  }
+
+  async findByExternalId(inputTenantId: string, idpProvider: string, externalId: string): Promise<StoredAuthUser | undefined> {
+    return Array.from(this.byId.values()).find(
+      (user) => user.tenantId === inputTenantId && user.idpProvider === idpProvider && user.externalId === externalId,
+    );
+  }
+
+  async linkIdentityProvider(userId: string, idpProvider: string, externalId: string): Promise<void> {
+    const user = this.byId.get(userId);
+    if (user) {
+      user.idpProvider = idpProvider;
+      user.externalId = externalId;
+    }
   }
 
   async updateMfaSecret(userId: string, mfaSecret: string): Promise<void> {
