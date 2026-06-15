@@ -40,6 +40,13 @@ export interface RoleDefinition {
   mutableFields: string[];
 }
 
+const SAVED_VIEW_PERMISSIONS = [
+  'SAVED_VIEW_READ',
+  'SAVED_VIEW_CREATE',
+  'SAVED_VIEW_UPDATE',
+  'SAVED_VIEW_DELETE',
+] as const;
+
 const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
   EXECUTIVE_VIEWER: {
     code: 'EXECUTIVE_VIEWER',
@@ -506,10 +513,17 @@ export function getRoleDefinition(code: RoleCode): RoleDefinition {
   if (!def) {
     throw new Error(`Unknown role code: ${code}`);
   }
-  return def;
+  return withSavedViewPermissions(def);
 }
 
 /** Retrieve all role definitions. */
 export function getAllRoles(): RoleDefinition[] {
-  return Object.values(ROLE_CATALOG);
+  return Object.values(ROLE_CATALOG).map(withSavedViewPermissions);
+}
+
+function withSavedViewPermissions(definition: RoleDefinition): RoleDefinition {
+  return {
+    ...definition,
+    defaultPermissions: Array.from(new Set([...definition.defaultPermissions, ...SAVED_VIEW_PERMISSIONS])),
+  };
 }

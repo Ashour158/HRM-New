@@ -360,6 +360,10 @@ async function apiPatch(path: string, payload: JsonRecord = {}, token = authToke
   return request(app!.getHttpServer()).patch(`${apiPrefix}${path}`).set(headers(token)).send(payload);
 }
 
+async function apiDelete(path: string, token = authToken): Promise<request.Response> {
+  return request(app!.getHttpServer()).delete(`${apiPrefix}${path}`).set(headers(token));
+}
+
 function redirectLocation(response: request.Response, label: string): string {
   if (response.status < 300 || response.status >= 400) {
     throw new Error(`${label} expected redirect, got ${response.status}: ${JSON.stringify(response.body)}`);
@@ -528,6 +532,45 @@ afterAll(async () => {
 });
 
 describe.sequential('runtime HTTP lifecycle coverage', () => {
+  lifecycleIt('saved views persist per actor and list through the real HTTP surface', async () => {
+    const listKey = `admin.workers.${suffix}`;
+    const create = await apiPost('/saved-views', {
+      listKey,
+      name: 'Active workers',
+      filters: { status: 'ACTIVE', department: 'Engineering' },
+      columns: ['name', 'email', 'jobTitle'],
+      isDefault: true,
+    });
+    const created = expectSuccessful(create, 'POST /saved-views');
+    const savedViewId = String(created.id ?? '');
+    expect(savedViewId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(created.userId).toBe(HR_ADMIN_ID);
+    expect(created.listKey).toBe(listKey);
+
+    const list = await apiGet(`/saved-views/${encodeURIComponent(listKey)}`);
+    const records = collectRecords(payloadOf(list.body));
+    expectSuccessful(list, 'GET /saved-views/:listKey');
+    expect(records.some((record) => record.id === savedViewId && record.isDefault === true)).toBe(true);
+
+    const updatedResponse = await apiPatch(`/saved-views/${savedViewId}`, {
+      name: 'Workers by job',
+      filters: { jobTitle: 'Engineer' },
+      columns: ['name', 'jobTitle'],
+      isDefault: false,
+    });
+    const updated = expectSuccessful(updatedResponse, 'PATCH /saved-views/:id');
+    expect(updated.name).toBe('Workers by job');
+    expect(updated.filters).toEqual({ jobTitle: 'Engineer' });
+    expect(updated.columns).toEqual(['name', 'jobTitle']);
+    expect(updated.isDefault).toBe(false);
+
+    expectSuccessful(await apiDelete(`/saved-views/${savedViewId}`), 'DELETE /saved-views/:id');
+    const afterDelete = await apiGet(`/saved-views/${encodeURIComponent(listKey)}`);
+    expectSuccessful(afterDelete, 'GET /saved-views/:listKey after delete');
+    const remaining = collectRecords(payloadOf(afterDelete.body));
+    expect(remaining.some((record) => record.id === savedViewId)).toBe(false);
+  });
+
   lifecycleIt('OIDC SSO config starts, JIT provisions, mints a session, and enforces refresh reuse detection', async () => {
     await getPool().query('delete from hr_platform.sso_auth_transactions where tenant_id = $1 and protocol = $2', [TENANT_ID, 'OIDC']);
     await getPool().query('delete from hr_platform.tenant_identity_providers where tenant_id = $1 and protocol = $2', [TENANT_ID, 'OIDC']);
