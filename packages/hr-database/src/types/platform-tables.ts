@@ -291,6 +291,20 @@ export interface UsersTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface SavedViewsTable {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  list_key: string;
+  name: string;
+  filters: unknown;
+  columns: unknown;
+  is_default: boolean;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface TenantIdentityProvidersTable {
   id: string;
   tenant_id: string;
@@ -2334,6 +2348,8 @@ export interface Database {
   permissions: PermissionsTable;
   user_roles: UserRolesTable;
   users: UsersTable;
+  saved_views: SavedViewsTable;
+  'hr_platform.saved_views': SavedViewsTable;
   tenant_identity_providers: TenantIdentityProvidersTable;
   sso_auth_transactions: SsoAuthTransactionsTable;
   auth_sessions: AuthSessionsTable;

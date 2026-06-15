@@ -467,6 +467,7 @@ export class AccessControlService {
       ApprovalChain: 'WORKFLOW',
       ApprovalStep: 'WORKFLOW',
       ApprovalDelegation: 'WORKFLOW',
+      SavedView: 'SAVED_VIEW',
     };
     return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }
@@ -489,6 +490,7 @@ export class AccessControlService {
       SERVICE: ['HrServiceCase', 'HrCaseTask', 'HrKnowledgeArticle', 'HrServiceCatalogItem', 'HrCaseSlaInstance', 'ServiceCatalog', 'ServiceCase'],
       COMPLIANCE: ['Compliance', 'Policy', 'LegalHold'],
       REPORT: ['Report', 'Analytics', 'Dashboard'],
+      SAVED: ['SavedView'],
       ADMIN: ['Tenant', 'System', 'Security'],
     };
     const aggregates = mapping[domain] ?? [];

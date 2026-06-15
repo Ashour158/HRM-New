@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
-import { Workflow, Plus, Save, ShieldCheck, Trash2 } from 'lucide-react';
+import { PreviewPanel, WorkflowStepBuilder } from '@/components/builder';
+import { Workflow, Plus, Save, ShieldCheck, Trash2, Eye } from 'lucide-react';
 
 type ApprovalWorkflowStepRule = {
   code: string;
@@ -95,6 +96,8 @@ export function AdminApprovalsConfig() {
     { enabled: Boolean(tenantId) },
   );
   const [rules, setRules] = React.useState<ApprovalWorkflowRule[]>([]);
+  const [previewRuleIndex, setPreviewRuleIndex] = React.useState<number | null>(null);
+  const [draggedStep, setDraggedStep] = React.useState<{ ruleIndex: number; stepIndex: number } | null>(null);
 
   React.useEffect(() => {
     setRules(data?.rules ?? []);
@@ -120,6 +123,49 @@ export function AdminApprovalsConfig() {
       const steps = rule.steps.map((step, currentStepIndex) => (currentStepIndex === stepIndex ? { ...step, ...patch } : step));
       return { ...rule, steps };
     }));
+  };
+
+  const updateStepFromBuilder = (
+    ruleIndex: number,
+    stepIndex: number,
+    patch: Partial<ApprovalWorkflowStepRule> & { escalationAfterHours?: number; escalationApproverRole?: string },
+  ) => {
+    const { escalationAfterHours, escalationApproverRole, ...stepPatch } = patch;
+    const escalationPatch: Partial<ApprovalWorkflowStepRule> = { ...stepPatch };
+    if (escalationAfterHours !== undefined || escalationApproverRole !== undefined) {
+      const existing = rules[ruleIndex]?.steps[stepIndex]?.escalationTiers?.[0];
+      escalationPatch.escalationTiers = [{
+        code: existing?.code ?? 'ESCALATE_1',
+        label: existing?.label ?? 'Escalation',
+        active: true,
+        afterHours: escalationAfterHours ?? existing?.afterHours ?? 0,
+        approverRole: escalationApproverRole ?? existing?.approverRole ?? 'HR_ADMIN',
+      }];
+    }
+    upsertStep(ruleIndex, stepIndex, escalationPatch);
+  };
+
+  const reorderSteps = (ruleIndex: number, fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || toIndex < 0) return;
+    setRules((current) => current.map((rule, index) => {
+      if (index !== ruleIndex || toIndex >= rule.steps.length) return rule;
+      const steps = [...rule.steps];
+      const [moved] = steps.splice(fromIndex, 1);
+      steps.splice(toIndex, 0, moved);
+      return { ...rule, steps: steps.map((step, currentIndex) => ({ ...step, order: currentIndex + 1 })) };
+    }));
+  };
+
+  const previewItems = (rule: ApprovalWorkflowRule) => {
+    const orderedSteps = [...rule.steps].sort((left, right) => left.order - right.order);
+    const totalSla = orderedSteps.reduce((total, step) => total + (step.slaHours ?? 0), 0);
+    const escalationCount = orderedSteps.reduce((total, step) => total + (step.escalationTiers?.length ?? 0), 0);
+    return [
+      { label: 'Command', value: rule.commandName },
+      { label: 'Steps', value: orderedSteps.length },
+      { label: 'Total SLA', value: `${totalSla}h` },
+      { label: 'Escalations', value: escalationCount },
+    ];
   };
 
   const addTemplate = (template: ApprovalWorkflowRule) => {
@@ -244,38 +290,44 @@ export function AdminApprovalsConfig() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {rule.steps.map((step, stepIndex) => (
-                  <div key={`${step.code}-${stepIndex}`} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 lg:grid-cols-[80px_1fr_1fr_1fr_120px_auto]">
-                    <div className="grid gap-2">
-                      <Label>Order</Label>
-                      <Input type="number" min={1} value={step.order} onChange={(event) => upsertStep(ruleIndex, stepIndex, { order: Number(event.target.value) })} />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Step code</Label>
-                      <Input value={step.code} onChange={(event) => upsertStep(ruleIndex, stepIndex, { code: event.target.value })} />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Step label</Label>
-                      <Input value={step.label} onChange={(event) => upsertStep(ruleIndex, stepIndex, { label: event.target.value })} />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Approver role</Label>
-                      <Input value={step.approverRole ?? ''} onChange={(event) => upsertStep(ruleIndex, stepIndex, { approverType: 'ROLE', approverRole: event.target.value })} />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>SLA hours</Label>
-                      <Input type="number" min={0} value={step.slaHours ?? 24} onChange={(event) => upsertStep(ruleIndex, stepIndex, { slaHours: Number(event.target.value) })} />
-                    </div>
-                    <div className="flex items-end">
-                      <Button variant="ghost" size="icon" aria-label="Remove approval step" onClick={() => removeStep(ruleIndex, stepIndex)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+                  <WorkflowStepBuilder
+                    key={`${step.code}-${stepIndex}`}
+                    index={stepIndex}
+                    code={step.code}
+                    label={step.label}
+                    order={step.order}
+                    mode={step.mode}
+                    approverType={step.approverType}
+                    approverRole={step.approverRole}
+                    approverWorkerId={step.approverWorkerId}
+                    slaHours={step.slaHours}
+                    escalationAfterHours={step.escalationTiers?.[0]?.afterHours}
+                    escalationApproverRole={step.escalationTiers?.[0]?.approverRole}
+                    onChange={(patch) => updateStepFromBuilder(ruleIndex, stepIndex, patch)}
+                    onMove={(direction) => reorderSteps(ruleIndex, stepIndex, direction === 'up' ? stepIndex - 1 : stepIndex + 1)}
+                    onDragStart={() => setDraggedStep({ ruleIndex, stepIndex })}
+                    onDrop={() => {
+                      if (draggedStep?.ruleIndex === ruleIndex) {
+                        reorderSteps(ruleIndex, draggedStep.stepIndex, stepIndex);
+                      }
+                      setDraggedStep(null);
+                    }}
+                    onRemove={() => removeStep(ruleIndex, stepIndex)}
+                  />
                 ))}
-                <Button variant="outline" size="sm" onClick={() => addStep(ruleIndex)}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Add approval step
-                </Button>
+                {previewRuleIndex === ruleIndex ? (
+                  <PreviewPanel title="Sandbox approval preview" items={previewItems(rule)} />
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" onClick={() => addStep(ruleIndex)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add approval step
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setPreviewRuleIndex(previewRuleIndex === ruleIndex ? null : ruleIndex)}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Preview approval path
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}

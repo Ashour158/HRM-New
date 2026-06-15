@@ -5,7 +5,7 @@ import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { DataTable } from '@/components/common/data-table';
+import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { ErrorState } from '@/components/common/error-state';
 import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
@@ -186,7 +186,19 @@ export function AdminWorkers() {
     }
   };
 
-  const columns = [
+  const saveWorkerEmail = async (worker: Worker, email: string) => {
+    if (!email || email === worker.email) return;
+    try {
+      await apiClient.patch(`/hr/core/workers/${worker.id}`, { email });
+      await refetch();
+      addNotification({ title: 'Employee updated', message: 'The work email was saved.', type: 'success', read: false });
+    } catch (err) {
+      addNotification({ title: 'Update failed', message: err instanceof Error ? err.message : 'Could not save employee details.', type: 'error', read: false });
+      throw err;
+    }
+  };
+
+  const columns: DataTableColumn<Worker>[] = [
     {
       key: 'name',
       header: 'Name',
@@ -200,7 +212,17 @@ export function AdminWorkers() {
       ),
     },
     { key: 'employeeId', header: 'Employee ID', cell: (row: Worker) => row.employeeId },
-    { key: 'email', header: 'Email', cell: (row: Worker) => row.email },
+    {
+      key: 'email',
+      header: 'Email',
+      cell: (row: Worker) => row.email,
+      editable: {
+        value: (row) => row.email,
+        label: (row) => `Email for ${row.firstName} ${row.lastName}`,
+        inputType: 'email',
+        onSave: saveWorkerEmail,
+      },
+    },
     { key: 'jobTitle', header: 'Job Title', cell: (row: Worker) => row.jobTitle || '-' },
     { key: 'department', header: 'Department', cell: (row: Worker) => row.departmentName || '-' },
     {
@@ -371,6 +393,8 @@ export function AdminWorkers() {
             pageSize={10}
             total={data?.total ?? 0}
             onPageChange={setPage}
+            listKey="admin.workers"
+            viewFilters={{ search }}
           />
         )}
       </section>

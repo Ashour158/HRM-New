@@ -33,6 +33,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ErrorState } from '@/components/common/error-state';
 import { BusinessPageHeader } from '@/components/common/business-page';
+import { RuleRow } from '@/components/builder';
 import { useUIStore } from '@/stores/ui-store';
 import { cn } from '@/lib/utils';
 import {
@@ -1124,6 +1125,79 @@ function PolicyRuntimeLens({ revision, evidence }: { revision?: PolicyRevision; 
       </Card>
     </div>
   );
+}
+
+function PolicyVisualRuleRows({ area, editorJson }: { area: PolicyArea; editorJson: string }) {
+  const rows = extractVisualRuleRows(area, editorJson);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <ListChecks className="h-5 w-5 text-[#4f46e5]" />
+          Visual Rules
+        </CardTitle>
+        <CardDescription>Business-readable rules prepared for validation, simulation, and apply.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {rows.map((row) => (
+          <RuleRow key={`${row.code}-${row.label}`} {...row} />
+        ))}
+        {rows.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-[#cbd5e1] p-4 text-sm text-[#64748b]">
+            Add guided policy controls to see editable rule rows here.
+          </p>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function extractVisualRuleRows(area: PolicyArea, editorJson: string): Array<{ code: string; label: string; outcome?: string; status?: string; detail?: string }> {
+  const parsed = parseEditorJson(editorJson);
+  const source = currentAreaConfig(area, parsed);
+  const rows: Array<{ code: string; label: string; outcome?: string; status?: string; detail?: string }> = [];
+
+  for (const [key, value] of Object.entries(source)) {
+    if (!Array.isArray(value)) continue;
+    value.slice(0, 8).forEach((item, index) => {
+      const record = asLooseRecord(item);
+      const code = stringValue(record.code) ?? stringValue(record.ruleCode) ?? stringValue(record.id) ?? `${key.toUpperCase()}_${index + 1}`;
+      const label = stringValue(record.label) ?? stringValue(record.name) ?? formatEnum(key);
+      const outcome = stringValue(record.outcome) ?? stringValue(record.action) ?? stringValue(record.treatment);
+      const status = record.active === false ? 'Inactive' : stringValue(record.status) ?? 'Active';
+      const detail = [
+        numberValue(record.maxDaysPerMonth) !== undefined ? `Monthly cap ${numberValue(record.maxDaysPerMonth)}` : undefined,
+        numberValue(record.minimumNoticeDays) !== undefined ? `Notice ${numberValue(record.minimumNoticeDays)} days` : undefined,
+        numberValue(record.ratePercent) !== undefined ? `Rate ${numberValue(record.ratePercent)}%` : undefined,
+        stringValue(record.glAccount) ? `GL ${stringValue(record.glAccount)}` : undefined,
+      ].filter(Boolean).join(' - ');
+      rows.push({ code, label, outcome, status, detail });
+    });
+  }
+
+  return rows;
+}
+
+function parseEditorJson(editorJson: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(editorJson);
+    return asLooseRecord(parsed);
+  } catch {
+    return {};
+  }
+}
+
+function asLooseRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  const number = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(number) ? number : undefined;
 }
 
 function GuidedInput({
@@ -2883,6 +2957,7 @@ export function AdminPolicies() {
               <ScopeInputs value={editorScope} onChange={setEditorScope} disabled={!selectedIsEditable} />
               <RevisionLockedNotice status={visibleSelectedRevision.status} />
               <PolicyRuntimeLens revision={visibleSelectedRevision} evidence={evidenceQuery.data ?? []} />
+              <PolicyVisualRuleRows area={visibleSelectedRevision.area} editorJson={editorJson} />
               <PolicyBusinessControls
                 revision={visibleSelectedRevision}
                 editorJson={editorJson}

@@ -96,6 +96,10 @@ export const ADMIN_SYSTEM = 'ADMIN_SYSTEM';
 export const ADMIN_TENANT = 'ADMIN_TENANT';
 export const ADMIN_SECURITY = 'ADMIN_SECURITY';
 export const SSO_MANAGE = 'SSO_MANAGE';
+export const SAVED_VIEW_READ = 'SAVED_VIEW_READ';
+export const SAVED_VIEW_CREATE = 'SAVED_VIEW_CREATE';
+export const SAVED_VIEW_UPDATE = 'SAVED_VIEW_UPDATE';
+export const SAVED_VIEW_DELETE = 'SAVED_VIEW_DELETE';
 
 /** All canonical permissions as an array. */
 export const ALL_PERMISSIONS: readonly string[] = [
@@ -116,6 +120,7 @@ export const ALL_PERMISSIONS: readonly string[] = [
   COMPLIANCE_READ, COMPLIANCE_MANAGE, LEGAL_HOLD_MANAGE,
   REPORT_READ, REPORT_CREATE, REPORT_EXPORT, INTELLIGENCE_READ,
   ADMIN_SYSTEM, ADMIN_TENANT, ADMIN_SECURITY, SSO_MANAGE,
+  SAVED_VIEW_READ, SAVED_VIEW_CREATE, SAVED_VIEW_UPDATE, SAVED_VIEW_DELETE,
 ];
 
 /** Data classification levels required to exercise a permission. */
@@ -209,6 +214,10 @@ const PERMISSION_CATALOG: Record<string, PermissionDefinition> = {
   [ADMIN_TENANT]: { code: ADMIN_TENANT, description: 'Tenant administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ADMIN_SECURITY]: { code: ADMIN_SECURITY, description: 'Security administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [SSO_MANAGE]: { code: SSO_MANAGE, description: 'Manage tenant SSO identity providers', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
+  [SAVED_VIEW_READ]: { code: SAVED_VIEW_READ, description: 'Read personal saved list views', dataClassificationRequired: 'LOW', auditOnAccess: false },
+  [SAVED_VIEW_CREATE]: { code: SAVED_VIEW_CREATE, description: 'Create personal saved list views', dataClassificationRequired: 'LOW', auditOnAccess: false },
+  [SAVED_VIEW_UPDATE]: { code: SAVED_VIEW_UPDATE, description: 'Update personal saved list views', dataClassificationRequired: 'LOW', auditOnAccess: false },
+  [SAVED_VIEW_DELETE]: { code: SAVED_VIEW_DELETE, description: 'Delete personal saved list views', dataClassificationRequired: 'LOW', auditOnAccess: false },
 };
 
 /** Retrieve permission definition by code. */

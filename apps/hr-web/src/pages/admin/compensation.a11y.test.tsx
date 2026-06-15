@@ -66,7 +66,7 @@ describe('AdminCompensation accessibility', () => {
     );
 
     expect(await screen.findByRole('heading', { name: 'Compensation' })).toBeInTheDocument();
-    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledTimes(4));
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
 });

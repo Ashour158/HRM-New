@@ -563,7 +563,7 @@ export function AdminCompensation() {
           <Card className="rounded-3xl border-white/60 bg-white/75 shadow-sm">
             <CardHeader><CardTitle className="flex items-center gap-2"><Layers3 className="h-5 w-5" /> Plans</CardTitle></CardHeader>
             <CardContent>
-              <DataTable columns={planColumns} data={plans} keyExtractor={recordId} isLoading={plansQuery.isLoading} emptyMessage="No compensation plans found" total={plans.length} />
+              <DataTable columns={planColumns} data={plans} keyExtractor={recordId} isLoading={plansQuery.isLoading} emptyMessage="No compensation plans found" total={plans.length} listKey="admin.compensation.plans" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -572,7 +572,7 @@ export function AdminCompensation() {
           <Card className="rounded-3xl border-white/60 bg-white/75 shadow-sm">
             <CardHeader><CardTitle className="flex items-center gap-2"><WalletCards className="h-5 w-5" /> Salary bands</CardTitle></CardHeader>
             <CardContent>
-              <DataTable columns={bandColumns} data={bands} keyExtractor={recordId} isLoading={bandsQuery.isLoading} emptyMessage="No compensation bands found" total={bands.length} />
+              <DataTable columns={bandColumns} data={bands} keyExtractor={recordId} isLoading={bandsQuery.isLoading} emptyMessage="No compensation bands found" total={bands.length} listKey="admin.compensation.bands" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -586,7 +586,7 @@ export function AdminCompensation() {
                 <Input id="change-worker-filter" placeholder="Enter worker UUID to load changes" value={changeWorkerId} onChange={(event) => setChangeWorkerId(event.target.value)} />
               </div>
               {changeWorkerId ? (
-                <DataTable columns={changeColumns} data={changes} keyExtractor={recordId} isLoading={changesQuery.isLoading} emptyMessage="No compensation changes for this worker" total={changes.length} />
+                <DataTable columns={changeColumns} data={changes} keyExtractor={recordId} isLoading={changesQuery.isLoading} emptyMessage="No compensation changes for this worker" total={changes.length} listKey="admin.compensation.changes" viewFilters={{ workerId: changeWorkerId }} />
               ) : (
                 <EmptyState icon={LineChart} title="Choose a worker" description="Compensation changes are scoped to an employee record." />
               )}
@@ -598,7 +598,7 @@ export function AdminCompensation() {
           <Card className="rounded-3xl border-white/60 bg-white/75 shadow-sm">
             <CardHeader><CardTitle className="flex items-center gap-2"><Award className="h-5 w-5" /> Bonus cycles</CardTitle></CardHeader>
             <CardContent>
-              <DataTable columns={bonusColumns} data={bonusCycles} keyExtractor={recordId} isLoading={bonusCyclesQuery.isLoading} emptyMessage="No bonus cycles found" total={bonusCycles.length} />
+              <DataTable columns={bonusColumns} data={bonusCycles} keyExtractor={recordId} isLoading={bonusCyclesQuery.isLoading} emptyMessage="No bonus cycles found" total={bonusCycles.length} listKey="admin.compensation.bonus-cycles" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -612,7 +612,7 @@ export function AdminCompensation() {
                 <Input id="equity-worker-filter" placeholder="Enter worker UUID to load grants" value={equityWorkerId} onChange={(event) => setEquityWorkerId(event.target.value)} />
               </div>
               {equityWorkerId ? (
-                <DataTable columns={equityColumns} data={equityGrants} keyExtractor={recordId} isLoading={equityGrantsQuery.isLoading} emptyMessage="No equity grants for this worker" total={equityGrants.length} />
+                <DataTable columns={equityColumns} data={equityGrants} keyExtractor={recordId} isLoading={equityGrantsQuery.isLoading} emptyMessage="No equity grants for this worker" total={equityGrants.length} listKey="admin.compensation.equity-grants" viewFilters={{ workerId: equityWorkerId }} />
               ) : (
                 <EmptyState icon={BadgeDollarSign} title="Choose a worker" description="Equity grants are scoped to an employee record." />
               )}
