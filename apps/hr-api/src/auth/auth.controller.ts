@@ -21,6 +21,7 @@ import { AuthService, type AuthUser } from './auth.service.js';
 import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
 import { SsoConfigService, type SsoConfigInput } from './sso-config.service.js';
 import { SsoOidcService } from './sso-oidc.service.js';
+import { SsoSamlService } from './sso-saml.service.js';
 
 interface LoginDto {
   email: string;
@@ -68,6 +69,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly ssoConfigService: SsoConfigService,
     private readonly ssoOidcService: SsoOidcService,
+    private readonly ssoSamlService: SsoSamlService,
   ) {}
 
   @Post('login')
@@ -236,6 +238,26 @@ export class AuthController {
   async oidcCallback(@Req() req: Request, @Param('tenantId') tenantId: string, @Res() res: Response) {
     const credentials = await this.ssoOidcService.callback(tenantId, absoluteRequestUrl(req));
     res.redirect(302, webSsoCallbackUrl(req, credentials.token, credentials.refreshToken));
+  }
+
+  @Get('sso/saml/:tenantId/start')
+  @Public()
+  async startSaml(@Req() req: Request, @Param('tenantId') tenantId: string, @Res() res: Response) {
+    const result = await this.ssoSamlService.start(tenantId, this.apiBaseUrl(req));
+    res.redirect(302, result.redirectUrl);
+  }
+
+  @Post('sso/saml/:tenantId/acs')
+  @Public()
+  async samlAcs(@Req() req: Request, @Param('tenantId') tenantId: string, @Body() body: { SAMLResponse?: string; RelayState?: string }, @Res() res: Response) {
+    const credentials = await this.ssoSamlService.acs(tenantId, body);
+    res.redirect(302, webSsoCallbackUrl(req, credentials.token, credentials.refreshToken));
+  }
+
+  @Get('sso/saml/:tenantId/metadata')
+  @Public()
+  async samlMetadata(@Req() req: Request, @Param('tenantId') tenantId: string, @Res() res: Response) {
+    res.type('application/xml').send(await this.ssoSamlService.metadata(tenantId, this.apiBaseUrl(req)));
   }
 
   private resolveTenantId(req: Request, tenantId?: string): string {

@@ -21,6 +21,7 @@ export interface SsoAuthTransactionRecord {
 
 export interface SsoAuthTransactionRepositoryLike {
   create(input: Omit<SsoAuthTransactionRecord, 'id' | 'createdAt' | 'consumedAt'>): Promise<SsoAuthTransactionRecord>;
+  findByState(tenantId: string, state: string): Promise<SsoAuthTransactionRecord | undefined>;
   consumeByState(tenantId: string, state: string): Promise<SsoAuthTransactionRecord | undefined>;
 }
 
@@ -65,6 +66,18 @@ export class SsoAuthTransactionRepository implements SsoAuthTransactionRepositor
       .where('consumed_at', 'is', null)
       .where('expires_at', '>', new Date())
       .returningAll()
+      .executeTakeFirst();
+    return row ? toRecord(row) : undefined;
+  }
+
+  async findByState(tenantId: string, state: string): Promise<SsoAuthTransactionRecord | undefined> {
+    const row = await this.db
+      .selectFrom('sso_auth_transactions')
+      .selectAll()
+      .where('tenant_id', '=', tenantId)
+      .where('state', '=', state)
+      .where('consumed_at', 'is', null)
+      .where('expires_at', '>', new Date())
       .executeTakeFirst();
     return row ? toRecord(row) : undefined;
   }

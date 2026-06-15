@@ -7,6 +7,7 @@ import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
 import { SsoConfigService } from './sso-config.service.js';
 import { SsoAuthTransactionRepository } from './sso-auth-transaction.repository.js';
 import { SsoOidcService } from './sso-oidc.service.js';
+import { SsoSamlService } from './sso-saml.service.js';
 import { TenantIdentityProviderRepository } from './tenant-identity-provider.repository.js';
 import { UsersRepository } from './users.repository.js';
 
@@ -22,6 +23,7 @@ import { UsersRepository } from './users.repository.js';
     SsoAuthTransactionRepository,
     SsoConfigService,
     SsoOidcService,
+    SsoSamlService,
   ],
   exports: [AuthService, SsoConfigService, TenantIdentityProviderRepository, SsoAuthTransactionRepository],
 })
