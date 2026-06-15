@@ -114,8 +114,9 @@ export class AccessControlService {
     actorRoles: string[],
     abacContext: AbacContext,
     dataClassification: DataClassification,
+    actorPermissions: string[] = [],
   ): FieldAccessResult {
-    return this.fieldPolicy.evaluateFieldAccess(fieldPath, actorRoles, abacContext, dataClassification);
+    return this.fieldPolicy.evaluateFieldAccess(fieldPath, actorRoles, abacContext, dataClassification, actorPermissions);
   }
 
   /**

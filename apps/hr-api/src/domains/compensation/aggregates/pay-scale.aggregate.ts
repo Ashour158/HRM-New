@@ -13,6 +13,7 @@ export type PayScaleStatus = 'DRAFT' | 'ACTIVE' | 'REVISED' | 'CLOSED';
  */
 export interface PayScaleStep {
   stepNumber: number;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   amount: number;
 }
 

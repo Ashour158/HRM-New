@@ -45,6 +45,7 @@ const AdminContingentWorkforce = lazy(() => import('@/pages/admin/contingent-wor
 const AdminHrAiGovernance = lazy(() => import('@/pages/admin/hr-ai-governance').then((module) => ({ default: module.AdminHrAiGovernance })));
 const AdminGlobalHr = lazy(() => import('@/pages/admin/global-hr').then((module) => ({ default: module.AdminGlobalHr })));
 const AdminDeiAnalytics = lazy(() => import('@/pages/admin/dei-analytics').then((module) => ({ default: module.AdminDeiAnalytics })));
+const AdminInsights = lazy(() => import('@/pages/admin/insights').then((module) => ({ default: module.AdminInsights })));
 const AdminReporting = lazy(() => import('@/pages/admin/reporting').then((module) => ({ default: module.AdminReporting })));
 const AdminModuleCatalog = lazy(() => import('@/pages/admin/module-catalog').then((module) => ({ default: module.AdminModuleCatalog })));
 const AdminModuleWorkbench = lazy(() => import('@/pages/admin/module-workbench').then((module) => ({ default: module.AdminModuleWorkbench })));
@@ -331,6 +332,7 @@ export function AppRoutes() {
                     <Route path="hr-ai-governance" element={<AdminHrAiGovernance />} />
                     <Route path="global-hr" element={<AdminGlobalHr />} />
                     <Route path="dei-analytics" element={<AdminDeiAnalytics />} />
+                    <Route path="insights" element={<AdminInsights />} />
                     <Route path="compliance" element={<AdminCompliance />} />
                     <Route path="country-policy" element={<AdminCountryPolicy />} />
                     <Route path="policies" element={<Navigate to="/admin/system-console/policies" replace />} />

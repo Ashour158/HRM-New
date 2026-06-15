@@ -89,6 +89,7 @@ export const LEGAL_HOLD_MANAGE = 'LEGAL_HOLD_MANAGE';
 export const REPORT_READ = 'REPORT_READ';
 export const REPORT_CREATE = 'REPORT_CREATE';
 export const REPORT_EXPORT = 'REPORT_EXPORT';
+export const INTELLIGENCE_READ = 'INTELLIGENCE_READ';
 
 // Admin domain
 export const ADMIN_SYSTEM = 'ADMIN_SYSTEM';
@@ -112,7 +113,7 @@ export const ALL_PERMISSIONS: readonly string[] = [
   ER_CASE_READ, ER_CASE_CREATE, ER_CASE_INVESTIGATE, ER_CASE_CLOSE,
   SERVICE_READ, SERVICE_REQUEST, SERVICE_MANAGE,
   COMPLIANCE_READ, COMPLIANCE_MANAGE, LEGAL_HOLD_MANAGE,
-  REPORT_READ, REPORT_CREATE, REPORT_EXPORT,
+  REPORT_READ, REPORT_CREATE, REPORT_EXPORT, INTELLIGENCE_READ,
   ADMIN_SYSTEM, ADMIN_TENANT, ADMIN_SECURITY,
 ];
 
@@ -201,6 +202,7 @@ const PERMISSION_CATALOG: Record<string, PermissionDefinition> = {
   [REPORT_READ]: { code: REPORT_READ, description: 'Read reports', dataClassificationRequired: 'LOW', auditOnAccess: false },
   [REPORT_CREATE]: { code: REPORT_CREATE, description: 'Create reports', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
   [REPORT_EXPORT]: { code: REPORT_EXPORT, description: 'Export reports', dataClassificationRequired: 'CONFIDENTIAL', auditOnAccess: true },
+  [INTELLIGENCE_READ]: { code: INTELLIGENCE_READ, description: 'Read explainable workforce intelligence insights', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
 
   [ADMIN_SYSTEM]: { code: ADMIN_SYSTEM, description: 'System administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ADMIN_TENANT]: { code: ADMIN_TENANT, description: 'Tenant administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },

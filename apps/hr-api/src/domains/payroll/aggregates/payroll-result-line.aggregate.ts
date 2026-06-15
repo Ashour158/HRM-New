@@ -13,6 +13,7 @@ export interface PayrollResultLineProps {
   calculationRunId: Uuid;
   lineType: string;
   description: string;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   amount: number;
   currency: string;
   ruleSetId?: string;
@@ -58,6 +59,7 @@ export class PayrollResultLine extends AggregateRoot {
   calculationRunId: Uuid;
   lineType: string;
   description: string;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   amount: number;
   currency: string;
   ruleSetId?: string;

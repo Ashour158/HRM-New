@@ -7,6 +7,7 @@ export interface ContractorRateCardProps {
   tenantId: Uuid;
   vendorId: Uuid;
   jobTitle: string;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   rate: number;
   currency: string;
   effectiveFrom: Date;
@@ -46,6 +47,7 @@ export class ContractorRateCard extends AggregateRoot {
   readonly tenantId: Uuid;
   vendorId: Uuid;
   jobTitle: string;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   rate: number;
   currency: string;
   effectiveFrom: Date;

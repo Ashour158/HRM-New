@@ -171,6 +171,7 @@ export class FieldPolicyEngine {
     actorRoles: string[],
     abacContext: AbacContext,
     dataClassification: DataClassification,
+    actorPermissions: string[] = [],
   ): FieldAccessResult {
     const policy = this.policies.get(fieldPath);
     let decision: FieldAccessDecision;
@@ -181,7 +182,13 @@ export class FieldPolicyEngine {
       maskingRule = policy.maskingRule;
     } else {
       // Default heuristic when no explicit policy exists
-      decision = this.resolveHeuristicDecision(actorRoles, abacContext, dataClassification);
+      decision = this.resolveHeuristicDecision(fieldPath, actorRoles, actorPermissions, abacContext, dataClassification);
+      maskingRule = defaultMaskingRuleFor(dataClassification, fieldPath);
+    }
+
+    decision = this.enforceClassifiedPermission(fieldPath, dataClassification, decision, actorPermissions, abacContext);
+    if (decision === FieldAccessDecision.MASKED && !maskingRule) {
+      maskingRule = defaultMaskingRuleFor(dataClassification, fieldPath);
     }
 
     return { fieldPath, decision, maskingRule };
@@ -266,7 +273,9 @@ export class FieldPolicyEngine {
   }
 
   private resolveHeuristicDecision(
+    fieldPath: string,
     actorRoles: string[],
+    actorPermissions: string[],
     abacContext: AbacContext,
     classification: DataClassification,
   ): FieldAccessDecision {
@@ -277,13 +286,83 @@ export class FieldPolicyEngine {
     }
     if (abacContext.isManager && classification === 'LOW') return FieldAccessDecision.VISIBLE;
     if (actorRoles.includes('HR_ADMIN') || actorRoles.includes('SYSTEM_ACTOR')) {
-      if (classification === 'SPECIAL_CATEGORY') return FieldAccessDecision.REQUIRES_STEP_UP;
-      if (classification === 'LEGAL_HOLD') return FieldAccessDecision.REQUIRES_BREAK_GLASS;
+      if (classification === 'SPECIAL_CATEGORY') {
+        return hasAny(actorPermissions, permissionsForFieldPath(fieldPath)) && abacContext.mfaAuthenticated
+          ? FieldAccessDecision.VISIBLE
+          : FieldAccessDecision.MASKED;
+      }
+      if (classification === 'LEGAL_HOLD') {
+        return hasAny(actorPermissions, permissionsForFieldPath(fieldPath))
+          ? FieldAccessDecision.VISIBLE
+          : FieldAccessDecision.MASKED;
+      }
+      if (classification === 'HIGH_SENSITIVITY') {
+        return hasAny(actorPermissions, permissionsForFieldPath(fieldPath))
+          ? FieldAccessDecision.VISIBLE
+          : FieldAccessDecision.MASKED;
+      }
+      return FieldAccessDecision.VISIBLE;
+    }
+    if (classification === 'HIGH_SENSITIVITY' && hasAny(actorPermissions, permissionsForFieldPath(fieldPath))) {
+      return FieldAccessDecision.VISIBLE;
+    }
+    if (classification === 'SPECIAL_CATEGORY' && hasAny(actorPermissions, permissionsForFieldPath(fieldPath)) && abacContext.mfaAuthenticated) {
       return FieldAccessDecision.VISIBLE;
     }
     if (classification === 'HIGH_SENSITIVITY') return FieldAccessDecision.MASKED;
-    if (classification === 'SPECIAL_CATEGORY') return FieldAccessDecision.DENIED_SPECIAL_CATEGORY;
-    if (classification === 'LEGAL_HOLD') return FieldAccessDecision.DENIED_NO_BUSINESS_NEED;
+    if (classification === 'SPECIAL_CATEGORY') return FieldAccessDecision.MASKED;
+    if (classification === 'LEGAL_HOLD') return FieldAccessDecision.MASKED;
     return FieldAccessDecision.VISIBLE;
   }
+
+  private enforceClassifiedPermission(
+    fieldPath: string,
+    classification: DataClassification,
+    decision: FieldAccessDecision,
+    actorPermissions: string[],
+    abacContext: AbacContext,
+  ): FieldAccessDecision {
+    if (decision !== FieldAccessDecision.VISIBLE || abacContext.isSelf) {
+      return decision;
+    }
+    if (classification === 'HIGH_SENSITIVITY' && !hasAny(actorPermissions, permissionsForFieldPath(fieldPath))) {
+      return FieldAccessDecision.MASKED;
+    }
+    if (classification === 'SPECIAL_CATEGORY') {
+      if (!hasAny(actorPermissions, permissionsForFieldPath(fieldPath))) {
+        return FieldAccessDecision.MASKED;
+      }
+      return abacContext.mfaAuthenticated || abacContext.breakGlassActive
+        ? FieldAccessDecision.VISIBLE
+        : FieldAccessDecision.REQUIRES_STEP_UP;
+    }
+    if (classification === 'LEGAL_HOLD' && !hasAny(actorPermissions, permissionsForFieldPath(fieldPath))) {
+      return FieldAccessDecision.MASKED;
+    }
+    return decision;
+  }
+}
+
+function defaultMaskingRuleFor(classification: DataClassification, fieldPath: string): MaskingRule | undefined {
+  if (classification === 'SPECIAL_CATEGORY' || classification === 'LEGAL_HOLD') return 'FULL_MASK';
+  if (classification !== 'HIGH_SENSITIVITY') return undefined;
+  if (/(bank|account|iban|routing|tax|nationalId|ssn)/i.test(fieldPath)) return 'SHOW_LAST_4';
+  return 'SHOW_RANGE';
+}
+
+function permissionsForFieldPath(fieldPath: string): string[] {
+  if (/(payroll|netPay|grossPay|tax|insurance|bank|iban|routing|account)/i.test(fieldPath)) return ['PAYROLL_READ'];
+  if (/(compensation|salary|bonus|equity|payBand|payRate)/i.test(fieldPath)) return ['COMPENSATION_READ', 'PAYROLL_READ'];
+  if (/(wellbeing|eap|mental|medical|clinical|disability|accommodation)/i.test(fieldPath)) return ['WELLBEING_EAP_READ'];
+  if (/(legalHold|litigation)/i.test(fieldPath)) return ['LEGAL_HOLD_MANAGE'];
+  if (/(diversity|dei|ethnicity|race|religion|gender|sexualOrientation)/i.test(fieldPath)) return ['DEI_ANALYTICS_READ'];
+  if (/(union|grievance|collectiveBargaining)/i.test(fieldPath)) return ['UNION_LABOR_READ'];
+  if (/(disciplinary|investigation|employeeRelations|erCase)/i.test(fieldPath)) return ['EMPLOYEE_RELATIONS_READ'];
+  if (/(performance|rating|calibration|succession)/i.test(fieldPath)) return ['PERFORMANCE_READ'];
+  return ['WORKER_READ'];
+}
+
+function hasAny(values: string[], required: string[]): boolean {
+  const set = new Set(values);
+  return required.some((permission) => set.has(permission));
 }

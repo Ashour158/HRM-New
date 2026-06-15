@@ -5,6 +5,7 @@ import request from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
+import jwt from 'jsonwebtoken';
 import { beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
 import { getPool } from '@hcm/database';
 
@@ -19,6 +20,8 @@ type JsonRecord = Record<string, unknown>;
 
 let app: INestApplication | undefined;
 let authToken = '';
+let managerAuthToken = '';
+let hrAdminWithoutWellbeingToken = '';
 let dbReady = false;
 let skipReason = '';
 let suffix = '';
@@ -245,9 +248,9 @@ function expectStepId(records: JsonRecord[], state: string): string {
   return id;
 }
 
-function headers(): Record<string, string> {
+function headers(token = authToken): Record<string, string> {
   return {
-    Authorization: `Bearer ${authToken}`,
+    Authorization: `Bearer ${token}`,
     'X-Tenant-ID': TENANT_ID,
   };
 }
@@ -270,12 +273,12 @@ function shortCode(prefix: string): string {
   return `${prefix}-${suffix}-${randomUUID().slice(0, 8)}`;
 }
 
-async function apiGet(path: string): Promise<request.Response> {
-  return request(app!.getHttpServer()).get(`${apiPrefix}${path}`).set(headers());
+async function apiGet(path: string, token = authToken): Promise<request.Response> {
+  return request(app!.getHttpServer()).get(`${apiPrefix}${path}`).set(headers(token));
 }
 
-async function apiPost(path: string, payload: JsonRecord = {}): Promise<request.Response> {
-  return request(app!.getHttpServer()).post(`${apiPrefix}${path}`).set(headers()).send(payload);
+async function apiPost(path: string, payload: JsonRecord = {}, token = authToken): Promise<request.Response> {
+  return request(app!.getHttpServer()).post(`${apiPrefix}${path}`).set(headers(token)).send(payload);
 }
 
 async function expectDetail(path: string, requiredFields: string[]): Promise<JsonRecord> {
@@ -310,6 +313,17 @@ async function expectAllowedActions(path: string): Promise<void> {
   const response = await apiGet(path);
   const data = expectSuccessful(response, `GET ${path}`);
   expect(Array.isArray(data.allowedActions ?? data.allowedNextActions)).toBe(true);
+}
+
+async function eventually<T>(fn: () => Promise<T | undefined>, timeoutMs = 5_000): Promise<T> {
+  const started = Date.now();
+  let lastValue: T | undefined;
+  while (Date.now() - started < timeoutMs) {
+    lastValue = await fn();
+    if (lastValue !== undefined) return lastValue;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Expected condition did not pass before timeout. Last value: ${JSON.stringify(lastValue)}`);
 }
 
 const lifecycleIt = (name: string, fn: () => Promise<void>, timeout = 60_000): void => {
@@ -368,6 +382,29 @@ beforeAll(async () => {
   const loginData = expectSuccessful(login, 'POST /auth/login');
   authToken = String(loginData.token ?? asRecord(loginData.session).token ?? '');
   expect(authToken).toBeTruthy();
+
+  const managerLogin = await request(app.getHttpServer())
+    .post(`${apiPrefix}/auth/login`)
+    .set('X-Tenant-ID', TENANT_ID)
+    .send({ email: 'manager@example.com', password: 'Password123!' });
+  const managerLoginData = expectSuccessful(managerLogin, 'POST /auth/login manager');
+  managerAuthToken = String(managerLoginData.token ?? asRecord(managerLoginData.session).token ?? '');
+  expect(managerAuthToken).toBeTruthy();
+
+  hrAdminWithoutWellbeingToken = jwt.sign(
+    {
+      sub: HR_ADMIN_ID,
+      email: 'hr.admin.limited@example.com',
+      roles: ['HR_ADMIN'],
+      permissions: ['WORKER_READ', 'PAYROLL_READ'],
+      tenant_id: TENANT_ID,
+      actor_type: 'USER',
+      session_id: `limited-hr-admin-${suffix}`,
+      mfa_authenticated: true,
+    },
+    process.env.JWT_SECRET ?? 'runtime-lifecycle-test-secret',
+    { expiresIn: '1h' },
+  );
 }, 60_000);
 
 afterAll(async () => {
@@ -840,5 +877,133 @@ describe.sequential('runtime HTTP lifecycle coverage', () => {
     await runCommand('/performance/review-cycles', id, 'enter-review');
     const closed = await runCommand('/performance/review-cycles', id, 'close');
     expect(closed.newState ?? closed.status ?? asRecord(closed.data).status).toBe('CLOSED');
+  });
+
+  lifecycleIt('classified field access masks without clearance and reveals with permission evidence', async () => {
+    const payrollField = await apiGet(`/policy/field-access?fieldPath=worker.payroll.netPay&resourceType=PAYROLL&resourceId=${EMPLOYEE_ID}&dataClassification=HIGH_SENSITIVITY`);
+    const payrollDecision = expectSuccessful(payrollField, 'GET /policy/field-access payroll HR admin');
+    expect(payrollDecision.decision).toBe('VISIBLE');
+
+    const managerPayrollField = await apiGet(
+      `/policy/field-access?fieldPath=worker.payroll.netPay&resourceType=PAYROLL&resourceId=${EMPLOYEE_ID}&dataClassification=HIGH_SENSITIVITY`,
+      managerAuthToken,
+    );
+    const managerPayrollDecision = expectSuccessful(managerPayrollField, 'GET /policy/field-access payroll manager');
+    expect(managerPayrollDecision.decision).toBe('MASKED');
+
+    const medicalField = await apiGet(`/policy/field-access?fieldPath=worker.wellbeing.mentalHealthNotes&resourceType=WELLBEING&resourceId=${EMPLOYEE_ID}&dataClassification=SPECIAL_CATEGORY`);
+    const medicalDecision = expectSuccessful(medicalField, 'GET /policy/field-access wellbeing HR admin');
+    expect(medicalDecision.decision).toBe('VISIBLE');
+
+    const limitedHrMedicalField = await apiGet(
+      `/policy/field-access?fieldPath=worker.wellbeing.mentalHealthNotes&resourceType=WELLBEING&resourceId=${EMPLOYEE_ID}&dataClassification=SPECIAL_CATEGORY`,
+      hrAdminWithoutWellbeingToken,
+    );
+    const limitedHrMedicalDecision = expectSuccessful(limitedHrMedicalField, 'GET /policy/field-access wellbeing HR admin without clearance');
+    expect(limitedHrMedicalDecision.decision).toBe('MASKED');
+  });
+
+  lifecycleIt('intelligence events produce explainable snapshots and anomaly notifications', async () => {
+    const periodKey = `2026-06-${suffix}`;
+    const attrition = await apiPost('/intelligence/events/ingest', {
+      signalType: 'ATTRITION_RISK',
+      workerId: EMPLOYEE_ID,
+      periodKey,
+      features: {
+        tenureMonths: 5,
+        compPositionToBandMidpoint: 0.78,
+        monthsSincePromotion: 48,
+        engagementScoreTrend: -0.3,
+        absenceDaysLast90: 9,
+        managerChangesLast12Months: 2,
+      },
+    });
+    expectSuccessful(attrition, 'POST /intelligence/events/ingest attrition');
+
+    const latest = await eventually(async () => {
+      const response = await apiGet(`/intelligence/attrition-risk/worker/${EMPLOYEE_ID}`);
+      const data = expectSuccessful(response, 'GET /intelligence/attrition-risk/worker');
+      return data.periodKey === periodKey ? data : undefined;
+    });
+    expect(latest.band).toBe('HIGH');
+    expect(Array.isArray(latest.factors) ? latest.factors.length : 0).toBeGreaterThan(0);
+
+    const updatedAttrition = await apiPost('/intelligence/events/ingest', {
+      signalType: 'ATTRITION_RISK',
+      workerId: EMPLOYEE_ID,
+      periodKey,
+      features: {
+        tenureMonths: 18,
+        compPositionToBandMidpoint: 1.05,
+        monthsSincePromotion: 8,
+        engagementScoreTrend: 0.2,
+        absenceDaysLast90: 1,
+        managerChangesLast12Months: 0,
+      },
+    });
+    expectSuccessful(updatedAttrition, 'POST /intelligence/events/ingest attrition second snapshot');
+
+    const nonReportAttrition = await apiPost('/intelligence/events/ingest', {
+      signalType: 'ATTRITION_RISK',
+      workerId: HR_ADMIN_ID,
+      periodKey,
+      features: {
+        tenureMonths: 4,
+        compPositionToBandMidpoint: 0.7,
+        monthsSincePromotion: 54,
+        engagementScoreTrend: -0.25,
+        absenceDaysLast90: 8,
+        managerChangesLast12Months: 1,
+      },
+    });
+    expectSuccessful(nonReportAttrition, 'POST /intelligence/events/ingest non-report attrition');
+
+    const appendOnlySnapshots = await eventually(async () => {
+      const response = await apiGet(`/intelligence/attrition-risk/tenant/${TENANT_ID}`);
+      expectSuccessful(response, 'GET /intelligence/attrition-risk/tenant append-only');
+      const records = collectRecords(payloadOf(response.body));
+      const matching = records.filter((record) => record.workerId === EMPLOYEE_ID && record.periodKey === periodKey);
+      return matching.length >= 2 ? matching : undefined;
+    });
+    expect(new Set(appendOnlySnapshots.map((record) => record.id)).size).toBeGreaterThanOrEqual(2);
+
+    const managerScopedSnapshots = await apiGet(`/intelligence/attrition-risk/tenant/${TENANT_ID}`, managerAuthToken);
+    expect(managerScopedSnapshots.status).toBe(200);
+    const scopedRecords = collectRecords(payloadOf(managerScopedSnapshots.body));
+    expect(scopedRecords.some((record) => record.workerId === EMPLOYEE_ID && record.periodKey === periodKey)).toBe(true);
+    expect(scopedRecords.some((record) => record.workerId === HR_ADMIN_ID && record.periodKey === periodKey)).toBe(false);
+
+    const anomaly = await apiPost('/intelligence/events/ingest', {
+      signalType: 'ATTENDANCE_PAYROLL_ANOMALY',
+      workerId: EMPLOYEE_ID,
+      periodKey,
+      anomalyType: 'ATTENDANCE_PAYROLL',
+      audienceWorkerIds: [EMPLOYEE_ID],
+      features: {
+        hoursWorked: 72,
+        scheduledHours: 40,
+        overtimeHours: 18,
+        priorPeriodNetPay: 12000,
+        currentNetPay: 9000,
+        missingPunches: 2,
+      },
+    });
+    expectSuccessful(anomaly, 'POST /intelligence/events/ingest anomaly');
+
+    const anomalyRecord = await eventually(async () => {
+      const response = await apiGet(`/intelligence/anomalies/tenant/${TENANT_ID}`);
+      expectSuccessful(response, 'GET /intelligence/anomalies/tenant');
+      const records = collectRecords(payloadOf(response.body));
+      return records.find((record) => record.workerId === EMPLOYEE_ID && record.periodKey === periodKey);
+    });
+    expect(anomalyRecord.band).toBe('HIGH');
+
+    const notification = await eventually(async () => {
+      const response = await apiGet('/notifications/hr-operations');
+      expectSuccessful(response, 'GET /notifications/hr-operations');
+      const notifications = collectRecords(payloadOf(response.body));
+      return notifications.find((record) => String(record.title).includes('Attendance and payroll anomaly'));
+    });
+    expect(notification.sourceEventName).toBe('ReminderDue');
   });
 });
