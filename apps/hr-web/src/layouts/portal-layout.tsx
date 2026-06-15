@@ -10,20 +10,12 @@ import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommandPalette, type CommandPaletteItem } from '@/components/ui/command-palette';
+import { NotificationCenter } from '@/components/ui/notification-center';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { LanguageSwitcher } from '@/i18n/language-switcher';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   BarChart3,
   BadgeDollarSign,
-  Bell,
   BrainCircuit,
   Briefcase,
   ChevronDown,
@@ -72,15 +64,6 @@ interface PortalConfig {
   description: string;
   navItems: PortalNavItem[];
   theme: PortalType;
-}
-
-interface PlatformNotification {
-  id: string;
-  title: string;
-  body: string;
-  category: string;
-  readAt?: string;
-  createdAt: string;
 }
 
 const portalConfigs: Record<PortalType, PortalConfig> = {
@@ -314,9 +297,6 @@ function WorkspaceShell({
       },
     });
   }, [canSeeSystemConsole, config.navItems, config.title, hasPermission, meInbox, portalType, railItems, t]);
-  const notificationPath = portalType === 'admin' || portalType === 'recruiter' || portalType === 'payroll'
-    ? '/notifications/hr-operations'
-    : '/notifications/me';
   const primaryActionPath = portalType === 'admin'
     ? '/admin/system-console'
     : portalType === 'recruiter'
@@ -331,13 +311,6 @@ function WorkspaceShell({
       : portalType === 'payroll'
         ? 'Run Payroll'
         : 'New Request';
-  const { data: notificationsRaw } = useApiQuery<PlatformNotification[]>(
-    ['platform-notifications', portalType],
-    notificationPath,
-    { enabled: Boolean(user), retry: false },
-  );
-  const notifications = notificationsRaw ?? [];
-  const unreadNotifications = notifications.filter((notification) => !notification.readAt).length;
   const scrollWorkspace = React.useCallback((direction: -1 | 1) => {
     window.scrollBy({
       top: direction * Math.max(window.innerHeight * 0.8, 360),
@@ -611,42 +584,7 @@ function WorkspaceShell({
             <div className="ml-auto flex shrink-0 items-center gap-2 md:ml-2">
               <LanguageSwitcher compact />
               <ThemeToggle />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-                    <Bell className="h-5 w-5" />
-                    {unreadNotifications > 0 ? (
-                      <span className="absolute right-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-[#e11d48] px-1 text-[10px] font-semibold text-white">
-                        {Math.min(unreadNotifications, 9)}
-                      </span>
-                    ) : null}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80 rounded-lg border-[#e2e8f0] bg-white p-2 shadow-[0_12px_32px_rgba(0,0,0,0.12)]">
-                  <DropdownMenuLabel className="font-mono text-xs uppercase tracking-wider text-[#475569]">
-                    Notifications
-                  </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {notifications.length === 0 ? (
-                    <DropdownMenuItem disabled className="rounded-md text-sm text-[#94a3b8]">
-                      No notifications yet
-                    </DropdownMenuItem>
-                  ) : (
-                    notifications.slice(0, 6).map((notification) => (
-                      <DropdownMenuItem key={notification.id} className="items-start rounded-md p-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-semibold text-[#0f172a]">{notification.title}</span>
-                            {!notification.readAt ? <span className="h-2 w-2 shrink-0 rounded-full bg-[#4f46e5]" /> : null}
-                          </div>
-                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#475569]">{notification.body}</p>
-                          <p className="mt-2 font-mono text-[10px] uppercase tracking-wider text-[#94a3b8]">{notification.category}</p>
-                        </div>
-                      </DropdownMenuItem>
-                    ))
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <NotificationCenter />
               <Button asChild variant="ghost" size="icon" aria-label="Help">
                 <Link to={helpPath}>
                   <HelpCircle className="h-5 w-5" />
