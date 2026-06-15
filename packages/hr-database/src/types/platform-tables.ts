@@ -2172,6 +2172,42 @@ export interface AttritionSegmentReportsTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface AttritionRiskSnapshotsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  period_key: string;
+  model_key: string;
+  model_version: string;
+  score: number;
+  band: string;
+  factors: unknown;
+  feature_snapshot: unknown;
+  source_event_id: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AttendancePayrollAnomalySnapshotsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  period_key: string;
+  model_key: string;
+  model_version: string;
+  score: number;
+  band: string;
+  anomaly_type: string;
+  factors: unknown;
+  feature_snapshot: unknown;
+  notification_event_id: string | null;
+  source_event_id: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface HrAiUseCasesTable {
   id: string;
   tenant_id: string;
@@ -2369,6 +2405,8 @@ export interface Database {
   'hr_dei_analytics.pay_gap_reports': PayGapReportsTable;
   'hr_dei_analytics.pay_equity_reviews': PayEquityReviewsTable;
   'hr_dei_analytics.attrition_segment_reports': AttritionSegmentReportsTable;
+  'hr_intelligence.attrition_risk_snapshots': AttritionRiskSnapshotsTable;
+  'hr_intelligence.attendance_payroll_anomaly_snapshots': AttendancePayrollAnomalySnapshotsTable;
   'hr_ai.hr_ai_use_cases': HrAiUseCasesTable;
   'hr_ai.hr_ai_model_runs': HrAiModelRunsTable;
   'hr_ai.hr_ai_bias_tests': HrAiBiasTestsTable;

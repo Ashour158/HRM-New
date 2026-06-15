@@ -11,6 +11,7 @@ export interface PayrollInputProps {
   workerId: Uuid;
   payrollCycleId: Uuid;
   inputType: string;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   amount: number;
   currency: string;
   description?: string;
@@ -50,6 +51,7 @@ export class PayrollInput extends AggregateRoot {
   workerId: Uuid;
   payrollCycleId: Uuid;
   inputType: string;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   amount: number;
   currency: string;
   description?: string;

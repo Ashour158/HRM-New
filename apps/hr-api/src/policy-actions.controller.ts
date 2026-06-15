@@ -249,6 +249,7 @@ export class PolicyActionsController {
       actorRoles,
       abacContext,
       normalizeClassification(dataClassification, fieldPath),
+      req.actor?.permissions ?? [],
     );
 
     const decision: FieldAccessDto = {

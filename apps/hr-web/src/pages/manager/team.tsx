@@ -1,9 +1,13 @@
+import * as React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApiQuery } from '@/hooks/use-api';
+import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { BarChartPanel, type ChartDatum } from '@/components/ui/charts';
 import { DataTable } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
@@ -18,6 +22,7 @@ import {
   MessageSquare,
   Target,
   TrendingUp,
+  BrainCircuit,
 } from 'lucide-react';
 import type { Worker } from '@/types';
 
@@ -59,6 +64,19 @@ interface ManagerTeamData {
   directReports: Worker[];
   selectedMember?: TeamMemberDetail;
 }
+
+interface TeamAttritionRiskSnapshot {
+  id: string;
+  workerId: string;
+  periodKey: string;
+  score: number;
+  band: 'LOW' | 'MEDIUM' | 'HIGH';
+  factors: Array<{ factor: string; weight: number; detail: string }>;
+}
+
+type TeamAttritionRiskResponse =
+  | TeamAttritionRiskSnapshot[]
+  | { data?: TeamAttritionRiskSnapshot[] };
 
 function formatLabel(value?: string) {
   if (!value) return 'Not assigned';
@@ -112,18 +130,61 @@ function workerStatusVariant(
   return 'outline';
 }
 
+function insightTone(band: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (band === 'HIGH') return 'destructive';
+  if (band === 'MEDIUM') return 'secondary';
+  if (band === 'LOW') return 'default';
+  return 'outline';
+}
+
+function teamRiskDistribution(rows: TeamAttritionRiskSnapshot[]): ChartDatum[] {
+  const counts = rows.reduce<Record<'LOW' | 'MEDIUM' | 'HIGH', number>>((acc, row) => {
+    acc[row.band] += 1;
+    return acc;
+  }, { LOW: 0, MEDIUM: 0, HIGH: 0 });
+  return [
+    { label: 'Low', value: counts.LOW },
+    { label: 'Medium', value: counts.MEDIUM },
+    { label: 'High', value: counts.HIGH },
+  ];
+}
+
+function attritionRiskRowsFromResponse(
+  response: TeamAttritionRiskResponse | undefined,
+): TeamAttritionRiskSnapshot[] {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.data)) return response.data;
+  return [];
+}
+
 /**
  * Team management page with direct reports list and individual profile view.
  */
 export function ManagerTeam() {
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedWorkerId = searchParams.get('worker');
+  const { tenantId } = useTenant();
 
   const { data, isLoading, isError, error, refetch } =
     useApiQuery<ManagerTeamData>(
       ['manager-team', selectedWorkerId],
       `/manager/team${selectedWorkerId ? `?workerId=${selectedWorkerId}` : ''}`,
     );
+  const { data: attritionRiskRaw } = useApiQuery<TeamAttritionRiskResponse>(
+    ['manager-team-attrition-risk', tenantId],
+    `/intelligence/attrition-risk/tenant/${tenantId}`,
+    { enabled: Boolean(tenantId) },
+  );
+  const directReports = React.useMemo(() => data?.directReports ?? [], [data?.directReports]);
+  const attritionRiskRows = React.useMemo(
+    () => attritionRiskRowsFromResponse(attritionRiskRaw),
+    [attritionRiskRaw],
+  );
+  const teamRiskRows = React.useMemo(() => {
+    const reportIds = new Set(directReports.map((worker) => worker.id));
+    return attritionRiskRows.filter((row) => reportIds.has(row.workerId));
+  }, [attritionRiskRows, directReports]);
+  const riskChart = React.useMemo(() => teamRiskDistribution(teamRiskRows), [teamRiskRows]);
 
   const reportColumns = [
     {
@@ -468,6 +529,44 @@ export function ManagerTeam() {
       </div>
 
       <div className="fusion-glass rounded-[2rem] p-6">
+        <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_24rem]">
+          <Card className="bg-white/70">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BrainCircuit className="h-5 w-5 text-indigo-500" />
+                Team attrition signals
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {teamRiskRows.length === 0 ? (
+                <p className="text-sm text-slate-500">No scored team signals yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {teamRiskRows.slice(0, 3).map((risk) => {
+                    const worker = directReports.find((report) => report.id === risk.workerId);
+                    const topFactor = [...risk.factors].sort((a, b) => b.weight - a.weight)[0];
+                    return (
+                      <div key={risk.id} className="rounded-2xl border border-white/60 bg-white/70 p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">
+                              {worker ? `${worker.firstName} ${worker.lastName}` : risk.workerId}
+                            </p>
+                            <p className="text-xs text-slate-500">{topFactor?.detail ?? risk.periodKey}</p>
+                          </div>
+                          <Badge variant={insightTone(risk.band)}>
+                            {risk.band} {Math.round(risk.score * 100)}%
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <BarChartPanel title="Team risk bands" data={riskChart} height={220} />
+        </div>
         <div className="mb-1 text-lg font-bold">Direct Reports</div>
         <p className="mb-4 text-sm text-slate-500">
           Select a team member to review profile, performance, and compensation
@@ -476,7 +575,7 @@ export function ManagerTeam() {
         {(data?.directReports ?? []).length > 0 ? (
           <DataTable
             columns={reportColumns}
-            data={data?.directReports ?? []}
+            data={directReports}
             keyExtractor={(row) => row.id}
             emptyMessage="No direct reports assigned"
           />

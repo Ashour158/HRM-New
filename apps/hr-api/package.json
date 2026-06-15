@@ -21,6 +21,7 @@
     "@hcm/command-contracts": "workspace:*",
     "@hcm/database": "workspace:*",
     "@hcm/event-schemas": "workspace:*",
+    "@hcm/hr-intelligence": "workspace:*",
     "@hcm/openapi-contracts": "workspace:*",
     "@hcm/platform-core": "workspace:*",
     "@hcm/policy-engines": "workspace:*",

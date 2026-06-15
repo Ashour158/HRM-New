@@ -17,6 +17,7 @@
     { "path": "../../packages/hr-platform-core" },
     { "path": "../../packages/hr-access-control" },
     { "path": "../../packages/hr-policy-engines" },
+    { "path": "../../packages/hr-intelligence" },
     { "path": "../../packages/hr-openapi-contracts" }
   ]
 }

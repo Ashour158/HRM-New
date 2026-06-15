@@ -10,6 +10,7 @@ export interface ContingentWorkerAssignmentProps {
   projectId: Uuid;
   startDate: Date;
   endDate: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   rate: number;
   currency: string;
   status?: ContingentWorkerAssignmentStatus;
@@ -50,6 +51,7 @@ export class ContingentWorkerAssignment extends AggregateRoot {
   projectId: Uuid;
   startDate: Date;
   endDate: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   rate: number;
   currency: string;
   status: ContingentWorkerAssignmentStatus;

@@ -53,6 +53,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'REPORT_CREATE',
       'COMPLIANCE_READ',
       'PERFORMANCE_READ',
+      'INTELLIGENCE_READ',
     ],
     mutableFields: [],
   },
@@ -160,6 +161,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'REPORT_READ',
       'REPORT_CREATE',
       'ADMIN_TENANT',
+      'INTELLIGENCE_READ',
       // Module write/read scopes required by domain command authorization. Command
       // authz is role-based (not user-permission based), so without these HR_ADMIN
       // cannot create/transition records in these modules even though UI + backend exist.
@@ -250,6 +252,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'REPORT_READ',
       'REPORT_CREATE',
       'WORKFLOW_APPROVE',
+      'INTELLIGENCE_READ',
     ],
     mutableFields: [
       'worker.profile',
@@ -402,6 +405,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'RECRUITING_CREATE',
       'REPORT_READ',
       'WORKFLOW_APPROVE',
+      'INTELLIGENCE_READ',
     ],
     mutableFields: [
       'performance.rating',
