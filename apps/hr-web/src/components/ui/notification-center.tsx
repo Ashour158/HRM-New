@@ -1,39 +1,14 @@
 import * as React from 'react';
 import { Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Bell, CheckCheck } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
+import { NOTIFICATIONS_KEY, useMyNotifications } from '@/lib/notifications';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
-
-export interface PlatformNotification {
-  id: string;
-  title: string;
-  body: string;
-  category: string;
-  readAt?: string;
-  createdAt: string;
-  relatedAggregateType?: string;
-  relatedAggregateId?: string;
-}
-
-interface ApiEnvelope<T> {
-  data?: T;
-}
-
-const NOTIFICATIONS_KEY = ['platform-notifications', 'me'] as const;
-
-async function fetchMyNotifications(): Promise<PlatformNotification[]> {
-  const res = await apiClient.get<ApiEnvelope<PlatformNotification[]>>('/notifications/me');
-  return res.data?.data ?? [];
-}
-
-export function useMyNotifications() {
-  return useQuery({ queryKey: NOTIFICATIONS_KEY, queryFn: fetchMyNotifications, refetchInterval: 60_000 });
-}
 
 export function NotificationCenter() {
   const { t } = useTranslation();

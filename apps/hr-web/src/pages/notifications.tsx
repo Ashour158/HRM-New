@@ -9,10 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { useMyNotifications } from '@/components/ui/notification-center';
+import { NOTIFICATIONS_KEY, useMyNotifications } from '@/lib/notifications';
 
 type Filter = 'all' | 'unread';
-const NOTIFICATIONS_KEY = ['platform-notifications', 'me'] as const;
 
 export function NotificationsPage() {
   const { t } = useTranslation();
