@@ -161,6 +161,19 @@ export class PlatformNotificationRepository {
     return result.rows[0] ? this.toRecord(result.rows[0]) : undefined;
   }
 
+  async markAllWorkerRead(tenantId: string, workerId: string): Promise<number> {
+    const result = await sql<PlatformNotificationRow>`
+      UPDATE hr_platform.platform_notifications
+      SET read_at = now()
+      WHERE tenant_id = ${tenantId}
+        AND recipient_worker_id = ${workerId}
+        AND read_at IS NULL
+      RETURNING id
+    `.execute(this.db);
+
+    return result.rows.length;
+  }
+
   private toRecord(row: PlatformNotificationRow): PlatformNotificationRecord {
     return {
       id: row.id,
