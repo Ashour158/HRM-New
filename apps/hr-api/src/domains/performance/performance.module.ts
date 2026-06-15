@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { PerformanceController } from './api/performance.controller.js';
@@ -272,7 +272,7 @@ import { registerDevelopmentPlanFsm } from './fsm/development-plan.fsm.js';
   ],
 })
 export class PerformanceModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerPerformanceReviewCycleFsm(this.fsm);

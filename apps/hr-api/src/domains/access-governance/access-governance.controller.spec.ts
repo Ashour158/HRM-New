@@ -2,6 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
+import { AccessGovernanceCommandHandler } from './access-governance-command.handler.js';
 import { AccessGovernanceController } from './access-governance.controller.js';
 import type { AccessGovernanceService } from './access-governance.service.js';
 
@@ -65,12 +66,20 @@ function service(): AccessGovernanceService {
   } as unknown as AccessGovernanceService;
 }
 
+function controller(fakeService = service()): AccessGovernanceController {
+  const commandHandler = new AccessGovernanceCommandHandler(fakeService, { registerHandler: vi.fn() } as never);
+  const commandBus = {
+    execute: vi.fn((command) => commandHandler.handle(command)),
+  };
+  return new AccessGovernanceController(fakeService, commandBus as never);
+}
+
 describe('AccessGovernanceController', () => {
   it('returns operational access governance summary with identity visibility areas', async () => {
     const fakeService = service();
-    const controller = new AccessGovernanceController(fakeService);
+    const subject = controller(fakeService);
 
-    const result = await controller.getSummary(request());
+    const result = await subject.getSummary(request());
 
     expect(fakeService.getSummary).toHaveBeenCalledWith(new Uuid('00000000-0000-0000-0000-000000000001'));
     expect(result.serviceAccounts).toEqual([]);
@@ -88,9 +97,9 @@ describe('AccessGovernanceController', () => {
       isSystem: false,
       createdAt: '2026-06-03T00:00:00.000Z',
     });
-    const controller = new AccessGovernanceController(fakeService);
+    const subject = controller(fakeService);
 
-    const result = await controller.createRole(
+    const result = await subject.createRole(
       { code: 'PAYROLL_VIEWER', name: 'Payroll Viewer', tier: 'TENANT' },
       request(['PLATFORM_ADMIN']),
     );
@@ -115,9 +124,9 @@ describe('AccessGovernanceController', () => {
       createdAt: '2026-06-03T00:00:00.000Z',
       updatedAt: '2026-06-03T00:00:00.000Z',
     });
-    const controller = new AccessGovernanceController(fakeService);
+    const subject = controller(fakeService);
 
-    const result = await controller.createServiceAccount(
+    const result = await subject.createServiceAccount(
       { code: 'PAYROLL_EXPORT_BOT', name: 'Payroll Export Bot', scopes: ['payroll:export'] },
       request(['SUPER_ADMIN']),
     );
@@ -157,9 +166,9 @@ describe('AccessGovernanceController', () => {
       updatedAt: '2026-06-03T00:00:00.000Z',
       oneTimeSecret: 'hcm_sa_test_123456',
     });
-    const controller = new AccessGovernanceController(fakeService);
+    const subject = controller(fakeService);
 
-    const result = await controller.issueServiceAccountCredential(
+    const result = await subject.issueServiceAccountCredential(
       '00000000-0000-0000-0000-000000000020',
       { name: 'Payroll API key', scopes: ['payroll:export'] },
       request(['SUPER_ADMIN']),
@@ -187,9 +196,9 @@ describe('AccessGovernanceController', () => {
       payload: {},
       createdAt: '2026-06-03T00:00:00.000Z',
     });
-    const controller = new AccessGovernanceController(fakeService);
+    const subject = controller(fakeService);
 
-    const result = await controller.sendAccessReviewReminders(
+    const result = await subject.sendAccessReviewReminders(
       '00000000-0000-0000-0000-000000000030',
       { message: 'Please certify' },
       request(['COMPLIANCE_OFFICER']),
@@ -223,9 +232,9 @@ describe('AccessGovernanceController', () => {
       evidence: { decidedFrom: 'test' },
       createdAt: '2026-06-03T00:00:00.000Z',
     });
-    const controller = new AccessGovernanceController(fakeService);
+    const subject = controller(fakeService);
 
-    const result = await controller.updateAccessReviewItem(
+    const result = await subject.updateAccessReviewItem(
       '00000000-0000-0000-0000-000000000099',
       { decision: 'APPROVED', evidence: { decidedFrom: 'test' } },
       request(['COMPLIANCE_OFFICER']),
@@ -254,11 +263,11 @@ describe('AccessGovernanceController', () => {
       remediatedAt: '2026-06-03T00:00:00.000Z',
       externalWorkflowBoundary: 'RECORDED_FOR_GRC_OR_TICKETING_HANDOFF',
     });
-    const controller = new AccessGovernanceController(fakeService) as unknown as {
+    const subject = controller(fakeService) as unknown as {
       remediateSodViolation: (ruleId: string, dto: Record<string, unknown>, req: Request) => Promise<Record<string, unknown>>;
     };
 
-    const result = await controller.remediateSodViolation(
+    const result = await subject.remediateSodViolation(
       '00000000-0000-0000-0000-0000000000a0',
       {
         subjectUserId: '00000000-0000-0000-0000-000000000080',
@@ -282,10 +291,10 @@ describe('AccessGovernanceController', () => {
   });
 
   it('blocks write operations for non-governance roles', async () => {
-    const controller = new AccessGovernanceController(service());
+    const subject = controller();
 
     await expect(
-      controller.createRole({ code: 'PAYROLL_VIEWER', name: 'Payroll Viewer', tier: 'TENANT' }, request(['EMPLOYEE'])),
+      subject.createRole({ code: 'PAYROLL_VIEWER', name: 'Payroll Viewer', tier: 'TENANT' }, request(['EMPLOYEE'])),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

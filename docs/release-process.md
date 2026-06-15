@@ -20,6 +20,8 @@ Pull requests and release tags must pass:
 - Typecheck: `pnpm typecheck`.
 - Tests: `pnpm test`.
 - Frontend content check: `pnpm --filter hr-web content:check`.
+- Frontend accessibility: `pnpm --filter hr-web test:a11y`.
+- Browser smoke: `pnpm --filter hr-web test:e2e`.
 - Build: `pnpm build`.
 - Migration verification against PostgreSQL: `pnpm --filter @hcm/database migrate`.
 - Docker build for API and web images.
@@ -30,9 +32,14 @@ Every release candidate must be exercised in a production-like environment after
 
 1. Set `RUNTIME_API_BASE_URL` to the candidate API URL.
 2. Run `pnpm runtime:smoke` and archive the command output with release evidence.
-3. Run the approved load test profile against login, employee self-service, manager team, policy admin, payroll preview, and `/api/v1/metrics`.
-4. Pass thresholds: p95 latency under 1 second for steady-state API requests, error rate below 1%, and no sustained `HcmApiHighErrorRate` or `HcmApiHighLatencyP95` alerts.
-5. Attach the smoke and load summary to the release notes before production approval.
+3. Run `pnpm runtime:golden-workflow` and archive the command output with release evidence.
+4. Run the approved load test profile against login, employee self-service, manager team, policy admin, payroll preview, and `/api/v1/metrics`.
+5. Pass thresholds: p95 latency under 1 second for steady-state API requests, error rate below 1%, and no sustained `HcmApiHighErrorRate` or `HcmApiHighLatencyP95` alerts.
+6. Attach the smoke and load summary to the release notes before production approval.
+
+The release workflow runs the runtime and golden workflow smoke automatically when the repository variable
+`RUNTIME_API_BASE_URL` points at a deployed candidate API. If that variable is empty, deployment approval must
+record the manual smoke evidence before rollout.
 
 ## Migration Verification
 
@@ -66,7 +73,7 @@ Recommended deployment flow:
 1. Build and publish images through the release workflow.
 2. Update image tags with Kustomize:
    `kubectl kustomize deploy/k8s/base`.
-3. Apply secrets from a real secret manager, replacing `secret.example.yaml`.
+3. Apply secrets from a real secret manager or environment overlay. The base kustomization intentionally does not deploy `secret.example.yaml`.
 4. Run the migration job.
 5. Apply API and web deployments.
 6. Verify health probes and smoke the login, employee, manager, and admin routes.

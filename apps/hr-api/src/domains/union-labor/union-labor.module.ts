@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { UnionLaborController } from './api/union-labor.controller.js';
 import { UnionLaborEventsPublisher } from './events/union-labor-events.publisher.js';
@@ -58,7 +58,7 @@ const REPOS = [UnionRecognitionRepository, GrievanceRepository, CollectiveBargai
   exports: REPOS,
 })
 export class UnionLaborModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit() {
     registerUnionRecognitionFsm(this.fsm);

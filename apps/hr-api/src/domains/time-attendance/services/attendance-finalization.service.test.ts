@@ -98,6 +98,17 @@ describe('AttendanceFinalizationService', () => {
     expect(result.payrollInputs).toHaveLength(0);
   });
 
+  it('throws when finalizing a payroll cycle without a currency', () => {
+    expect(() =>
+      service.finalizeDailyLedger(ledgerFixture(), {
+        tenantId: 'tenant-1',
+        lockedBy: 'payroll-admin',
+        payrollCycleId: 'cycle-1',
+        lockedAt: new Date('2026-05-27T08:00:00Z'),
+      }),
+    ).toThrow('Attendance payroll handoff currency is required');
+  });
+
   it('locks clean rows and produces payroll handoff inputs', () => {
     const lockedAt = new Date('2026-05-27T08:00:00Z');
     const result = service.finalizeDailyLedger(ledgerFixture(), {
@@ -105,6 +116,7 @@ describe('AttendanceFinalizationService', () => {
       lockedBy: 'payroll-admin',
       payrollCycleId: 'cycle-1',
       lockedAt,
+      currency: 'EGP',
     });
 
     expect(result.canFinalize).toBe(true);

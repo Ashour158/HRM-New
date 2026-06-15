@@ -22,6 +22,11 @@
     --accent-foreground: 222 47% 11%;
     --destructive: 347 77% 50%;
     --destructive-foreground: 210 40% 98%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 32 95% 18%;
+    --accent-strong: 173 80% 40%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 243 75% 59%;
@@ -45,6 +50,11 @@
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 32 95% 18%;
+    --accent-strong: 173 80% 40%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 224.3 76.3% 48%;
@@ -71,17 +81,17 @@
   }
 
   ::-webkit-scrollbar-track {
-    background: #e0e7ff;
+    background: hsl(var(--muted));
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #a5b4fc;
-    border: 3px solid #e0e7ff;
+    background: hsl(var(--primary) / 0.45);
+    border: 3px solid hsl(var(--muted));
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #818cf8;
+    background: hsl(var(--primary) / 0.7);
   }
 
   h1,
@@ -100,27 +110,27 @@
   }
 
   .lumina-panel {
-    @apply rounded-2xl border border-slate-200/70 bg-white shadow-[0_8px_24px_-12px_rgba(15,23,42,0.12)];
+    @apply rounded-2xl border border-border bg-card shadow-sm;
   }
 
   .lumina-soft-panel {
-    @apply rounded-2xl border border-slate-200/60 bg-indigo-50/60 shadow-[0_6px_18px_-12px_rgba(15,23,42,0.10)];
+    @apply rounded-2xl border border-border bg-muted shadow-sm;
   }
 
   .lumina-accent-strip {
-    @apply absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 to-violet-500;
+    @apply absolute left-0 top-0 h-1 w-full bg-primary;
   }
 
   .lumina-label {
-    @apply font-mono text-xs font-semibold uppercase tracking-wider text-slate-500;
+    @apply font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground;
   }
 
   .lumina-muted {
-    @apply text-slate-600;
+    @apply text-muted-foreground;
   }
 
   .lumina-gradient {
-    @apply bg-gradient-to-r from-indigo-500 to-violet-500;
+    @apply bg-primary;
   }
 
   .lumina-table {
@@ -128,16 +138,16 @@
   }
 
   .lumina-table thead {
-    @apply bg-indigo-50 font-mono text-xs uppercase tracking-wider text-slate-500;
+    @apply bg-muted font-mono text-xs uppercase tracking-wider text-muted-foreground;
   }
 
   .lumina-table th,
   .lumina-table td {
-    @apply border-b border-slate-200/60 p-4;
+    @apply border-b border-border p-4;
   }
 
   .lumina-table tbody tr {
-    @apply transition-colors hover:bg-indigo-50/70;
+    @apply transition-colors hover:bg-muted/70;
   }
 }
 
@@ -147,7 +157,7 @@
    ============================================================ */
 
 .fusion-bg {
-  background-color: #f6f7fb;
+  background-color: hsl(var(--background));
   position: relative;
 }
 
@@ -205,7 +215,7 @@
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-image: linear-gradient(110deg, #818cf8, #a78bfa, #2dd4bf, #fbbf24, #818cf8);
+  background-image: linear-gradient(110deg, hsl(var(--primary)), hsl(var(--secondary)), hsl(var(--accent-strong)), hsl(var(--warning)), hsl(var(--primary)));
   background-size: 250% auto;
   animation: fusion-shimmer 6s linear infinite;
 }
@@ -232,7 +242,7 @@
 
 /* Accessibility — consistent keyboard focus ring across interactive elements */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid rgba(99, 102, 241, 0.7);
+  outline: 2px solid hsl(var(--ring) / 0.7);
   outline-offset: 2px;
   border-radius: 0.5rem;
 }

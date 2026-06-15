@@ -4,15 +4,17 @@ import {
   Get,
   Param,
   Body,
-  Headers,
   Query,
+  Req,
   UsePipes,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Uuid } from '@hcm/shared-kernel';
 import { createCommand } from '@hcm/command-contracts';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import type { Request } from 'express';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 
 import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
@@ -50,12 +52,9 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Create a new job requisition' })
   async createRequisition(
     @Body() dto: CreateJobRequisitionDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CreateJobRequisition', tenantId, actorId, roles, dto, {
+    const envelope = this.buildCommand('CreateJobRequisition', req, dto, {
       aggregateType: 'JobRequisition',
       reason: 'Create job requisition via API',
     });
@@ -67,12 +66,9 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async approveRequisition(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('ApproveJobRequisition', tenantId, actorId, roles, { requisitionId: id }, {
+    const envelope = this.buildCommand('ApproveJobRequisition', req, { requisitionId: id }, {
       aggregateType: 'JobRequisition',
       aggregateId: id,
       expectedState: 'PENDING_APPROVAL',
@@ -86,12 +82,9 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async publishRequisition(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('PublishJobRequisition', tenantId, actorId, roles, { requisitionId: id }, {
+    const envelope = this.buildCommand('PublishJobRequisition', req, { requisitionId: id }, {
       aggregateType: 'JobRequisition',
       aggregateId: id,
       expectedState: 'APPROVED',
@@ -106,12 +99,9 @@ export class RecruitingController {
   async closeRequisition(
     @Param('id') id: string,
     @Body() dto: CloseJobRequisitionDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CloseJobRequisition', tenantId, actorId, roles, { requisitionId: id, reason: dto.reason }, {
+    const envelope = this.buildCommand('CloseJobRequisition', req, { requisitionId: id, reason: dto.reason }, {
       aggregateType: 'JobRequisition',
       aggregateId: id,
       reason: 'Close job requisition via API',
@@ -124,7 +114,7 @@ export class RecruitingController {
   @ApiQuery({ name: 'department', required: false })
   @ApiQuery({ name: 'position', required: false })
   async listRequisitions(
-    @Headers('x-tenant-id') tenantId: string,
+    @Req() req: Request,
     @Query('department') departmentId?: string,
     @Query('position') positionId?: string,
   ) {
@@ -135,13 +125,13 @@ export class RecruitingController {
       return this.requisitionRepo.findByPosition(new Uuid(positionId));
     }
     // No generic findAll on repository; return open requisitions as default
-    return this.requisitionRepo.findOpen(new Uuid(tenantId));
+    return this.requisitionRepo.findOpen(this.tenantId(req));
   }
 
   @Get('requisitions/open')
   @ApiOperation({ summary: 'List open job requisitions' })
-  async listOpenRequisitions(@Headers('x-tenant-id') tenantId: string) {
-    return this.requisitionRepo.findOpen(new Uuid(tenantId));
+  async listOpenRequisitions(@Req() req: Request) {
+    return this.requisitionRepo.findOpen(this.tenantId(req));
   }
 
   @Get('requisitions/:id')
@@ -169,12 +159,9 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Submit a candidate application' })
   async submitCandidate(
     @Body() dto: SubmitCandidateDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('SubmitCandidateApplication', tenantId, actorId, roles, dto, {
+    const envelope = this.buildCommand('SubmitCandidateApplication', req, dto, {
       aggregateType: 'Candidate',
       reason: 'Submit candidate application via API',
     });
@@ -187,12 +174,9 @@ export class RecruitingController {
   async screenCandidate(
     @Param('id') id: string,
     @Body() dto: ScreenCandidateDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('ScreenCandidate', tenantId, actorId, roles, { applicationId: id, ...dto }, {
+    const envelope = this.buildCommand('ScreenCandidate', req, { applicationId: id, ...dto }, {
       aggregateType: 'Candidate',
       aggregateId: id,
       expectedState: 'NEW',
@@ -207,12 +191,9 @@ export class RecruitingController {
   async scheduleInterviewForCandidate(
     @Param('id') id: string,
     @Body() dto: ScheduleInterviewDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('ScheduleInterview', tenantId, actorId, roles, { applicationId: id, ...dto }, {
+    const envelope = this.buildCommand('ScheduleInterview', req, { applicationId: id, ...dto }, {
       aggregateType: 'InterviewPlan',
       reason: 'Schedule interview via API',
     });
@@ -261,12 +242,9 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Schedule an interview' })
   async createInterview(
     @Body() dto: ScheduleInterviewDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('ScheduleInterview', tenantId, actorId, roles, dto, {
+    const envelope = this.buildCommand('ScheduleInterview', req, dto, {
       aggregateType: 'InterviewPlan',
       reason: 'Schedule interview via API',
     });
@@ -278,14 +256,11 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Interview UUID' })
   async completeInterview(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
     const plan = await this.interviewPlanRepo.findById(new Uuid(id));
     if (!plan) throw new BadRequestException('Interview plan not found');
-    const envelope = this.buildCommand('CompleteInterview', tenantId, actorId, roles, { interviewId: id }, {
+    const envelope = this.buildCommand('CompleteInterview', req, { interviewId: id }, {
       aggregateType: 'InterviewPlan',
       aggregateId: id,
       expectedState: plan.status,
@@ -299,14 +274,11 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Interview UUID' })
   async cancelInterview(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
     const plan = await this.interviewPlanRepo.findById(new Uuid(id));
     if (!plan) throw new BadRequestException('Interview plan not found');
-    const envelope = this.buildCommand('CancelInterview', tenantId, actorId, roles, { interviewId: id }, {
+    const envelope = this.buildCommand('CancelInterview', req, { interviewId: id }, {
       aggregateType: 'InterviewPlan',
       aggregateId: id,
       expectedState: plan.status,
@@ -321,12 +293,9 @@ export class RecruitingController {
   @ApiOperation({ summary: 'Create a new offer' })
   async createOffer(
     @Body() dto: CreateOfferDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('CreateOffer', tenantId, actorId, roles, dto, {
+    const envelope = this.buildCommand('CreateOffer', req, dto, {
       aggregateType: 'Offer',
       reason: 'Create offer via API',
     });
@@ -338,12 +307,9 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async approveOffer(
     @Param('id') id: string,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('ApproveOffer', tenantId, actorId, roles, { offerId: id }, {
+    const envelope = this.buildCommand('ApproveOffer', req, { offerId: id }, {
       aggregateType: 'Offer',
       aggregateId: id,
       expectedState: 'PENDING_APPROVAL',
@@ -358,12 +324,9 @@ export class RecruitingController {
   async sendOffer(
     @Param('id') id: string,
     @Body() _dto: SendOfferDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('SendOffer', tenantId, actorId, roles, { offerId: id }, {
+    const envelope = this.buildCommand('SendOffer', req, { offerId: id }, {
       aggregateType: 'Offer',
       aggregateId: id,
       expectedState: 'APPROVED',
@@ -378,12 +341,9 @@ export class RecruitingController {
   async acceptOffer(
     @Param('id') id: string,
     @Body() dto: AcceptOfferDto,
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-actor-id') actorId: string,
-    @Headers('x-actor-roles') actorRolesHeader?: string,
+    @Req() req: Request,
   ) {
-    const roles = actorRolesHeader ? actorRolesHeader.split(',') : ['HR_ADMIN'];
-    const envelope = this.buildCommand('AcceptOffer', tenantId, actorId, roles, { offerId: id, acceptedAt: dto.acceptedAt ?? new Date() }, {
+    const envelope = this.buildCommand('AcceptOffer', req, { offerId: id, acceptedAt: dto.acceptedAt ?? new Date() }, {
       aggregateType: 'Offer',
       aggregateId: id,
       expectedState: 'SENT',
@@ -432,9 +392,7 @@ export class RecruitingController {
 
   private buildCommand<TPayload>(
     commandName: string,
-    tenantId: string,
-    actorId: string,
-    roles: string[],
+    req: Request,
     payload: TPayload,
     options: {
       aggregateType: string;
@@ -443,15 +401,17 @@ export class RecruitingController {
       reason?: string;
     },
   ): HrCommandEnvelope<TPayload> {
+    const actor = this.actor(req);
     return createCommand(
       commandName,
-      new Uuid(tenantId),
+      this.tenantId(req),
       {
-        actorType: 'USER',
-        actorId: new Uuid(actorId),
-        roles,
-        permissions: roles,
-        mfaAuthenticated: true,
+        actorType: actor.actorType,
+        actorId: actor.actorId,
+        roles: actor.roles,
+        permissions: actor.permissions,
+        mfaAuthenticated: actor.mfaAuthenticated,
+        sessionId: actor.sessionId,
       },
       payload,
       {
@@ -463,5 +423,20 @@ export class RecruitingController {
         reason: options.reason ?? 'API request',
       },
     );
+  }
+
+  private tenantId(req: Request): Uuid {
+    if (typeof req.tenantId === 'string' && Uuid.isValid(req.tenantId)) {
+      return new Uuid(req.tenantId);
+    }
+    throw new ForbiddenException('Recruiting requires a validated tenant context.');
+  }
+
+  private actor(req: Request) {
+    const actor = req.actor;
+    if (!actor?.actorId) {
+      throw new ForbiddenException('Recruiting commands require an authenticated actor.');
+    }
+    return actor;
   }
 }

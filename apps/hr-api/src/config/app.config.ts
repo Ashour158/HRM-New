@@ -21,8 +21,12 @@ export interface AppConfig {
   refreshTokenExpiresIn: string;
   /** Whether MFA step-up is required for sensitive sessions. */
   mfaRequired: boolean;
-  /** Non-production demo MFA code. Undefined in production unless explicitly configured. */
-  mfaDemoCode?: string;
+  /** Bcrypt cost factor for password hashes. */
+  bcryptCost: number;
+  /** Number of failed login attempts before account lockout. */
+  loginMaxAttempts: number;
+  /** Login lockout duration in minutes. */
+  lockoutMinutes: number;
   /** Optional OIDC identity provider issuer URL. */
   oidcIssuerUrl?: string;
   /** Optional OIDC client ID. */
@@ -54,6 +58,12 @@ export interface AppConfig {
 /**
  * Load configuration from environment variables with sensible defaults.
  */
+function parsePositiveIntEnv(name: string, fallback: number, min: number, max: number): number {
+  const parsed = Number.parseInt(process.env[name] ?? '', 10);
+  if (!Number.isInteger(parsed) || parsed < min || parsed > max) return fallback;
+  return parsed;
+}
+
 export function loadAppConfig(): AppConfig {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
@@ -61,7 +71,6 @@ export function loadAppConfig(): AppConfig {
   const systemApiKey = process.env.SYSTEM_API_KEY ?? (isProduction ? undefined : 'system-api-key');
   const integrationApiKey =
     process.env.INTEGRATION_API_KEY ?? (isProduction ? undefined : 'integration-api-key');
-  const mfaDemoCode = process.env.MFA_DEMO_CODE ?? (isProduction ? undefined : '123456');
 
   if (isProduction && jwtSecret === 'change-me-in-production') {
     throw new Error('JWT_SECRET must be configured to a non-placeholder value in production');
@@ -86,7 +95,9 @@ export function loadAppConfig(): AppConfig {
     jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1h',
     refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN ?? '7d',
     mfaRequired: (process.env.MFA_REQUIRED ?? 'false').toLowerCase() === 'true',
-    mfaDemoCode,
+    bcryptCost: parsePositiveIntEnv('BCRYPT_COST', 12, 8, 16),
+    loginMaxAttempts: parsePositiveIntEnv('LOGIN_MAX_ATTEMPTS', 5, 1, 20),
+    lockoutMinutes: parsePositiveIntEnv('LOCKOUT_MINUTES', 15, 1, 1440),
     oidcIssuerUrl: process.env.OIDC_ISSUER_URL,
     oidcClientId: process.env.OIDC_CLIENT_ID,
     oidcRedirectUri: process.env.OIDC_REDIRECT_URI,

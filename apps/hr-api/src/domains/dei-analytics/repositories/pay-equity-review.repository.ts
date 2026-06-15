@@ -20,6 +20,11 @@ export class PayEquityReviewRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<PayEquityReview[]> {
+    const rows = await this.db.selectFrom('hr_dei_analytics.pay_equity_reviews').selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: PayEquityReview): Promise<void> {
     const existing = await this.db.selectFrom('hr_dei_analytics.pay_equity_reviews').select('id').where('id', '=', entity.id.value).executeTakeFirst();
     const row = {

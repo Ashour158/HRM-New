@@ -4,6 +4,8 @@ import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuditLedgerService } from '@hcm/platform-core';
 import { AuthGuard } from '../../../guards/auth.guard.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
@@ -28,6 +30,7 @@ export class EmployeePayrollController {
     private readonly payrollCalculation: PayrollCycleCalculationService,
     private readonly payslipArtifactRepo: PayrollPayslipArtifactRepository,
     private readonly auditLedger: AuditLedgerService,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   @Get('payslips')
@@ -50,7 +53,7 @@ export class EmployeePayrollController {
     }
 
     const fallbackPayslips = cyclesWithoutPublishedArtifact.length > 0
-      ? await this.buildPayslipsFromLockedLines(worker, cycleById, new Set(artifactPayslips.map((payslip) => payslip.payrollCycleId)))
+      ? await this.buildPayslipsFromLockedLines(tenantId, worker, cycleById, new Set(artifactPayslips.map((payslip) => payslip.payrollCycleId)))
       : [];
 
     const payslips = [...artifactPayslips, ...fallbackPayslips]
@@ -71,6 +74,7 @@ export class EmployeePayrollController {
   }
 
   private async buildPayslipsFromLockedLines(
+    tenantId: Uuid,
     worker: {
       id: Uuid;
       employeeNumber: string;
@@ -85,13 +89,18 @@ export class EmployeePayrollController {
     const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
     const basic = payloadByCategory.BASIC ?? {};
     const compensation = payloadByCategory.COMPENSATION ?? {};
+    const salaryCurrency = typeof compensation.salaryCurrency === 'string' && compensation.salaryCurrency
+      ? compensation.salaryCurrency
+      : undefined;
+    const currency = salaryCurrency
+      ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(tenantId));
     const employee: PayrollCycleEmployeeInput = {
       workerId: worker.id.value,
       employeeId: worker.employeeNumber,
       name: `${worker.firstName} ${worker.lastName}`.trim(),
       email: String(basic.workEmail ?? basic.personalEmail ?? worker.email.toString()),
       grossSalary: Number(compensation.grossSalaryAmount ?? compensation.salaryAmount ?? 0),
-      currency: String(compensation.salaryCurrency ?? 'EGP'),
+      currency: String(currency),
     };
 
     const lockedLines = (await this.resultLineRepo.findByWorker(worker.id))

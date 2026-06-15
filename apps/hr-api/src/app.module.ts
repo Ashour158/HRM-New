@@ -35,6 +35,7 @@ import { HcmSetupModule } from './domains/hcm-setup/hcm-setup.module.js';
 import { AdminModuleOperationsModule } from './domains/admin-module-operations/admin-module-operations.module.js';
 import { AccessGovernanceModule } from './domains/access-governance/access-governance.module.js';
 import { PolicyCenterModule } from './domains/policy-center/policy-center.module.js';
+import { SchedulerModule } from './domains/scheduler/scheduler.module.js';
 import { AuditInterceptor } from './interceptors/audit.interceptor.js';
 import { TenantInterceptor } from './interceptors/tenant.interceptor.js';
 import { TransformInterceptor } from './interceptors/transform.interceptor.js';
@@ -42,6 +43,8 @@ import { AppService } from './app.service.js';
 import { PolicyActionsController } from './policy-actions.controller.js';
 import { EmployeeSelfServiceController } from './employee-self-service.controller.js';
 import { AdminDashboardController } from './admin-dashboard.controller.js';
+import { AdminReadinessController } from './admin-readiness.controller.js';
+import { AdminReadinessService } from './admin-readiness.service.js';
 import { AuditController } from './audit.controller.js';
 import { ManagerTeamController } from './manager-team.controller.js';
 import { AuthGuard } from './guards/auth.guard.js';
@@ -49,10 +52,11 @@ import { RolesGuard } from './guards/roles.guard.js';
 import { PermissionGuard } from './guards/permission.guard.js';
 
 @Module({
-  imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule],
-  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AuditController, ManagerTeamController],
+  imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule],
+  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController],
   providers: [
     AppService,
+    AdminReadinessService,
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

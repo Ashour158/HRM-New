@@ -313,24 +313,30 @@ function extractFrontendRoutes(file, content) {
 }
 
 function extractBackendRoutes(file, content) {
-  const controllerMatch = content.match(/@Controller\(\s*(?:['"`]([^'"`]*)['"`])?\s*\)/);
+  const controllerMatch = content.match(/@Controller\(\s*([\s\S]*?)\s*\)/);
   if (!controllerMatch) {
     return [];
   }
 
-  const controller = controllerMatch[1] ?? '';
+  const controllerExpression = controllerMatch[1]?.trim() ?? '';
+  const controllerPrefixes = controllerExpression
+    ? [...controllerExpression.matchAll(/['"`]([^'"`]*)['"`]/g)].map((match) => match[1] ?? '')
+    : [''];
+  const prefixes = controllerPrefixes.length > 0 ? controllerPrefixes : [''];
   const routes = new Map();
   const pattern = /@(Get|Post|Put|Patch|Delete)\(\s*(?:['"`]([^'"`]*)['"`])?\s*\)/g;
 
   for (const match of content.matchAll(pattern)) {
     const method = match[1].toUpperCase();
-    const path = normalizeApiRoute(joinRoute(controller, match[2] ?? ''));
     const line = content.slice(0, match.index).split(/\r?\n/).length;
-    addRoute(routes, {
-      method,
-      path,
-      sources: [`${toProjectRelative(file)}:${line}`],
-    });
+    for (const controller of prefixes) {
+      const path = normalizeApiRoute(joinRoute(controller, match[2] ?? ''));
+      addRoute(routes, {
+        method,
+        path,
+        sources: [`${toProjectRelative(file)}:${line}`],
+      });
+    }
   }
 
   return [...routes.values()];

@@ -5,6 +5,19 @@ import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { SowEngagement, type SowEngagementStatus } from '../aggregates/sow-engagement.aggregate.js';
 
+function stringArrayFromJsonb(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.map(String) : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
 @Injectable()
 export class SowEngagementRepository extends BaseRepository<'sow_engagements', SowEngagement> {
   protected readonly tableName = 'sow_engagements' as const;
@@ -16,6 +29,11 @@ export class SowEngagementRepository extends BaseRepository<'sow_engagements', S
   async findById(id: Uuid): Promise<SowEngagement | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['sow_engagements']) : undefined;
+  }
+
+  async findByTenant(tenantId: Uuid): Promise<SowEngagement[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['sow_engagements']));
   }
 
   async save(entity: SowEngagement): Promise<void> {
@@ -39,7 +57,7 @@ export class SowEngagementRepository extends BaseRepository<'sow_engagements', S
       currency: row.currency,
       startDate: row.start_date,
       endDate: row.end_date,
-      milestones: row.milestones ? (row.milestones as unknown as string[]) : undefined,
+      milestones: stringArrayFromJsonb(row.milestones),
       status: row.status as SowEngagementStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -58,7 +76,7 @@ export class SowEngagementRepository extends BaseRepository<'sow_engagements', S
       currency: entity.currency,
       start_date: entity.startDate,
       end_date: entity.endDate,
-      milestones: entity.milestones ? (entity.milestones as unknown as Record<string, never>) : null,
+      milestones: entity.milestones ? JSON.stringify(entity.milestones) : null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

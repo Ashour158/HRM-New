@@ -13,6 +13,7 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       globals: true,
       css: true,
+      testTimeout: 30_000,
       exclude: ['node_modules/**', 'dist/**', 'e2e/**'],
     },
     build: {

@@ -10,7 +10,7 @@ import { HrEventPrivacySchema } from './event-privacy.js';
 import type { HrEventPrivacy } from './event-privacy.js';
 
 /** Client types that may originate an event. */
-export type ClientType = 'EMPLOYEE_PORTAL' | 'MANAGER_PORTAL' | 'HR_ADMIN' | 'MOBILE' | 'BFF' | 'SYSTEM' | 'INTEGRATION';
+export type ClientType = 'EMPLOYEE_PORTAL' | 'MANAGER_PORTAL' | 'HR_ADMIN' | 'MOBILE' | 'BFF' | 'SYSTEM' | 'SYSTEM_SCHEDULER' | 'INTEGRATION';
 
 /** Event envelope metadata block. */
 export interface EventMetadata {
@@ -61,7 +61,7 @@ export const EventMetadataSchema = z.object({
   publicationSource: z.enum(['OUTBOX', 'DIRECT']).optional(),
   processInstanceId: z.string().optional(),
   requestHash: z.string().min(1),
-  clientType: z.enum(['EMPLOYEE_PORTAL', 'MANAGER_PORTAL', 'HR_ADMIN', 'MOBILE', 'BFF', 'SYSTEM', 'INTEGRATION']),
+  clientType: z.enum(['EMPLOYEE_PORTAL', 'MANAGER_PORTAL', 'HR_ADMIN', 'MOBILE', 'BFF', 'SYSTEM', 'SYSTEM_SCHEDULER', 'INTEGRATION']),
   dataResidencyRegion: z.string().optional(),
   hrDataSensitivity: z.enum(['LOW', 'MEDIUM', 'HIGH', 'RESTRICTED', 'SPECIAL_CATEGORY']).optional(),
   topic: z.string().min(1).optional(),

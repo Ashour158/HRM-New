@@ -49,6 +49,98 @@ async function backfillDemoIdentityPayrollReadiness(
   tenantId: string,
 ): Promise<void> {
   await sql`
+    WITH demo_users(id, email, first_name, last_name, password_hash, status, roles, permissions) AS (
+      VALUES
+        (
+          '00000000-0000-0000-0000-000000000010'::uuid,
+          'hr.admin@example.com',
+          'HR',
+          'Admin',
+          '$2b$12$aXu1j3gZ4U1N2RecdAlFyuvUSpAjfbPMbEMMUOpTTkqiR6tL05A7i',
+          'ACTIVE',
+          '["HR_ADMIN","COMPENSATION_ADMIN","BENEFITS_ADMIN"]'::jsonb,
+          '["ADMIN_SECURITY","ADMIN_SYSTEM","ADMIN_TENANT","WORKER_CREATE","WORKER_READ","WORKER_UPDATE","WORKER_TERMINATE","WORKER_REACTIVATE","ORGANIZATION_MANAGE","ORG_READ","ORG_CREATE","ORG_UPDATE","ORG_DELETE","POSITION_READ","POSITION_CREATE","POSITION_APPROVE","POSITION_WRITE","REPORTING_READ","REPORT_READ","REPORT_CREATE","REPORT_EXPORT","COMPLIANCE_READ","COMPLIANCE_MANAGE","COMPLIANCE_WRITE","LEGAL_HOLD_MANAGE","COUNTRY_POLICY_READ","COUNTRY_POLICY_WRITE","PAYROLL_READ","PAYROLL_CREATE","PAYROLL_APPROVE","PAYROLL_EXPORT","PAYROLL_MANAGE","BENEFITS_MANAGE","BENEFITS_READ","BENEFITS_ENROLL","BENEFITS_APPROVE","PERFORMANCE_READ","PERFORMANCE_CREATE","PERFORMANCE_WRITE","PERFORMANCE_APPROVE","PERFORMANCE_MANAGE","LEARNING_READ","LEARNING_ASSIGN","LEARNING_APPROVE","LEARNING_WRITE","RECRUITING_READ","RECRUITING_CREATE","RECRUITING_APPROVE","RECRUITING_PUBLISH","RECRUITING_MANAGE","ONBOARDING_MANAGE","SCHEDULER_MANAGE","WORKFLOW_MANAGE","WORKFLOW_APPROVE","COMPENSATION_READ","COMPENSATION_CHANGE","COMPENSATION_APPROVE","COMPENSATION_WRITE","ABSENCE_READ","ABSENCE_APPROVE","ABSENCE_MANAGE","TIME_READ","TIME_APPROVE","TIME_MANAGE","WORKFORCE_READ","WORKFORCE_SCHEDULE","WORKFORCE_APPROVE","WORKFORCE_MANAGEMENT_READ","WORKFORCE_MANAGEMENT_WRITE","ER_CASE_READ","ER_CASE_CREATE","ER_CASE_INVESTIGATE","ER_CASE_CLOSE","EMPLOYEE_RELATIONS_READ","EMPLOYEE_RELATIONS_WRITE","SERVICE_READ","SERVICE_REQUEST","SERVICE_MANAGE","SKILLS_TALENT_READ","SKILLS_TALENT_WRITE","ENGAGEMENT_READ","ENGAGEMENT_WRITE","GLOBAL_HR_READ","GLOBAL_HR_WRITE","HR_AI_GOVERNANCE_READ","HR_AI_GOVERNANCE_WRITE","CONTINGENT_WORKFORCE_READ","CONTINGENT_WORKFORCE_WRITE","UNION_LABOR_READ","UNION_LABOR_WRITE","WELLBEING_EAP_READ","WELLBEING_EAP_WRITE","DEI_ANALYTICS_READ","DEI_ANALYTICS_WRITE"]'::jsonb
+        ),
+        (
+          '00000000-0000-0000-0000-000000000011'::uuid,
+          'manager@example.com',
+          'Line',
+          'Manager',
+          '$2b$12$aXu1j3gZ4U1N2RecdAlFyuvUSpAjfbPMbEMMUOpTTkqiR6tL05A7i',
+          'ACTIVE',
+          '["MANAGER"]'::jsonb,
+          '["WORKER_READ","WORKER_UPDATE","PERFORMANCE_READ","PERFORMANCE_WRITE","TIME_ATTENDANCE_MANAGE","APPROVAL_MANAGE","WORKFLOW_APPROVE"]'::jsonb
+        ),
+        (
+          '00000000-0000-0000-0000-000000000012'::uuid,
+          'employee@example.com',
+          'Regular',
+          'Employee',
+          '$2b$12$aXu1j3gZ4U1N2RecdAlFyuvUSpAjfbPMbEMMUOpTTkqiR6tL05A7i',
+          'ACTIVE',
+          '["EMPLOYEE"]'::jsonb,
+          '["SELF_READ","SELF_UPDATE","TIME_ATTENDANCE_READ","TIME_ATTENDANCE_WRITE","BENEFITS_READ","PAYSLIP_READ"]'::jsonb
+        )
+    ),
+    updated AS (
+      UPDATE "hr_platform"."users" existing
+      SET
+        first_name = source.first_name,
+        last_name = source.last_name,
+        password_hash = source.password_hash,
+        status = source.status,
+        roles = source.roles,
+        permissions = source.permissions,
+        failed_login_count = 0,
+        locked_until = null,
+        updated_at = now()
+      FROM demo_users source
+      WHERE existing.tenant_id = ${tenantId}::uuid
+        AND lower(existing.email) = lower(source.email)
+      RETURNING lower(existing.email) AS email
+    )
+    INSERT INTO "hr_platform"."users" (
+      id,
+      tenant_id,
+      email,
+      first_name,
+      last_name,
+      password_hash,
+      status,
+      roles,
+      permissions,
+      failed_login_count,
+      created_at,
+      updated_at
+    )
+    SELECT
+      source.id,
+      ${tenantId}::uuid,
+      source.email,
+      source.first_name,
+      source.last_name,
+      source.password_hash,
+      source.status,
+      source.roles,
+      source.permissions,
+      0,
+      now(),
+      now()
+    FROM demo_users source
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM updated item
+      WHERE item.email = lower(source.email)
+    )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM "hr_platform"."users" existing
+        WHERE existing.tenant_id = ${tenantId}::uuid
+          AND lower(existing.email) = lower(source.email)
+      );
+  `.execute(db);
+
+  await sql`
     WITH demo_profile_records(worker_id, employee_number, data_category, data_classification, payload) AS (
       VALUES
         (

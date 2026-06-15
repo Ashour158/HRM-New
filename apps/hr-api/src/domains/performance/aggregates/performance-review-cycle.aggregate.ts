@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification CONFIDENTIAL - review, rating, goal, competency, calibration, 360 feedback, PIP, and development-plan fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type PerformanceReviewCycleStatus = 'DRAFT' | 'SETUP' | 'ACTIVE' | 'IN_PROGRESS' | 'CALIBRATION' | 'REVIEW' | 'CLOSED' | 'CANCELLED';

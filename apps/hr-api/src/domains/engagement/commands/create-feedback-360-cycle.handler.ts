@@ -18,17 +18,22 @@ export class CreateFeedback360CycleHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as {
-      subjectWorkerId: Uuid;
+      subjectWorkerId: Uuid | string;
       reviewers?: string[];
+      competencies?: string[];
       startDate?: Date;
       endDate?: Date;
     };
+    const subjectWorkerId = payload.subjectWorkerId instanceof Uuid
+      ? payload.subjectWorkerId
+      : new Uuid(payload.subjectWorkerId);
     const ar = Feedback360Cycle.create(
       {
         id: Uuid.generate(),
         tenantId: command.tenantId,
-        subjectWorkerId: payload.subjectWorkerId,
+        subjectWorkerId,
         reviewers: payload.reviewers,
+        competencies: payload.competencies,
         startDate: payload.startDate,
         endDate: payload.endDate,
       },

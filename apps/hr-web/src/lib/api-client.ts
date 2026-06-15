@@ -1,5 +1,14 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import type { ApiResponse, AuthRefreshResponse } from '@hcm/openapi-contracts';
+import type {
+  ApiResponse,
+  AuthPasswordResetConfirmRequest,
+  AuthPasswordResetConfirmResponse,
+  AuthPasswordResetRequest,
+  AuthPasswordResetRequestResponse,
+  AuthRefreshResponse,
+  AuthRegisterRequest,
+  AuthRegisterResponse,
+} from '@hcm/openapi-contracts';
 import { clearAuthSession, persistAuthSession, readAuthToken, readRefreshToken, readTenantId } from '@/lib/auth-storage';
 import { generateUUID } from './utils';
 import { createMockAdapter } from './mock-adapter';
@@ -10,14 +19,17 @@ import { createMockAdapter } from './mock-adapter';
 interface RetryConfig extends InternalAxiosRequestConfig {
   retryCount?: number;
   authRefreshAttempted?: boolean;
+  // Public/unauthenticated auth flows (register, password reset) must surface 401s
+  // inline rather than being bounced to /login.
+  suppressAuthRedirect?: boolean;
 }
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000;
 const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
-const AUTH_BYPASS_ENABLED = import.meta.env.VITE_AUTH_BYPASS === 'true';
+const AUTH_BYPASS_ENABLED = import.meta.env.DEV && import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
 
 function persistTokens(token: string, refreshToken?: string): void {
   persistAuthSession({ token, refreshToken });
@@ -91,7 +103,7 @@ function createApiClient(): AxiosInstance {
           }
         }
 
-        if (!AUTH_BYPASS_ENABLED) {
+        if (!AUTH_BYPASS_ENABLED && !config.suppressAuthRedirect) {
           clearAuthSession();
           if (window.location.pathname !== '/login') {
             window.location.replace('/login?reason=session_expired');
@@ -122,3 +134,34 @@ function createApiClient(): AxiosInstance {
  * Global Axios instance for API requests.
  */
 export const apiClient = createApiClient();
+
+export async function registerAuthUser(payload: AuthRegisterRequest): Promise<AuthRegisterResponse> {
+  const response = await apiClient.post<ApiResponse<AuthRegisterResponse>>(
+    '/auth/register',
+    payload,
+    { suppressAuthRedirect: true } as RetryConfig,
+  );
+  return response.data.data;
+}
+
+export async function requestPasswordReset(
+  payload: AuthPasswordResetRequest,
+): Promise<AuthPasswordResetRequestResponse> {
+  const response = await apiClient.post<ApiResponse<AuthPasswordResetRequestResponse>>(
+    '/auth/password-reset/request',
+    payload,
+    { suppressAuthRedirect: true } as RetryConfig,
+  );
+  return response.data.data;
+}
+
+export async function confirmPasswordReset(
+  payload: AuthPasswordResetConfirmRequest,
+): Promise<AuthPasswordResetConfirmResponse> {
+  const response = await apiClient.post<ApiResponse<AuthPasswordResetConfirmResponse>>(
+    '/auth/password-reset/confirm',
+    payload,
+    { suppressAuthRedirect: true } as RetryConfig,
+  );
+  return response.data.data;
+}

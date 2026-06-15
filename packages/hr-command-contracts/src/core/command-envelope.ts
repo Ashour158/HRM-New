@@ -29,7 +29,7 @@ export interface HrCommandEnvelope<TPayload> {
   payload: TPayload;
   metadata: {
     requestHash: string;
-    clientType: 'EMPLOYEE_PORTAL' | 'MANAGER_PORTAL' | 'HR_ADMIN' | 'MOBILE' | 'BFF' | 'SYSTEM' | 'INTEGRATION';
+    clientType: 'EMPLOYEE_PORTAL' | 'MANAGER_PORTAL' | 'HR_ADMIN' | 'MOBILE' | 'BFF' | 'SYSTEM' | 'SYSTEM_SCHEDULER' | 'INTEGRATION';
     dataResidencyRegion?: string;
     hrDataSensitivity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'RESTRICTED' | 'SPECIAL_CATEGORY';
   };
@@ -72,6 +72,7 @@ export function HrCommandEnvelopeSchema<TPayload>(
         'MOBILE',
         'BFF',
         'SYSTEM',
+        'SYSTEM_SCHEDULER',
         'INTEGRATION',
       ]),
       dataResidencyRegion: z.string().optional(),

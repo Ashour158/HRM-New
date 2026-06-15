@@ -36,6 +36,15 @@ export class WorkAuthorizationCaseRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<WorkAuthorizationCase[]> {
+    const rows = await this.db
+      .selectFrom('hr_global_hr.work_authorization_cases')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async findActiveByWorker(workerId: Uuid): Promise<WorkAuthorizationCase | undefined> {
     const row = await this.db
       .selectFrom('hr_global_hr.work_authorization_cases')

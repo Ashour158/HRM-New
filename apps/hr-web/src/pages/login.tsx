@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import type { ApiResponse, AuthProvidersResponse } from '@hcm/openapi-contracts';
 import { useAuth } from '@/hooks/use-auth';
@@ -9,9 +10,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { LanguageSwitcher } from '@/i18n/language-switcher';
 import { AlertCircle, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck, FlaskConical } from 'lucide-react';
 
-const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
 const DEMO_PASSWORD = 'Password123!';
 
 const DEMO_ACCOUNTS = [
@@ -20,11 +22,13 @@ const DEMO_ACCOUNTS = [
   { label: 'Employee', email: 'employee@example.com', description: 'Self-service portal', color: '#f59e0b', redirect: '/employee' },
 ];
 
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
-  tenantId: z.string().uuid('Choose a valid organization').optional().or(z.literal('')),
-});
+function createLoginSchema(t: (key: string) => string) {
+  return z.object({
+    email: z.string().email(t('login.validation.invalidEmail')),
+    password: z.string().min(1, t('login.validation.passwordRequired')),
+    tenantId: z.string().uuid(t('login.validation.invalidTenant')).optional().or(z.literal('')),
+  });
+}
 
 const authProvidersSchema = z.object({
   local: z.object({ enabled: z.boolean() }),
@@ -41,7 +45,6 @@ const authProvidersSchema = z.object({
   }),
   mfa: z.object({
     required: z.boolean(),
-    demoCodeEnabled: z.boolean(),
   }),
   session: z.object({
     accessTokenTtl: z.string(),
@@ -49,12 +52,18 @@ const authProvidersSchema = z.object({
   }),
 });
 
-type LoginFormData = z.infer<typeof loginSchema>;
+interface LoginFormData {
+  email: string;
+  password: string;
+  tenantId?: string;
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login, isAuthenticated } = useAuth();
   const { tenants, isLoading: tenantsLoading } = useTenant();
+  const loginSchema = React.useMemo(() => createLoginSchema(t), [t]);
 
   const [formData, setFormData] = React.useState<LoginFormData>({ email: '', password: '', tenantId: '' });
   const [errors, setErrors] = React.useState<Partial<Record<keyof LoginFormData, string>>>({});
@@ -86,7 +95,7 @@ export function LoginPage() {
         if (cancelled) return;
         const parsed = authProvidersSchema.safeParse(response.data.data);
         if (!parsed.success) {
-          setProviderError('Single Sign-On configuration could not be verified.');
+          setProviderError(t('login.ssoVerifyError'));
           setAuthProviders(null);
           return;
         }
@@ -95,7 +104,7 @@ export function LoginPage() {
       })
       .catch(() => {
         if (cancelled) return;
-        setProviderError('Single Sign-On configuration could not be verified.');
+        setProviderError(t('login.ssoVerifyError'));
         setAuthProviders(null);
       })
       .finally(() => {
@@ -105,14 +114,14 @@ export function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const ssoProvider = authProviders?.oidc.enabled ? 'OIDC' : authProviders?.saml.enabled ? 'SAML' : null;
   const ssoStatusText = providersLoading
-    ? 'Checking Single Sign-On configuration...'
+    ? t('login.ssoChecking')
     : ssoProvider
-      ? `Single Sign-On is available through ${ssoProvider}.`
-      : providerError || 'Single Sign-On is not configured for this organization.';
+      ? t('login.ssoAvailable', { provider: ssoProvider })
+      : providerError || t('login.ssoNotConfigured');
 
   const validate = (): boolean => {
     try {
@@ -149,7 +158,7 @@ export function LoginPage() {
     const result = await login(formData.email, formData.password, formData.tenantId);
     setIsSubmitting(false);
     if (!result.success) {
-      setLoginError(result.error || 'Invalid email or password');
+      setLoginError(result.error || t('login.invalidCredentials'));
     }
   };
 
@@ -161,7 +170,7 @@ export function LoginPage() {
     if (result.success) {
       navigate(account.redirect);
     } else {
-      setLoginError('Demo login failed. Please try again.');
+      setLoginError(t('login.demoLoginFailed'));
     }
   };
 
@@ -195,11 +204,11 @@ export function LoginPage() {
             <div className="max-w-xl text-white">
               <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 font-mono text-xs font-semibold uppercase tracking-wider text-[#eef2ff] backdrop-blur">
                 <ShieldCheck className="h-4 w-4 text-[#a5b4fc]" />
-                Secure enterprise workspace
+                {t('login.heroPill')}
               </div>
-              <h2 className="font-headline text-4xl font-bold leading-tight">Empowering the modern enterprise</h2>
+              <h2 className="font-headline text-4xl font-bold leading-tight">{t('login.heroTitle')}</h2>
               <p className="mt-4 max-w-md text-lg leading-7 text-[#eef2ff]/90">
-                A unified workspace for HR administration, employee services, payroll, performance, and compliance.
+                {t('login.heroSubtitle')}
               </p>
             </div>
           </div>
@@ -207,20 +216,23 @@ export function LoginPage() {
 
         <main className="fusion-glass flex flex-1 items-center justify-center border-l border-[#e2e8f0]/40 px-5 py-10 lg:px-20 xl:px-[120px]">
           <div className="w-full max-w-[440px]">
+            <div className="mb-6 flex justify-end">
+              <LanguageSwitcher />
+            </div>
             <div className="mb-8 flex items-center gap-3">
               <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#8b5cf6] text-white">
                 <Building2 className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="fusion-gradient-text font-headline text-2xl font-bold tracking-tight">HRM Nexus</h1>
-                <p className="text-sm text-[#475569]">Enterprise HR portal</p>
+                <h1 className="fusion-gradient-text font-headline text-2xl font-bold tracking-tight">{t('login.brandName')}</h1>
+                <p className="text-sm text-[#475569]">{t('login.enterprisePortal')}</p>
               </div>
             </div>
 
             <div className="mb-6">
-              <h2 className="font-headline text-4xl font-semibold text-[#0f172a]">Welcome back</h2>
+              <h2 className="font-headline text-4xl font-semibold text-[#0f172a]">{t('login.welcomeBack')}</h2>
               <p className="mt-2 text-base leading-6 text-[#475569]">
-                Please enter your enterprise credentials to access the portal.
+                {t('login.subtitle')}
               </p>
             </div>
 
@@ -228,7 +240,7 @@ export function LoginPage() {
               <div className="mb-6 rounded-xl border border-[#8b5cf6]/30 bg-indigo-50/70 p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <FlaskConical className="h-4 w-4 text-[#8b5cf6]" />
-                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4f46e5]">Demo Mode — Quick Access</span>
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#4f46e5]">{t('login.demoMode')}</span>
                 </div>
                 <div className="grid gap-2">
                   {DEMO_ACCOUNTS.map((account) => (
@@ -257,7 +269,7 @@ export function LoginPage() {
                   ))}
                 </div>
                 <p className="mt-2.5 text-center text-xs text-[#94a3b8]">
-                  Password for all accounts: <span className="font-mono font-semibold text-[#0f172a]">{DEMO_PASSWORD}</span>
+                  {t('login.demoPassword')} <span className="font-mono font-semibold text-[#0f172a]">{DEMO_PASSWORD}</span>
                 </p>
               </div>
             )}
@@ -272,14 +284,14 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="email">
-                  Work Email
+                  {t('login.workEmail')}
                 </Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94a3b8]" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="name@company.com"
+                    placeholder={t('login.workEmailPlaceholder')}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     aria-invalid={!!errors.email}
@@ -295,18 +307,18 @@ export function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-4">
                   <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="password">
-                    Password
+                    {t('login.password')}
                   </Label>
-                  <a className="text-sm font-semibold text-[#4f46e5] underline-offset-4 hover:underline" href="#">
-                    Forgot password?
-                  </a>
+                  <Link className="text-sm font-semibold text-[#4f46e5] underline-offset-4 hover:underline" to="/forgot-password">
+                    {t('login.forgotPassword')}
+                  </Link>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#94a3b8]" />
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Enter your password"
+                    placeholder={t('login.passwordPlaceholder')}
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     aria-invalid={!!errors.password}
@@ -321,7 +333,7 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <Label className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]" htmlFor="tenant">
-                  Organization
+                  {t('login.organization')}
                 </Label>
                 {tenants.length > 1 ? (
                   <Select
@@ -330,7 +342,7 @@ export function LoginPage() {
                     disabled={tenantsLoading}
                   >
                     <SelectTrigger id="tenant">
-                      <SelectValue placeholder="Select organization" />
+                      <SelectValue placeholder={t('login.selectOrganization')} />
                     </SelectTrigger>
                     <SelectContent>
                       {tenants.map((tenant) => (
@@ -343,14 +355,14 @@ export function LoginPage() {
                 ) : (
                   <Input
                     id="tenant"
-                    value={tenants[0]?.name || 'Default Tenant'}
+                    value={tenants[0]?.name || t('login.defaultTenant')}
                     disabled
                     readOnly
                     aria-describedby="tenant-help"
                   />
                 )}
                 <p id="tenant-help" className="text-xs text-[#64748b]">
-                  Access is scoped to the selected organization.
+                  {t('login.tenantHelp')}
                 </p>
               </div>
 
@@ -359,11 +371,11 @@ export function LoginPage() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Signing in...
+                      {t('login.signingIn')}
                     </>
                   ) : (
                     <>
-                      Sign In
+                      {t('login.signIn')}
                       <ArrowRight className="h-4 w-4" />
                     </>
                   )}
@@ -371,7 +383,7 @@ export function LoginPage() {
 
                 <div className="flex items-center gap-4 py-2">
                   <div className="h-px flex-1 bg-[#e2e8f0]/50" />
-                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">OR</span>
+                  <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">{t('common.or')}</span>
                   <div className="h-px flex-1 bg-[#e2e8f0]/50" />
                 </div>
 
@@ -384,7 +396,7 @@ export function LoginPage() {
                   onClick={handleSsoLogin}
                 >
                   <KeyRound className="h-4 w-4" />
-                  Single Sign-On (SSO)
+                  {t('login.ssoButton')}
                 </Button>
                 <p id="sso-status" className="text-center text-xs text-[#64748b]">
                   {ssoStatusText}
@@ -393,11 +405,11 @@ export function LoginPage() {
             </form>
 
             <div className="mt-8 border-t border-[#e2e8f0]/40 pt-6 text-center text-sm leading-6 text-[#475569]">
-              Need access or technical support?
+              {t('login.needAccess')}
               <br />
-              <a className="font-semibold text-[#4f46e5] underline-offset-4 hover:underline" href="#">
-                Contact IT Helpdesk
-              </a>
+              <Link className="font-semibold text-[#4f46e5] underline-offset-4 hover:underline" to="/register">
+                {t('login.createEmployeeAccount')}
+              </Link>
             </div>
 
             <footer className="mt-8 border-t border-[#e2e8f0]/60 pt-5">
@@ -406,17 +418,17 @@ export function LoginPage() {
                   <div className="grid h-7 w-7 place-items-center rounded-md bg-gradient-to-br from-[#4f46e5] to-[#8b5cf6] text-white">
                     <Building2 className="h-4 w-4" />
                   </div>
-                  <span className="font-headline text-sm font-bold text-[#0f172a]">HRM Nexus</span>
+                  <span className="font-headline text-sm font-bold text-[#0f172a]">{t('login.brandName')}</span>
                 </div>
                 <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-xs font-medium text-[#475569]">
-                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Privacy Policy</a>
-                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Terms of Service</a>
-                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Cookies</a>
-                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Security</a>
-                  <a className="transition-colors hover:text-[#4f46e5]" href="#">Contact</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">{t('common.privacyPolicy')}</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">{t('common.termsOfService')}</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">{t('common.cookies')}</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">{t('common.security')}</a>
+                  <a className="transition-colors hover:text-[#4f46e5]" href="#">{t('common.contact')}</a>
                 </nav>
                 <p className="text-xs text-[#94a3b8]">
-                  © {new Date().getFullYear()} HRM Nexus. All rights reserved.
+                  {t('common.copyright', { year: new Date().getFullYear() })}
                 </p>
               </div>
             </footer>

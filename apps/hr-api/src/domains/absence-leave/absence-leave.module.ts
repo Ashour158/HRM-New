@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
@@ -66,7 +66,7 @@ import { registerLeaveEntitlementCalculationFsm } from './fsm/leave-entitlement-
   exports: [AbsenceRequestRepository, LeaveCaseRepository, AbsenceAccrualBalanceRepository, LeaveEntitlementCalculationRepository, LeavePolicyService],
 })
 export class AbsenceLeaveModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerAbsenceRequestFsm(this.fsm);

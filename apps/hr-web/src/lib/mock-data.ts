@@ -1319,13 +1319,17 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
 
   // ── Service Delivery ─────────────────────────────────────────────────────
   'GET /hr-service-delivery/cases/my': () => ok([
-    { id: 'case-001', title: 'Update home address', status: 'RESOLVED', createdAt: '2026-04-10T10:00:00Z', resolvedAt: '2026-04-12T14:00:00Z' },
+    { id: 'case-001', caseNumber: 'HR-20260609-ABCD1234', requesterWorkerId: 'worker-1', caseType: 'PROFILE_DATA_CHANGE', priority: 'MEDIUM', description: 'Update home address', status: 'RESOLVED', createdAt: '2026-04-10T10:00:00Z', updatedAt: '2026-04-12T14:00:00Z', resolvedAt: '2026-04-12T14:00:00Z', slaDeadline: '2026-04-12T18:00:00Z' },
+  ]),
+  'GET /hr-service-delivery/cases/tenant/00000000-0000-0000-0000-000000000001': () => ok([
+    { id: 'case-admin-001', caseNumber: 'HR-20260614-SLA001', requesterWorkerId: 'worker-1', caseType: 'PAYROLL_HELP', priority: 'HIGH', description: 'Payslip deduction needs review.', status: 'OPEN', createdAt: '2026-06-14T08:00:00Z', updatedAt: '2026-06-14T08:00:00Z', slaDeadline: '2026-06-14T12:00:00Z' },
+    { id: 'case-admin-002', caseNumber: 'HR-20260614-DOC002', requesterWorkerId: 'worker-2', caseType: 'HR_LETTER', priority: 'MEDIUM', description: 'Employment letter for bank.', status: 'IN_PROGRESS', createdAt: '2026-06-13T11:00:00Z', updatedAt: '2026-06-14T09:30:00Z', slaDeadline: '2026-06-15T11:00:00Z' },
   ]),
   'GET /hr-service-delivery/catalog-items': () => ok([
-    { id: 'ci1', title: 'Request Employment Verification Letter', category: 'Documents', sla: '2 business days' },
-    { id: 'ci2', title: 'Update Personal Information', category: 'Profile', sla: 'Same day' },
-    { id: 'ci3', title: 'Report IT Equipment Issue', category: 'IT Support', sla: '4 hours' },
-    { id: 'ci4', title: 'Request Salary Certificate', category: 'Payroll', sla: '3 business days' },
+    { id: 'ci1', serviceCode: 'HR_LETTER', serviceName: 'Request Employment Verification Letter', description: 'Request salary, employment, embassy, bank, or visa letters from HR.', category: 'Documents', slaHours: 48, fulfillmentProcess: 'HR verifies worker data, prepares the letter, and publishes the signed document.', status: 'ACTIVE' },
+    { id: 'ci2', serviceCode: 'PROFILE_DATA_CHANGE', serviceName: 'Update Personal Information', description: 'Request correction of employee profile data.', category: 'Profile', slaHours: 24, fulfillmentProcess: 'HR validates evidence and applies the permitted correction.', status: 'ACTIVE' },
+    { id: 'ci3', serviceCode: 'ACCESS_ONBOARDING', serviceName: 'Access and onboarding help', description: 'Report onboarding or access blockers.', category: 'IT Support', slaHours: 4, fulfillmentProcess: 'HR coordinates IT, manager, security, and facilities tasks.', status: 'ACTIVE' },
+    { id: 'ci4', serviceCode: 'PAYROLL_HELP', serviceName: 'Request Salary Certificate', description: 'Ask payroll for certificate or payslip support.', category: 'Payroll', slaHours: 72, fulfillmentProcess: 'Payroll validates the request and produces a response.', status: 'ACTIVE' },
   ]),
   'POST /hr-service-delivery/cases': () => ok({ id: 'case-new', caseNumber: 'HR-20260609-ABCD1234' }),
 

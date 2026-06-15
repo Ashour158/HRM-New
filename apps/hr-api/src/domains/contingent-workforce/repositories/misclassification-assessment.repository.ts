@@ -5,6 +5,19 @@ import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { MisclassificationAssessment, type MisclassificationAssessmentStatus } from '../aggregates/misclassification-assessment.aggregate.js';
 
+function stringArrayFromJsonb(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 @Injectable()
 export class MisclassificationAssessmentRepository extends BaseRepository<'misclassification_assessments', MisclassificationAssessment> {
   protected readonly tableName = 'misclassification_assessments' as const;
@@ -42,7 +55,7 @@ export class MisclassificationAssessmentRepository extends BaseRepository<'miscl
       workerId: new Uuid(row.worker_id),
       assessmentDate: row.assessment_date,
       riskScore: row.risk_score ?? undefined,
-      riskFactors: Array.isArray(row.risk_factors) ? (row.risk_factors as string[]) : [],
+      riskFactors: stringArrayFromJsonb(row.risk_factors),
       status: row.status as MisclassificationAssessmentStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -57,7 +70,7 @@ export class MisclassificationAssessmentRepository extends BaseRepository<'miscl
       worker_id: entity.workerId.value,
       assessment_date: entity.assessmentDate,
       risk_score: entity.riskScore ?? null,
-      risk_factors: entity.riskFactors ?? [],
+      risk_factors: JSON.stringify(entity.riskFactors ?? []),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

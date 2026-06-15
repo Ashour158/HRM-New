@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification SPECIAL_CATEGORY - ER allegations, investigation evidence, disciplinary outcomes, accommodation, and worker-linked case fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type DisciplinaryActionStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'EXECUTED' | 'APPEALED' | 'UPHELD' | 'REVOKED' | 'CANCELLED';

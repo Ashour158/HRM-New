@@ -1,0 +1,16 @@
+{
+  "description": "Temporary i18n migration allowlist. Existing pages remain listed until each is extracted into src/i18n/resources.ts. New page files should not be added here without a migration reason.",
+  "ignoredFiles": [
+    { "path": "src/pages/admin", "reason": "Legacy admin pages are being migrated module by module." },
+    { "path": "src/pages/employee", "reason": "Legacy employee pages are being migrated module by module." },
+    { "path": "src/pages/manager", "reason": "Legacy manager pages are being migrated module by module." },
+    { "path": "src/pages/payroll", "reason": "Legacy payroll workspace is being migrated module by module." },
+    { "path": "src/pages/recruiter", "reason": "Legacy recruiter workspace is being migrated module by module." },
+    { "path": "src/pages/forgot-password.tsx", "reason": "Auth pages will be extracted with the auth hardening track." },
+    { "path": "src/pages/register.tsx", "reason": "Auth pages will be extracted with the auth hardening track." }
+  ],
+  "ignoredPatterns": [
+    "HRM Nexus",
+    "EH"
+  ]
+}

@@ -744,6 +744,44 @@ describe('PolicyCenterService', () => {
     }));
   });
 
+  it('requires emergency policy overrides to expire in the future and marks post-review as required', async () => {
+    const published = revision({
+      status: 'PUBLISHED',
+      draftConfig: {
+        ...revision().draftConfig,
+        policyControls: { requiresHighRiskConfirmation: true },
+      },
+    });
+    const { service, auditLedger } = buildService([published]);
+
+    await expect(service.applyRevision(tenantId, published.id, actor, {
+      emergencyOverride: {
+        reason: 'Payroll close cannot wait',
+        expiresAt: '2020-01-01T00:00:00.000Z',
+      },
+    })).rejects.toThrow('Emergency policy override expiry must be in the future.');
+
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await service.applyRevision(tenantId, published.id, actor, {
+      emergencyOverride: {
+        reason: ' Payroll close cannot wait ',
+        expiresAt,
+        postReviewRequired: false,
+      },
+    });
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'PolicyRevisionApplied',
+      payload: expect.objectContaining({
+        emergencyOverride: expect.objectContaining({
+          reason: 'Payroll close cannot wait',
+          expiresAt,
+          postReviewRequired: true,
+        }),
+      }),
+    }));
+  });
+
   it('exposes max-depth policy templates for leave, attendance, access, compliance, benefits, and people analytics domains', () => {
     const { service } = buildService();
 

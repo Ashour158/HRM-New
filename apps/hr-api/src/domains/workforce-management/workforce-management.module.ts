@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { WorkforceManagementController } from './api/workforce-management.controller.js';
@@ -81,7 +81,7 @@ import { registerCoverageGapFsm } from './fsm/coverage-gap.fsm.js';
   exports: [ShiftScheduleRepository, OpenShiftRepository, ShiftBidRepository, ShiftSwapRequestRepository, WfmOvertimeApprovalRepository, CoverageGapRepository],
 })
 export class WorkforceManagementModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerShiftScheduleFsm(this.fsm);

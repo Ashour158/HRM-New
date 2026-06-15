@@ -15,7 +15,7 @@ import type {
 import { CommandPipelineStep } from '@hcm/command-contracts';
 import type { TenantConfig } from '@hcm/platform-core';
 import { TenantValidator, RedisCacheService, tenantResolver } from '@hcm/platform-core';
-import { AccessControlService } from '@hcm/access-control';
+import { AccessControlService, type AccessControlDecision } from '@hcm/access-control';
 import { FieldAccessDecision } from '@hcm/access-control';
 import { selfServiceAuthorityEngine } from '@hcm/policy-engines';
 import { EventBus } from '../event-bus/event-bus.js';
@@ -23,6 +23,7 @@ import { outboxMetadataForEvent } from '../outbox-inbox/outbox-event-envelope.js
 import type { FsmInstance } from '../workflow/fsm-framework.js';
 import { FsmFramework } from '../workflow/fsm-framework.js';
 import { TransitionLedgerService } from '../workflow/transition-ledger.js';
+import { ApprovalWorkflowService } from '../workflow/approval-workflow.service.js';
 import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
 import type {
   AllowedActionPolicyOverride,
@@ -75,10 +76,14 @@ type AggregateStateRow = {
 type ActorScopeClaims = {
   legalEntityIds?: string[];
   countryCodes?: string[];
+  branchCodes?: string[];
   departmentIds?: string[];
   orgUnitIds?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
   locationCodes?: string[];
   employeeTypes?: string[];
+  managerWorkerIds?: string[];
 };
 
 type GovernedCommandPolicyRule = {
@@ -112,6 +117,8 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   OnboardingPlan: aggregateLoader('hr_onboarding.onboarding_plans'),
   OnboardingTask: aggregateLoader('hr_onboarding.onboarding_tasks'),
 
+  ApprovalChain: aggregateLoader('hr_workflow.approval_chains'),
+
   CompensationPlan: aggregateLoader('compensation_plans'),
   CompensationBand: aggregateLoader('compensation_bands'),
   CompensationChange: aggregateLoader('compensation_changes'),
@@ -135,6 +142,7 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   StatutoryLeaveType: aggregateLoader('hr_global_hr.statutory_leave_types'),
   WorksCouncilConsultation: aggregateLoader('hr_global_hr.works_council_consultations'),
   WorkAuthorizationCase: aggregateLoader('hr_global_hr.work_authorization_cases'),
+  InternationalAssignment: aggregateLoader('hr_global_hr.international_assignments'),
   CountryPolicyPack: aggregateLoader('hr_country_policy.policy_packs'),
   CountryPolicyValidationRun: aggregateLoader('hr_country_policy.validation_runs'),
   CountryPolicyImpactSimulation: aggregateLoader('hr_country_policy.impact_simulations'),
@@ -158,6 +166,8 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   PayrollResultLine: aggregateLoader('payroll_result_lines'),
   PayrollPaymentBatch: aggregateLoader('payroll_payment_batches'),
   PayrollPayslipArtifact: aggregateLoader('payroll_payslip_artifacts'),
+  PayrollExportJob: aggregateLoader('payroll_export_jobs'),
+  PayrollGlPosting: aggregateLoader('payroll_gl_postings'),
 
   ShiftSchedule: aggregateLoader('shift_schedules'),
   OpenShift: aggregateLoader('open_shifts'),
@@ -195,10 +205,10 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   PayGapReport: aggregateLoader('hr_dei_analytics.pay_gap_reports'),
   PayEquityReview: aggregateLoader('hr_dei_analytics.pay_equity_reviews'),
   AttritionSegmentReport: aggregateLoader('hr_dei_analytics.attrition_segment_reports'),
-  HrAiUseCase: aggregateLoader('hr_ai_governance.hr_ai_use_cases'),
-  HrAiModelRun: aggregateLoader('hr_ai_governance.hr_ai_model_runs'),
-  HrAiBiasTest: aggregateLoader('hr_ai_governance.hr_ai_bias_tests'),
-  HrAiKillSwitch: aggregateLoader('hr_ai_governance.hr_ai_kill_switches'),
+  HrAiUseCase: aggregateLoader('hr_ai.hr_ai_use_cases'),
+  HrAiModelRun: aggregateLoader('hr_ai.hr_ai_model_runs'),
+  HrAiBiasTest: aggregateLoader('hr_ai.hr_ai_bias_tests'),
+  HrAiKillSwitch: aggregateLoader('hr_ai.hr_ai_kill_switches'),
 
   LearningCourse: aggregateLoader('learning_courses'),
   LearningContentPackage: aggregateLoader('learning_content_packages'),
@@ -206,7 +216,7 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   Certification: aggregateLoader('certifications'),
   EngagementSurvey: aggregateLoader('engagement_surveys'),
   SurveyResponse: aggregateLoader('survey_responses'),
-  Feedback360Cycle: aggregateLoader('feedback_360_cycles'),
+  Feedback360Cycle: aggregateLoader('hr_engagement.feedback_360_cycles'),
   RecognitionProgram: aggregateLoader('recognition_programs'),
   RecognitionRecord: aggregateLoader('recognition_records'),
   SkillProfile: aggregateLoader('skill_profiles'),
@@ -247,7 +257,7 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
   },
   {
     area: 'PAYROLL',
-    aggregateTypes: ['PayrollCycle', 'PayrollInput', 'PayrollCalculationRun', 'PayrollResultLine', 'PayrollPaymentBatch', 'PayrollPayslipArtifact'],
+    aggregateTypes: ['PayrollCycle', 'PayrollInput', 'PayrollCalculationRun', 'PayrollResultLine', 'PayrollPaymentBatch', 'PayrollPayslipArtifact', 'PayrollExportJob', 'PayrollGlPosting'],
     commandPatterns: [/Payroll/i, /Payslip/i],
   },
   {
@@ -262,8 +272,8 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
   },
   {
     area: 'GLOBAL_HR',
-    aggregateTypes: ['CountryRuleSet', 'StatutoryLeaveType', 'WorksCouncilConsultation', 'WorkAuthorizationCase'],
-    commandPatterns: [/CountryRuleSet/i, /StatutoryLeaveType/i, /WorksCouncil/i, /WorkAuthorization/i],
+    aggregateTypes: ['CountryRuleSet', 'StatutoryLeaveType', 'WorksCouncilConsultation', 'WorkAuthorizationCase', 'InternationalAssignment'],
+    commandPatterns: [/CountryRuleSet/i, /StatutoryLeaveType/i, /WorksCouncil/i, /WorkAuthorization/i, /InternationalAssignment/i],
   },
   {
     area: 'DEI_ANALYTICS',
@@ -289,7 +299,7 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
     area: 'ACCESS_GOVERNANCE',
     aggregateTypes: [],
     // Every business command must at least pass applied access governance.
-    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Award|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Create|Deactivate|Deprecate|Dispute|Draft|End|Enroll|Enter|Execute|Exempt|Expire|Extend|Fail|Fill|Finalize|Flag|Freeze|Generate|Implement|Investigate|Launch|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Run|Schedule|Screen|Send|Setup|Skip|Start|Submit|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
+    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Award|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Configure|Create|Deactivate|Deprecate|Dispute|Draft|End|Enroll|Enter|Execute|Exempt|Expire|Extend|Fail|Fill|Finalize|Flag|Freeze|Generate|Implement|Investigate|Launch|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Run|Schedule|Screen|Send|Setup|Simulate|Skip|Start|Submit|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
   },
 ];
 
@@ -351,14 +361,15 @@ export class CommandBus implements OnModuleInit {
   private readonly tenantValidator: TenantValidator;
 
   constructor(
-    private readonly discovery: DiscoveryService,
-    private readonly reflector: Reflector,
-    private readonly redisCache: RedisCacheService,
-    private readonly accessControl: AccessControlService,
-    private readonly fsmFramework: FsmFramework,
-    private readonly transitionLedger: TransitionLedgerService,
-    _eventBus: EventBus,
+    @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
+    @Inject(Reflector) private readonly reflector: Reflector,
+    @Inject(RedisCacheService) private readonly redisCache: RedisCacheService,
+    @Inject(AccessControlService) private readonly accessControl: AccessControlService,
+    @Inject(FsmFramework) private readonly fsmFramework: FsmFramework,
+    @Inject(TransitionLedgerService) private readonly transitionLedger: TransitionLedgerService,
+    @Inject(EventBus) _eventBus: EventBus,
     @Optional() @Inject(HcmSetupService) private readonly hcmSetup?: Pick<HcmSetupService, 'getSetup'>,
+    @Optional() @Inject(ApprovalWorkflowService) private readonly approvalWorkflow?: ApprovalWorkflowService,
   ) {
     this.db = createKyselyInstance(getPool());
     this.tenantValidator = new TenantValidator(this.db);
@@ -374,6 +385,7 @@ export class CommandBus implements OnModuleInit {
         this.handlers.set(commandName, instance as CommandHandler);
       }
     }
+    this.approvalWorkflow?.bindCommandExecutor((command) => this.execute(command));
   }
 
   registerHandler(commandName: string, handler: CommandHandler): void {
@@ -421,7 +433,7 @@ export class CommandBus implements OnModuleInit {
         await this.stepEvaluateFieldPolicy(command);
 
         step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
-        await this.stepEvaluateRbac(command);
+        const rbacDecision = await this.evaluateRbacDecision(command);
 
         step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
         await this.stepEvaluateRuntimeAccessGovernance(command);
@@ -445,6 +457,25 @@ export class CommandBus implements OnModuleInit {
         await this.stepEvaluateSoD(command);
 
         step = CommandPipelineStep.PERFORM_DOMAIN_TRANSITION_THROUGH_AGGREGATE_METHOD;
+        const approvalResult = await this.approvalWorkflow?.gateCommand(
+          command,
+          ((await this.getRuntimeSetup(command)) ?? {}) as HcmSetupConfig,
+          rbacDecision,
+        );
+        if (approvalResult) {
+          const completedPolicyDecisionEvidence = this.completePolicyDecisionEvidence(policyDecisionEvidence, approvalResult);
+          const auditRecordId = await this.stepWriteAuditRecord(_tx, command, approvalResult, completedPolicyDecisionEvidence);
+          await this.stepWriteOutbox(_tx, command, approvalResult, completedPolicyDecisionEvidence);
+          await this.stepWritePolicyDecisionEvidence(_tx, command, approvalResult, completedPolicyDecisionEvidence);
+          const enriched = {
+            ...approvalResult,
+            auditRecordId,
+            policyDecisionEvidence: completedPolicyDecisionEvidence ? [completedPolicyDecisionEvidence] : [],
+          } as unknown as CommandResult<TResult>;
+          await this.stepStoreIdempotencyResult(_tx, command, enriched);
+          return enriched as CommandOutcome<TResult>;
+        }
+
         const handler = this.handlers.get(command.commandName);
         if (!handler) {
           throw this.makeError(
@@ -786,7 +817,11 @@ export class CommandBus implements OnModuleInit {
 
   }
 
-  private async stepEvaluateRbac(command: HrCommandEnvelope<unknown>): Promise<void> {
+  async stepEvaluateRbac(command: HrCommandEnvelope<unknown>): Promise<void> {
+    await this.evaluateRbacDecision(command);
+  }
+
+  private async evaluateRbacDecision(command: HrCommandEnvelope<unknown>): Promise<AccessControlDecision> {
     const actorType = this.mapActorType(command.actor.actorType, command.actor.roles);
     const acCommand = {
       commandName: command.commandName,
@@ -812,6 +847,7 @@ export class CommandBus implements OnModuleInit {
       );
     }
 
+    return decision;
   }
 
   private async stepEvaluateRuntimeAccessGovernance(command: HrCommandEnvelope<unknown>): Promise<void> {
@@ -821,6 +857,7 @@ export class CommandBus implements OnModuleInit {
 
   private async stepEnforceAppliedPolicyRevision(command: HrCommandEnvelope<unknown>): Promise<CommandPolicyDecisionEvidence | undefined> {
     if (command.actor.actorType === 'SYSTEM') return undefined;
+    if (command.aggregateType === 'ApprovalChain') return undefined;
 
     const requiredArea = requiredPolicyAreaForCommand(command);
     if (!requiredArea) return undefined;
@@ -832,13 +869,15 @@ export class CommandBus implements OnModuleInit {
       && candidate.status === 'APPLIED'
       && this.policyScopeMatches(candidate.scope, command)
     ));
-    if (matching.length === 1) {
-      return this.buildAllowedPolicyDecisionEvidence(command, requiredArea, matching[0]);
-    }
+    if (matching.length >= 1) {
+      const highestSpecificity = Math.max(...matching.map((candidate) => this.policyScopeSpecificity(candidate.scope)));
+      const mostSpecific = matching.filter((candidate) => this.policyScopeSpecificity(candidate.scope) === highestSpecificity);
+      if (mostSpecific.length === 1) {
+        return this.buildAllowedPolicyDecisionEvidence(command, requiredArea, mostSpecific[0], matching);
+      }
 
-    if (matching.length > 1) {
-      const conflictingPolicyRevisionIds = matching.map((candidate) => candidate.revisionId);
-      const reason = `${requiredArea} command ${command.commandName} has conflicting applied Policy Center revisions: ${conflictingPolicyRevisionIds.join(', ')}.`;
+      const conflictingPolicyRevisionIds = mostSpecific.map((candidate) => candidate.revisionId);
+      const reason = `${requiredArea} command ${command.commandName} has conflicting applied Policy Center revisions at the same scope precedence: ${conflictingPolicyRevisionIds.join(', ')}.`;
       throw this.makeError(
         command,
         CommandPipelineStep.EVALUATE_LEGAL_HOLD_RETENTION_COUNTRY_LABOR_LAW_APPROVAL_STATE,
@@ -851,7 +890,7 @@ export class CommandBus implements OnModuleInit {
             requiredArea,
             reason,
             revisions,
-            matching,
+            mostSpecific,
           ),
         },
       );
@@ -875,6 +914,7 @@ export class CommandBus implements OnModuleInit {
     command: HrCommandEnvelope<unknown>,
     serviceArea: RuntimePolicyArea,
     revision: RuntimePolicyRevisionEvidence,
+    evaluatedRevisions: RuntimePolicyRevisionEvidence[] = [revision],
   ): CommandPolicyDecisionEvidence {
     const subjectWorkerId = this.resolveSubjectWorkerId(command)?.value;
     return {
@@ -889,7 +929,7 @@ export class CommandBus implements OnModuleInit {
       aggregateType: command.aggregateType,
       subjectWorkerId,
       sourceRecordId: command.aggregateId?.value ?? subjectWorkerId,
-      evaluatedPolicyRevisionIds: [revision.revisionId],
+      evaluatedPolicyRevisionIds: evaluatedRevisions.map((candidate) => candidate.revisionId),
     };
   }
 
@@ -1106,11 +1146,47 @@ export class CommandBus implements OnModuleInit {
     const actorScope = command.actor as typeof command.actor & ActorScopeClaims;
     return this.claimsMatch(scope.countryCodes, actorScope.countryCodes)
       && this.claimsMatch(scope.legalEntityIds, actorScope.legalEntityIds)
+      && this.claimsMatch(scope.branchCodes, actorScope.branchCodes)
       && this.claimsMatch(scope.orgUnitIds, actorScope.orgUnitIds)
       && this.claimsMatch(scope.departmentIds, actorScope.departmentIds)
+      && this.claimsMatch(scope.jobCodes, actorScope.jobCodes)
+      && this.claimsMatch(scope.gradeCodes, actorScope.gradeCodes)
       && this.claimsMatch(scope.locationCodes, actorScope.locationCodes)
       && this.claimsMatch(scope.employeeTypes, actorScope.employeeTypes)
+      && this.claimsMatch(scope.managerWorkerIds, actorScope.managerWorkerIds)
       && this.workerScopeMatches(scope.workerIds, command);
+  }
+
+  private policyScopeSpecificity(scope: HcmPolicyScope | undefined): number {
+    if (!scope) return 0;
+    const hasValues = (values: string[] | undefined) => Boolean(values && values.length > 0);
+    const specificityTieBreaker = [
+      scope.countryCodes,
+      scope.legalEntityIds,
+      scope.branchCodes,
+      scope.orgUnitIds,
+      scope.departmentIds,
+      scope.locationCodes,
+      scope.employeeTypes,
+      scope.jobCodes,
+      scope.gradeCodes,
+      scope.managerWorkerIds,
+      scope.workerIds,
+    ].filter(hasValues).length;
+
+    if (hasValues(scope.workerIds)) return 1000 + specificityTieBreaker;
+    if (hasValues(scope.managerWorkerIds)) return 900 + specificityTieBreaker;
+    if (hasValues(scope.jobCodes) || hasValues(scope.gradeCodes)) return 800 + specificityTieBreaker;
+    if (
+      hasValues(scope.departmentIds)
+      || hasValues(scope.orgUnitIds)
+      || hasValues(scope.locationCodes)
+      || hasValues(scope.branchCodes)
+      || hasValues(scope.employeeTypes)
+    ) return 700 + specificityTieBreaker;
+    if (hasValues(scope.legalEntityIds)) return 600 + specificityTieBreaker;
+    if (hasValues(scope.countryCodes)) return 500 + specificityTieBreaker;
+    return 100;
   }
 
   private claimsMatch(policyValues: string[] | undefined, actorValues: string[] | undefined): boolean {
@@ -1369,6 +1445,9 @@ export class CommandBus implements OnModuleInit {
     if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT') {
       return;
     }
+    if (command.aggregateType === 'ApprovalChain') {
+      return;
+    }
 
     const subjectWorkerId = this.resolveSubjectWorkerId(command);
     const decision = await selfServiceAuthorityEngine.execute({
@@ -1444,13 +1523,13 @@ export class CommandBus implements OnModuleInit {
       history: [],
     };
     const allowed = this.fsmFramework.getAllowedActions(fsmInstance);
-    const action = this.inferActionFromCommand(command.commandName);
-    if (!allowed.includes(action)) {
+    const actionCandidates = this.inferFsmActionCandidates(command.commandName, command.aggregateType);
+    if (!actionCandidates.some((action) => allowed.includes(action))) {
       throw this.makeError(
         command,
         CommandPipelineStep.EVALUATE_WORKFLOW_GUARD_EXPECTED_STATE_VERSION_EFFECTIVE_DATE,
         'FSM_TRANSITION_NOT_ALLOWED',
-        `Action ${action} not allowed from state ${fsmInstance.currentState}`,
+        `Action ${actionCandidates[0]} not allowed from state ${fsmInstance.currentState}`,
         false,
       );
     }
@@ -1507,7 +1586,7 @@ export class CommandBus implements OnModuleInit {
     result: CommandResult<unknown>,
   ): Promise<void> {
     await this.transitionLedger.recordTransition({
-      id: crypto.randomUUID() as unknown as Uuid,
+      id: Uuid.generate(),
       tenantId: command.tenantId,
       aggregateType: command.aggregateType,
       aggregateId: result.aggregateId,
@@ -1703,6 +1782,16 @@ export class CommandBus implements OnModuleInit {
 
   private inferActionFromCommand(commandName: string): string {
     return commandName.split('.').pop() ?? commandName;
+  }
+
+  private inferFsmActionCandidates(commandName: string, aggregateType: string): string[] {
+    const action = this.inferActionFromCommand(commandName);
+    const candidates = [action];
+    const normalizedAggregate = aggregateType.charAt(0).toUpperCase() + aggregateType.slice(1);
+    if (action.endsWith(normalizedAggregate) && action.length > normalizedAggregate.length) {
+      candidates.push(action.slice(0, -normalizedAggregate.length));
+    }
+    return [...new Set(candidates)];
   }
 
   private inferEventNameFromCommand(commandName: string, aggregateType: string): string {

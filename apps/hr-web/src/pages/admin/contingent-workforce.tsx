@@ -1,0 +1,100 @@
+import { AdminDomainWorkspace, type DomainWorkspaceConfig } from './domain-workspace';
+import { commonNoBodyCommands } from './domain-workspace-helpers';
+
+const contingentConfig: DomainWorkspaceConfig = {
+  eyebrow: 'Workforce',
+  title: 'Contingent Workforce',
+  subtitle: 'Manage SOWs, contingent assignments, rate cards, and classification reviews.',
+  entities: [
+    {
+      key: 'sow-engagements',
+      label: 'SOW Engagements',
+      aggregateType: 'SowEngagement',
+      listPath: (tenantId) => `/contingent-workforce/sow-engagements/tenant/${tenantId}`,
+      createPath: '/contingent-workforce/sow-engagements',
+      createLabel: 'Create SOW',
+      titleField: 'sowNumber',
+      secondaryField: 'projectName',
+      fields: [
+        { key: 'sowNumber', label: 'SOW number', required: true },
+        { key: 'vendorId', label: 'Vendor ID', required: true },
+        { key: 'projectName', label: 'Project name', required: true },
+        { key: 'totalValue', label: 'Total value', type: 'number', required: true },
+        { key: 'currency', label: 'Currency', required: true, defaultValue: 'USD' },
+        { key: 'startDate', label: 'Start date', type: 'date', required: true },
+        { key: 'endDate', label: 'End date', type: 'date', required: true },
+        { key: 'milestones', label: 'Milestones', type: 'csv' },
+      ],
+      commandBasePath: (id) => `/contingent-workforce/sow-engagements/${id}/commands`,
+      commandMappings: commonNoBodyCommands,
+    },
+    {
+      key: 'contingent-worker-assignments',
+      label: 'Assignments',
+      aggregateType: 'ContingentWorkerAssignment',
+      listPath: (tenantId) => `/contingent-workforce/contingent-worker-assignments/tenant/${tenantId}`,
+      createPath: '/contingent-workforce/contingent-worker-assignments',
+      createLabel: 'Assign worker',
+      titleField: 'workerId',
+      secondaryField: 'projectId',
+      fields: [
+        { key: 'workerId', label: 'Worker ID', required: true },
+        { key: 'vendorId', label: 'Vendor ID', required: true },
+        { key: 'projectId', label: 'Project ID', required: true },
+        { key: 'startDate', label: 'Start date', type: 'date', required: true },
+        { key: 'endDate', label: 'End date', type: 'date', required: true },
+        { key: 'rate', label: 'Rate', type: 'number', required: true },
+        { key: 'currency', label: 'Currency', required: true, defaultValue: 'USD' },
+      ],
+      commandBasePath: (id) => `/contingent-workforce/contingent-worker-assignments/${id}/commands`,
+      commandMappings: commonNoBodyCommands,
+    },
+    {
+      key: 'contractor-rate-cards',
+      label: 'Rate Cards',
+      aggregateType: 'ContractorRateCard',
+      listPath: (tenantId) => `/contingent-workforce/contractor-rate-cards/tenant/${tenantId}`,
+      createPath: '/contingent-workforce/contractor-rate-cards',
+      createLabel: 'Create rate card',
+      titleField: 'jobTitle',
+      secondaryField: 'vendorId',
+      fields: [
+        { key: 'vendorId', label: 'Vendor ID', required: true },
+        { key: 'jobTitle', label: 'Job title', required: true },
+        { key: 'rate', label: 'Rate', type: 'number', required: true },
+        { key: 'currency', label: 'Currency', required: true, defaultValue: 'USD' },
+        { key: 'effectiveFrom', label: 'Effective from', type: 'date', required: true },
+        { key: 'effectiveUntil', label: 'Effective until', type: 'date' },
+      ],
+      commandBasePath: (id) => `/contingent-workforce/contractor-rate-cards/${id}/commands`,
+      commandMappings: commonNoBodyCommands,
+    },
+    {
+      key: 'misclassification-assessments',
+      label: 'Classification Reviews',
+      aggregateType: 'MisclassificationAssessment',
+      listPath: (tenantId) => `/contingent-workforce/misclassification-assessments/tenant/${tenantId}`,
+      createPath: '/contingent-workforce/misclassification-assessments',
+      createLabel: 'Run assessment',
+      titleField: 'workerId',
+      secondaryField: 'riskScore',
+      fields: [
+        { key: 'workerId', label: 'Worker ID', required: true },
+        { key: 'assessmentDate', label: 'Assessment date', type: 'date', required: true },
+        { key: 'riskScore', label: 'Risk score', type: 'number' },
+        { key: 'riskFactors', label: 'Risk factors', type: 'csv' },
+      ],
+      commandBasePath: (id) => `/contingent-workforce/misclassification-assessments/${id}/commands`,
+      commandMappings: [
+        { tokens: ['review required'], command: 'mark-review-required' },
+        { tokens: ['clear'], command: 'clear' },
+        { tokens: ['flag'], command: 'flag' },
+        ...commonNoBodyCommands,
+      ],
+    },
+  ],
+};
+
+export function AdminContingentWorkforce() {
+  return <AdminDomainWorkspace config={contingentConfig} />;
+}

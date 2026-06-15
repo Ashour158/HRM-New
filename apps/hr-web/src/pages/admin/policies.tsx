@@ -53,10 +53,14 @@ type PolicyScope = {
   tenantId?: string;
   countryCodes?: string[];
   legalEntityIds?: string[];
+  branchCodes?: string[];
   orgUnitIds?: string[];
   departmentIds?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
   locationCodes?: string[];
   employeeTypes?: string[];
+  managerWorkerIds?: string[];
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;
@@ -99,6 +103,8 @@ type PolicySimulationResult = {
     payrollCycles: PolicyImpactRecord[];
     complianceAcknowledgements: PolicyImpactRecord[];
     accessGrants: PolicyImpactRecord[];
+    benefitsEnrollments: PolicyImpactRecord[];
+    benefitsLifeEvents: PolicyImpactRecord[];
   };
   notificationPreview: {
     recipients: Array<{
@@ -124,6 +130,8 @@ type PolicySimulationResult = {
     openAttendanceDays: number;
     openPayrollCycles: number;
     pendingComplianceAcknowledgements: number;
+    pendingBenefitsEnrollments: number;
+    pendingBenefitsLifeEvents: number;
   };
   oldDataRule: string;
   newDataRule: string;
@@ -184,6 +192,21 @@ type PolicySimulationResult = {
     payrollBridgeCodes: string[];
     enrollmentWindows: Array<{ ruleCode: string; waitingPeriodDays: number }>;
     carrierExportRules: string[];
+  };
+  globalHrPolicySimulation?: DomainPolicySimulation & {
+    workAuthorizationRuleCodes: string[];
+    worksCouncilRuleCodes: string[];
+    statutoryLeaveBridgeCodes: string[];
+  };
+  deiAnalyticsPolicySimulation?: DomainPolicySimulation & {
+    suppressionRuleCodes: string[];
+    payEquityReviewRuleCodes: string[];
+    remediationRuleCodes: string[];
+  };
+  engagementPolicySimulation?: DomainPolicySimulation & {
+    surveyPublicationRuleCodes: string[];
+    responsePrivacyRuleCodes: string[];
+    recognitionApprovalRuleCodes: string[];
   };
   warnings: string[];
   engineName: string;
@@ -756,7 +779,10 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
     simulation?.attendancePolicySimulation ??
     simulation?.accessPolicySimulation ??
     simulation?.compliancePolicySimulation ??
-    simulation?.benefitsPolicySimulation;
+    simulation?.benefitsPolicySimulation ??
+    simulation?.globalHrPolicySimulation ??
+    simulation?.deiAnalyticsPolicySimulation ??
+    simulation?.engagementPolicySimulation;
   const domainSimulationTitle = revision?.area === 'LEAVE'
     ? 'Leave Rule Ledger Simulation'
     : revision?.area === 'ATTENDANCE'
@@ -767,7 +793,13 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
           ? 'Compliance Rule Ledger Simulation'
           : revision?.area === 'BENEFITS'
             ? 'Benefits Eligibility And Payroll Bridge Simulation'
-            : 'Policy Rule Ledger Simulation';
+            : revision?.area === 'GLOBAL_HR'
+              ? 'Global HR Rule Ledger Simulation'
+              : revision?.area === 'DEI_ANALYTICS'
+                ? 'DEI Analytics Rule Ledger Simulation'
+                : revision?.area === 'ENGAGEMENT'
+                  ? 'Engagement Rule Ledger Simulation'
+                  : 'Policy Rule Ledger Simulation';
   const domainHighlights = [
     ...(simulation?.leavePolicySimulation ? [
       { label: 'Accrual rules', value: simulation.leavePolicySimulation.accrualRuleCodes.length },
@@ -793,6 +825,21 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
       { label: 'Payroll bridges', value: simulation.benefitsPolicySimulation.payrollBridgeCodes.join(', ') || '-' },
       { label: 'Enrollment windows', value: simulation.benefitsPolicySimulation.enrollmentWindows.map((window) => `${window.ruleCode}: ${window.waitingPeriodDays}d`).join(', ') || '-' },
       { label: 'Carrier export rules', value: simulation.benefitsPolicySimulation.carrierExportRules.length },
+    ] : []),
+    ...(simulation?.globalHrPolicySimulation ? [
+      { label: 'Work authorization', value: simulation.globalHrPolicySimulation.workAuthorizationRuleCodes.join(', ') || '-' },
+      { label: 'Works council', value: simulation.globalHrPolicySimulation.worksCouncilRuleCodes.join(', ') || '-' },
+      { label: 'Statutory leave bridge', value: simulation.globalHrPolicySimulation.statutoryLeaveBridgeCodes.join(', ') || '-' },
+    ] : []),
+    ...(simulation?.deiAnalyticsPolicySimulation ? [
+      { label: 'Suppression rules', value: simulation.deiAnalyticsPolicySimulation.suppressionRuleCodes.join(', ') || '-' },
+      { label: 'Pay equity review', value: simulation.deiAnalyticsPolicySimulation.payEquityReviewRuleCodes.join(', ') || '-' },
+      { label: 'Remediation rules', value: simulation.deiAnalyticsPolicySimulation.remediationRuleCodes.join(', ') || '-' },
+    ] : []),
+    ...(simulation?.engagementPolicySimulation ? [
+      { label: 'Survey publication', value: simulation.engagementPolicySimulation.surveyPublicationRuleCodes.join(', ') || '-' },
+      { label: 'Response privacy', value: simulation.engagementPolicySimulation.responsePrivacyRuleCodes.join(', ') || '-' },
+      { label: 'Recognition approval', value: simulation.engagementPolicySimulation.recognitionApprovalRuleCodes.join(', ') || '-' },
     ] : []),
   ];
   return (
@@ -925,6 +972,7 @@ function ImpactPanel({ revision }: { revision?: PolicyRevision }) {
         <ImpactRecordList title="Impacted Employees" records={impactedRecords?.workers ?? []} empty="Run simulation to see exact employees." />
         <ImpactRecordList title="Open Leave And Payroll Records" records={[...(impactedRecords?.leaveRequests ?? []), ...(impactedRecords?.payrollCycles ?? [])]} empty="No open leave or payroll records flagged." />
         <ImpactRecordList title="Attendance And Compliance Records" records={[...(impactedRecords?.attendanceDays ?? []), ...(impactedRecords?.complianceAcknowledgements ?? [])]} empty="No attendance or compliance records flagged." />
+        <ImpactRecordList title="Benefits Enrollment And Life Events" records={[...(impactedRecords?.benefitsEnrollments ?? []), ...(impactedRecords?.benefitsLifeEvents ?? [])]} empty="No benefits records flagged." />
         <div className="rounded-lg border border-[#e2e8f0] bg-white">
           <div className="border-b border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-sm font-semibold text-[#0f172a]">Notification Preview</div>
           <div className="max-h-56 overflow-y-auto divide-y divide-[#e2e8f0]">

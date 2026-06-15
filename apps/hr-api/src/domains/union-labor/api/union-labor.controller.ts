@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { UnionRecognitionRepository } from '../repositories/union-recognition.repository.js';
 import { GrievanceRepository } from '../repositories/grievance.repository.js';
 import { CollectiveBargainingSessionRepository } from '../repositories/collective-bargaining-session.repository.js';
@@ -34,13 +35,14 @@ export class UnionLaborController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'Union and Labor');
+    const actor = requireActor(req, 'Union and Labor');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['UNION_LABOR_WRITE'], mfaAuthenticated: true },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -50,8 +52,16 @@ export class UnionLaborController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
+  }
+
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Union and Labor');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
   }
 
   @Post('union-recognitions')
@@ -99,6 +109,11 @@ export class UnionLaborController {
     return this.unionRecognitionRepo.findById(new Uuid(id));
   }
 
+  @Get('union-recognitions/tenant/:tenantId')
+  async getRecognitionsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.unionRecognitionRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('grievances')
   async createGrievance(@Body(new ZodValidationPipe(CreateGrievanceDto)) dto: dtos.CreateGrievanceDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateGrievance', 'Grievance', dto, req));
@@ -144,6 +159,11 @@ export class UnionLaborController {
     return this.grievanceRepo.findById(new Uuid(id));
   }
 
+  @Get('grievances/tenant/:tenantId')
+  async getGrievancesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.grievanceRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('collective-bargaining-sessions')
   async createSession(@Body(new ZodValidationPipe(CreateCollectiveBargainingSessionDto)) dto: dtos.CreateCollectiveBargainingSessionDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateCollectiveBargainingSession', 'CollectiveBargainingSession', dto, req));
@@ -187,5 +207,10 @@ export class UnionLaborController {
   @Get('collective-bargaining-sessions/:id')
   async getSession(@Param('id') id: string) {
     return this.cbsRepo.findById(new Uuid(id));
+  }
+
+  @Get('collective-bargaining-sessions/tenant/:tenantId')
+  async getSessionsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.cbsRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

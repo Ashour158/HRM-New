@@ -20,6 +20,11 @@ export class DeiReportRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<DeiReport[]> {
+    const rows = await this.db.selectFrom('hr_dei_analytics.dei_reports').selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: DeiReport): Promise<void> {
     const existing = await this.db.selectFrom('hr_dei_analytics.dei_reports').select('id').where('id', '=', entity.id.value).executeTakeFirst();
     const row = {

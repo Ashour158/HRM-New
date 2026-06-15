@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification HIGH_SENSITIVITY - salary, band, bonus, equity, pay-scale, and worker-linked compensation fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard } from '@hcm/shared-kernel';
 
 /**

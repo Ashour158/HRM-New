@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification HIGH_SENSITIVITY - immigration, work authorization, statutory leave, international assignment, consultation, and country-rule fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 /**
@@ -72,6 +75,21 @@ export class WorkAuthorizationCaseApproved extends DomainEvent {
   }
 }
 
+export class WorkAuthorizationReviewStarted extends DomainEvent {
+  readonly workerId: string;
+
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid; workerId: Uuid }) {
+    super({
+      eventName: 'WorkAuthorizationReviewStarted',
+      tenantId: props.tenantId,
+      aggregateType: 'WorkAuthorizationCase',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+    this.workerId = props.workerId.value;
+  }
+}
+
 export class WorkAuthorizationCaseExpired extends DomainEvent {
   readonly workerId: string;
 
@@ -116,6 +134,21 @@ export class WorkAuthorizationCaseClosed extends DomainEvent {
   constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid; workerId: Uuid }) {
     super({
       eventName: 'WorkAuthorizationCaseClosed',
+      tenantId: props.tenantId,
+      aggregateType: 'WorkAuthorizationCase',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+    this.workerId = props.workerId.value;
+  }
+}
+
+export class WorkAuthorizationCaseRejected extends DomainEvent {
+  readonly workerId: string;
+
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid; workerId: Uuid }) {
+    super({
+      eventName: 'WorkAuthorizationCaseRejected',
       tenantId: props.tenantId,
       aggregateType: 'WorkAuthorizationCase',
       aggregateId: props.aggregateId,
@@ -198,11 +231,19 @@ export class WorkAuthorizationCase extends AggregateRoot {
   /**
    * Start review (OPEN → UNDER_REVIEW).
    */
-  startReview(_correlationId: Uuid): void {
+  startReview(correlationId: Uuid): void {
     if (this.status !== 'OPEN') {
       throw new ValidationError(`Cannot start review from state ${this.status}`);
     }
     this.status = 'UNDER_REVIEW';
+    this.addDomainEvent(
+      new WorkAuthorizationReviewStarted({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+        workerId: this.workerId,
+      }),
+    );
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -295,11 +336,19 @@ export class WorkAuthorizationCase extends AggregateRoot {
   /**
    * Reject the case (UNDER_REVIEW → REJECTED).
    */
-  reject(_correlationId: Uuid): void {
+  reject(correlationId: Uuid): void {
     if (this.status !== 'UNDER_REVIEW') {
       throw new ValidationError(`Cannot reject from state ${this.status}`);
     }
     this.status = 'REJECTED';
+    this.addDomainEvent(
+      new WorkAuthorizationCaseRejected({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+        workerId: this.workerId,
+      }),
+    );
     this.incrementVersion();
     this.updatedAt = new Date();
   }

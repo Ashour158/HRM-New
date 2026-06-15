@@ -1,10 +1,14 @@
-import { Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
+import { createCommand, type CommandOutcome } from '@hcm/command-contracts';
+import { Uuid } from '@hcm/shared-kernel';
+import { CommandBus } from '../../platform/command-bus/command-bus.js';
+import { actorClientType, requireActor, requireTenantId } from '../../platform/http/request-context.js';
 import { HcmSetupService } from './hcm-setup.service.js';
-import type { HcmSetupUpdate } from './hcm-setup.types.js';
+import type { HcmSetupConfig, HcmSetupUpdate } from './hcm-setup.types.js';
 
 const SETUP_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
 
@@ -12,7 +16,10 @@ const SETUP_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN',
 @UseGuards(AuthGuard)
 @Controller('admin/hcm-setup')
 export class HcmSetupController {
-  constructor(private readonly service: HcmSetupService) {}
+  constructor(
+    private readonly service: HcmSetupService,
+    private readonly moduleRef: ModuleRef,
+  ) {}
 
   @Get()
   async getSetup(@Req() req: Request) {
@@ -23,7 +30,30 @@ export class HcmSetupController {
   @Patch()
   async updateSetup(@Body() body: HcmSetupUpdate, @Req() req: Request) {
     this.assertSetupAdmin(req);
-    return this.service.updateSetup(this.getTenantId(req), body);
+    const tenantId = this.getTenantId(req);
+    const actor = requireActor(req, 'HCM setup');
+    const commandBus = this.moduleRef.get(CommandBus, { strict: false });
+    const result = await commandBus.execute(createCommand(
+      'ConfigureHcmSetup',
+      tenantId,
+      actor,
+      body,
+      {
+        aggregateType: 'HcmSetupConfig',
+        aggregateId: tenantId,
+        idempotencyKey: crypto.randomUUID(),
+        correlationId: Uuid.generate(),
+        reason: 'Configure HCM setup via System Console',
+        metadata: {
+          clientType: actorClientType(actor),
+          hrDataSensitivity: 'HIGH',
+        },
+      },
+    )) as CommandOutcome<HcmSetupConfig>;
+    if (!result.success) {
+      throw new BadRequestException(result.errorMessage);
+    }
+    return result.data;
   }
 
   private assertSetupAdmin(req: Request): void {
@@ -33,7 +63,7 @@ export class HcmSetupController {
     }
   }
 
-  private getTenantId(req: Request): Uuid {
-    return new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+  private getTenantId(req: Request) {
+    return requireTenantId(req, 'HCM setup');
   }
 }

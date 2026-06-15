@@ -4,10 +4,12 @@ import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { AuthGuard } from '../../../guards/auth.guard.js';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import type { HcmSetupConfig, PayrollGlAccountMapping } from '../../hcm-setup/hcm-setup.types.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
@@ -124,6 +126,11 @@ function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function requirePayrollCurrency(currency: string | undefined, context: string): string {
+  if (!currency) throw new BadRequestException(`${context} currency is required`);
+  return currency;
+}
+
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -153,8 +160,8 @@ export class PayrollController {
     private readonly payrollInputOrchestration: PayrollInputOrchestrationService,
     private readonly payrollApprovedInputProjection: PayrollApprovedInputProjectionService,
     private readonly payrollArtifact: PayrollArtifactService,
-    private readonly payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
-    private readonly payrollBankFile: PayrollBankFileService,
+    _payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
+    _payrollBankFile: PayrollBankFileService,
     private readonly payrollGlPosting: PayrollGlPostingService,
   ) {}
 
@@ -165,14 +172,14 @@ export class PayrollController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
-    if (!req.actor) throw new ForbiddenException('Authenticated actor is required');
+    const tenantId = requireTenantId(req, 'Payroll');
+    const actor = requireActor(req, 'Payroll');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: req.actor,
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -182,12 +189,12 @@ export class PayrollController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
   }
 
   private getTenantId(req: Request): Uuid {
-    return new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    return requireTenantId(req, 'Payroll');
   }
 
   private hasPayrollVisibility(req: Request): boolean {
@@ -216,6 +223,10 @@ export class PayrollController {
     } catch {
       return undefined;
     }
+  }
+
+  private safeUuid(value: string | undefined, fallback: Uuid): Uuid {
+    return value && Uuid.isValid(value) ? new Uuid(value) : fallback;
   }
 
   private async executeOrThrow<T>(command: HrCommandEnvelope<unknown>): Promise<CommandResult<T>> {
@@ -365,9 +376,10 @@ export class PayrollController {
 
   private async applyMassUpdateRowsToInputCollection(payrollCycleId: string, rows: PayrollCsvRow[], req: Request) {
     const applied: Array<{ employeeId: string; workerId: string; inputTypes: string[] }> = [];
+    const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     for (const row of rows) {
       if (!row.employeeId) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, this.getTenantId(req));
       if (!worker) {
         throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       }
@@ -380,7 +392,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: 'MASS_UPDATE_GROSS_PAY',
           amount: Number(row.grossSalary),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} gross salary`,
         });
       }
@@ -390,7 +402,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: 'MASS_UPDATE_TAX_OVERRIDE',
           amount: Number(row.taxOverride),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} tax override`,
         });
       }
@@ -400,7 +412,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: 'MASS_UPDATE_INSURANCE_OVERRIDE',
           amount: Number(row.insuranceOverride),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} insurance override`,
         });
       }
@@ -410,7 +422,7 @@ export class PayrollController {
           payrollCycleId,
           inputType: row.deductionCode ? `MASS_UPDATE_DEDUCTION_${row.deductionCode}` : 'MASS_UPDATE_DEDUCTION',
           amount: Number(row.deductionAmount),
-          currency: row.currency ?? 'EGP',
+          currency: row.currency ?? tenantCurrency,
           description: `${baseDescription} deduction ${row.deductionCode ?? ''}`.trim(),
         });
       }
@@ -427,15 +439,15 @@ export class PayrollController {
     };
   }
 
-  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[]): Promise<PayrollApprovedInputRecord[]> {
+  private async buildMassUpdateProjectionInputs(rows: PayrollCsvRow[], tenantCurrency: string, tenantId: Uuid): Promise<PayrollApprovedInputRecord[]> {
     const inputs: PayrollApprovedInputRecord[] = [];
     for (const row of rows) {
       if (!row.employeeId) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, tenantId);
       if (!worker) {
         throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       }
-      const currency = row.currency ?? 'EGP';
+      const currency = row.currency ?? tenantCurrency;
       if (row.grossSalary !== undefined) inputs.push({
         workerId: worker.id.value,
         inputType: 'MASS_UPDATE_GROSS_PAY',
@@ -472,17 +484,17 @@ export class PayrollController {
     return inputs;
   }
 
-  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[]): Promise<PayrollApprovedInputRecord[]> {
+  private async buildOffCycleProjectionInputs(rows: PayrollOffCycleRow[], tenantCurrency: string, tenantId: Uuid): Promise<PayrollApprovedInputRecord[]> {
     const inputs: PayrollApprovedInputRecord[] = [];
     for (const row of rows) {
       if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, tenantId);
       if (!worker) throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       inputs.push({
         workerId: worker.id.value,
         inputType: row.inputType,
         amount: Number(row.amount),
-        currency: row.currency ?? 'EGP',
+        currency: row.currency ?? tenantCurrency,
         status: 'APPROVED',
         description: row.description ?? `${row.employeeId} ${row.inputType.toLowerCase().replace(/_/g, ' ')}`,
       });
@@ -501,10 +513,18 @@ export class PayrollController {
     }));
   }
 
-  private async findWorkerByEmployeeId(employeeId: string) {
-    const activeWorkers = await this.workerRepo.findActive();
-    const fallbackWorkers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.search('', { limit: 1000 });
+  private async findWorkerByEmployeeId(employeeId: string, tenantId: Uuid) {
+    // Resolve strictly within the request tenant so colliding employee numbers across
+    // tenants cannot leak/cross-apply another tenant's worker.
+    const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
+    const fallbackWorkers = activeWorkers.length > 0
+      ? activeWorkers
+      : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
     return fallbackWorkers.find((worker) => worker.employeeNumber === employeeId);
+  }
+
+  private async resolvePayrollCurrencyForRequest(req: Request): Promise<string> {
+    return resolveTenantCurrency(await this.hcmSetupService.getSetup(requireTenantId(req)));
   }
 
   private toSessions(events: Array<{ eventType: string; timestamp: Date; location?: string }>): AttendanceSession[] {
@@ -579,6 +599,7 @@ export class PayrollController {
     const setup = await this.hcmSetupService.getSetup(tenantId);
     const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
     const workers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
+    const tenantCurrency = resolveTenantCurrency(setup);
 
     return Promise.all(workers.map(async (worker) => {
       const records = await this.personalDataRepo.findByWorker(worker.id);
@@ -600,7 +621,7 @@ export class PayrollController {
       const orgUnitId = readString(contact.orgUnitId ?? orgUnit?.id ?? orgUnit?.code);
       const countryCode = readString(workLocation?.countryCode ?? location?.countryCode);
       const grossSalary = Number(compensation.grossSalaryAmount ?? compensation.salaryAmount ?? 0);
-      const salaryCurrency = String(compensation.salaryCurrency ?? locationCurrency ?? 'EGP');
+      const salaryCurrency = String(compensation.salaryCurrency ?? locationCurrency ?? tenantCurrency);
       const salaryBasis = readString(compensation.salaryBasis)?.toUpperCase();
       const hourlyRate = Number(compensation.hourlyRateAmount ?? compensation.hourlyRate ?? 0);
       const bankAccount: PayrollBankAccount | undefined = bankAccountPayload ? {
@@ -646,7 +667,8 @@ export class PayrollController {
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
     const employees = await this.buildPayrollEmployees(year, month, req);
     const preview = this.payrollCalculation.buildMonthlyCycle({ year, month, employees, setup, workLocationCode });
-    const actor = { roles: req.actor?.roles ?? ['HR_ADMIN'], workerId: req.actor?.actorId?.value };
+    const requestActor = requireActor(req, 'Payroll preview');
+    const actor = { roles: requestActor.roles, workerId: requestActor.actorId.value };
     return {
       ...preview,
       rows: preview.rows.map((row) => this.payrollCalculation.maskRowForActor(row, actor)),
@@ -697,7 +719,7 @@ export class PayrollController {
     return [...linesByWorkerId.entries()].map(([workerId, lines]) => {
       const bankRow = bankRowsByWorkerId.get(workerId);
       const artifact = artifactsByWorkerId.get(workerId);
-      const currency = lines[0]?.currency ?? bankRow?.currency ?? artifact?.currency ?? 'EGP';
+      const currency = requirePayrollCurrency(lines[0]?.currency ?? bankRow?.currency ?? artifact?.currency, 'Locked payroll row');
       const grossLines = lines.filter((line) => (
         line.lineType === 'GROSS'
         || line.ruleSetId === 'EARNING'
@@ -762,10 +784,11 @@ export class PayrollController {
     if (!cycle) throw new BadRequestException('Payroll cycle not found');
     const payrollCycleUuid = new Uuid(payrollCycleId);
     const tenantId = this.getTenantId(req);
-    const [allResultLines, paymentBatch, payslipArtifacts] = await Promise.all([
+    const [allResultLines, paymentBatch, payslipArtifacts, setup] = await Promise.all([
       this.resultLineRepo.findByPayrollCycle(payrollCycleUuid),
       this.paymentBatchRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
       this.payslipArtifactRepo.findByPayrollCycle(tenantId, payrollCycleUuid),
+      this.hcmSetupService.getSetup(tenantId),
     ]);
     const resultLines = allResultLines.filter((line) => line.status === 'LOCKED');
     const rows = this.buildPersistedCycleRows({ resultLines, paymentBatch, payslipArtifacts });
@@ -801,7 +824,7 @@ export class PayrollController {
       totalEmployerInsurance: employerInsurance,
       totalPolicyDeductions: deductions,
       totalNet: net,
-      currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? 'EGP',
+      currency: resultLines[0]?.currency ?? paymentBatch?.currency ?? resolveTenantCurrency(setup),
       rows,
     };
   }
@@ -1005,7 +1028,7 @@ export class PayrollController {
     }));
     const csv = toCsv(rows);
     const fileName = `payroll-${preview.id}.csv`;
-    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+    const exportJob = this.payrollArtifact.buildExportJobRecord({
       tenantId: this.getTenantId(req).value,
       requestedBy: this.getActorUuidString(req),
       exportType: 'PAYROLL_SUMMARY_CSV',
@@ -1014,6 +1037,9 @@ export class PayrollController {
       rowCount: rows.length,
       filters: { year: preview.year, month: preview.month, workLocationCode },
       purpose: 'Payroll summary export',
+    });
+    await this.executeOrThrow(this.buildCommand('SavePayrollExportJob', 'PayrollExportJob', { record: exportJob }, req, {
+      aggregateId: new Uuid(exportJob.id),
     }));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -1055,7 +1081,7 @@ export class PayrollController {
     }));
     const csv = toCsv(rows);
     const fileName = `bank-sheet-${preview.id}.csv`;
-    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
+    const exportJob = this.payrollArtifact.buildExportJobRecord({
       tenantId: this.getTenantId(req).value,
       requestedBy: this.getActorUuidString(req),
       exportType: 'BANK_SHEET_CSV',
@@ -1064,6 +1090,9 @@ export class PayrollController {
       rowCount: rows.length,
       filters: { year: preview.year, month: preview.month, workLocationCode },
       purpose: 'Bank transfer sheet export',
+    });
+    await this.executeOrThrow(this.buildCommand('SavePayrollExportJob', 'PayrollExportJob', { record: exportJob }, req, {
+      aggregateId: new Uuid(exportJob.id),
     }));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
@@ -1167,9 +1196,10 @@ export class PayrollController {
     const preview = await this.buildMonthlyPreview(req, year, month, body.workLocationCode);
     if (preview.employeeCount === 0) throw new BadRequestException('No employees are available for this payroll cycle');
     const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
+    const tenantCurrency = resolveTenantCurrency(setup);
     const projectedReadinessPreview = this.payrollApprovedInputProjection.applyApprovedInputs(
       preview,
-      await this.buildMassUpdateProjectionInputs(massUpdateRows),
+      await this.buildMassUpdateProjectionInputs(massUpdateRows, tenantCurrency, this.getTenantId(req)),
     );
     const readinessBankRows = this.payrollCalculation.buildBankTransferRows(projectedReadinessPreview.rows);
     const readiness = this.mergeReadiness(this.payrollGovernance.evaluateCloseToPayReadiness({
@@ -1283,7 +1313,10 @@ export class PayrollController {
       payslip,
       htmlContent: this.payrollInputOrchestration.renderPayslipHtml(payslip),
     }));
-    await this.payslipArtifactRepo.saveMany(payslipArtifacts);
+    await this.executeOrThrow(this.buildCommand('GeneratePayrollPayslipArtifacts', 'PayrollPayslipArtifact', {
+      payrollCycleId,
+      records: payslipArtifacts,
+    }, req, { aggregateId: new Uuid(payrollCycleId) }));
 
     const persistedPaymentBatch = {
       ...this.payrollInputOrchestration.buildPaymentBatch(calculationPreview, calculationBankRows),
@@ -1295,7 +1328,9 @@ export class PayrollController {
       batch: persistedPaymentBatch,
       createdBy: this.getActorUuidString(req),
     });
-    await this.paymentBatchRepo.save(paymentBatchRecord);
+    await this.executeOrThrow(this.buildCommand('CreatePayrollPaymentBatch', 'PayrollPaymentBatch', {
+      record: paymentBatchRecord,
+    }, req, { aggregateId: this.safeUuid(paymentBatchRecord.id, new Uuid(payrollCycleId)) }));
 
     const glPosting = this.payrollGlPosting.buildPosting({
       tenantId: this.getTenantId(req).value,
@@ -1304,7 +1339,9 @@ export class PayrollController {
       createdBy: this.getActorUuidString(req),
       accountMapping: this.resolvePayrollGlAccountMapping(setup, calculationPreview, body.workLocationCode),
     });
-    await this.glPostingRepo.save(glPosting);
+    await this.executeOrThrow(this.buildCommand('CreatePayrollGlPosting', 'PayrollGlPosting', {
+      record: glPosting,
+    }, req, { aggregateId: this.safeUuid(glPosting.id, new Uuid(payrollCycleId)) }));
 
     let finalCycleStatus = 'REVIEW';
     let finalReadiness = readiness;
@@ -1347,11 +1384,12 @@ export class PayrollController {
   @Get('mass-update-template.csv')
   async massUpdateTemplate(@Req() req: Request, @Res() res: Response) {
     this.assertCanExportPayroll(req);
+    const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     const csv = toCsv([{
       employeeId: 'EMP-001',
       workEmail: 'employee@example.com',
       grossSalary: 10000,
-      currency: 'EGP',
+      currency: tenantCurrency,
       taxOverride: '',
       insuranceOverride: '',
       deductionCode: 'LATE_PER_MINUTE',
@@ -1436,7 +1474,7 @@ export class PayrollController {
       rowCount: rows.length,
       preview: this.payrollApprovedInputProjection.applyApprovedInputs(
         preview,
-        await this.buildOffCycleProjectionInputs(rows),
+        await this.buildOffCycleProjectionInputs(rows, await this.resolvePayrollCurrencyForRequest(req), this.getTenantId(req)),
       ),
       events: ['PayrollOffCyclePreviewBuilt'],
     };
@@ -1463,16 +1501,17 @@ export class PayrollController {
       });
     }
     const applied: Array<{ employeeId: string; workerId: string; inputType: string }> = [];
+    const tenantCurrency = await this.resolvePayrollCurrencyForRequest(req);
     for (const row of rows) {
       if (!row.employeeId || !row.inputType || row.amount === undefined) continue;
-      const worker = await this.findWorkerByEmployeeId(row.employeeId);
+      const worker = await this.findWorkerByEmployeeId(row.employeeId, this.getTenantId(req));
       if (!worker) throw new BadRequestException(`Employee ${row.employeeId} was not found`);
       await this.approvePayrollInputThroughWorkflow({
         workerId: worker.id.value,
         payrollCycleId: id,
         inputType: row.inputType,
         amount: Number(row.amount),
-        currency: row.currency ?? 'EGP',
+        currency: row.currency ?? tenantCurrency,
         description: row.description ?? `${row.employeeId} ${row.inputType.toLowerCase().replace(/_/g, ' ')}`,
       }, req);
       applied.push({ employeeId: row.employeeId, workerId: worker.id.value, inputType: row.inputType });
@@ -1489,11 +1528,10 @@ export class PayrollController {
   @Post('payment-batches/:id/approve')
   async approvePaymentBatch(@Param('id') id: string, @Req() req: Request) {
     this.assertCanExportPayroll(req);
-    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
-    if (!batch) throw new BadRequestException('Payment batch not found');
-    const approved = this.payrollEnterpriseWorkflow.approvePaymentBatch(batch, this.getActorUuidString(req) ?? this.getActorId(req));
-    await this.paymentBatchRepo.save(approved);
-    return approved;
+    const result = await this.executeOrThrow(this.buildCommand('ApprovePayrollPaymentBatch', 'PayrollPaymentBatch', {
+      paymentBatchId: id,
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('payment-batches/:id/export')
@@ -1503,31 +1541,11 @@ export class PayrollController {
     @Req() req: Request,
   ) {
     this.assertCanExportPayroll(req);
-    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
-    if (!batch) throw new BadRequestException('Payment batch not found');
-    const format = body.format ?? 'CSV';
-    const bankFile = this.payrollBankFile.render(batch, format);
-    const exported = this.payrollEnterpriseWorkflow.markPaymentBatchExported(batch, format, this.getActorUuidString(req) ?? this.getActorId(req));
-    await this.paymentBatchRepo.save(exported);
-    await this.exportJobRepo.save(this.payrollArtifact.buildExportJobRecord({
-      tenantId: this.getTenantId(req).value,
-      payrollCycleId: batch.payrollCycleId,
-      requestedBy: this.getActorUuidString(req),
-      exportType: `BANK_PAYMENT_${format}`,
-      fileName: bankFile.fileName,
-      content: bankFile.content,
-      rowCount: bankFile.rowCount,
-      filters: { paymentBatchId: id, format },
-      purpose: 'Approved bank payment file export',
-    }));
-    return {
-      paymentBatch: exported,
-      fileName: bankFile.fileName,
-      contentType: bankFile.contentType,
-      content: bankFile.content,
-      rowCount: bankFile.rowCount,
-      events: ['PaymentBatchExported', 'PayrollBankFileRendered'],
-    };
+    const result = await this.executeOrThrow(this.buildCommand('ExportPayrollPaymentBatch', 'PayrollPaymentBatch', {
+      paymentBatchId: id,
+      format: body.format,
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('payment-batches/:id/reconcile')
@@ -1537,40 +1555,20 @@ export class PayrollController {
     @Req() req: Request,
   ) {
     this.assertCanExportPayroll(req);
-    const batch = await this.paymentBatchRepo.findById(this.getTenantId(req), new Uuid(id));
-    if (!batch) throw new BadRequestException('Payment batch not found');
-    const reconciled = this.payrollEnterpriseWorkflow.reconcilePaymentBatch(
-      batch,
-      body.rows ?? [],
-      this.getActorUuidString(req) ?? this.getActorId(req),
-    );
-    await this.paymentBatchRepo.save(reconciled);
-    return reconciled;
+    const result = await this.executeOrThrow(this.buildCommand('ReconcilePayrollPaymentBatch', 'PayrollPaymentBatch', {
+      paymentBatchId: id,
+      rows: body.rows ?? [],
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('cycles/:id/payslips/publish')
   async publishPayrollCyclePayslips(@Param('id') id: string, @Req() req: Request) {
     this.assertCanExportPayroll(req);
-    const artifacts = await this.payslipArtifactRepo.findByPayrollCycle(this.getTenantId(req), new Uuid(id));
-    const actorId = this.getActorUuidString(req) ?? this.getActorId(req);
-    const published = artifacts.map((artifact) => (
-      artifact.status === 'GENERATED'
-        ? this.payrollEnterpriseWorkflow.publishPayslip(artifact, actorId)
-        : artifact
-    ));
-    await this.payslipArtifactRepo.saveMany(published);
-    return {
+    const result = await this.executeOrThrow(this.buildCommand('PublishPayrollCyclePayslips', 'PayrollPayslipArtifact', {
       payrollCycleId: id,
-      publishedCount: published.filter((artifact) => artifact.status === 'PUBLISHED').length,
-      artifacts: published.map((artifact) => ({
-        id: artifact.id,
-        workerId: artifact.workerId,
-        employeeId: artifact.employeeId,
-        status: artifact.status,
-        publishedAt: artifact.publishedAt,
-      })),
-      events: ['PayrollPayslipsPublished'],
-    };
+    }, req, { aggregateId: new Uuid(id) }));
+    return result.data;
   }
 
   @Post('cycles/:id/gl-posting')
@@ -1585,11 +1583,10 @@ export class PayrollController {
       createdBy: this.getActorUuidString(req),
       accountMapping: this.resolvePayrollGlAccountMapping(setup, preview),
     });
-    await this.glPostingRepo.save(posting);
-    return {
-      ...posting,
-      events: ['PayrollGlPostingBuilt'],
-    };
+    const result = await this.executeOrThrow(this.buildCommand('CreatePayrollGlPosting', 'PayrollGlPosting', {
+      record: posting,
+    }, req, { aggregateId: this.safeUuid(posting.id, new Uuid(id)) }));
+    return result.data;
   }
 
   @Get('cycles/:id/gl-posting')

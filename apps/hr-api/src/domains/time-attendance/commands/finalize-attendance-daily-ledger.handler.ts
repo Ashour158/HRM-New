@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 // import { Uuid } from '@hcm/shared-kernel';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { AttendanceCorrectionRequestRepository } from '../repositories/attendance-correction-request.repository.js';
 import { AttendanceDailyLedgerRepository } from '../repositories/attendance-daily-ledger.repository.js';
 import { AttendanceFinalizationService } from '../services/attendance-finalization.service.js';
@@ -15,6 +17,7 @@ export class FinalizeAttendanceDailyLedgerHandler {
     private readonly dailyLedgerRepo: AttendanceDailyLedgerRepository,
     private readonly correctionRepo: AttendanceCorrectionRequestRepository,
     private readonly finalization: AttendanceFinalizationService,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -85,11 +88,13 @@ export class FinalizeAttendanceDailyLedgerHandler {
       } as CommandResult<unknown>;
     }
 
+    const currency = payload.currency
+      ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(command.tenantId));
     const result = this.finalization.finalizeDailyLedger(ledger, {
       tenantId: command.tenantId.value,
       lockedBy: command.actor.actorId.value,
       payrollCycleId: payload.payrollCycleId,
-      currency: payload.currency ?? 'EGP',
+      currency,
     });
 
     if (!result.canFinalize) {

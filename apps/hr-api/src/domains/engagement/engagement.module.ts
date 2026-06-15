@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { EngagementController } from './api/engagement.controller.js';
@@ -19,6 +19,7 @@ import { CreateFeedback360CycleHandler } from './commands/create-feedback-360-cy
 import { ActivateFeedback360CycleHandler } from './commands/activate-feedback-360-cycle.handler.js';
 import { StartFeedback360CycleHandler } from './commands/start-feedback-360-cycle.handler.js';
 import { CompleteFeedback360CycleHandler } from './commands/complete-feedback-360-cycle.handler.js';
+import { SubmitFeedback360ResponseHandler } from './commands/submit-feedback-360-response.handler.js';
 import { CreateRecognitionProgramHandler } from './commands/create-recognition-program.handler.js';
 import { ActivateRecognitionProgramHandler } from './commands/activate-recognition-program.handler.js';
 import { SuspendRecognitionProgramHandler } from './commands/suspend-recognition-program.handler.js';
@@ -56,6 +57,7 @@ import { registerRecognitionRecordFsm } from './fsm/recognition-record.fsm.js';
     ActivateFeedback360CycleHandler,
     StartFeedback360CycleHandler,
     CompleteFeedback360CycleHandler,
+    SubmitFeedback360ResponseHandler,
     CreateRecognitionProgramHandler,
     ActivateRecognitionProgramHandler,
     SuspendRecognitionProgramHandler,
@@ -70,7 +72,7 @@ import { registerRecognitionRecordFsm } from './fsm/recognition-record.fsm.js';
   exports: [EngagementSurveyRepository, SurveyResponseRepository, Feedback360CycleRepository, RecognitionProgramRepository, RecognitionRecordRepository],
 })
 export class EngagementModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerEngagementSurveyFsm(this.fsm);

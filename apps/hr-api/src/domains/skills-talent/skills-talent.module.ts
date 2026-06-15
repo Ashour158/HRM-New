@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { SkillsTalentController } from './api/skills-talent.controller.js';
@@ -63,7 +63,7 @@ import { registerSuccessionPlanFsm } from './fsm/succession-plan.fsm.js';
   exports: [SkillProfileRepository, TalentPoolRepository, CareerPathRepository, SuccessionPlanRepository],
 })
 export class SkillsTalentModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerSkillProfileFsm(this.fsm);

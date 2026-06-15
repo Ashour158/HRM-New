@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { EmployeeRelationsController } from './api/employee-relations.controller.js';
@@ -69,7 +69,7 @@ import { registerAccommodationCaseFsm } from './fsm/accommodation-case.fsm.js';
   exports: [EmployeeRelationsCaseRepository, ErInvestigationRepository, DisciplinaryActionRepository, AccommodationCaseRepository],
 })
 export class EmployeeRelationsModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerEmployeeRelationsCaseFsm(this.fsm);

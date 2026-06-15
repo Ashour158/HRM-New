@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
@@ -111,7 +111,7 @@ import { registerOvertimeApprovalFsm } from './fsm/overtime-approval.fsm.js';
   exports: [WorkScheduleRepository, TimesheetRepository, TimeClockEventRepository, AttendanceExceptionRepository, AttendanceDailyLedgerRepository, AttendanceCorrectionRequestRepository, OvertimeApprovalRepository, AttendanceCalculationService, AttendanceStateService, AttendanceLedgerService, AttendanceLedgerBuilderService, AttendancePolicyResolutionService, AttendanceTrustService, AttendanceFinalizationService, AttendanceCloseReadinessService, AttendanceCorrectionService, AttendanceGeolocationExportService, AttendanceTimesheetProjectionService, AttendanceReminderService, AttendanceReportingService, AttendanceSchedulingCommandCenterService],
 })
 export class TimeAttendanceModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerWorkScheduleFsm(this.fsm);

@@ -435,7 +435,7 @@ export function AdminSystemConsole() {
   const [adminToolQuery, setAdminToolQuery] = React.useState('');
   const mapsConfigured = Boolean(import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
-  const authBypassEnabled = import.meta.env.VITE_AUTH_BYPASS === 'true';
+  const authBypassEnabled = import.meta.env.DEV && import.meta.env.VITE_AUTH_BYPASS === 'true';
 
   const dashboardQuery = useApiQuery<AdminDashboardData>(['admin-dashboard', 'system-console'], '/admin/dashboard', {
     retry: false,
@@ -583,14 +583,17 @@ export function AdminSystemConsole() {
     { label: 'Onboarding', description: 'Preboarding, joining checklists, provisioning, 30/60/90 plans, and probation.', group: 'Reward And Talent', path: '/admin/onboarding', icon: UserRoundPlus, tone: 'text-[#f59e0b]' },
     { label: 'Employee Engagement', description: 'Surveys, recognition programs, engagement signals, and response controls.', group: 'Reward And Talent', path: '/admin/modules/engagement/operations', icon: Radar, tone: 'text-[#8b5cf6]' },
     { label: 'Policy Center', description: 'Scoped policies, lifecycle approval, simulation, application, and evidence.', group: 'Governance And Insights', path: '/admin/system-console/policies', icon: ShieldCheck, tone: 'text-[#8a4fff]' },
+    { label: 'Approval Paths', description: 'Configure command approvals, delegated reviewers, SLA timers, and escalation routes.', group: 'Governance And Insights', path: '/admin/system-console/approvals', icon: GitBranch, tone: 'text-[#6366f1]' },
     { label: 'Compliance Center', description: 'Policies, acknowledgements, legal holds, statutory reporting, and evidence.', group: 'Governance And Insights', path: '/admin/compliance', icon: ShieldCheck, tone: 'text-[#4f46e5]' },
     { label: 'Country Policy', description: 'Country packs, validations, simulations, approvals, publish, and rollback.', group: 'Governance And Insights', path: '/admin/country-policy', icon: Landmark, tone: 'text-[#6366f1]' },
     { label: 'Employee Relations', description: 'Cases, investigations, disciplinary actions, accommodations, and closure.', group: 'Governance And Insights', path: '/admin/modules/employee-relations/operations', icon: Briefcase, tone: 'text-[#8b5cf6]' },
     { label: 'Reporting And Analytics', description: 'Workforce, reward, talent, service, and governance reporting.', group: 'Governance And Insights', path: '/admin/reports', icon: FileText, tone: 'text-[#818cf8]' },
     { label: 'AI Governance', description: 'AI use cases, model runs, bias tests, risk controls, and human oversight.', group: 'Governance And Insights', path: '/admin/modules/hr-ai-governance/operations', icon: Bot, tone: 'text-[#4f46e5]' },
     { label: 'Marketplace', description: 'Extension marketplace and install governance for future add-on services.', group: 'Governance And Insights', icon: Store, tone: 'text-[#6366f1]', status: 'not-configured' },
-    { label: 'System Operations', description: 'Readiness, recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'Production Readiness', description: 'Go-live gate across setup, policies, modules, integrations, queues, audit, and release controls.', group: 'Governance And Insights', path: '/admin/system-console/readiness', icon: Code2, tone: 'text-[#f59e0b]' },
+    { label: 'System Operations', description: 'Recovery queues, integrations, activity reporting, and data safeguards.', group: 'Governance And Insights', path: '/admin/system-console#system-operations', icon: Code2, tone: 'text-[#f59e0b]' },
     { label: 'Failed Work Queue', description: 'Review failed background work, decide recovery actions, and export operator evidence.', group: 'Governance And Insights', path: '/admin/system-console/dead-letter-events', icon: AlertTriangle, tone: 'text-[#e11d48]' },
+    { label: 'Automation', description: 'Manage scheduled jobs, tenant run windows, manual runs, and last-run health.', group: 'Governance And Insights', path: '/admin/system-console/automation', icon: Timer, tone: 'text-[#6366f1]' },
     { label: 'Audit Trail', description: 'Search, filter, export, and inspect tenant audit evidence.', group: 'Governance And Insights', path: '/admin/system-console/audit', icon: Radar, tone: 'text-[#4f46e5]' },
     { label: 'Service Event Map', description: 'Review service event names, ownership, versioning, and consuming teams.', group: 'Governance And Insights', path: '/admin/system-console/event-contracts', icon: GitBranch, tone: 'text-[#6366f1]' },
   ];
@@ -691,7 +694,7 @@ export function AdminSystemConsole() {
     {
       title: 'Queues, Audit, And Health',
       description: 'Watch readiness, recover failed work, review notifications, and confirm recent audit evidence.',
-      path: '/admin/system-console#system-operations',
+      path: '/admin/system-console/readiness',
       actionLabel: 'Open Health',
       status: readinessDown > 0 || queueBacklog > 0 || unresolvedDeadLetters > 0 ? 'attention' : readinessQuery.isSuccess ? 'live' : 'partial',
       statusLabel: readinessDown > 0 || queueBacklog > 0 || unresolvedDeadLetters > 0 ? 'Watch' : readinessQuery.isSuccess ? 'Ready' : 'Loading',

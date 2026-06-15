@@ -41,10 +41,14 @@ interface PolicyRevisionRow {
   aggregate_version: number;
   country_codes: unknown;
   legal_entity_ids: unknown;
+  branch_codes: unknown;
   org_unit_ids: unknown;
   department_ids: unknown;
+  job_codes: unknown;
+  grade_codes: unknown;
   location_codes: unknown;
   employee_types: unknown;
+  manager_worker_ids: unknown;
   worker_ids: unknown;
   effective_from: string | null;
   effective_until: string | null;
@@ -94,6 +98,22 @@ function scopeToSqlArray(values: string[] | undefined): string {
   return JSON.stringify(values ?? []);
 }
 
+function scopeHasWorkerFilters(scope: PolicyScope): boolean {
+  return [
+    scope.countryCodes,
+    scope.legalEntityIds,
+    scope.branchCodes,
+    scope.orgUnitIds,
+    scope.departmentIds,
+    scope.jobCodes,
+    scope.gradeCodes,
+    scope.locationCodes,
+    scope.employeeTypes,
+    scope.managerWorkerIds,
+    scope.workerIds,
+  ].some((values) => (values ?? []).length > 0);
+}
+
 function emptyImpactRecords(): PolicyImpactRecords {
   return {
     workers: [],
@@ -137,8 +157,9 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
 
   async updateRevision(id: string, update: Partial<PolicyRevisionRecord>): Promise<PolicyRevisionRecord> {
     const existing = await sql<PolicyRevisionRow>`
-      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.org_unit_ids,
-        scope.department_ids, scope.location_codes, scope.employee_types, scope.worker_ids,
+      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.branch_codes, scope.org_unit_ids,
+        scope.department_ids, scope.job_codes, scope.grade_codes, scope.location_codes, scope.employee_types,
+        scope.manager_worker_ids, scope.worker_ids,
         scope.effective_from::text, scope.effective_until::text
       FROM hr_platform.admin_policy_revisions revision
       LEFT JOIN hr_platform.admin_policy_revision_scopes scope ON scope.revision_id = revision.id
@@ -185,8 +206,9 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
 
   async findRevisionById(tenantId: string, id: string): Promise<PolicyRevisionRecord | undefined> {
     const result = await sql<PolicyRevisionRow>`
-      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.org_unit_ids,
-        scope.department_ids, scope.location_codes, scope.employee_types, scope.worker_ids,
+      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.branch_codes, scope.org_unit_ids,
+        scope.department_ids, scope.job_codes, scope.grade_codes, scope.location_codes, scope.employee_types,
+        scope.manager_worker_ids, scope.worker_ids,
         scope.effective_from::text, scope.effective_until::text
       FROM hr_platform.admin_policy_revisions revision
       LEFT JOIN hr_platform.admin_policy_revision_scopes scope ON scope.revision_id = revision.id
@@ -199,8 +221,9 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
 
   async listRevisions(tenantId: string, area?: PolicyArea): Promise<PolicyRevisionRecord[]> {
     const result = await sql<PolicyRevisionRow>`
-      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.org_unit_ids,
-        scope.department_ids, scope.location_codes, scope.employee_types, scope.worker_ids,
+      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.branch_codes, scope.org_unit_ids,
+        scope.department_ids, scope.job_codes, scope.grade_codes, scope.location_codes, scope.employee_types,
+        scope.manager_worker_ids, scope.worker_ids,
         scope.effective_from::text, scope.effective_until::text
       FROM hr_platform.admin_policy_revisions revision
       LEFT JOIN hr_platform.admin_policy_revision_scopes scope ON scope.revision_id = revision.id
@@ -213,8 +236,9 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
 
   async listActiveRevisionsByArea(tenantId: string, area: PolicyArea): Promise<PolicyRevisionRecord[]> {
     const result = await sql<PolicyRevisionRow>`
-      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.org_unit_ids,
-        scope.department_ids, scope.location_codes, scope.employee_types, scope.worker_ids,
+      SELECT revision.*, scope.country_codes, scope.legal_entity_ids, scope.branch_codes, scope.org_unit_ids,
+        scope.department_ids, scope.job_codes, scope.grade_codes, scope.location_codes, scope.employee_types,
+        scope.manager_worker_ids, scope.worker_ids,
         scope.effective_from::text, scope.effective_until::text
       FROM hr_platform.admin_policy_revisions revision
       LEFT JOIN hr_platform.admin_policy_revision_scopes scope ON scope.revision_id = revision.id
@@ -261,6 +285,8 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
       WHERE w.tenant_id = ${tenantId}
         AND w.status IN ('ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED')
         AND (jsonb_array_length(${scope.departmentIds ? scopeToSqlArray(scope.departmentIds) : '[]'}::jsonb) = 0 OR w.department_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.departmentIds)}::jsonb)))
+        AND (jsonb_array_length(${scope.managerWorkerIds ? scopeToSqlArray(scope.managerWorkerIds) : '[]'}::jsonb) = 0 OR w.manager_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb)))
+        AND (jsonb_array_length(${scope.jobCodes ? scopeToSqlArray(scope.jobCodes) : '[]'}::jsonb) = 0 OR w.job_title IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.jobCodes)}::jsonb)))
         AND (jsonb_array_length(${scope.legalEntityIds ? scopeToSqlArray(scope.legalEntityIds) : '[]'}::jsonb) = 0 OR w.legal_entity_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.legalEntityIds)}::jsonb)))
         AND (jsonb_array_length(${scope.employeeTypes ? scopeToSqlArray(scope.employeeTypes) : '[]'}::jsonb) = 0 OR w.employment_type IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.employeeTypes)}::jsonb)))
         AND (jsonb_array_length(${scope.countryCodes ? scopeToSqlArray(scope.countryCodes) : '[]'}::jsonb) = 0 OR le.country_code IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.countryCodes)}::jsonb)))
@@ -270,13 +296,17 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     return { count: result.rows.length, workerIds: result.rows.map((row) => row.id) };
   }
 
-  async countPendingDomainRecords(tenantId: string, _area: PolicyArea, _scope: PolicyScope): Promise<PolicyImpactSimulationResult['pendingRecords']> {
-    const pendingLeaveRequests = await this.countPendingLeaveRequests(tenantId);
-    const openAttendanceDays = await this.countOpenAttendanceDays(tenantId);
+  async countPendingDomainRecords(tenantId: string, _area: PolicyArea, scope: PolicyScope): Promise<PolicyImpactSimulationResult['pendingRecords']> {
+    const impacted = await this.countImpactedWorkers(tenantId, scope);
+    const workerIds = impacted.workerIds.length === 0 && scopeHasWorkerFilters(scope)
+      ? ['__NO_POLICY_SCOPE_MATCH__']
+      : impacted.workerIds;
+    const pendingLeaveRequests = await this.countPendingLeaveRequests(tenantId, workerIds);
+    const openAttendanceDays = await this.countOpenAttendanceDays(tenantId, workerIds);
     const openPayrollCycles = await this.countOpenPayrollCycles(tenantId);
-    const pendingComplianceAcknowledgements = await this.countPendingComplianceAcknowledgements(tenantId);
-    const pendingBenefitsEnrollments = await this.countPendingBenefitsEnrollments(tenantId);
-    const pendingBenefitsLifeEvents = await this.countPendingBenefitsLifeEvents(tenantId);
+    const pendingComplianceAcknowledgements = await this.countPendingComplianceAcknowledgements(tenantId, workerIds);
+    const pendingBenefitsEnrollments = await this.countPendingBenefitsEnrollments(tenantId, workerIds);
+    const pendingBenefitsLifeEvents = await this.countPendingBenefitsLifeEvents(tenantId, workerIds);
 
     return { pendingLeaveRequests, openAttendanceDays, openPayrollCycles, pendingComplianceAcknowledgements, pendingBenefitsEnrollments, pendingBenefitsLifeEvents };
   }
@@ -284,7 +314,9 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
   async listImpactRecords(tenantId: string, area: PolicyArea, scope: PolicyScope): Promise<PolicyImpactRecords> {
     const records = emptyImpactRecords();
     records.workers = await this.listImpactedWorkerRecords(tenantId, scope);
-    const workerIds = records.workers.map((worker) => worker.workerId);
+    const workerIds = records.workers.length === 0 && scopeHasWorkerFilters(scope)
+      ? ['__NO_POLICY_SCOPE_MATCH__']
+      : records.workers.map((worker) => worker.workerId);
     records.leaveRequests = area === 'LEAVE' || area === 'PAYROLL' || area === 'ATTENDANCE'
       ? await this.listPendingLeaveImpactRecords(tenantId, workerIds)
       : [];
@@ -363,35 +395,43 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     await sql`
       INSERT INTO hr_platform.admin_policy_revision_scopes (
         id, tenant_id, revision_id, country_codes, legal_entity_ids, org_unit_ids,
-        department_ids, location_codes, employee_types, worker_ids, effective_from, effective_until
+        branch_codes, department_ids, job_codes, grade_codes, location_codes, employee_types,
+        manager_worker_ids, worker_ids, effective_from, effective_until
       ) VALUES (
         gen_random_uuid(), ${tenantId}, ${revisionId}, ${scopeToSqlArray(scope.countryCodes)}::jsonb,
         ${scopeToSqlArray(scope.legalEntityIds)}::jsonb, ${scopeToSqlArray(scope.orgUnitIds)}::jsonb,
-        ${scopeToSqlArray(scope.departmentIds)}::jsonb, ${scopeToSqlArray(scope.locationCodes)}::jsonb,
-        ${scopeToSqlArray(scope.employeeTypes)}::jsonb, ${scopeToSqlArray(scope.workerIds)}::jsonb,
+        ${scopeToSqlArray(scope.branchCodes)}::jsonb, ${scopeToSqlArray(scope.departmentIds)}::jsonb,
+        ${scopeToSqlArray(scope.jobCodes)}::jsonb, ${scopeToSqlArray(scope.gradeCodes)}::jsonb,
+        ${scopeToSqlArray(scope.locationCodes)}::jsonb, ${scopeToSqlArray(scope.employeeTypes)}::jsonb,
+        ${scopeToSqlArray(scope.managerWorkerIds)}::jsonb, ${scopeToSqlArray(scope.workerIds)}::jsonb,
         ${scope.effectiveFrom ?? null}, ${scope.effectiveUntil ?? null}
       )
       ON CONFLICT (revision_id)
       DO UPDATE SET
         country_codes = EXCLUDED.country_codes,
         legal_entity_ids = EXCLUDED.legal_entity_ids,
+        branch_codes = EXCLUDED.branch_codes,
         org_unit_ids = EXCLUDED.org_unit_ids,
         department_ids = EXCLUDED.department_ids,
+        job_codes = EXCLUDED.job_codes,
+        grade_codes = EXCLUDED.grade_codes,
         location_codes = EXCLUDED.location_codes,
         employee_types = EXCLUDED.employee_types,
+        manager_worker_ids = EXCLUDED.manager_worker_ids,
         worker_ids = EXCLUDED.worker_ids,
         effective_from = EXCLUDED.effective_from,
         effective_until = EXCLUDED.effective_until
     `.execute(this.db);
   }
 
-  private async countPendingLeaveRequests(tenantId: string): Promise<number> {
+  private async countPendingLeaveRequests(tenantId: string, workerIds: string[]): Promise<number> {
     try {
       const result = await sql<{ count: number }>`
         SELECT count(*)::int AS count
         FROM hr_absence.absence_requests
         WHERE tenant_id = ${tenantId}
           AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_MANAGER_APPROVAL', 'PENDING_HR_APPROVAL')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -399,13 +439,14 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     }
   }
 
-  private async countOpenAttendanceDays(tenantId: string): Promise<number> {
+  private async countOpenAttendanceDays(tenantId: string, workerIds: string[]): Promise<number> {
     try {
       const result = await sql<{ count: number }>`
         SELECT count(*)::int AS count
         FROM hr_time.attendance_daily_ledgers
         WHERE tenant_id = ${tenantId}
           AND status IN ('OPEN', 'EXCEPTION', 'PENDING_APPROVAL')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -427,13 +468,14 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     }
   }
 
-  private async countPendingComplianceAcknowledgements(tenantId: string): Promise<number> {
+  private async countPendingComplianceAcknowledgements(tenantId: string, workerIds: string[]): Promise<number> {
     try {
       const result = await sql<{ count: number }>`
         SELECT count(*)::int AS count
         FROM hr_compliance.policy_acknowledgements
         WHERE tenant_id = ${tenantId}
           AND status IN ('PENDING', 'OVERDUE')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -441,13 +483,14 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     }
   }
 
-  private async countPendingBenefitsEnrollments(tenantId: string): Promise<number> {
+  private async countPendingBenefitsEnrollments(tenantId: string, workerIds: string[]): Promise<number> {
     try {
       const result = await sql<{ count: number }>`
         SELECT count(*)::int AS count
         FROM hr_benefits.benefits_enrollments
         WHERE tenant_id = ${tenantId}
           AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -455,13 +498,14 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     }
   }
 
-  private async countPendingBenefitsLifeEvents(tenantId: string): Promise<number> {
+  private async countPendingBenefitsLifeEvents(tenantId: string, workerIds: string[]): Promise<number> {
     try {
       const result = await sql<{ count: number }>`
         SELECT count(*)::int AS count
         FROM hr_benefits.benefits_life_events
         WHERE tenant_id = ${tenantId}
           AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
       `.execute(this.db);
       return result.rows[0]?.count ?? 0;
     } catch {
@@ -490,6 +534,8 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
           AND w.status IN ('ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED')
           AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR w.id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
           AND (jsonb_array_length(${scopeToSqlArray(scope.departmentIds)}::jsonb) = 0 OR w.department_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.departmentIds)}::jsonb)))
+          AND (jsonb_array_length(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb) = 0 OR w.manager_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb)))
+          AND (jsonb_array_length(${scopeToSqlArray(scope.jobCodes)}::jsonb) = 0 OR w.job_title IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.jobCodes)}::jsonb)))
           AND (jsonb_array_length(${scopeToSqlArray(scope.legalEntityIds)}::jsonb) = 0 OR w.legal_entity_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.legalEntityIds)}::jsonb)))
           AND (jsonb_array_length(${scopeToSqlArray(scope.employeeTypes)}::jsonb) = 0 OR w.employment_type IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.employeeTypes)}::jsonb)))
           AND (jsonb_array_length(${scopeToSqlArray(scope.countryCodes)}::jsonb) = 0 OR le.country_code IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.countryCodes)}::jsonb)))
@@ -669,10 +715,14 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
         tenantId: row.tenant_id,
         countryCodes: asArray(row.country_codes),
         legalEntityIds: asArray(row.legal_entity_ids),
+        branchCodes: asArray(row.branch_codes),
         orgUnitIds: asArray(row.org_unit_ids),
         departmentIds: asArray(row.department_ids),
+        jobCodes: asArray(row.job_codes),
+        gradeCodes: asArray(row.grade_codes),
         locationCodes: asArray(row.location_codes),
         employeeTypes: asArray(row.employee_types),
+        managerWorkerIds: asArray(row.manager_worker_ids),
         workerIds: asArray(row.worker_ids),
         effectiveFrom: row.effective_from ?? undefined,
         effectiveUntil: row.effective_until ?? undefined,

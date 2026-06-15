@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { EapReferralRepository } from '../repositories/eap-referral.repository.js';
 import { WellnessProgramRepository } from '../repositories/wellness-program.repository.js';
 import { MentalHealthCaseRepository } from '../repositories/mental-health-case.repository.js';
@@ -34,13 +35,14 @@ export class WellbeingEapController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'Wellbeing EAP');
+    const actor = requireActor(req, 'Wellbeing EAP');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['WELLBEING_EAP_WRITE'], mfaAuthenticated: true },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -50,8 +52,16 @@ export class WellbeingEapController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
+  }
+
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Wellbeing EAP');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
   }
 
   @Post('eap-referrals')
@@ -99,6 +109,11 @@ export class WellbeingEapController {
     return this.eapReferralRepo.findById(new Uuid(id));
   }
 
+  @Get('eap-referrals/tenant/:tenantId')
+  async getReferralsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.eapReferralRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('wellness-programs')
   async createProgram(@Body(new ZodValidationPipe(CreateWellnessProgramDto)) dto: dtos.CreateWellnessProgramDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateWellnessProgram', 'WellnessProgram', dto, req));
@@ -144,6 +159,11 @@ export class WellbeingEapController {
     return this.wellnessProgramRepo.findById(new Uuid(id));
   }
 
+  @Get('wellness-programs/tenant/:tenantId')
+  async getProgramsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.wellnessProgramRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   @Post('mental-health-cases')
   async createMhCase(@Body(new ZodValidationPipe(CreateMentalHealthCaseDto)) dto: dtos.CreateMentalHealthCaseDto, @Req() req: Request) {
     return this.commandBus.execute(this.buildCommand('CreateMentalHealthCase', 'MentalHealthCase', dto, req));
@@ -180,5 +200,10 @@ export class WellbeingEapController {
   @Get('mental-health-cases/:id')
   async getMhCase(@Param('id') id: string) {
     return this.mentalHealthCaseRepo.findById(new Uuid(id));
+  }
+
+  @Get('mental-health-cases/tenant/:tenantId')
+  async getMhCasesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.mentalHealthCaseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

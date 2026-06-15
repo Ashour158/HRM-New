@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
@@ -37,6 +37,16 @@ import { CalculatePayrollResultLineHandler } from './commands/calculate-payroll-
 import { ExplainPayrollResultLineHandler } from './commands/explain-payroll-result-line.handler.js';
 import { ReviewPayrollResultLineHandler } from './commands/review-payroll-result-line.handler.js';
 import { LockPayrollResultLineHandler } from './commands/lock-payroll-result-line.handler.js';
+import {
+  ApprovePayrollPaymentBatchHandler,
+  CreatePayrollGlPostingHandler,
+  CreatePayrollPaymentBatchHandler,
+  ExportPayrollPaymentBatchHandler,
+  GeneratePayrollPayslipArtifactsHandler,
+  PublishPayrollCyclePayslipsHandler,
+  ReconcilePayrollPaymentBatchHandler,
+  SavePayrollExportJobHandler,
+} from './commands/payroll-enterprise-artifact.handlers.js';
 import { PayrollEventsPublisher } from './events/payroll-events.publisher.js';
 import { PayrollCalculationSaga } from './sagas/payroll-calculation-saga.js';
 import { PayrollInputBuilderSaga } from './sagas/payroll-input-builder-saga.js';
@@ -89,6 +99,14 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     ExplainPayrollResultLineHandler,
     ReviewPayrollResultLineHandler,
     LockPayrollResultLineHandler,
+    CreatePayrollPaymentBatchHandler,
+    ApprovePayrollPaymentBatchHandler,
+    ExportPayrollPaymentBatchHandler,
+    ReconcilePayrollPaymentBatchHandler,
+    GeneratePayrollPayslipArtifactsHandler,
+    PublishPayrollCyclePayslipsHandler,
+    CreatePayrollGlPostingHandler,
+    SavePayrollExportJobHandler,
     PayrollEventsPublisher,
     PayrollCalculationSaga,
     PayrollInputBuilderSaga,
@@ -123,7 +141,7 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
   ],
 })
 export class PayrollModule implements OnModuleInit {
-  constructor(private readonly fsm: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}
 
   onModuleInit(): void {
     registerPayrollCycleFsm(this.fsm);

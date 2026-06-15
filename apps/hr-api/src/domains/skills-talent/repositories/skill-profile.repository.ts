@@ -23,6 +23,11 @@ export class SkillProfileRepository extends BaseRepository<'skill_profiles', Ski
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
+  async findByTenant(tenantId: Uuid): Promise<SkillProfile[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: SkillProfile): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

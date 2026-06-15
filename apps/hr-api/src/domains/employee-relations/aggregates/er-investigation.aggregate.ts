@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification SPECIAL_CATEGORY - ER allegations, investigation evidence, disciplinary outcomes, accommodation, and worker-linked case fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 
 export type ErInvestigationStatus = 'PLANNED' | 'IN_PROGRESS' | 'EVIDENCE_REVIEW' | 'COMPLETED' | 'CLOSED';

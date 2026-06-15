@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toDate, toUuid } from '../../common/uuid-normalizer.js';
 import { CollectiveBargainingSession } from '../aggregates/collective-bargaining-session.aggregate.js';
 import { CollectiveBargainingSessionRepository } from '../repositories/collective-bargaining-session.repository.js';
 import { UnionLaborEventsPublisher } from '../events/union-labor-events.publisher.js';
@@ -17,8 +18,16 @@ export class CreateCollectiveBargainingSessionHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { unionRecognitionId: Uuid; sessionDate: Date; location?: string; agenda?: string; minutes?: string };
-    const ar = CollectiveBargainingSession.create({ id: Uuid.generate(), tenantId: command.tenantId, ...payload }, command.correlationId);
+    const payload = command.payload as { unionRecognitionId: Uuid | string; sessionDate: Date | string; location?: string; agenda?: string; minutes?: string };
+    const ar = CollectiveBargainingSession.create({
+      id: Uuid.generate(),
+      tenantId: command.tenantId,
+      unionRecognitionId: toUuid(payload.unionRecognitionId),
+      sessionDate: toDate(payload.sessionDate),
+      location: payload.location,
+      agenda: payload.agenda,
+      minutes: payload.minutes,
+    }, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {

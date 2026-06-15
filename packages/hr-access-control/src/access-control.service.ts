@@ -264,6 +264,39 @@ export class AccessControlService {
       return ['REPORT_READ'];
     }
 
+    if (prefix === 'WORKFLOW') {
+      if (
+        commandName.includes('APPROVE') ||
+        commandName.includes('REJECT') ||
+        commandName.includes('DELEGATE') ||
+        commandName.includes('ESCALATE')
+      ) {
+        return ['WORKFLOW_APPROVE'];
+      }
+      return ['WORKFLOW_MANAGE'];
+    }
+
+    // Domains that follow the <DOMAIN>_READ / <DOMAIN>_WRITE / <DOMAIN>_APPROVE convention.
+    // Approval-like commands need a separate permission so maker/checker is enforced
+    // before the SoD matrix evaluates the transition.
+    const writeReadPrefixes = [
+      'SKILLS_TALENT', 'GLOBAL_HR', 'EMPLOYEE_RELATIONS', 'ENGAGEMENT',
+      'CONTINGENT_WORKFORCE', 'UNION_LABOR', 'WELLBEING_EAP', 'HR_AI_GOVERNANCE',
+      'DEI_ANALYTICS',
+    ];
+    if (writeReadPrefixes.includes(prefix)) {
+      if (
+        commandName.includes('GET') || commandName.includes('READ') ||
+        commandName.includes('FIND') || commandName.includes('LIST')
+      ) {
+        return [`${prefix}_READ`];
+      }
+      if (commandName.includes('APPROVE') || commandName.includes('REJECT') || commandName.includes('UPHOLD')) {
+        return [`${prefix}_APPROVE`];
+      }
+      return [`${prefix}_WRITE`];
+    }
+
     switch (command.commandType) {
       case 'CREATE':
         perms.push(`${prefix}_CREATE`);
@@ -317,6 +350,10 @@ export class AccessControlService {
       PayrollResultLine: 'PAYROLL',
       PayrollRun: 'PAYROLL',
       Payslip: 'PAYROLL',
+      PayrollPaymentBatch: 'PAYROLL',
+      PayrollGlPosting: 'PAYROLL',
+      PayrollPayslipArtifact: 'PAYROLL',
+      PayrollExportJob: 'PAYROLL',
       BenefitsProgram: 'BENEFITS',
       BenefitsEnrollment: 'BENEFITS',
       BenefitsLifeEvent: 'BENEFITS',
@@ -330,6 +367,9 @@ export class AccessControlService {
       CompensationBand: 'COMPENSATION',
       CompensationChange: 'COMPENSATION',
       CompensationPlan: 'COMPENSATION',
+      PayScale: 'COMPENSATION',
+      VariableCompPlan: 'COMPENSATION',
+      TotalCompensationStatement: 'COMPENSATION',
       BonusCycle: 'COMPENSATION',
       EquityGrant: 'COMPENSATION',
       Requisition: 'RECRUITING',
@@ -362,6 +402,7 @@ export class AccessControlService {
       PerformanceImprovementPlan: 'PERFORMANCE',
       LearningCourse: 'LEARNING',
       LearningAssignment: 'LEARNING',
+      LearningContentPackage: 'LEARNING',
       Certification: 'LEARNING',
       Course: 'LEARNING',
       PolicyDocument: 'COMPLIANCE',
@@ -373,6 +414,58 @@ export class AccessControlService {
       Report: 'REPORT',
       Dashboard: 'REPORT',
       Analytics: 'REPORT',
+      ReportDefinition: 'REPORT',
+      ReportExecution: 'REPORT',
+      ReportSchedule: 'REPORT',
+      CalculatedField: 'REPORT',
+      // Skills & talent
+      SkillProfile: 'SKILLS_TALENT',
+      TalentPool: 'SKILLS_TALENT',
+      CareerPath: 'SKILLS_TALENT',
+      SuccessionPlan: 'SKILLS_TALENT',
+      // Global HR
+      CountryRuleSet: 'GLOBAL_HR',
+      InternationalAssignment: 'GLOBAL_HR',
+      StatutoryLeaveType: 'GLOBAL_HR',
+      WorkAuthorizationCase: 'GLOBAL_HR',
+      WorksCouncilConsultation: 'GLOBAL_HR',
+      // Employee relations
+      EmployeeRelationsCase: 'EMPLOYEE_RELATIONS',
+      ErInvestigation: 'EMPLOYEE_RELATIONS',
+      DisciplinaryAction: 'EMPLOYEE_RELATIONS',
+      AccommodationCase: 'EMPLOYEE_RELATIONS',
+      // Engagement
+      EngagementSurvey: 'ENGAGEMENT',
+      SurveyResponse: 'ENGAGEMENT',
+      RecognitionProgram: 'ENGAGEMENT',
+      RecognitionRecord: 'ENGAGEMENT',
+      Feedback360Cycle: 'ENGAGEMENT',
+      // Contingent workforce
+      ContingentWorkerAssignment: 'CONTINGENT_WORKFORCE',
+      ContractorRateCard: 'CONTINGENT_WORKFORCE',
+      MisclassificationAssessment: 'CONTINGENT_WORKFORCE',
+      SowEngagement: 'CONTINGENT_WORKFORCE',
+      // Union & labor
+      UnionRecognition: 'UNION_LABOR',
+      CollectiveBargainingSession: 'UNION_LABOR',
+      Grievance: 'UNION_LABOR',
+      // Wellbeing & EAP
+      WellnessProgram: 'WELLBEING_EAP',
+      EapReferral: 'WELLBEING_EAP',
+      MentalHealthCase: 'WELLBEING_EAP',
+      // HR AI governance
+      HrAiUseCase: 'HR_AI_GOVERNANCE',
+      HrAiBiasTest: 'HR_AI_GOVERNANCE',
+      HrAiModelRun: 'HR_AI_GOVERNANCE',
+      HrAiKillSwitch: 'HR_AI_GOVERNANCE',
+      // DEI analytics
+      DeiReport: 'DEI_ANALYTICS',
+      PayGapReport: 'DEI_ANALYTICS',
+      PayEquityReview: 'DEI_ANALYTICS',
+      AttritionSegmentReport: 'DEI_ANALYTICS',
+      ApprovalChain: 'WORKFLOW',
+      ApprovalStep: 'WORKFLOW',
+      ApprovalDelegation: 'WORKFLOW',
     };
     return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }

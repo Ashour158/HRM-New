@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { LearningCourseRepository } from '../repositories/learning-course.repository.js';
 import { LearningAssignmentRepository } from '../repositories/learning-assignment.repository.js';
 import { CertificationRepository } from '../repositories/certification.repository.js';
@@ -36,13 +37,14 @@ export class LearningController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'Learning');
+    const actor = requireActor(req, 'Learning');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['LEARNING_WRITE'], mfaAuthenticated: true },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -52,8 +54,16 @@ export class LearningController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
+  }
+
+  private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    const requestTenantId = requireTenantId(req, 'Learning');
+    if (requestTenantId.value !== tenantId) {
+      throw new BadRequestException('Tenant mismatch');
+    }
+    return requestTenantId;
   }
 
   /* Learning Courses */
@@ -89,8 +99,8 @@ export class LearningController {
   }
 
   @Get('courses/tenant/:tenantId')
-  async getCoursesByTenant(@Param('tenantId') tenantId: string) {
-    return this.courseRepo.findByTenant(new Uuid(tenantId));
+  async getCoursesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.courseRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Learning Assignments */
@@ -142,6 +152,11 @@ export class LearningController {
     return this.assignmentRepo.findByCourse(new Uuid(courseId));
   }
 
+  @Get('assignments/tenant/:tenantId')
+  async getAssignmentsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.assignmentRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
   /* Certifications */
   @Post('certifications')
   async createCertification(@Body(new ZodValidationPipe(CreateCertificationDtoSchema)) dto: dtos.CreateCertificationDto, @Req() req: Request) {
@@ -177,6 +192,11 @@ export class LearningController {
   @Get('certifications/worker/:workerId')
   async getCertificationsByWorker(@Param('workerId') workerId: string) {
     return this.certificationRepo.findByWorker(new Uuid(workerId));
+  }
+
+  @Get('certifications/tenant/:tenantId')
+  async getCertificationsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.certificationRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
   /* Learning Content Packages */
@@ -219,7 +239,7 @@ export class LearningController {
   }
 
   @Get('content-packages/tenant/:tenantId')
-  async getContentPackagesByTenant(@Param('tenantId') tenantId: string) {
-    return this.contentPackageRepo.findByTenant(new Uuid(tenantId));
+  async getContentPackagesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    return this.contentPackageRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 }

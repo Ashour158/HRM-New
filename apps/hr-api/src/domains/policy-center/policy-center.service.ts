@@ -579,8 +579,16 @@ function effectiveWindowOverlaps(left: PolicyScope, right: PolicyScope): boolean
 }
 
 function scopePrecedence(scope: PolicyScope): number {
-  if (nonEmpty(scope.workerIds).length > 0) return 5;
-  if (nonEmpty(scope.departmentIds).length > 0 || nonEmpty(scope.orgUnitIds).length > 0) return 4;
+  if (nonEmpty(scope.workerIds).length > 0) return 8;
+  if (nonEmpty(scope.managerWorkerIds).length > 0) return 7;
+  if (nonEmpty(scope.jobCodes).length > 0 || nonEmpty(scope.gradeCodes).length > 0) return 6;
+  if (
+    nonEmpty(scope.departmentIds).length > 0
+    || nonEmpty(scope.orgUnitIds).length > 0
+    || nonEmpty(scope.locationCodes).length > 0
+    || nonEmpty(scope.branchCodes).length > 0
+    || nonEmpty(scope.employeeTypes).length > 0
+  ) return 4;
   if (nonEmpty(scope.legalEntityIds).length > 0) return 3;
   if (nonEmpty(scope.countryCodes).length > 0) return 2;
   return 1;
@@ -589,11 +597,22 @@ function scopePrecedence(scope: PolicyScope): number {
 function scopesTargetSameAudience(left: PolicyScope, right: PolicyScope): boolean {
   const rank = scopePrecedence(left);
   if (rank !== scopePrecedence(right)) return false;
-  if (rank === 5) return intersects(left.workerIds, right.workerIds);
+  if (rank === 8) return intersects(left.workerIds, right.workerIds);
+  if (rank === 7) return intersects(left.managerWorkerIds, right.managerWorkerIds);
+  if (rank === 6) return intersects(left.jobCodes, right.jobCodes) || intersects(left.gradeCodes, right.gradeCodes);
   if (rank === 4) {
     return intersects(left.departmentIds, right.departmentIds)
       || intersects(left.orgUnitIds, right.orgUnitIds)
-      || (sameSet(left.departmentIds, right.departmentIds) && sameSet(left.orgUnitIds, right.orgUnitIds));
+      || intersects(left.locationCodes, right.locationCodes)
+      || intersects(left.branchCodes, right.branchCodes)
+      || intersects(left.employeeTypes, right.employeeTypes)
+      || (
+        sameSet(left.departmentIds, right.departmentIds)
+        && sameSet(left.orgUnitIds, right.orgUnitIds)
+        && sameSet(left.locationCodes, right.locationCodes)
+        && sameSet(left.branchCodes, right.branchCodes)
+        && sameSet(left.employeeTypes, right.employeeTypes)
+      );
   }
   if (rank === 3) return intersects(left.legalEntityIds, right.legalEntityIds);
   if (rank === 2) return intersects(left.countryCodes, right.countryCodes);
@@ -605,10 +624,14 @@ function normalizedScope(tenantId: Uuid, scope?: Partial<PolicyScope>): PolicySc
     tenantId: scope?.tenantId ?? tenantId.value,
     countryCodes: nonEmpty(scope?.countryCodes),
     legalEntityIds: nonEmpty(scope?.legalEntityIds),
+    branchCodes: nonEmpty(scope?.branchCodes),
     orgUnitIds: nonEmpty(scope?.orgUnitIds),
     departmentIds: nonEmpty(scope?.departmentIds),
+    jobCodes: nonEmpty(scope?.jobCodes),
+    gradeCodes: nonEmpty(scope?.gradeCodes),
     locationCodes: nonEmpty(scope?.locationCodes),
     employeeTypes: nonEmpty(scope?.employeeTypes),
+    managerWorkerIds: nonEmpty(scope?.managerWorkerIds),
     workerIds: nonEmpty(scope?.workerIds),
     effectiveFrom: scope?.effectiveFrom,
     effectiveUntil: scope?.effectiveUntil,
@@ -1208,10 +1231,14 @@ function mergePayrollScope(revisionScope: PolicyScope, policyScope?: Partial<Pol
     tenantId: specific.tenantId ?? revisionScope.tenantId,
     countryCodes: nonEmpty(specific.countryCodes).length > 0 ? nonEmpty(specific.countryCodes) : revisionScope.countryCodes,
     legalEntityIds: nonEmpty(specific.legalEntityIds).length > 0 ? nonEmpty(specific.legalEntityIds) : revisionScope.legalEntityIds,
+    branchCodes: nonEmpty(specific.branchCodes).length > 0 ? nonEmpty(specific.branchCodes) : revisionScope.branchCodes,
     orgUnitIds: nonEmpty(specific.orgUnitIds).length > 0 ? nonEmpty(specific.orgUnitIds) : revisionScope.orgUnitIds,
     departmentIds: nonEmpty(specific.departmentIds).length > 0 ? nonEmpty(specific.departmentIds) : revisionScope.departmentIds,
+    jobCodes: nonEmpty(specific.jobCodes).length > 0 ? nonEmpty(specific.jobCodes) : revisionScope.jobCodes,
+    gradeCodes: nonEmpty(specific.gradeCodes).length > 0 ? nonEmpty(specific.gradeCodes) : revisionScope.gradeCodes,
     locationCodes: nonEmpty(specific.locationCodes).length > 0 ? nonEmpty(specific.locationCodes) : revisionScope.locationCodes,
     employeeTypes: nonEmpty(specific.employeeTypes).length > 0 ? nonEmpty(specific.employeeTypes) : revisionScope.employeeTypes,
+    managerWorkerIds: nonEmpty(specific.managerWorkerIds).length > 0 ? nonEmpty(specific.managerWorkerIds) : revisionScope.managerWorkerIds,
     workerIds: nonEmpty(specific.workerIds).length > 0 ? nonEmpty(specific.workerIds) : revisionScope.workerIds,
     effectiveFrom: specific.effectiveFrom ?? revisionScope.effectiveFrom,
     effectiveUntil: specific.effectiveUntil ?? revisionScope.effectiveUntil,
@@ -1541,11 +1568,9 @@ export class PolicyCenterService {
     }
 
     const simulation = await this.simulatePolicyRevision(tenantId, revision);
-    if (this.requiresHighRiskConfirmation(revision) && (simulation.riskSummary.blocked > 0 || simulation.riskSummary.retroactiveAdjustmentRequired > 0) && !input.confirmedHighRisk && !input.emergencyOverride) {
+    const emergencyOverride = this.normalizeEmergencyOverride(input.emergencyOverride);
+    if (this.requiresHighRiskConfirmation(revision) && (simulation.riskSummary.blocked > 0 || simulation.riskSummary.retroactiveAdjustmentRequired > 0) && !input.confirmedHighRisk && !emergencyOverride) {
       throw new BadRequestException('High-risk policy apply requires explicit confirmation or an emergency override.');
-    }
-    if (input.emergencyOverride && (!input.emergencyOverride.reason || !input.emergencyOverride.expiresAt)) {
-      throw new BadRequestException('Emergency policy override requires a reason and expiry.');
     }
     const runtimeSnapshot = this.buildRuntimeSnapshot(revision);
     await this.recordLifecycleGovernance(tenantId, {
@@ -1563,7 +1588,7 @@ export class PolicyCenterService {
           engineName: simulation.engineName,
           engineVersion: simulation.engineVersion,
         },
-        emergencyOverride: input.emergencyOverride,
+        emergencyOverride,
       },
     });
     await this.hcmSetup.updateSetup(tenantId, runtimeSnapshot);
@@ -1901,6 +1926,30 @@ export class PolicyCenterService {
     const draft = asObject(revision.draftConfig);
     return asObject(draft.policyControls).requiresHighRiskConfirmation === true
       || asObject(draft.policyGovernance).requiresHighRiskConfirmation === true;
+  }
+
+  private normalizeEmergencyOverride(
+    emergencyOverride: PolicyApplyInput['emergencyOverride'],
+  ): PolicyApplyInput['emergencyOverride'] | undefined {
+    if (!emergencyOverride) return undefined;
+    const reason = emergencyOverride.reason?.trim();
+    if (!reason || !emergencyOverride.expiresAt) {
+      throw new BadRequestException('Emergency policy override requires a reason and expiry.');
+    }
+    const expiresAt = new Date(emergencyOverride.expiresAt);
+    const expiresAtMs = expiresAt.getTime();
+    if (!Number.isFinite(expiresAtMs)) {
+      throw new BadRequestException('Emergency policy override expiry must be a valid date/time.');
+    }
+    if (expiresAtMs <= Date.now()) {
+      throw new BadRequestException('Emergency policy override expiry must be in the future.');
+    }
+    return {
+      ...emergencyOverride,
+      reason,
+      expiresAt: expiresAt.toISOString(),
+      postReviewRequired: true,
+    };
   }
 
   private requiresMakerChecker(revision: PolicyRevisionRecord): boolean {

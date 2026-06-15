@@ -14,4 +14,8 @@ export type {
   OutboxEventsTable,
   InboxEventsTable,
   HcmSetupConfigsTable,
+  PlatformSchedulerJobRunsTable,
+  PlatformSchedulerJobSchedulesTable,
+  ReminderDispatchLogTable,
+  EffectiveDatingActivationLogTable,
 } from './types/platform-tables.js';

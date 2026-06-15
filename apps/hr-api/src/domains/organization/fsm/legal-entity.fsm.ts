@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { FsmFramework, type FsmDefinition } from '../../../platform/workflow/fsm-framework.js';
 
 /**
@@ -8,7 +8,7 @@ import { FsmFramework, type FsmDefinition } from '../../../platform/workflow/fsm
  */
 @Injectable()
 export class LegalEntityFsm {
-  constructor(private readonly fsmFramework: FsmFramework) {}
+  constructor(@Inject(FsmFramework) private readonly fsmFramework: FsmFramework) {}
 
   /**
    * Registers the LegalEntity FSM definition with the framework.

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { EngagementSurveyRepository } from '../repositories/engagement-survey.repository.js';
 import { SurveyResponseRepository } from '../repositories/survey-response.repository.js';
 import { Feedback360CycleRepository } from '../repositories/feedback-360-cycle.repository.js';
@@ -15,6 +16,7 @@ import type * as dtos from './dtos.js';
 import {
   CreateEngagementSurveyDtoSchema, CreateSurveyResponseDtoSchema,
   CompleteSurveyResponseDtoSchema, CreateFeedback360CycleDtoSchema,
+  SubmitFeedback360ResponseDtoSchema,
   CreateRecognitionProgramDtoSchema, CreateRecognitionRecordDtoSchema,
   ApproveRecognitionRecordDtoSchema,
   ZodValidationPipe,
@@ -39,13 +41,14 @@ export class EngagementController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
-    const tenantId = new Uuid((req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001');
+    const tenantId = requireTenantId(req, 'Engagement');
+    const actor = requireActor(req, 'Engagement');
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId,
-      actor: { actorType: 'SYSTEM', actorId: Uuid.generate(), roles: ['HR_ADMIN'], permissions: ['ENGAGEMENT_WRITE'], mfaAuthenticated: true },
+      actor,
       aggregateType,
       aggregateId: options?.aggregateId,
       expectedState: options?.expectedState,
@@ -55,7 +58,7 @@ export class EngagementController {
       correlationId: Uuid.generate(),
       reason: 'API request',
       payload,
-      metadata: { requestHash: computeRequestHash(payload), clientType: 'HR_ADMIN' },
+      metadata: { requestHash: computeRequestHash(payload), clientType: actorClientType(actor) },
     };
   }
 
@@ -160,14 +163,43 @@ export class EngagementController {
     return this.commandBus.execute(this.buildCommand('CompleteFeedback360Cycle', 'Feedback360Cycle', { feedback360CycleId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
-  @Get('feedback-360-cycles/:id')
-  async getFeedback360Cycle(@Param('id') id: string) {
-    return this.feedbackRepo.findById(new Uuid(id));
+  @Post('feedback-360-cycles/:id/commands/submit-response')
+  async submitFeedback360Response(@Param('id') id: string, @Body(new ZodValidationPipe(SubmitFeedback360ResponseDtoSchema)) dto: dtos.SubmitFeedback360ResponseDto, @Req() req: Request) {
+    const ar = await this.feedbackRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('Feedback 360 cycle not found');
+    return this.commandBus.execute(this.buildCommand('SubmitFeedback360Response', 'Feedback360Cycle', {
+      feedback360CycleId: new Uuid(id),
+      reviewerWorkerId: dto.reviewerWorkerId,
+      relationship: dto.relationship,
+      competencyScores: dto.competencyScores,
+      comments: dto.comments,
+      // Scope the submission to the reviewer worker so platform worker-scope
+      // authorization governs who may submit on that reviewer's behalf.
+    }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion, subjectWorkerId: new Uuid(dto.reviewerWorkerId) }));
+  }
+
+  @Get('feedback-360-cycles/tenant/:tenantId')
+  async getFeedback360CyclesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    const scopedTenantId = requireTenantId(req, 'Engagement');
+    if (scopedTenantId.value !== tenantId) {
+      throw new ForbiddenException('Cross-tenant access is not allowed');
+    }
+    return this.feedbackRepo.findByTenant(scopedTenantId);
   }
 
   @Get('feedback-360-cycles/subject/:workerId')
   async getFeedback360CyclesBySubject(@Param('workerId') workerId: string) {
     return this.feedbackRepo.findBySubjectWorker(new Uuid(workerId));
+  }
+
+  @Get('feedback-360-cycles/reviewer/:workerId')
+  async getFeedback360CyclesByReviewer(@Param('workerId') workerId: string, @Req() req: Request) {
+    return this.feedbackRepo.findByReviewer(requireTenantId(req, 'Engagement'), new Uuid(workerId));
+  }
+
+  @Get('feedback-360-cycles/:id')
+  async getFeedback360Cycle(@Param('id') id: string) {
+    return this.feedbackRepo.findById(new Uuid(id));
   }
 
   /* Recognition Programs */

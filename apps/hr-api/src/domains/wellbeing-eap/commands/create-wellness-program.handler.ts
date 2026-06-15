@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toOptionalDate } from '../../common/uuid-normalizer.js';
 import { WellnessProgram } from '../aggregates/wellness-program.aggregate.js';
 import { WellnessProgramRepository } from '../repositories/wellness-program.repository.js';
 import { WellbeingEapEventsPublisher } from '../events/wellbeing-eap-events.publisher.js';
@@ -17,8 +18,16 @@ export class CreateWellnessProgramHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { name: string; type: string; startDate?: Date; endDate?: Date; description?: string };
-    const ar = WellnessProgram.create({ id: Uuid.generate(), tenantId: command.tenantId, ...payload }, command.correlationId);
+    const payload = command.payload as { name: string; type: string; startDate?: Date | string; endDate?: Date | string; description?: string };
+    const ar = WellnessProgram.create({
+      id: Uuid.generate(),
+      tenantId: command.tenantId,
+      name: payload.name,
+      type: payload.type,
+      startDate: toOptionalDate(payload.startDate),
+      endDate: toOptionalDate(payload.endDate),
+      description: payload.description,
+    }, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {

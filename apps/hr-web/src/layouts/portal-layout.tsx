@@ -6,6 +6,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { CommandPalette, type CommandPaletteItem } from '@/components/ui/command-palette';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { LanguageSwitcher } from '@/i18n/language-switcher';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,7 +19,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
   BarChart3,
+  BadgeDollarSign,
   Bell,
+  BrainCircuit,
+  Briefcase,
   ChevronDown,
   ChevronUp,
   Clock3,
@@ -28,6 +34,8 @@ import {
   Menu,
   Search,
   Settings,
+  GraduationCap,
+  Globe2,
   X,
   Heart,
   Umbrella,
@@ -36,6 +44,11 @@ import {
   Users,
   TrendingUp,
   Network,
+  MessageSquare,
+  Landmark,
+  Scale,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 
 interface PortalNavItem {
@@ -49,7 +62,7 @@ interface PortalRailItem extends PortalNavItem {
   icon: React.ElementType;
 }
 
-type PortalType = 'employee' | 'manager' | 'admin';
+type PortalType = 'employee' | 'manager' | 'admin' | 'recruiter' | 'payroll';
 
 interface PortalConfig {
   title: string;
@@ -80,6 +93,8 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'Onboarding', path: '/employee/onboarding' },
       { label: 'Leave', path: '/employee/time-off' },
       { label: 'Performance', path: '/employee/performance' },
+      { label: 'Feedback 360', path: '/employee/feedback-360' },
+      { label: 'Learning', path: '/employee/learning' },
       { label: 'Services', path: '/employee/services' },
     ],
   },
@@ -102,12 +117,47 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'Employees', path: '/admin/employees' },
       { label: 'Organization', path: '/admin/organization' },
       { label: 'Attendance', path: '/admin/attendance' },
+      { label: 'Workforce Management', path: '/admin/workforce-management' },
       { label: 'Leave', path: '/admin/leave' },
       { label: 'Payroll', path: '/admin/payroll' },
+      { label: 'Compensation', path: '/admin/compensation' },
       { label: 'Performance', path: '/admin/performance/operations' },
+      { label: 'Feedback 360', path: '/admin/feedback-360' },
+      { label: 'Learning', path: '/admin/learning' },
+      { label: 'Skills & Talent', path: '/admin/skills-talent' },
+      { label: 'Employee Relations', path: '/admin/employee-relations' },
+      { label: 'HR Service Delivery', path: '/admin/hr-service-delivery' },
+      { label: 'Labor', path: '/admin/union-labor' },
+      { label: 'Wellbeing', path: '/admin/wellbeing-eap' },
+      { label: 'Contingent Workforce', path: '/admin/contingent-workforce' },
+      { label: 'AI Governance', path: '/admin/hr-ai-governance' },
+      { label: 'Global HR', path: '/admin/global-hr' },
+      { label: 'DEI Analytics', path: '/admin/dei-analytics' },
       { label: 'Modules', path: '/admin/modules' },
       { label: 'Reports', path: '/admin/reports' },
       { label: 'System Console', path: '/admin/system-console', systemOnly: true },
+    ],
+  },
+  recruiter: {
+    title: 'Recruiter Workspace',
+    description: 'Manage requisitions, candidates, interviews, and offers',
+    theme: 'recruiter',
+    navItems: [
+      { label: 'Dashboard', path: '/recruiter' },
+      { label: 'Requisitions', path: '/recruiter#requisitions' },
+      { label: 'Pipeline', path: '/recruiter#pipeline' },
+      { label: 'Offers', path: '/recruiter#offers' },
+    ],
+  },
+  payroll: {
+    title: 'Payroll Workspace',
+    description: 'Run, review, close, publish, and export payroll',
+    theme: 'payroll',
+    navItems: [
+      { label: 'Dashboard', path: '/payroll' },
+      { label: 'Runs', path: '/payroll#runs' },
+      { label: 'Payslips', path: '/payroll#payslips' },
+      { label: 'Exports', path: '/payroll#exports' },
     ],
   },
 };
@@ -121,6 +171,8 @@ const employeeRailItems: PortalRailItem[] = [
   { label: 'Benefits', path: '/employee/benefits', icon: Heart },
   { label: 'Onboarding', path: '/employee/onboarding', icon: UserRoundCheck },
   { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
+  { label: 'Feedback 360', path: '/employee/feedback-360', icon: MessageSquare },
+  { label: 'Learning', path: '/employee/learning', icon: GraduationCap },
   { label: 'Services', path: '/employee/services', icon: LifeBuoy },
 ];
 
@@ -135,17 +187,46 @@ const adminRailItems: PortalRailItem[] = [
   { label: 'Employees', path: '/admin/employees', icon: Users },
   { label: 'Organization', path: '/admin/organization', icon: Network },
   { label: 'Attendance', path: '/admin/attendance', icon: Clock3 },
+  { label: 'Workforce Management', path: '/admin/workforce-management', icon: Clock3 },
   { label: 'Leave', path: '/admin/leave', icon: Umbrella },
   { label: 'Payroll', path: '/admin/payroll', icon: FileText },
+  { label: 'Compensation', path: '/admin/compensation', icon: BadgeDollarSign },
   { label: 'Performance', path: '/admin/performance/operations', icon: TrendingUp },
+  { label: 'Feedback 360', path: '/admin/feedback-360', icon: MessageSquare },
+  { label: 'Learning', path: '/admin/learning', icon: GraduationCap },
+  { label: 'Skills & Talent', path: '/admin/skills-talent', icon: Sparkles },
+  { label: 'Employee Relations', path: '/admin/employee-relations', icon: ShieldCheck },
+  { label: 'HR Service Delivery', path: '/admin/hr-service-delivery', icon: LifeBuoy },
+  { label: 'Labor', path: '/admin/union-labor', icon: Scale },
+  { label: 'Wellbeing', path: '/admin/wellbeing-eap', icon: Heart },
+  { label: 'Contingent Workforce', path: '/admin/contingent-workforce', icon: Briefcase },
+  { label: 'AI Governance', path: '/admin/hr-ai-governance', icon: BrainCircuit },
+  { label: 'Global HR', path: '/admin/global-hr', icon: Globe2 },
+  { label: 'DEI Analytics', path: '/admin/dei-analytics', icon: Users },
   { label: 'Modules', path: '/admin/modules', icon: UserRoundCheck },
   { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
   { label: 'System Console', path: '/admin/system-console', icon: Settings, systemOnly: true },
 ];
 
+const recruiterRailItems: PortalRailItem[] = [
+  { label: 'Dashboard', path: '/recruiter', icon: Home },
+  { label: 'Requisitions', path: '/recruiter#requisitions', icon: Briefcase },
+  { label: 'Pipeline', path: '/recruiter#pipeline', icon: Users },
+  { label: 'Offers', path: '/recruiter#offers', icon: FileText },
+];
+
+const payrollRailItems: PortalRailItem[] = [
+  { label: 'Dashboard', path: '/payroll', icon: Home },
+  { label: 'Payroll Runs', path: '/payroll#runs', icon: Landmark },
+  { label: 'Payslips', path: '/payroll#payslips', icon: FileText },
+  { label: 'Exports', path: '/payroll#exports', icon: BarChart3 },
+];
+
 function portalRailItems(portalType: PortalType) {
   if (portalType === 'manager') return managerRailItems;
   if (portalType === 'admin') return adminRailItems;
+  if (portalType === 'recruiter') return recruiterRailItems;
+  if (portalType === 'payroll') return payrollRailItems;
   return employeeRailItems;
 }
 
@@ -174,9 +255,44 @@ function WorkspaceShell({
   const canSeeAdminSettings = roleNames.has('HR_ADMIN') || roleNames.has('SUPER_ADMIN');
   const canSeeSystemConsole = hasSystemAdminRole(roleNames);
   const railItems = portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole);
-  const notificationPath = portalType === 'admin' ? '/notifications/hr-operations' : '/notifications/me';
-  const primaryActionPath = portalType === 'admin' ? '/admin/system-console' : '/employee/services';
-  const primaryActionLabel = portalType === 'admin' ? 'Admin Panel' : 'New Request';
+  const commandItems = React.useMemo<CommandPaletteItem[]>(() => {
+    const items = [
+      ...config.navItems.filter((item) => !item.systemOnly || canSeeSystemConsole),
+      ...railItems,
+      { label: 'My Profile', path: '/employee/profile' },
+      { label: 'Notifications', path: portalType === 'admin' ? '/admin/system-console#admin-notifications' : '/employee/services' },
+      ...(canSeeSystemConsole ? [{ label: 'System Console', path: '/admin/system-console' }] : []),
+    ];
+    const seen = new Set<string>();
+    return items
+      .filter((item) => {
+        if (seen.has(item.path)) return false;
+        seen.add(item.path);
+        return true;
+      })
+      .map((item) => ({
+        label: item.label,
+        path: item.path,
+        keywords: [portalType, config.title],
+      }));
+  }, [canSeeSystemConsole, config.navItems, config.title, portalType, railItems]);
+  const notificationPath = portalType === 'admin' || portalType === 'recruiter' || portalType === 'payroll'
+    ? '/notifications/hr-operations'
+    : '/notifications/me';
+  const primaryActionPath = portalType === 'admin'
+    ? '/admin/system-console'
+    : portalType === 'recruiter'
+      ? '/recruiter#requisitions'
+      : portalType === 'payroll'
+        ? '/payroll#runs'
+        : '/employee/services';
+  const primaryActionLabel = portalType === 'admin'
+    ? 'Admin Panel'
+    : portalType === 'recruiter'
+      ? 'New Requisition'
+      : portalType === 'payroll'
+        ? 'Run Payroll'
+        : 'New Request';
   const { data: notificationsRaw } = useApiQuery<PlatformNotification[]>(
     ['platform-notifications', portalType],
     notificationPath,
@@ -203,6 +319,7 @@ function WorkspaceShell({
 
   return (
     <div className="relative min-h-screen fusion-bg text-slate-900">
+      <CommandPalette items={commandItems} />
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
         <div className="fusion-blob" style={{ width: 420, height: 420, top: -90, left: '28%', background: 'radial-gradient(circle, #a5b4fc, #818cf8)' }} />
         <div className="fusion-blob fusion-blob-2" style={{ width: 360, height: 360, top: '22%', right: -70, background: 'radial-gradient(circle, #c4b5fd, #a78bfa)' }} />
@@ -439,18 +556,23 @@ function WorkspaceShell({
             </div>
 
             <form className="relative hidden min-w-0 flex-1 lg:block xl:max-w-md" onSubmit={submitSearch}>
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 aria-label="Search modules, people, or settings"
-                className="h-10 w-full rounded-full border-0 bg-[#f1f5f9] pl-10 pr-4 text-sm text-[#0f172a] outline-none transition-colors placeholder:text-[#94a3b8] focus:bg-white focus:ring-2 focus:ring-[#4f46e5]/20"
+                className="h-10 w-full rounded-full border-0 bg-muted pl-10 pr-20 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:bg-background focus:ring-2 focus:ring-ring/20"
                 placeholder="Search modules, people, or settings..."
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
                 type="search"
               />
+              <span className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-border bg-background px-2 py-0.5 text-[11px] font-semibold text-muted-foreground xl:inline">
+                Ctrl K
+              </span>
             </form>
 
             <div className="ml-auto flex shrink-0 items-center gap-2 md:ml-2">
+              <LanguageSwitcher compact />
+              <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
@@ -607,6 +729,8 @@ export function PortalLayout({ children }: { children: React.ReactNode }) {
     if (location.pathname.startsWith('/employee')) return 'employee';
     if (location.pathname.startsWith('/manager')) return 'manager';
     if (location.pathname.startsWith('/admin')) return 'admin';
+    if (location.pathname.startsWith('/recruiter')) return 'recruiter';
+    if (location.pathname.startsWith('/payroll')) return 'payroll';
     return null;
   }, [location.pathname]);
 

@@ -3,6 +3,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { HR_PAYROLL, isPayrollCycleOpenedEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
 import { PayrollCalculationRunRepository } from '../repositories/payroll-calculation-run.repository.js';
 
@@ -19,6 +21,7 @@ export class PayrollCalculationSaga implements OnModuleInit {
     private readonly payrollCycleRepo: PayrollCycleRepository,
     private readonly calculationRunRepo: PayrollCalculationRunRepository,
     private readonly eventsPublisher: PayrollEventsPublisher,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   onModuleInit(): void {
@@ -41,6 +44,10 @@ export class PayrollCalculationSaga implements OnModuleInit {
 
     const correlationId = new Uuid(event.metadata.correlationId.value);
 
+    // Resolve tenant setup before any persisted/published state transition so a setup
+    // failure cannot leave the saga partially progressed (deterministic retries).
+    const setup = await this.hcmSetupService.getSetup(cycle.tenantId);
+
     this.logger.log({ type: 'SAGA_STEP', step: 1, message: 'Collect payroll inputs', payrollCycleId: cycle.id.value });
     cycle.startInputCollection(correlationId);
     await this.payrollCycleRepo.save(cycle);
@@ -61,7 +68,7 @@ export class PayrollCalculationSaga implements OnModuleInit {
     await this.eventsPublisher.publishFromAggregate(cycle);
 
     const run = PayrollCalculationRun.start(
-      { id: Uuid.generate(), tenantId: cycle.tenantId, payrollCycleId: cycle.id, currency: 'USD' },
+      { id: Uuid.generate(), tenantId: cycle.tenantId, payrollCycleId: cycle.id, currency: resolveTenantCurrency(setup) },
       correlationId,
     );
     await this.calculationRunRepo.save(run);

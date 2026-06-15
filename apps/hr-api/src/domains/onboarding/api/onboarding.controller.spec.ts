@@ -30,6 +30,20 @@ function employeeRequest(worker = workerId): Request {
   } as unknown as Request;
 }
 
+function adminRequest(): Request {
+  return {
+    tenantId,
+    actor: {
+      actorType: 'USER',
+      actorId: new Uuid(actorId),
+      roles: ['HR_ADMIN'],
+      permissions: ['ONBOARDING_MANAGE'],
+      mfaAuthenticated: true,
+      email: 'hr.admin@example.com',
+    },
+  } as unknown as Request;
+}
+
 function plan(overrides: Partial<OnboardingPlan> = {}) {
   return OnboardingPlan.restore({
     id: new Uuid(planId),
@@ -112,7 +126,7 @@ describe('OnboardingController', () => {
   it('lists all tenant onboarding plans with preboarding and probation fields', async () => {
     planRepo.findByTenant.mockResolvedValue([plan()]);
 
-    await expect(controller.listPlans(tenantId)).resolves.toMatchObject([
+    await expect(controller.listPlans(adminRequest())).resolves.toMatchObject([
       {
         id: planId,
         workerId,
@@ -127,7 +141,7 @@ describe('OnboardingController', () => {
   it('returns structured task ownership and evidence fields for a plan', async () => {
     taskRepo.findByPlan.mockResolvedValue([task()]);
 
-    await expect(controller.getTasksByPlan(planId)).resolves.toMatchObject([
+    await expect(controller.getTasksByPlan(planId, adminRequest())).resolves.toMatchObject([
       {
         id: taskId,
         ownerGroup: 'IT',
@@ -144,15 +158,17 @@ describe('OnboardingController', () => {
     const result = await controller.applyTemplate(
       planId,
       { trackCode: 'standard-employee' },
-      tenantId,
-      actorId,
-      'HR_ADMIN',
+      adminRequest(),
     );
 
     expect(result.createdTaskCount).toBeGreaterThan(5);
     expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
       commandName: 'CreateOnboardingTask',
       aggregateType: 'OnboardingTask',
+      actor: expect.objectContaining({
+        actorId: new Uuid(actorId),
+        roles: ['HR_ADMIN'],
+      }),
     }));
   });
 
@@ -177,7 +193,7 @@ describe('OnboardingController', () => {
     planRepo.findById.mockResolvedValue(plan({ workerId: new Uuid(otherWorkerId) }));
     taskRepo.findById.mockResolvedValue(task({ assignedTo: new Uuid(otherWorkerId) }));
 
-    await expect(controller.completeTask(taskId, tenantId, workerId, 'EMPLOYEE', employeeRequest(workerId))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controller.completeTask(taskId, employeeRequest(workerId))).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(commandBus.execute).not.toHaveBeenCalled();
   });
@@ -189,9 +205,6 @@ describe('OnboardingController', () => {
     await expect(controller.recordTaskEvidence(
       taskId,
       { evidenceType: 'DOCUMENT_UPLOAD', evidencePayload: { document: 'id.pdf' } },
-      tenantId,
-      workerId,
-      'EMPLOYEE',
       employeeRequest(workerId),
     )).rejects.toBeInstanceOf(ForbiddenException);
 

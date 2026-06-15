@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { useUIStore } from '@/stores/ui-store';
-import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, RefreshCw, Users, XCircle } from 'lucide-react';
+import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, RefreshCw, Users, Workflow, XCircle } from 'lucide-react';
 import type { AbsenceRequest } from '@/types';
 
 interface AttendanceExceptionQueueItem {
@@ -68,6 +68,35 @@ interface AttendanceCorrectionRequest {
   requestedAt: string;
 }
 
+interface ApprovalWorkflowStep {
+  id: string;
+  code: string;
+  label: string;
+  order: number;
+  approverRole?: string | null;
+  approverWorkerId?: string | null;
+  delegatedToWorkerId?: string | null;
+  state: 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELEGATED' | 'ESCALATED' | 'EXPIRED';
+  slaDueAt?: string | null;
+  reason?: string | null;
+}
+
+interface ApprovalWorkflowChain {
+  id: string;
+  commandName: string;
+  aggregateType: string;
+  aggregateId?: string | null;
+  status: 'IN_PROGRESS' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  currentStepOrder?: number | null;
+  createdAt: string;
+  steps: ApprovalWorkflowStep[];
+}
+
+interface ApprovalWorkflowQueue {
+  tenantId: string;
+  chains: ApprovalWorkflowChain[];
+}
+
 function todayKey() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -96,6 +125,7 @@ function errMessage(err: unknown, fallback: string): string {
 
 export function ManagerApprovals() {
   const [date, setDate] = React.useState(todayKey);
+  const [delegateTargets, setDelegateTargets] = React.useState<Record<string, string>>({});
   const addNotification = useUIStore((s) => s.addNotification);
   const { data: queue, isLoading, isError, error, refetch } = useApiQuery<AttendanceExceptionQueue>(
     ['manager-attendance-exceptions', date],
@@ -121,6 +151,16 @@ export function ManagerApprovals() {
     ['manager-leave-requests'],
     '/manager/leave/requests?status=PENDING_APPROVAL',
   );
+  const {
+    data: workflowQueue,
+    isLoading: workflowLoading,
+    isError: workflowIsError,
+    error: workflowErr,
+    refetch: refetchWorkflow,
+  } = useApiQuery<ApprovalWorkflowQueue>(
+    ['manager-workflow-approvals'],
+    '/platform/workflow/approval-chains/pending',
+  );
   const exceptionMutation = useApiMutation<unknown, { id: string; action: 'review' | 'resolve' | 'escalate' }>(
     (variables) => `/time/attendance/attendance-exceptions/${variables.id}/commands/${variables.action}`,
     'post',
@@ -141,8 +181,29 @@ export function ManagerApprovals() {
     'post',
     [['manager-leave-requests'], ['manager-dashboard']],
   );
+  const approveWorkflowMutation = useApiMutation<unknown, { chainId: string; stepId: string; reason?: string }>(
+    (variables) => `/platform/workflow/approval-chains/${variables.chainId}/steps/${variables.stepId}/commands/approve`,
+    'post',
+    [['manager-workflow-approvals']],
+  );
+  const rejectWorkflowMutation = useApiMutation<unknown, { chainId: string; stepId: string; reason?: string }>(
+    (variables) => `/platform/workflow/approval-chains/${variables.chainId}/steps/${variables.stepId}/commands/reject`,
+    'post',
+    [['manager-workflow-approvals']],
+  );
+  const delegateWorkflowMutation = useApiMutation<unknown, { chainId: string; stepId: string; delegateToWorkerId: string; reason?: string }>(
+    (variables) => `/platform/workflow/approval-chains/${variables.chainId}/steps/${variables.stepId}/commands/delegate`,
+    'post',
+    [['manager-workflow-approvals']],
+  );
+  const escalateWorkflowMutation = useApiMutation<unknown, { chainId: string }>(
+    (variables) => `/platform/workflow/approval-chains/${variables.chainId}/commands/escalate-overdue`,
+    'post',
+    [['manager-workflow-approvals']],
+  );
 
   const items = queue?.items ?? [];
+  const workflowChains = React.useMemo(() => workflowQueue?.chains ?? [], [workflowQueue?.chains]);
 
   const notifyError = (err: unknown, fallback: string) =>
     addNotification({ title: 'Something went wrong', message: errMessage(err, fallback), type: 'error', read: false });
@@ -197,6 +258,43 @@ export function ManagerApprovals() {
         onSuccess: () =>
           addNotification({ title: 'Leave rejected', message: 'The leave request was rejected.', type: 'success', read: false }),
         onError: (err) => notifyError(err, 'Unable to reject the leave request.'),
+      },
+    );
+  };
+
+  const handleWorkflowDecision = (chainId: string, stepId: string, action: 'approve' | 'reject') => {
+    const mutation = action === 'approve' ? approveWorkflowMutation : rejectWorkflowMutation;
+    mutation.mutate(
+      { chainId, stepId, reason: action === 'approve' ? 'Approved from manager workspace' : 'Rejected from manager workspace' },
+      {
+        onSuccess: () => addNotification({ title: action === 'approve' ? 'Approval recorded' : 'Approval rejected', message: 'The workflow queue was updated.', type: 'success', read: false }),
+        onError: (err) => notifyError(err, 'Unable to update the workflow approval.'),
+      },
+    );
+  };
+
+  const handleWorkflowDelegate = (chainId: string, stepId: string) => {
+    const key = `${chainId}:${stepId}`;
+    const delegateToWorkerId = delegateTargets[key]?.trim();
+    if (!delegateToWorkerId) {
+      addNotification({ title: 'Delegate worker required', message: 'Enter the worker ID to delegate this approval step.', type: 'error', read: false });
+      return;
+    }
+    delegateWorkflowMutation.mutate(
+      { chainId, stepId, delegateToWorkerId, reason: 'Delegated from manager workspace' },
+      {
+        onSuccess: () => addNotification({ title: 'Approval delegated', message: 'The approval step was delegated.', type: 'success', read: false }),
+        onError: (err) => notifyError(err, 'Unable to delegate this workflow approval.'),
+      },
+    );
+  };
+
+  const handleWorkflowEscalate = (chainId: string) => {
+    escalateWorkflowMutation.mutate(
+      { chainId },
+      {
+        onSuccess: () => addNotification({ title: 'Approval escalated', message: 'Overdue steps were checked and escalated when due.', type: 'success', read: false }),
+        onError: (err) => notifyError(err, 'Unable to escalate this workflow approval.'),
       },
     );
   };
@@ -272,6 +370,87 @@ export function ManagerApprovals() {
           </div>
         </div>
       </section>
+
+      <div className="fusion-glass rounded-[2rem] p-6">
+        <div className="mb-1 flex items-center gap-2 text-lg font-bold">
+          <Workflow className="h-5 w-5 text-indigo-500" />
+          Workflow Approvals
+        </div>
+        <p className="text-sm text-slate-500">Multi-step approval chains for policy-controlled business changes.</p>
+        <div className="mt-4 space-y-3">
+          {workflowLoading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-24 w-full rounded-2xl" />
+              <Skeleton className="h-24 w-full rounded-2xl" />
+            </div>
+          ) : workflowIsError ? (
+            <ErrorState error={workflowErr} onRetry={() => refetchWorkflow()} />
+          ) : workflowChains.length === 0 ? (
+            <EmptyState
+              icon={Workflow}
+              title="No workflow approvals"
+              description="Approval chains assigned to your role or delegated to you will appear here."
+            />
+          ) : workflowChains.map((chain) => {
+            const pendingStep = chain.steps.find((step) => ['PENDING', 'DELEGATED', 'ESCALATED'].includes(step.state));
+            const delegateKey = pendingStep ? `${chain.id}:${pendingStep.id}` : chain.id;
+            return (
+              <div key={chain.id} className="grid gap-4 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium">{chain.commandName.replace(/([a-z])([A-Z])/g, '$1 $2')}</p>
+                    <Badge variant="outline">{chain.aggregateType}</Badge>
+                    <Badge variant={chain.status === 'IN_PROGRESS' ? 'secondary' : 'outline'}>{chain.status.replace(/_/g, ' ')}</Badge>
+                  </div>
+                  <div className="grid gap-2 text-sm text-slate-500 md:grid-cols-2">
+                    {chain.steps.map((step) => (
+                      <div key={step.id} className="rounded-xl border border-slate-200 bg-white/60 p-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-slate-700">{step.order}. {step.label}</span>
+                          <Badge variant={step.state === 'APPROVED' ? 'outline' : 'secondary'}>{step.state}</Badge>
+                        </div>
+                        <p className="mt-1 text-xs">Approver: {step.delegatedToWorkerId ?? step.approverRole ?? step.approverWorkerId ?? 'Configured approver'}</p>
+                        {step.slaDueAt ? <p className="mt-1 text-xs">Due: {new Date(step.slaDueAt).toLocaleString()}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                  {pendingStep ? (
+                    <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-3 sm:flex-row sm:items-end">
+                      <div className="grid flex-1 gap-2">
+                        <Label htmlFor={`delegate-${pendingStep.id}`}>Delegate worker ID</Label>
+                        <Input
+                          id={`delegate-${pendingStep.id}`}
+                          value={delegateTargets[delegateKey] ?? ''}
+                          onChange={(event) => setDelegateTargets((current) => ({ ...current, [delegateKey]: event.target.value }))}
+                          placeholder="Worker UUID"
+                        />
+                      </div>
+                      <Button variant="outline" onClick={() => handleWorkflowDelegate(chain.id, pendingStep.id)} disabled={delegateWorkflowMutation.isPending}>
+                        Delegate
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+                {pendingStep ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" onClick={() => handleWorkflowDecision(chain.id, pendingStep.id, 'approve')} disabled={approveWorkflowMutation.isPending}>
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Approve
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleWorkflowDecision(chain.id, pendingStep.id, 'reject')} disabled={rejectWorkflowMutation.isPending}>
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Reject
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleWorkflowEscalate(chain.id)} disabled={escalateWorkflowMutation.isPending}>
+                      Escalate
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="fusion-glass rounded-[2rem] p-6">
         <div className="mb-1 flex items-center gap-2 text-lg font-bold">

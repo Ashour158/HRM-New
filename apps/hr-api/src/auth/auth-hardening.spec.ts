@@ -9,7 +9,7 @@ import { AuthGuard } from '../guards/auth.guard.js';
 import { PermissionGuard } from '../guards/permission.guard.js';
 import { RolesGuard } from '../guards/roles.guard.js';
 import { Public, PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
-import { Permissions, PERMISSIONS_KEY } from '../decorators/permissions.decorator.js';
+import { Permissions } from '../decorators/permissions.decorator.js';
 
 function contextFor(handler: () => void, actor?: { permissions?: string[] }): ExecutionContext {
   return {
@@ -50,7 +50,14 @@ describe('auth hardening', () => {
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AppController.prototype.getReadiness)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AppController.prototype.getLiveness)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.login)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.refresh)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.register)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.requestPasswordReset)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.confirmPasswordReset)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.providers)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.me)).toBeUndefined();
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.invite)).toBeUndefined();
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.setupMfa)).toBeUndefined();
   });
 
   it('auth guard skips explicit public endpoints', () => {

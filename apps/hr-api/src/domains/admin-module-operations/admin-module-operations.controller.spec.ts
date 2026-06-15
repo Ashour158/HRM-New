@@ -3,8 +3,10 @@ import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AdminModuleOperationsController } from './admin-module-operations.controller.js';
+import { AdminModuleOperationsCommandHandler } from './admin-module-operations-command.handler.js';
 import type { AdminModuleOperationsRepository } from './admin-module-operations.repository.js';
 import type { NativeModuleOperationAdapterService } from './native-module-operation-adapter.service.js';
+import type { CommandBus } from '../../platform/command-bus/command-bus.js';
 
 const tenantId = '00000000-0000-0000-0000-000000000001';
 const actorId = '00000000-0000-0000-0000-000000000123';
@@ -70,6 +72,24 @@ function nativeAdapter(): NativeModuleOperationAdapterService {
   } as unknown as NativeModuleOperationAdapterService;
 }
 
+function controller(
+  repository: AdminModuleOperationsRepository,
+  adapter: NativeModuleOperationAdapterService = nativeAdapter(),
+): AdminModuleOperationsController {
+  const commandBus = {
+    execute: vi.fn(async (command) => {
+      const handler = new AdminModuleOperationsCommandHandler(
+        repository,
+        adapter,
+        { registerHandler: vi.fn() } as unknown as CommandBus,
+      );
+      return handler.handle(command);
+    }),
+  } as unknown as CommandBus;
+
+  return new AdminModuleOperationsController(repository, adapter, commandBus);
+}
+
 function workflowRow(overrides: Record<string, unknown> = {}) {
   return {
     id: '00000000-0000-0000-0000-000000000301',
@@ -118,9 +138,9 @@ describe('AdminModuleOperationsController', () => {
       findControls: vi.fn().mockResolvedValue([controlRow()]),
     } as unknown as AdminModuleOperationsRepository;
     const adapter = nativeAdapter();
-    const controller = new AdminModuleOperationsController(repository, adapter);
+    const controllerUnderTest = controller(repository, adapter);
 
-    const workspace = await controller.getWorkspace('compensation', adminRequest());
+    const workspace = await controllerUnderTest.getWorkspace('compensation', adminRequest());
 
     expect(adapter.syncNativeRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation', actorId);
     expect(repository.findRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation');
@@ -145,9 +165,9 @@ describe('AdminModuleOperationsController', () => {
       findWorkflows: vi.fn().mockResolvedValue([workflowRow({ state: 'Ready' })]),
       findControls: vi.fn().mockResolvedValue([controlRow({ status: 'Applied' })]),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const workspace = await controller.getWorkspace('compensation', adminRequest());
+    const workspace = await controllerUnderTest.getWorkspace('compensation', adminRequest());
 
     expect(workspace.moduleDepth).toMatchObject({
       status: 'Needs Work',
@@ -175,19 +195,19 @@ describe('AdminModuleOperationsController', () => {
         .mockResolvedValueOnce(controlRow({ status: 'Approved', last_event: 'Control approved', aggregate_version: 3 }))
         .mockResolvedValueOnce(controlRow({ status: 'Applied', last_event: 'Control applied', aggregate_version: 4 })),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const created = await controller.createControl('compensation', {
+    const created = await controllerUnderTest.createControl('compensation', {
       controlName: 'Salary visibility',
       controlType: 'Access control',
       ownerRole: 'Compensation Admin',
       lastEvent: 'Control drafted',
       payload: { description: 'Salary fields require restricted access.' },
     }, adminRequest());
-    const edited = await controller.updateControl('compensation', created.id, { ownerRole: 'HR Admin' }, adminRequest());
-    const submitted = await controller.submitControlForReview('compensation', created.id, adminRequest());
-    const approved = await controller.approveControl('compensation', created.id, adminRequest());
-    const applied = await controller.applyControl('compensation', created.id, adminRequest());
+    const edited = await controllerUnderTest.updateControl('compensation', created.id, { ownerRole: 'HR Admin' }, adminRequest());
+    const submitted = await controllerUnderTest.submitControlForReview('compensation', created.id, adminRequest());
+    const approved = await controllerUnderTest.approveControl('compensation', created.id, adminRequest());
+    const applied = await controllerUnderTest.applyControl('compensation', created.id, adminRequest());
 
     expect(repository.createControl).toHaveBeenCalledWith(expect.objectContaining({
       moduleId: 'compensation',
@@ -212,9 +232,9 @@ describe('AdminModuleOperationsController', () => {
     const repository = {
       createRecord: vi.fn().mockResolvedValue(recordRow({ status: 'Active', risk: 'Low' })),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const created = await controller.createRecord('compensation', {
+    const created = await controllerUnderTest.createRecord('compensation', {
       objectType: 'Comp plan',
       ownerRole: 'Compensation Admin',
       workflowName: 'Start compensation cycle',
@@ -244,9 +264,9 @@ describe('AdminModuleOperationsController', () => {
     const repository = {
       updateWorkflow: vi.fn().mockResolvedValue(workflowRow({ state: 'Ready', aggregate_version: 1 })),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const updated = await controller.updateWorkflow(
+    const updated = await controllerUnderTest.updateWorkflow(
       'compensation',
       '00000000-0000-0000-0000-000000000301',
       { state: 'Ready', lastEvent: 'Advanced by admin' },
@@ -270,9 +290,9 @@ describe('AdminModuleOperationsController', () => {
     } as unknown as AdminModuleOperationsRepository;
     const adapter = nativeAdapter();
     const request = adminRequest();
-    const controller = new AdminModuleOperationsController(repository, adapter);
+    const controllerUnderTest = controller(repository, adapter);
 
-    const updated = await controller.updateRecord(
+    const updated = await controllerUnderTest.updateRecord(
       'compensation',
       '00000000-0000-0000-0000-000000000201',
       { status: 'Active', lastEvent: 'Comp plan status advanced' },
@@ -286,6 +306,7 @@ describe('AdminModuleOperationsController', () => {
       '00000000-0000-0000-0000-000000000901',
       'Active',
       request.actor,
+      undefined,
     );
     expect(adapter.syncNativeRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation', actorId);
     expect(updated).toMatchObject({
@@ -314,9 +335,9 @@ describe('AdminModuleOperationsController', () => {
     } as unknown as AdminModuleOperationsRepository;
     const adapter = nativeAdapter();
     const request = adminRequest();
-    const controller = new AdminModuleOperationsController(repository, adapter);
+    const controllerUnderTest = controller(repository, adapter);
 
-    await controller.updateRecord(
+    await controllerUnderTest.updateRecord(
       'benefits',
       '00000000-0000-0000-0000-000000000201',
       { status: 'Blocked', operationAction: 'reject' },
@@ -354,9 +375,9 @@ describe('AdminModuleOperationsController', () => {
     } as unknown as AdminModuleOperationsRepository;
     const adapter = nativeAdapter();
     const request = adminRequest();
-    const controller = new AdminModuleOperationsController(repository, adapter);
+    const controllerUnderTest = controller(repository, adapter);
 
-    await controller.updateRecord(
+    await controllerUnderTest.updateRecord(
       'benefits',
       '00000000-0000-0000-0000-000000000201',
       { status: 'Active', operationAction: 'make-effective' },
@@ -380,9 +401,9 @@ describe('AdminModuleOperationsController', () => {
     } as unknown as AdminModuleOperationsRepository;
     const adapter = nativeAdapter();
     vi.mocked(adapter.applyRecordStatusUpdate).mockResolvedValue(false);
-    const controller = new AdminModuleOperationsController(repository, adapter);
+    const controllerUnderTest = controller(repository, adapter);
 
-    await expect(controller.updateRecord(
+    await expect(controllerUnderTest.updateRecord(
       'compensation',
       '00000000-0000-0000-0000-000000000201',
       { status: 'Active', lastEvent: 'Unsupported native transition' },
@@ -396,6 +417,7 @@ describe('AdminModuleOperationsController', () => {
       '00000000-0000-0000-0000-000000000901',
       'Active',
       expect.any(Object),
+      undefined,
     );
   });
 
@@ -411,9 +433,9 @@ describe('AdminModuleOperationsController', () => {
         last_event: 'Imported from CSV',
       })]),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const result = await controller.importRecordsApply('compensation', {
+    const result = await controllerUnderTest.importRecordsApply('compensation', {
       rows: [{
         objectType: 'Salary review',
         ownerRole: 'Compensation Admin',
@@ -451,9 +473,9 @@ describe('AdminModuleOperationsController', () => {
     const repository = {
       createRecords: vi.fn(),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const result = await controller.importRecordsApply('compensation', {
+    const result = await controllerUnderTest.importRecordsApply('compensation', {
       rows: [{ objectType: 'Salary review', ownerRole: '', status: 'Ready' }],
     }, adminRequest());
 
@@ -478,9 +500,9 @@ describe('AdminModuleOperationsController', () => {
     } as unknown as AdminModuleOperationsRepository;
     const adapter = nativeAdapter();
     const res = response();
-    const controller = new AdminModuleOperationsController(repository, adapter);
+    const controllerUnderTest = controller(repository, adapter);
 
-    await controller.exportRecordsCsv('compensation', adminRequest(), res as any);
+    await controllerUnderTest.exportRecordsCsv('compensation', adminRequest(), res as any);
 
     expect(adapter.syncNativeRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation', actorId);
     expect(repository.findRecords).toHaveBeenCalledWith(new Uuid(tenantId), 'compensation');
@@ -490,10 +512,10 @@ describe('AdminModuleOperationsController', () => {
   });
 
   it('returns an import template CSV for admin users', async () => {
-    const controller = new AdminModuleOperationsController({} as AdminModuleOperationsRepository, nativeAdapter());
+    const controllerUnderTest = controller({} as AdminModuleOperationsRepository);
     const res = response();
 
-    await controller.importRecordsTemplate('compensation', adminRequest(), res as any);
+    await controllerUnderTest.importRecordsTemplate('compensation', adminRequest(), res as any);
 
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
     expect(res.send).toHaveBeenCalledWith(expect.stringContaining('objectType,ownerRole,workflowName'));
@@ -504,9 +526,9 @@ describe('AdminModuleOperationsController', () => {
     const repository = {
       createRecords: vi.fn(),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    const result = await controller.importRecordsPreview('compensation', {
+    const result = await controllerUnderTest.importRecordsPreview('compensation', {
       rows: [{
         objectType: 'Salary review',
         ownerRole: 'Compensation Admin',
@@ -531,8 +553,8 @@ describe('AdminModuleOperationsController', () => {
       findRecords: vi.fn(),
       findWorkflows: vi.fn(),
     } as unknown as AdminModuleOperationsRepository;
-    const controller = new AdminModuleOperationsController(repository, nativeAdapter());
+    const controllerUnderTest = controller(repository);
 
-    await expect(controller.getWorkspace('compensation', employeeRequest())).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(controllerUnderTest.getWorkspace('compensation', employeeRequest())).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

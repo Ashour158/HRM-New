@@ -109,6 +109,125 @@ export interface PlatformNotificationsTable {
   created_at: ColumnType<Date, string | undefined, never>;
 }
 
+export interface PlatformSchedulerJobRunsTable {
+  id: string;
+  tenant_id: string;
+  job_name: string;
+  period_key: string;
+  status: string;
+  items_processed: number;
+  error: string | null;
+  started_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface PlatformSchedulerJobSchedulesTable {
+  id: string;
+  tenant_id: string;
+  job_name: string;
+  cron: string;
+  enabled: boolean;
+  updated_by: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ReminderDispatchLogTable {
+  id: string;
+  tenant_id: string;
+  dispatch_key: string;
+  reminder_type: string;
+  subject_id: string;
+  subject_type: string;
+  due_date_bucket: string;
+  escalation_tier: string;
+  audience_worker_ids: string[];
+  dispatched_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  expires_at: ColumnType<Date, string | Date, string | Date>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface EffectiveDatingActivationLogTable {
+  id: string;
+  tenant_id: string;
+  job_name: string;
+  aggregate_type: string;
+  aggregate_id: string;
+  effective_date_bucket: string;
+  command_name: string;
+  status: string;
+  error: string | null;
+  dispatched_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ApprovalChainsTable {
+  id: string;
+  tenant_id: string;
+  command_name: string;
+  aggregate_type: string;
+  aggregate_id: string | null;
+  requested_by: string;
+  command_envelope: unknown;
+  status: string;
+  current_step_order: number | null;
+  correlation_id: string;
+  idempotency_key: string | null;
+  completed_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ApprovalStepsTable {
+  id: string;
+  tenant_id: string;
+  chain_id: string;
+  step_order: number;
+  code: string;
+  label: string;
+  mode: string;
+  approver_type: string;
+  approver_role: string | null;
+  approver_worker_id: string | null;
+  state: string;
+  delegated_to_worker_id: string | null;
+  escalation_tier_code: string | null;
+  escalation_tier_label: string | null;
+  escalation_approver_role: string | null;
+  sla_due_at: Date | null;
+  acted_by: string | null;
+  acted_at: Date | null;
+  reason: string | null;
+  escalation_tiers: unknown;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ApprovalDelegationsTable {
+  id: string;
+  tenant_id: string;
+  chain_id: string;
+  step_id: string;
+  from_worker_id: string | null;
+  to_worker_id: string;
+  actor_id: string;
+  reason: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface HcmSetupConfigsTable {
   id: string;
   tenant_id: string;
@@ -151,6 +270,50 @@ export interface UserRolesTable {
   assigned_by: string | null;
   assigned_at: ColumnType<Date, string | undefined, never>;
   expires_at: Date | null;
+}
+
+export interface UsersTable {
+  id: string;
+  tenant_id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  password_hash: string;
+  status: string;
+  roles: unknown;
+  permissions: unknown;
+  mfa_secret: string | null;
+  failed_login_count: number;
+  locked_until: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AuthSessionsTable {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  mfa_authenticated: boolean;
+  metadata: unknown;
+  expires_at: Date;
+  revoked_at: Date | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface AuthTokensTable {
+  id: string;
+  tenant_id: string;
+  user_id: string;
+  token_hash: string;
+  token_type: string;
+  email: string | null;
+  metadata: unknown;
+  expires_at: Date;
+  consumed_at: Date | null;
+  created_by: string | null;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export interface ServiceAccountsTable {
@@ -303,10 +466,14 @@ export interface AdminPolicyRevisionScopesTable {
   revision_id: string;
   country_codes: unknown;
   legal_entity_ids: unknown;
+  branch_codes: unknown;
   org_unit_ids: unknown;
   department_ids: unknown;
+  job_codes: unknown;
+  grade_codes: unknown;
   location_codes: unknown;
   employee_types: unknown;
+  manager_worker_ids: unknown;
   worker_ids: unknown;
   effective_from: Date | null;
   effective_until: Date | null;
@@ -413,6 +580,50 @@ export interface GeneratedWorkflowTable {
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
   [column: string]: unknown;
+}
+
+export interface SchedulerJobsTable {
+  id: string;
+  tenant_id: string;
+  job_key: string;
+  label: string;
+  description: string | null;
+  job_type: string;
+  schedule_kind: string;
+  status: string;
+  enabled: boolean;
+  command_name: string | null;
+  aggregate_type: string;
+  aggregate_id: string | null;
+  payload_template: unknown;
+  event_name: string | null;
+  event_payload_template: unknown;
+  next_run_at: Date | null;
+  last_run_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface SchedulerJobRunsTable {
+  id: string;
+  tenant_id: string;
+  job_id: string;
+  job_key: string;
+  period_key: string;
+  run_kind: string;
+  status: string;
+  idempotency_key: string;
+  command_id: string | null;
+  correlation_id: string;
+  event_id: string | null;
+  started_at: Date;
+  finished_at: Date | null;
+  error_message: string | null;
+  result_payload: unknown;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
 export interface WorkersTable {
@@ -1024,6 +1235,22 @@ export interface WorkAuthorizationCasesTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface InternationalAssignmentsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  home_country: string;
+  host_country: string;
+  legal_entity_id: string | null;
+  start_date: Date;
+  end_date: Date;
+  assignment_reason: string;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface CountryPolicyPacksTable {
   id: string;
   tenant_id: string;
@@ -1556,11 +1783,12 @@ export interface EmployeeRelationsCasesTable {
   id: string;
   tenant_id: string;
   subject_worker_id: string;
-  manager_id: string;
+  manager_id: string | null;
   case_number: string;
   case_type: string;
   status: string;
   opened_at: Date;
+  opened_by: string;
   assigned_to: string | null;
   aggregate_version: number;
   created_at: Date;
@@ -1583,6 +1811,7 @@ export interface DisciplinaryActionsTable {
   id: string;
   tenant_id: string;
   worker_id: string;
+  er_case_id: string;
   action_type: string;
   severity: string;
   effective_date: Date;
@@ -2012,10 +2241,23 @@ export interface Database {
   outbox_events: OutboxEventsTable;
   inbox_events: InboxEventsTable;
   platform_notifications: PlatformNotificationsTable;
+  scheduler_job_runs: PlatformSchedulerJobRunsTable;
+  scheduler_job_schedules: PlatformSchedulerJobSchedulesTable;
+  reminder_dispatch_log: ReminderDispatchLogTable;
+  effective_dating_activation_log: EffectiveDatingActivationLogTable;
+  approval_chains: ApprovalChainsTable;
+  approval_steps: ApprovalStepsTable;
+  approval_delegations: ApprovalDelegationsTable;
+  'hr_workflow.approval_chains': ApprovalChainsTable;
+  'hr_workflow.approval_steps': ApprovalStepsTable;
+  'hr_workflow.approval_delegations': ApprovalDelegationsTable;
   hcm_setup_configs: HcmSetupConfigsTable;
   roles: RolesTable;
   permissions: PermissionsTable;
   user_roles: UserRolesTable;
+  users: UsersTable;
+  auth_sessions: AuthSessionsTable;
+  auth_tokens: AuthTokensTable;
   service_accounts: ServiceAccountsTable;
   service_account_credentials: ServiceAccountCredentialsTable;
   access_review_campaigns: AccessReviewCampaignsTable;
@@ -2070,6 +2312,7 @@ export interface Database {
   'hr_global_hr.statutory_leave_types': StatutoryLeaveTypesTable;
   'hr_global_hr.works_council_consultations': WorksCouncilConsultationsTable;
   'hr_global_hr.work_authorization_cases': WorkAuthorizationCasesTable;
+  'hr_global_hr.international_assignments': InternationalAssignmentsTable;
   'hr_country_policy.policy_packs': CountryPolicyPacksTable;
   'hr_country_policy.validation_runs': CountryPolicyValidationRunsTable;
   'hr_country_policy.impact_simulations': CountryPolicyImpactSimulationsTable;
@@ -2126,10 +2369,10 @@ export interface Database {
   'hr_dei_analytics.pay_gap_reports': PayGapReportsTable;
   'hr_dei_analytics.pay_equity_reviews': PayEquityReviewsTable;
   'hr_dei_analytics.attrition_segment_reports': AttritionSegmentReportsTable;
-  'hr_ai_governance.hr_ai_use_cases': HrAiUseCasesTable;
-  'hr_ai_governance.hr_ai_model_runs': HrAiModelRunsTable;
-  'hr_ai_governance.hr_ai_bias_tests': HrAiBiasTestsTable;
-  'hr_ai_governance.hr_ai_kill_switches': HrAiKillSwitchesTable;
+  'hr_ai.hr_ai_use_cases': HrAiUseCasesTable;
+  'hr_ai.hr_ai_model_runs': HrAiModelRunsTable;
+  'hr_ai.hr_ai_bias_tests': HrAiBiasTestsTable;
+  'hr_ai.hr_ai_kill_switches': HrAiKillSwitchesTable;
   learning_courses: GeneratedWorkflowTable;
   learning_content_packages: GeneratedWorkflowTable;
   learning_assignments: GeneratedWorkflowTable;
@@ -2157,4 +2400,6 @@ export interface Database {
   goals: GeneratedWorkflowTable;
   performance_feedback_360_responses: GeneratedWorkflowTable;
   performance_feedback_360_cycles: GeneratedWorkflowTable;
+  'hr_scheduler.scheduler_jobs': SchedulerJobsTable;
+  'hr_scheduler.scheduler_job_runs': SchedulerJobRunsTable;
 }

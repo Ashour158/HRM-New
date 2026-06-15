@@ -14,6 +14,7 @@ export type WorkLocationOption = SetupOption & {
   flag: string;
   city: string;
   currency: string;
+  timezone?: string;
   addressLine1?: string;
   addressLine2?: string;
   latitude?: number;
@@ -24,6 +25,7 @@ export type CityOption = SetupOption & {
   countryCode: string;
   flag: string;
   currency: string;
+  timezone?: string;
 };
 
 export type EmployeeIdPolicy = {
@@ -95,6 +97,31 @@ export type PolicyRuleLedger = SetupOption & {
   effectiveUntil?: string;
   retroBehavior?: PolicyRetroBehavior;
   notificationTemplate?: string;
+};
+
+export type ApprovalStepState = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELEGATED' | 'ESCALATED' | 'EXPIRED';
+
+export type ApprovalWorkflowStepRule = SetupOption & {
+  order: number;
+  mode: 'SEQUENTIAL' | 'PARALLEL';
+  approverType: 'ROLE' | 'WORKER';
+  approverRole?: string;
+  approverWorkerId?: string;
+  slaHours?: number;
+  escalationTiers?: Array<SetupOption & {
+    afterHours: number;
+    approverRole?: string;
+    approverWorkerId?: string;
+  }>;
+};
+
+export type ApprovalWorkflowRule = SetupOption & {
+  commandName: string;
+  aggregateType?: string;
+  minAmount?: number;
+  minDurationDays?: number;
+  slaHours?: number;
+  steps: ApprovalWorkflowStepRule[];
 };
 
 export type LeavePolicy = SetupOption & {
@@ -270,6 +297,7 @@ export type AttendancePolicy = {
   overtimeAfterMinutes: number;
   geofenceEnabled: boolean;
   allowedRadiusMeters?: number;
+  timezone?: string;
   timezoneOffsetMinutes?: number;
   workDays?: number[];
   holidays?: Array<{ date: string; name: string }>;
@@ -438,10 +466,14 @@ export type HcmPolicyScope = {
   tenantId?: string;
   countryCodes?: string[];
   legalEntityIds?: string[];
+  branchCodes?: string[];
   orgUnitIds?: string[];
   departmentIds?: string[];
+  jobCodes?: string[];
+  gradeCodes?: string[];
   locationCodes?: string[];
   employeeTypes?: string[];
+  managerWorkerIds?: string[];
   workerIds?: string[];
   effectiveFrom?: string;
   effectiveUntil?: string;
@@ -555,6 +587,7 @@ export type RuntimePolicyRevisionEvidence = {
 };
 
 export interface HcmSetupConfig {
+  timezone?: string;
   genderOptions: GenderOption[];
   workPhoneEnabled: boolean;
   locations: WorkLocationOption[];
@@ -581,6 +614,7 @@ export interface HcmSetupConfig {
   deiAnalyticsPolicyRuntime?: DeiAnalyticsPolicyRuntime;
   engagementPolicyRuntime?: EngagementPolicyRuntime;
   runtimePolicyRevisions?: RuntimePolicyRevisionEvidence[];
+  approvalWorkflowRules?: ApprovalWorkflowRule[];
 }
 
 export type HcmSetupUpdate = Partial<HcmSetupConfig>;

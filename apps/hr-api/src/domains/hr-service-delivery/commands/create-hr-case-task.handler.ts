@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
+import { toOptionalDate, toOptionalUuid, toUuid } from '../../common/uuid-normalizer.js';
 import { HrCaseTask } from '../aggregates/hr-case-task.aggregate.js';
 import { HrCaseTaskRepository } from '../repositories/hr-case-task.repository.js';
 import { HrServiceDeliveryEventsPublisher } from '../events/hr-service-delivery-events.publisher.js';
@@ -17,9 +18,16 @@ export class CreateHrCaseTaskHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { caseId: Uuid; title: string; assignedTo?: Uuid; dueDate?: Date };
+    const payload = command.payload as { caseId: Uuid | string; title: string; assignedTo?: Uuid | string; dueDate?: Date | string };
     const ar = HrCaseTask.create(
-      { id: Uuid.generate(), tenantId: command.tenantId, ...payload },
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        caseId: toUuid(payload.caseId),
+        title: payload.title,
+        assignedTo: toOptionalUuid(payload.assignedTo),
+        dueDate: toOptionalDate(payload.dueDate),
+      },
       command.correlationId,
     );
     await this.repo.save(ar);

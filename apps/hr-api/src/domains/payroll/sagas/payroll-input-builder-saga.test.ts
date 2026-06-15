@@ -33,6 +33,17 @@ function activeCycle(tenantId: Uuid): PayrollCycle {
   });
 }
 
+function hcmSetupService() {
+  return {
+    getSetup: vi.fn(async () => ({
+      locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }],
+      cities: [],
+      statutoryPayrollPacks: [],
+      salaryCompositionPlans: [],
+    })),
+  };
+}
+
 describe('PayrollInputBuilderSaga', () => {
   it('resolves event-created inputs into the active payroll cycle', async () => {
     const tenantId = Uuid.generate();
@@ -43,6 +54,7 @@ describe('PayrollInputBuilderSaga', () => {
       { save: vi.fn(async (input) => saved.push(input)) } as never,
       { publishFromAggregate: vi.fn() } as never,
       { findByTenant: vi.fn(async () => [cycle]) } as never,
+      hcmSetupService() as never,
     );
 
     await (saga as unknown as {
@@ -71,6 +83,7 @@ describe('PayrollInputBuilderSaga', () => {
       { save: vi.fn(async (input) => saved.push(input)) } as never,
       { publishFromAggregate: vi.fn() } as never,
       { findByTenant: vi.fn(async () => []) } as never,
+      hcmSetupService() as never,
     );
 
     await (saga as unknown as {
@@ -101,6 +114,7 @@ describe('PayrollInputBuilderSaga', () => {
       { save: vi.fn(async (input) => saved.push(input)) } as never,
       { publishFromAggregate: vi.fn() } as never,
       { findByTenant: vi.fn(async () => [cycle]) } as never,
+      hcmSetupService() as never,
     );
 
     await (saga as unknown as {

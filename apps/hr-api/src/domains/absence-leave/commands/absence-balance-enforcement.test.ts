@@ -221,12 +221,20 @@ describe('absence balance enforcement', () => {
       payrollImpact: 'PAID_LEAVE',
     }, Uuid.generate());
     request.submit(Uuid.generate());
+    const tenantSetup = {
+      ...DEFAULT_HCM_SETUP,
+      locations: DEFAULT_HCM_SETUP.locations.map((location, index) => ({
+        ...location,
+        active: index === 0,
+        currency: index === 0 ? 'USD' : location.currency,
+      })),
+    };
     const handler = new ApproveAbsenceRequestHandler(
       { findById: vi.fn().mockResolvedValue(request), save: vi.fn() } as never,
       { findByWorker: vi.fn().mockResolvedValue([balance(8)]), save: vi.fn() } as never,
       { getAllowedActionsFromState: vi.fn().mockReturnValue([]) } as never,
       { publishFromAggregate: vi.fn() } as never,
-      { getSetup: vi.fn().mockResolvedValue(DEFAULT_HCM_SETUP) } as never,
+      { getSetup: vi.fn().mockResolvedValue(tenantSetup) } as never,
       new LeavePolicyService(),
     );
 
@@ -247,6 +255,7 @@ describe('absence balance enforcement', () => {
       durationAmount: 1,
       durationUnit: 'DAYS',
       payrollImpact: 'PAID_LEAVE',
+      currency: 'USD',
     });
   });
 });

@@ -28,6 +28,11 @@ export class LearningAssignmentRepository extends BaseRepository<'learning_assig
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<LearningAssignment[]> {
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
+  }
+
   async save(entity: LearningAssignment): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

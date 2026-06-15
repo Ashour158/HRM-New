@@ -15,8 +15,12 @@ import {
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
+import { randomUUID } from 'node:crypto';
+import { createCommand, type CommandOutcome } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
+import { CommandBus } from '../../platform/command-bus/command-bus.js';
+import { actorClientType, requireActor } from '../../platform/http/request-context.js';
 import {
   AdminModuleOperationsRepository,
   type AdminModuleOperationRecord,
@@ -214,6 +218,7 @@ export class AdminModuleOperationsController {
   constructor(
     private readonly repository: AdminModuleOperationsRepository,
     private readonly nativeAdapter: NativeModuleOperationAdapterService,
+    private readonly commandBus: CommandBus,
   ) {}
 
   @Get(':moduleId')
@@ -321,7 +326,6 @@ export class AdminModuleOperationsController {
   async importRecordsApply(@Param('moduleId') moduleIdParam: string, @Body() body: { rows?: ImportRecordRow[] }, @Req() req: Request) {
     const moduleId = this.normalizeModuleId(moduleIdParam);
     this.assertAdminScope(req);
-    const tenantId = this.getTenantId(req);
     const validation = this.validateImportRows(body.rows ?? []);
 
     if (!validation.accepted) {
@@ -335,8 +339,9 @@ export class AdminModuleOperationsController {
       };
     }
 
-    const created = await this.repository.createRecords(validation.rows.map((row) => ({
-      tenantId,
+    const created = await this.executeOperationCommand<unknown, AdminModuleOperationRecord[]>(req, 'ImportAdminModuleOperationRecords', {
+      moduleId,
+      records: validation.rows.map((row) => ({
       moduleId,
       objectType: row.objectType!,
       ownerRole: row.ownerRole!,
@@ -350,7 +355,8 @@ export class AdminModuleOperationsController {
         ...this.normalizeImportPayload(row.payload),
       },
       actorId: actorIdValue(req),
-    })));
+      })),
+    });
 
     return {
       accepted: true,
@@ -366,8 +372,9 @@ export class AdminModuleOperationsController {
   async createRecord(@Param('moduleId') moduleIdParam: string, @Body() dto: CreateRecordDto, @Req() req: Request) {
     const moduleId = this.normalizeModuleId(moduleIdParam);
     this.assertAdminScope(req);
-    const record = await this.repository.createRecord({
-      tenantId: this.getTenantId(req),
+    const record = await this.executeOperationCommand<unknown, AdminModuleOperationRecord>(req, 'CreateAdminModuleOperationRecord', {
+      moduleId,
+      record: {
       moduleId,
       objectType: requiredString(dto.objectType, 'objectType'),
       ownerRole: requiredString(dto.ownerRole, 'ownerRole'),
@@ -377,6 +384,7 @@ export class AdminModuleOperationsController {
       lastEvent: requiredString(dto.lastEvent, 'lastEvent'),
       payload: dto.payload ?? {},
       actorId: actorIdValue(req),
+      },
     });
     return this.serializeRecord(record);
   }
@@ -404,33 +412,21 @@ export class AdminModuleOperationsController {
       if (!existingRecord.native_source || !existingRecord.native_record_id || !status) {
         throw new BadRequestException('Native operation record is missing source linkage');
       }
-      const applied = operationAction === undefined
-        ? await this.nativeAdapter.applyRecordStatusUpdate(
-          tenantId,
-          moduleId,
-          existingRecord.native_source,
-          existingRecord.native_record_id,
-          status,
-          req.actor,
-        )
-        : await this.nativeAdapter.applyRecordStatusUpdate(
-          tenantId,
-          moduleId,
-          existingRecord.native_source,
-          existingRecord.native_record_id,
-          status,
-          req.actor,
-          operationAction,
-        );
-      if (!applied) {
-        throw new BadRequestException('Native operation status cannot be updated through this workspace for this source');
-      }
-      await this.nativeAdapter.syncNativeRecords(tenantId, moduleId, actorIdValue(req));
-      const refreshedRecord = await this.repository.findRecord(tenantId, moduleId, recordId);
+      const refreshedRecord = await this.executeOperationCommand<unknown, AdminModuleOperationRecord>(req, 'UpdateAdminModuleOperationRecord', {
+        moduleId,
+        recordId: recordId.value,
+        nativeStatus: status,
+        nativeOperationAction: operationAction,
+        actorId: actorIdValue(req),
+        actor: req.actor,
+      });
       return this.serializeRecord(refreshedRecord ?? existingRecord);
     }
 
-    const record = await this.repository.updateRecord(tenantId, moduleId, recordId, {
+    const record = await this.executeOperationCommand<unknown, AdminModuleOperationRecord>(req, 'UpdateAdminModuleOperationRecord', {
+      moduleId,
+      recordId: recordId.value,
+      recordUpdate: {
       ...(dto.objectType !== undefined ? { objectType: requiredString(dto.objectType, 'objectType') } : {}),
       ...(dto.ownerRole !== undefined ? { ownerRole: requiredString(dto.ownerRole, 'ownerRole') } : {}),
       ...(dto.workflowName !== undefined ? { workflowName: requiredString(dto.workflowName, 'workflowName') } : {}),
@@ -439,8 +435,8 @@ export class AdminModuleOperationsController {
       ...(dto.lastEvent !== undefined ? { lastEvent: requiredString(dto.lastEvent, 'lastEvent') } : {}),
       ...(dto.payload !== undefined ? { payload: dto.payload } : {}),
       actorId: actorIdValue(req),
+      },
     });
-    if (!record) throw new NotFoundException('Module operation record not found');
     return this.serializeRecord(record);
   }
 
@@ -456,8 +452,9 @@ export class AdminModuleOperationsController {
   async createWorkflow(@Param('moduleId') moduleIdParam: string, @Body() dto: CreateWorkflowDto, @Req() req: Request) {
     const moduleId = this.normalizeModuleId(moduleIdParam);
     this.assertAdminScope(req);
-    const workflow = await this.repository.upsertWorkflow({
-      tenantId: this.getTenantId(req),
+    const workflow = await this.executeOperationCommand<unknown, AdminModuleOperationWorkflow>(req, 'UpsertAdminModuleOperationWorkflow', {
+      moduleId,
+      workflow: {
       moduleId,
       workflowName: requiredString(dto.workflowName, 'workflowName'),
       ownerRole: requiredString(dto.ownerRole, 'ownerRole'),
@@ -466,6 +463,7 @@ export class AdminModuleOperationsController {
       lastEvent: requiredString(dto.lastEvent, 'lastEvent'),
       payload: dto.payload ?? {},
       actorId: actorIdValue(req),
+      },
     });
     return this.serializeWorkflow(workflow);
   }
@@ -480,7 +478,10 @@ export class AdminModuleOperationsController {
     const moduleId = this.normalizeModuleId(moduleIdParam);
     const workflowId = this.normalizeUuid(workflowIdParam, 'workflowId');
     this.assertAdminScope(req);
-    const workflow = await this.repository.updateWorkflow(this.getTenantId(req), moduleId, workflowId, {
+    const workflow = await this.executeOperationCommand<unknown, AdminModuleOperationWorkflow>(req, 'UpdateAdminModuleOperationWorkflow', {
+      moduleId,
+      workflowId: workflowId.value,
+      workflowUpdate: {
       ...(dto.workflowName !== undefined ? { workflowName: requiredString(dto.workflowName, 'workflowName') } : {}),
       ...(dto.ownerRole !== undefined ? { ownerRole: requiredString(dto.ownerRole, 'ownerRole') } : {}),
       ...(dto.state !== undefined ? { state: optionalEnum(dto.state, WORKFLOW_STATES, 'state') } : {}),
@@ -488,8 +489,8 @@ export class AdminModuleOperationsController {
       ...(dto.lastEvent !== undefined ? { lastEvent: requiredString(dto.lastEvent, 'lastEvent') } : {}),
       ...(dto.payload !== undefined ? { payload: dto.payload } : {}),
       actorId: actorIdValue(req),
+      },
     });
-    if (!workflow) throw new NotFoundException('Module operation workflow not found');
     return this.serializeWorkflow(workflow);
   }
 
@@ -497,8 +498,9 @@ export class AdminModuleOperationsController {
   async createControl(@Param('moduleId') moduleIdParam: string, @Body() dto: CreateControlDto, @Req() req: Request) {
     const moduleId = this.normalizeModuleId(moduleIdParam);
     this.assertAdminScope(req);
-    const control = await this.repository.createControl({
-      tenantId: this.getTenantId(req),
+    const control = await this.executeOperationCommand<unknown, AdminModuleOperationControl>(req, 'CreateAdminModuleOperationControl', {
+      moduleId,
+      control: {
       moduleId,
       controlName: requiredString(dto.controlName, 'controlName'),
       controlType: requiredString(dto.controlType, 'controlType'),
@@ -507,6 +509,7 @@ export class AdminModuleOperationsController {
       lastEvent: typeof dto.lastEvent === 'string' && dto.lastEvent.trim() ? dto.lastEvent.trim() : 'Control drafted',
       payload: dto.payload ?? {},
       actorId: actorIdValue(req),
+      },
     });
     return this.serializeControl(control);
   }
@@ -521,7 +524,10 @@ export class AdminModuleOperationsController {
     const moduleId = this.normalizeModuleId(moduleIdParam);
     const controlId = this.normalizeUuid(controlIdParam, 'controlId');
     this.assertAdminScope(req);
-    const control = await this.repository.updateControl(this.getTenantId(req), moduleId, controlId, {
+    const control = await this.executeOperationCommand<unknown, AdminModuleOperationControl>(req, 'UpdateAdminModuleOperationControl', {
+      moduleId,
+      controlId: controlId.value,
+      controlUpdate: {
       ...(dto.controlName !== undefined ? { controlName: requiredString(dto.controlName, 'controlName') } : {}),
       ...(dto.controlType !== undefined ? { controlType: requiredString(dto.controlType, 'controlType') } : {}),
       ...(dto.ownerRole !== undefined ? { ownerRole: requiredString(dto.ownerRole, 'ownerRole') } : {}),
@@ -529,8 +535,8 @@ export class AdminModuleOperationsController {
       ...(dto.lastEvent !== undefined ? { lastEvent: requiredString(dto.lastEvent, 'lastEvent') } : {}),
       ...(dto.payload !== undefined ? { payload: dto.payload } : {}),
       actorId: actorIdValue(req),
+      },
     });
-    if (!control) throw new NotFoundException('Module governance control not found');
     return this.serializeControl(control);
   }
 
@@ -571,6 +577,35 @@ export class AdminModuleOperationsController {
       nextStatus: 'Applied',
       lastEvent: 'Control applied',
     });
+  }
+
+  private async executeOperationCommand<TPayload, TResult>(
+    req: Request,
+    commandName: string,
+    payload: TPayload,
+  ): Promise<TResult> {
+    const tenantId = this.getTenantId(req);
+    const actor = requireActor(req, 'Admin module operations');
+    const result = await this.commandBus.execute(createCommand(
+      commandName,
+      tenantId,
+      actor,
+      payload,
+      {
+        aggregateType: 'AdminModuleOperation',
+        idempotencyKey: randomUUID(),
+        correlationId: Uuid.generate(),
+        reason: 'Manage module operations from System Console',
+        metadata: {
+          clientType: actorClientType(actor),
+          hrDataSensitivity: 'HIGH',
+        },
+      },
+    )) as CommandOutcome<TResult>;
+    if (!result.success) {
+      throw new BadRequestException(result.errorMessage);
+    }
+    return result.data;
   }
 
   private getTenantId(req: Request): Uuid {
@@ -728,17 +763,20 @@ export class AdminModuleOperationsController {
     const controlId = this.normalizeUuid(controlIdParam, 'controlId');
     this.assertAdminScope(req);
     const tenantId = this.getTenantId(req);
-    const control = await this.repository.updateControlIfStatus(tenantId, moduleId, controlId, transition.expectedStatus, {
-      status: transition.nextStatus,
-      lastEvent: transition.lastEvent,
-      actorId: actorIdValue(req),
-    });
-    if (!control) {
+    try {
+      const control = await this.executeOperationCommand<unknown, AdminModuleOperationControl>(req, 'AdvanceAdminModuleOperationControl', {
+        moduleId,
+        controlId: controlId.value,
+        controlTransition: transition,
+        actorId: actorIdValue(req),
+      });
+      return this.serializeControl(control);
+    } catch (error) {
+      if (!(error instanceof BadRequestException)) throw error;
       const existingControl = await this.repository.findControl(tenantId, moduleId, controlId);
       if (!existingControl) throw new NotFoundException('Module governance control not found');
-      throw new BadRequestException(`Control must be ${transition.expectedStatus} before it can move to ${transition.nextStatus}`);
+      throw error;
     }
-    return this.serializeControl(control);
   }
 
   private buildModuleDepth(

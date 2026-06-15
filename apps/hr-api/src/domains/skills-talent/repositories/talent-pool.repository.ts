@@ -5,6 +5,28 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { TalentPool, type TalentPoolStatus } from '../aggregates/talent-pool.aggregate.js';
 
+function parseStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string');
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseObject(value: unknown): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
 @Injectable()
 export class TalentPoolRepository extends BaseRepository<'talent_pools', TalentPool> {
   protected readonly tableName = 'talent_pools' as const;
@@ -38,8 +60,8 @@ export class TalentPoolRepository extends BaseRepository<'talent_pools', TalentP
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       poolName: row.pool_name,
-      criteria: (row.criteria as Record<string, unknown>) ?? {},
-      memberIds: (row.member_ids as string[]) ?? [],
+      criteria: parseObject(row.criteria),
+      memberIds: parseStringArray(row.member_ids),
       status: (row.status as TalentPoolStatus) ?? 'ACTIVE',
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -52,8 +74,8 @@ export class TalentPoolRepository extends BaseRepository<'talent_pools', TalentP
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       pool_name: entity.poolName,
-      criteria: entity.criteria,
-      member_ids: entity.memberIds,
+      criteria: JSON.stringify(entity.criteria ?? {}),
+      member_ids: JSON.stringify(entity.memberIds ?? []),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

@@ -3,19 +3,16 @@ import { Link } from 'react-router-dom';
 import {
   AreaChart,
   Area,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip as ReTooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import { useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
+import { DonutChartPanel } from '@/components/ui/charts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { EmptyState } from '@/components/common/empty-state';
@@ -37,7 +34,6 @@ import {
   ChevronRight,
   Quote,
   Activity,
-  PieChart as PieChartIcon,
 } from 'lucide-react';
 import type { AbsenceRequest, Worker } from '@/types';
 
@@ -89,7 +85,6 @@ interface AttendancePeriodView {
   }>;
 }
 
-const CHART_COLORS = ['#818cf8', '#a78bfa', '#2dd4bf', '#fbbf24'];
 const attendanceRangeOptions: Array<{ value: AttendancePeriodRange; label: string }> = [
   { value: 'DAILY', label: 'Daily' },
   { value: 'WEEKLY', label: 'Weekly' },
@@ -570,50 +565,21 @@ export function ManagerDashboard() {
             </div>
           </div>
 
-          {/* Approvals breakdown — donut */}
-          <div className="flex flex-col rounded-[2rem] p-6 fusion-glass lg:p-8">
-            <h2 className="mb-2 flex items-center gap-2 text-xl font-bold">
-              <PieChartIcon size={20} className="text-teal-500" />
-              Approvals Breakdown
-            </h2>
-            <div className="h-72">
-              {approvalsBreakdown.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={approvalsBreakdown}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={90}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {approvalsBreakdown.map((entry, i) => (
-                        <Cell key={entry.name} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <ReTooltip
-                      contentStyle={{
-                        borderRadius: 16,
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 10px 30px rgba(0,0,0,0.08)',
-                        fontSize: 13,
-                      }}
-                    />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: 12, fontWeight: 600 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-slate-500">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-                  All approvals cleared
-                </div>
-              )}
+          {approvalsBreakdown.length > 0 ? (
+            <DonutChartPanel
+              title="Approvals Breakdown"
+              data={approvalsBreakdown.map((entry) => ({ label: entry.name, value: entry.value }))}
+              height={288}
+            />
+          ) : (
+            <div className="flex flex-col rounded-[2rem] p-6 fusion-glass lg:p-8">
+              <h2 className="mb-2 flex items-center gap-2 text-xl font-bold">Approvals Breakdown</h2>
+              <div className="flex h-72 flex-col items-center justify-center gap-2 text-center text-sm text-slate-500">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                All approvals cleared
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Pending leave + attention */}

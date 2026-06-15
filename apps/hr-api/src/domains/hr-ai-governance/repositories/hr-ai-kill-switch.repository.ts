@@ -11,17 +11,22 @@ export class HrAiKillSwitchRepository {
   constructor() { this.db = createKyselyInstance(getPool()); }
 
   async findById(id: Uuid): Promise<HrAiKillSwitch | undefined> {
-    const row = await this.db.selectFrom('hr_ai_governance.hr_ai_kill_switches').selectAll().where('id', '=', id.value).executeTakeFirst();
+    const row = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').selectAll().where('id', '=', id.value).executeTakeFirst();
     return row ? this.toAggregate(row) : undefined;
   }
 
   async findByUseCaseId(useCaseId: Uuid): Promise<HrAiKillSwitch[]> {
-    const rows = await this.db.selectFrom('hr_ai_governance.hr_ai_kill_switches').selectAll().where('use_case_id', '=', useCaseId.value).execute();
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').selectAll().where('use_case_id', '=', useCaseId.value).execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  async findByTenant(tenantId: Uuid): Promise<HrAiKillSwitch[]> {
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').selectAll().where('tenant_id', '=', tenantId.value).execute();
     return rows.map((r: any) => this.toAggregate(r));
   }
 
   async save(entity: HrAiKillSwitch): Promise<void> {
-    const existing = await this.db.selectFrom('hr_ai_governance.hr_ai_kill_switches').select('id').where('id', '=', entity.id.value).executeTakeFirst();
+    const existing = await this.db.selectFrom('hr_ai.hr_ai_kill_switches').select('id').where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).executeTakeFirst();
     const row = {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
@@ -36,9 +41,9 @@ export class HrAiKillSwitchRepository {
       updated_at: new Date().toISOString(),
     };
     if (existing) {
-      await this.db.updateTable('hr_ai_governance.hr_ai_kill_switches').set(row).where('id', '=', entity.id.value).execute();
+      await this.db.updateTable('hr_ai.hr_ai_kill_switches').set(row).where('id', '=', entity.id.value).where('tenant_id', '=', entity.tenantId.value).execute();
     } else {
-      await this.db.insertInto('hr_ai_governance.hr_ai_kill_switches').values({ ...row, created_at: new Date().toISOString() } as never).execute();
+      await this.db.insertInto('hr_ai.hr_ai_kill_switches').values({ ...row, created_at: new Date().toISOString() } as never).execute();
     }
   }
 

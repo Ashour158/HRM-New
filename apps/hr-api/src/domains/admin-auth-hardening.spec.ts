@@ -5,8 +5,10 @@ import { Uuid } from '@hcm/shared-kernel';
 import { ComplianceController } from './compliance/api/compliance.controller.js';
 import { CountryPolicyController } from './country-policy/api/country-policy.controller.js';
 import { HcmSetupController } from './hcm-setup/hcm-setup.controller.js';
+import { LearningController } from './learning/api/learning.controller.js';
 import { PolicyCenterController } from './policy-center/policy-center.controller.js';
 import { PositionControlController } from './position-control/api/position-control.controller.js';
+import { RecruitingController } from './recruiting/api/recruiting.controller.js';
 import { ReportingController } from './reporting/api/reporting.controller.js';
 
 const tenantId = '00000000-0000-0000-0000-000000000001';
@@ -127,7 +129,7 @@ describe('admin controller auth hardening', () => {
     const service = {
       createRevision: vi.fn(),
     };
-    const controller = new PolicyCenterController(service as never);
+    const controller = new PolicyCenterController(service as never, { get: () => commandBus() } as never);
 
     await expect(controller.create({
       area: 'LEAVE',
@@ -144,7 +146,7 @@ describe('admin controller auth hardening', () => {
       getSummary: vi.fn(async () => ({ totalRevisions: 0 })),
       listRevisions: vi.fn(async () => []),
     };
-    const controller = new PolicyCenterController(service as never);
+    const controller = new PolicyCenterController(service as never, { get: () => commandBus() } as never);
 
     await expect(controller.summary(request(['EMPLOYEE']))).rejects.toBeInstanceOf(ForbiddenException);
     await expect(controller.list(request(['MANAGER']))).rejects.toBeInstanceOf(ForbiddenException);
@@ -156,17 +158,153 @@ describe('admin controller auth hardening', () => {
     expect(service.listRevisions).toHaveBeenCalledTimes(1);
   });
 
+  it('requires a validated tenant context for Policy Center operations', async () => {
+    const service = {
+      getSummary: vi.fn(async () => ({ totalRevisions: 0 })),
+    };
+    const controller = new PolicyCenterController(service as never, { get: () => commandBus() } as never);
+    const req = request(['HR_ADMIN']);
+    delete (req as { tenantId?: string }).tenantId;
+
+    await expect(controller.summary(req)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(service.getSummary).not.toHaveBeenCalled();
+  });
+
+  it('dispatches Policy Center mutations through the command bus', async () => {
+    const service = {
+      createRevision: vi.fn(),
+    };
+    const bus = {
+      execute: vi.fn(async (command) => ({
+        success: true,
+        data: {
+          id: '00000000-0000-0000-0000-000000000601',
+          area: 'LEAVE',
+          title: 'Annual Leave',
+          status: 'DRAFT',
+        },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+      })),
+    };
+    const controller = new PolicyCenterController(service as never, { get: () => bus } as never);
+
+    await expect(controller.create({
+      area: 'LEAVE',
+      title: 'Annual Leave',
+      draftConfig: {},
+      scope: { tenantId },
+    }, request(['HR_ADMIN']))).resolves.toEqual(expect.objectContaining({
+      id: '00000000-0000-0000-0000-000000000601',
+      status: 'DRAFT',
+    }));
+
+    expect(service.createRevision).not.toHaveBeenCalled();
+    expect(bus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'CreatePolicyRevision',
+      aggregateType: 'PolicyRevision',
+      tenantId: new Uuid(tenantId),
+      actor: expect.objectContaining({
+        actorId: new Uuid(adminId),
+        roles: ['HR_ADMIN'],
+      }),
+      payload: expect.objectContaining({
+        area: 'LEAVE',
+        title: 'Annual Leave',
+      }),
+    }));
+  });
+
+  it('does not mint system actors for generated domain command controllers', async () => {
+    const bus = commandBus();
+    const controller = new LearningController(bus as never, {} as never, {} as never, {} as never, {} as never);
+
+    await controller.createCourse({
+      courseCode: 'SEC-101',
+      title: 'Security Awareness',
+    } as never, request(['LEARNING_ADMIN']));
+
+    expect(bus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'CreateLearningCourse',
+      actor: expect.objectContaining({
+        actorType: 'USER',
+        actorId: new Uuid(adminId),
+        roles: ['LEARNING_ADMIN'],
+      }),
+    }));
+    expect(bus.execute.mock.calls[0][0].actor.actorType).not.toBe('SYSTEM');
+  });
+
+  it('runs recruiting commands with the authenticated request actor only', async () => {
+    const bus = commandBus();
+    const controller = new RecruitingController(
+      bus as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await controller.createRequisition({
+      title: 'Backend Engineer',
+      positionId: '00000000-0000-0000-0000-000000000501',
+    } as never, request(['RECRUITER']));
+
+    expect(bus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'CreateJobRequisition',
+      tenantId: new Uuid(tenantId),
+      actor: expect.objectContaining({
+        actorType: 'USER',
+        actorId: new Uuid(adminId),
+        roles: ['RECRUITER'],
+      }),
+    }));
+  });
+
   it('requires setup administrator scope for HCM setup reads', async () => {
     const service = {
       getSetup: vi.fn(async () => ({ employeeProfile: { requiredFields: [] } })),
     };
-    const controller = new HcmSetupController(service as never);
+    const controller = new HcmSetupController(service as never, { get: () => commandBus() } as never);
 
     await expect(controller.getSetup(request(['EMPLOYEE']))).rejects.toBeInstanceOf(ForbiddenException);
     await expect(controller.getSetup(request(['MANAGER']))).rejects.toBeInstanceOf(ForbiddenException);
     await expect(controller.getSetup(request(['HR_ADMIN']))).resolves.toEqual({ employeeProfile: { requiredFields: [] } });
 
     expect(service.getSetup).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatches HCM setup updates through the command bus', async () => {
+    const service = {
+      getSetup: vi.fn(),
+      updateSetup: vi.fn(),
+    };
+    const bus = {
+      execute: vi.fn(async (command) => ({
+        success: true,
+        data: { employeeIdPolicy: { mode: 'AUTO', prefix: 'EG', nextNumber: 7 } },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+      })),
+    };
+    const controller = new HcmSetupController(service as never, { get: () => bus } as never);
+
+    await expect(controller.updateSetup({
+      employeeIdPolicy: { mode: 'AUTO', prefix: 'EG', nextNumber: 7 },
+    } as never, request(['HR_ADMIN']))).resolves.toEqual({
+      employeeIdPolicy: { mode: 'AUTO', prefix: 'EG', nextNumber: 7 },
+    });
+
+    expect(service.updateSetup).not.toHaveBeenCalled();
+    expect(bus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'ConfigureHcmSetup',
+      aggregateType: 'HcmSetupConfig',
+      tenantId: new Uuid(tenantId),
+      actor: expect.objectContaining({
+        actorId: new Uuid(adminId),
+        roles: ['HR_ADMIN'],
+      }),
+    }));
   });
 
   it('requires compliance administrator scope for compliance policy reads', async () => {
