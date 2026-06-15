@@ -63,6 +63,7 @@ const AdminDeadLetterEvents = lazy(() => import('@/pages/admin/dead-letter-event
 const AdminAuditConsole = lazy(() => import('@/pages/admin/audit-console').then((module) => ({ default: module.AdminAuditConsole })));
 const AdminEventContracts = lazy(() => import('@/pages/admin/event-contracts').then((module) => ({ default: module.AdminEventContracts })));
 const AdminAutomation = lazy(() => import('@/pages/admin/automation').then((module) => ({ default: module.AdminAutomation })));
+const AdminSso = lazy(() => import('@/pages/admin/sso').then((module) => ({ default: module.AdminSso })));
 const RecruiterWorkspace = lazy(() => import('@/pages/recruiter/workspace').then((module) => ({ default: module.RecruiterWorkspace })));
 const PayrollWorkspace = lazy(() => import('@/pages/payroll/workspace').then((module) => ({ default: module.PayrollWorkspace })));
 
@@ -295,6 +296,14 @@ export function AppRoutes() {
                       element={
                         <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
                           <AdminAutomation />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/sso"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminSso />
                         </RequireRoles>
                       }
                     />

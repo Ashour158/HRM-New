@@ -101,21 +101,27 @@ export type AuthMfaVerifyResponse = AuthRefreshResponse;
 
 export interface AuthProvidersResponse {
   local: { enabled: boolean };
-  oidc: {
+  providers?: Array<{
+    id: string;
+    protocol: 'OIDC' | 'SAML';
+    displayName: string;
+    startUrl: string;
+  }>;
+  oidc?: {
     enabled: boolean;
     issuerUrl?: string;
     clientId?: string;
     redirectUri?: string;
   };
-  saml: {
+  saml?: {
     enabled: boolean;
     metadataUrl?: string;
     entityId?: string;
   };
-  mfa: {
+  mfa?: {
     required: boolean;
   };
-  session: {
+  session?: {
     accessTokenTtl: string;
     refreshTokenTtl: string;
   };
