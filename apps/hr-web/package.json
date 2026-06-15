@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "content:check": "node scripts/content-cleanliness.mjs",
+    "i18n:check": "node scripts/i18n-hardcoded-strings.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -27,9 +28,11 @@
     "axios": "^1.6.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "i18next": "^26.3.1",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-i18next": "^17.0.8",
     "react-router-dom": "^6.21.0",
     "recharts": "^3.8.1",
     "tailwind-merge": "^2.2.0",

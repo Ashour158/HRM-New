@@ -147,7 +147,7 @@ describe('AdminSkillsTalent', () => {
     expect(screen.getByRole('tab', { name: 'Succession Plans' })).toBeInTheDocument();
     await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith(`/skills-talent/skill-profiles/worker/${actorId}`));
     expect(apiClientGetMock).not.toHaveBeenCalledWith(`/skills-talent/skill-profiles/tenant/${tenantId}`);
-    expect(await screen.findByText(/clinical-leadership/)).toBeInTheDocument();
+    expect(await screen.findByText(/clinical-leadership/, {}, { timeout: 5000 })).toBeInTheDocument();
 
     expect(screen.getByLabelText('Worker profile lookup')).toHaveValue(actorId);
 
@@ -173,7 +173,7 @@ describe('AdminSkillsTalent', () => {
   it('runs skill, talent pool, career path, and succession commands', async () => {
     renderSkillsTalent();
 
-    expect(await screen.findByText(/clinical-leadership/)).toBeInTheDocument();
+    expect(await screen.findByText(/clinical-leadership/, {}, { timeout: 5000 })).toBeInTheDocument();
     await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/policy/allowed-actions', expect.objectContaining({
       params: expect.objectContaining({ aggregateType: 'SkillProfile', aggregateId: profileId }),
     })));

@@ -62,6 +62,7 @@ jobs:
           pnpm typecheck
           pnpm test
           pnpm --filter hr-web content:check
+          pnpm --filter hr-web i18n:check
           pnpm --filter hr-web test:a11y
           pnpm --filter hr-web exec playwright install --with-deps chromium
           pnpm --filter hr-web test:e2e

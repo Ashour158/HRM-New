@@ -1,3 +1,5 @@
 packages:
-  - "apps/*"
+  - "apps/hr-api"
+  - "apps/hr-auditor-agent"
+  - "apps/hr-web"
   - "packages/*"

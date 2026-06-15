@@ -203,6 +203,8 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'ORGANIZATION_WRITE',
       'POSITION_WRITE',
       'SCHEDULER_MANAGE',
+      'WORKFLOW_MANAGE',
+      'WORKFLOW_APPROVE',
     ],
     mutableFields: [
       'worker.profile',
@@ -247,6 +249,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'SERVICE_MANAGE',
       'REPORT_READ',
       'REPORT_CREATE',
+      'WORKFLOW_APPROVE',
     ],
     mutableFields: [
       'worker.profile',
@@ -398,6 +401,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'RECRUITING_READ',
       'RECRUITING_CREATE',
       'REPORT_READ',
+      'WORKFLOW_APPROVE',
     ],
     mutableFields: [
       'performance.rating',
@@ -455,6 +459,8 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'REPORT_CREATE',
       'REPORT_EXPORT',
       'ADMIN_SYSTEM',
+      'WORKFLOW_MANAGE',
+      'WORKFLOW_APPROVE',
     ],
     mutableFields: [
       'payroll.calculation',

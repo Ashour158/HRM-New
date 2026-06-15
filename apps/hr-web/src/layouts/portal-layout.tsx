@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommandPalette, type CommandPaletteItem } from '@/components/ui/command-palette';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { LanguageSwitcher } from '@/i18n/language-switcher';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -570,6 +571,7 @@ function WorkspaceShell({
             </form>
 
             <div className="ml-auto flex shrink-0 items-center gap-2 md:ml-2">
+              <LanguageSwitcher compact />
               <ThemeToggle />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

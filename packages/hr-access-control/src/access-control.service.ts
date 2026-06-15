@@ -264,6 +264,18 @@ export class AccessControlService {
       return ['REPORT_READ'];
     }
 
+    if (prefix === 'WORKFLOW') {
+      if (
+        commandName.includes('APPROVE') ||
+        commandName.includes('REJECT') ||
+        commandName.includes('DELEGATE') ||
+        commandName.includes('ESCALATE')
+      ) {
+        return ['WORKFLOW_APPROVE'];
+      }
+      return ['WORKFLOW_MANAGE'];
+    }
+
     // Domains that follow the <DOMAIN>_READ / <DOMAIN>_WRITE / <DOMAIN>_APPROVE convention.
     // Approval-like commands need a separate permission so maker/checker is enforced
     // before the SoD matrix evaluates the transition.
@@ -451,6 +463,9 @@ export class AccessControlService {
       PayGapReport: 'DEI_ANALYTICS',
       PayEquityReview: 'DEI_ANALYTICS',
       AttritionSegmentReport: 'DEI_ANALYTICS',
+      ApprovalChain: 'WORKFLOW',
+      ApprovalStep: 'WORKFLOW',
+      ApprovalDelegation: 'WORKFLOW',
     };
     return mapping[aggregateType] ?? aggregateType.toUpperCase();
   }

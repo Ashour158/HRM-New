@@ -170,6 +170,64 @@ export interface EffectiveDatingActivationLogTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface ApprovalChainsTable {
+  id: string;
+  tenant_id: string;
+  command_name: string;
+  aggregate_type: string;
+  aggregate_id: string | null;
+  requested_by: string;
+  command_envelope: unknown;
+  status: string;
+  current_step_order: number | null;
+  correlation_id: string;
+  idempotency_key: string | null;
+  completed_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ApprovalStepsTable {
+  id: string;
+  tenant_id: string;
+  chain_id: string;
+  step_order: number;
+  code: string;
+  label: string;
+  mode: string;
+  approver_type: string;
+  approver_role: string | null;
+  approver_worker_id: string | null;
+  state: string;
+  delegated_to_worker_id: string | null;
+  escalation_tier_code: string | null;
+  escalation_tier_label: string | null;
+  escalation_approver_role: string | null;
+  sla_due_at: Date | null;
+  acted_by: string | null;
+  acted_at: Date | null;
+  reason: string | null;
+  escalation_tiers: unknown;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface ApprovalDelegationsTable {
+  id: string;
+  tenant_id: string;
+  chain_id: string;
+  step_id: string;
+  from_worker_id: string | null;
+  to_worker_id: string;
+  actor_id: string;
+  reason: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface HcmSetupConfigsTable {
   id: string;
   tenant_id: string;
@@ -2187,6 +2245,12 @@ export interface Database {
   scheduler_job_schedules: PlatformSchedulerJobSchedulesTable;
   reminder_dispatch_log: ReminderDispatchLogTable;
   effective_dating_activation_log: EffectiveDatingActivationLogTable;
+  approval_chains: ApprovalChainsTable;
+  approval_steps: ApprovalStepsTable;
+  approval_delegations: ApprovalDelegationsTable;
+  'hr_workflow.approval_chains': ApprovalChainsTable;
+  'hr_workflow.approval_steps': ApprovalStepsTable;
+  'hr_workflow.approval_delegations': ApprovalDelegationsTable;
   hcm_setup_configs: HcmSetupConfigsTable;
   roles: RolesTable;
   permissions: PermissionsTable;

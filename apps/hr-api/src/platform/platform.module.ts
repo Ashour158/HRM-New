@@ -21,6 +21,15 @@ import { FsmFramework } from './workflow/fsm-framework.js';
 import { TransitionLedgerService } from './workflow/transition-ledger.js';
 import { GuardLibrary } from './workflow/guard-library.js';
 import { WorkflowEngine } from './workflow/workflow-engine.js';
+import { ApprovalChainController } from './workflow/approval-chain.controller.js';
+import { ApprovalChainRepository } from './workflow/approval-chain.repository.js';
+import { ApprovalWorkflowService } from './workflow/approval-workflow.service.js';
+import {
+  ApproveApprovalStepHandler,
+  DelegateApprovalStepHandler,
+  EscalateApprovalChainOverdueHandler,
+  RejectApprovalStepHandler,
+} from './workflow/approval-chain.handlers.js';
 import { PlatformNotificationRepository } from './notifications/platform-notification.repository.js';
 import { PlatformNotificationService } from './notifications/platform-notification.service.js';
 import { EventNotificationBridge } from './notifications/event-notification-bridge.js';
@@ -67,6 +76,7 @@ const eventBusProvider = {
     DeadLetterOperationsController,
     EventContractsRegistryController,
     SchedulerController,
+    ApprovalChainController,
   ],
   providers: [
     eventBusProvider,
@@ -93,6 +103,12 @@ const eventBusProvider = {
     TransitionLedgerService,
     GuardLibrary,
     WorkflowEngine,
+    ApprovalChainRepository,
+    ApprovalWorkflowService,
+    ApproveApprovalStepHandler,
+    RejectApprovalStepHandler,
+    DelegateApprovalStepHandler,
+    EscalateApprovalChainOverdueHandler,
     PlatformNotificationRepository,
     PlatformNotificationService,
     EventNotificationBridge,
@@ -124,6 +140,8 @@ const eventBusProvider = {
     InboxConsumer,
     FsmFramework,
     WorkflowEngine,
+    ApprovalChainRepository,
+    ApprovalWorkflowService,
     GuardLibrary,
     TransitionLedgerService,
     RedisCacheService,

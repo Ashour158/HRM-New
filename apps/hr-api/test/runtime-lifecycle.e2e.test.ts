@@ -236,6 +236,15 @@ function expectSuccessful(response: request.Response, label: string): JsonRecord
   return data;
 }
 
+function expectStepId(records: JsonRecord[], state: string): string {
+  const step = records.find((record) => stringField(record, 'state') === state);
+  const id = step ? stringField(step, 'id') : undefined;
+  if (!id) {
+    throw new Error(`Could not find ${state} approval step in ${JSON.stringify(records)}`);
+  }
+  return id;
+}
+
 function headers(): Record<string, string> {
   return {
     Authorization: `Bearer ${authToken}`,
@@ -246,6 +255,15 @@ function headers(): Record<string, string> {
 function isoDate(daysFromNow = 0): string {
   const date = new Date(Date.UTC(2026, 5, 15 + daysFromNow, 9, 0, 0));
   return date.toISOString();
+}
+
+function uniqueBusinessIsoDate(dayOffset = 0): string {
+  const suffixNumber = Number.parseInt(suffix.slice(-4), 36);
+  const weekOffset = Number.isFinite(suffixNumber) ? suffixNumber % 240 : 0;
+  const base = new Date(Date.UTC(2034, 0, 1 + weekOffset * 7, 9, 0, 0));
+  const daysUntilMonday = (8 - base.getUTCDay()) % 7;
+  base.setUTCDate(base.getUTCDate() + daysUntilMonday + dayOffset);
+  return base.toISOString();
 }
 
 function shortCode(prefix: string): string {
@@ -374,6 +392,111 @@ describe.sequential('runtime HTTP lifecycle coverage', () => {
     await runCommand('/employee-relations/cases', id, 'resolve');
     const closed = await runCommand('/employee-relations/cases', id, 'close');
     expect(closed.newState ?? closed.status ?? asRecord(closed.data).status).toBe('CLOSED');
+  });
+
+  lifecycleIt('approval workflow gates a disciplinary command until delegated and escalated chain approval completes', async () => {
+    const configResponse = await apiPost('/platform/workflow/approval-config', {
+      rules: [
+        {
+          id: `disciplinary-approval-${suffix}`,
+          code: `DISCIPLINARY_APPROVAL_${suffix}`,
+          label: 'Disciplinary approval chain',
+          active: true,
+          commandName: 'ApproveDisciplinaryAction',
+          aggregateType: 'DisciplinaryAction',
+          slaHours: 0,
+          steps: [
+            {
+              code: 'HR_REVIEW',
+              label: 'HR review',
+              mode: 'SEQUENTIAL',
+              approverType: 'ROLE',
+              approverRole: 'HR_ADMIN',
+              slaHours: 0,
+              escalationTiers: [{ code: 'HR_ESCALATION', label: 'HR escalation', approverRole: 'HR_ADMIN', afterHours: 0 }],
+            },
+            {
+              code: 'FINAL_HR_SIGNOFF',
+              label: 'Final HR sign-off',
+              mode: 'SEQUENTIAL',
+              approverType: 'ROLE',
+              approverRole: 'HR_ADMIN',
+              slaHours: 24,
+            },
+          ],
+        },
+      ],
+    });
+    expectSuccessful(configResponse, 'POST /platform/workflow/approval-config');
+
+    const erCase = await apiPost('/employee-relations/cases', {
+      caseNumber: shortCode('ER-APPROVAL'),
+      subjectWorkerId: EMPLOYEE_ID,
+      caseType: 'DISCIPLINARY',
+      severity: 'HIGH',
+      description: 'Approval workflow case',
+      openedBy: HR_ADMIN_ID,
+      assignedTo: HR_ADMIN_ID,
+    });
+    const erCaseId = findId(erCase.body, ['employeeRelationsCaseId']);
+    const disciplinary = await apiPost('/employee-relations/disciplinary-actions', {
+      workerId: EMPLOYEE_ID,
+      erCaseId,
+      actionType: 'WRITTEN_WARNING',
+      severity: 'HIGH',
+      description: 'Requires approval workflow',
+      effectiveDate: isoDate(3),
+    });
+    const disciplinaryActionId = findId(disciplinary.body, ['disciplinaryActionId']);
+
+    const gated = await apiPost(`/employee-relations/disciplinary-actions/${disciplinaryActionId}/commands/approve`, {
+      approvedBy: HR_ADMIN_ID,
+    });
+    const gatedData = expectSuccessful(gated, 'POST disciplinary approve gated by workflow');
+    const approvalChainId = stringField(gatedData, 'approvalChainId') ?? stringField(asRecord(gatedData.data), 'approvalChainId');
+    expect(approvalChainId).toBeTruthy();
+    expect(gatedData.newState ?? gatedData.status ?? asRecord(gatedData.data).status).toBe('PENDING_APPROVAL');
+
+    const beforeApproval = await expectDetail(`/employee-relations/disciplinary-actions/${disciplinaryActionId}`, ['workerId', 'erCaseId']);
+    expect(beforeApproval.status).toBe('DRAFT');
+
+    const chainResponse = await apiGet(`/platform/workflow/approval-chains/${approvalChainId}`);
+    const chain = expectSuccessful(chainResponse, `GET /platform/workflow/approval-chains/${approvalChainId}`);
+    const chainSteps = collectRecords(chain.steps ?? asRecord(chain.data).steps);
+    const firstStepId = expectStepId(chainSteps, 'PENDING');
+
+    const delegated = await apiPost(`/platform/workflow/approval-chains/${approvalChainId}/steps/${firstStepId}/commands/delegate`, {
+      delegateToWorkerId: MANAGER_ID,
+      reason: 'Manager has direct case context',
+    });
+    const delegatedData = expectSuccessful(delegated, 'delegate approval step');
+    expect(delegatedData.newState ?? delegatedData.status ?? asRecord(delegatedData.data).status).toBe('IN_PROGRESS');
+
+    const escalated = await apiPost(`/platform/workflow/approval-chains/${approvalChainId}/commands/escalate-overdue`, {
+      now: isoDate(5),
+      reason: 'SLA elapsed',
+    });
+    const escalatedData = expectSuccessful(escalated, 'escalate approval chain');
+    expect(escalatedData.newState ?? escalatedData.status ?? asRecord(escalatedData.data).status).toBe('IN_PROGRESS');
+
+    await apiPost(`/platform/workflow/approval-chains/${approvalChainId}/steps/${firstStepId}/commands/approve`, {
+      reason: 'Delegated and escalated HR review complete',
+    }).then((response) => expectSuccessful(response, 'approve first approval step'));
+
+    const afterFirstStep = expectSuccessful(
+      await apiGet(`/platform/workflow/approval-chains/${approvalChainId}`),
+      `GET approval chain after first approval`,
+    );
+    const secondStepId = expectStepId(collectRecords(afterFirstStep.steps ?? asRecord(afterFirstStep.data).steps), 'PENDING');
+
+    const finalApproval = await apiPost(`/platform/workflow/approval-chains/${approvalChainId}/steps/${secondStepId}/commands/approve`, {
+      reason: 'Final sign-off complete',
+    });
+    const finalData = expectSuccessful(finalApproval, 'approve final approval step');
+    expect(finalData.newState ?? finalData.status ?? asRecord(finalData.data).status).toBe('APPROVED');
+
+    const afterApproval = await expectDetail(`/employee-relations/disciplinary-actions/${disciplinaryActionId}`, ['workerId', 'erCaseId']);
+    expect(afterApproval.status).toBe('APPROVED');
   });
 
   lifecycleIt('HR service delivery case moves through triage lifecycle', async () => {
@@ -626,13 +749,11 @@ describe.sequential('runtime HTTP lifecycle coverage', () => {
   });
 
   lifecycleIt('absence leave request submits and approves through real policy path', async () => {
-    const leaveStart = new Date(Date.UTC(2031, 0, 1 + (Number.parseInt(randomUUID().slice(0, 8), 16) % 365), 0, 0, 0));
-    const leaveEnd = new Date(leaveStart.getTime() + 24 * 60 * 60 * 1000);
     const create = await apiPost('/absence/leave/absence-requests', {
       workerId: EMPLOYEE_ID,
       absenceType: 'VACATION',
-      startDate: leaveStart.toISOString(),
-      endDate: leaveEnd.toISOString(),
+      startDate: uniqueBusinessIsoDate(0),
+      endDate: uniqueBusinessIsoDate(1),
       reason: 'Runtime lifecycle leave',
     });
     const id = findId(create.body, ['absenceRequestId']);

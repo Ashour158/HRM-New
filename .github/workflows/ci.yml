@@ -58,6 +58,9 @@ jobs:
       - name: Web content cleanliness
         run: pnpm --filter hr-web content:check
 
+      - name: Web i18n hardcoded string scan
+        run: pnpm --filter hr-web i18n:check
+
       - name: Web accessibility tests
         run: pnpm --filter hr-web test:a11y
 

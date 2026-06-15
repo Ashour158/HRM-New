@@ -99,6 +99,31 @@ export type PolicyRuleLedger = SetupOption & {
   notificationTemplate?: string;
 };
 
+export type ApprovalStepState = 'PENDING' | 'APPROVED' | 'REJECTED' | 'DELEGATED' | 'ESCALATED' | 'EXPIRED';
+
+export type ApprovalWorkflowStepRule = SetupOption & {
+  order: number;
+  mode: 'SEQUENTIAL' | 'PARALLEL';
+  approverType: 'ROLE' | 'WORKER';
+  approverRole?: string;
+  approverWorkerId?: string;
+  slaHours?: number;
+  escalationTiers?: Array<SetupOption & {
+    afterHours: number;
+    approverRole?: string;
+    approverWorkerId?: string;
+  }>;
+};
+
+export type ApprovalWorkflowRule = SetupOption & {
+  commandName: string;
+  aggregateType?: string;
+  minAmount?: number;
+  minDurationDays?: number;
+  slaHours?: number;
+  steps: ApprovalWorkflowStepRule[];
+};
+
 export type LeavePolicy = SetupOption & {
   unit: LeaveDurationUnit;
   paid: boolean;
@@ -589,6 +614,7 @@ export interface HcmSetupConfig {
   deiAnalyticsPolicyRuntime?: DeiAnalyticsPolicyRuntime;
   engagementPolicyRuntime?: EngagementPolicyRuntime;
   runtimePolicyRevisions?: RuntimePolicyRevisionEvidence[];
+  approvalWorkflowRules?: ApprovalWorkflowRule[];
 }
 
 export type HcmSetupUpdate = Partial<HcmSetupConfig>;

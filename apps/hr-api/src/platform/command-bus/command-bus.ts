@@ -15,7 +15,7 @@ import type {
 import { CommandPipelineStep } from '@hcm/command-contracts';
 import type { TenantConfig } from '@hcm/platform-core';
 import { TenantValidator, RedisCacheService, tenantResolver } from '@hcm/platform-core';
-import { AccessControlService } from '@hcm/access-control';
+import { AccessControlService, type AccessControlDecision } from '@hcm/access-control';
 import { FieldAccessDecision } from '@hcm/access-control';
 import { selfServiceAuthorityEngine } from '@hcm/policy-engines';
 import { EventBus } from '../event-bus/event-bus.js';
@@ -23,6 +23,7 @@ import { outboxMetadataForEvent } from '../outbox-inbox/outbox-event-envelope.js
 import type { FsmInstance } from '../workflow/fsm-framework.js';
 import { FsmFramework } from '../workflow/fsm-framework.js';
 import { TransitionLedgerService } from '../workflow/transition-ledger.js';
+import { ApprovalWorkflowService } from '../workflow/approval-workflow.service.js';
 import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
 import type {
   AllowedActionPolicyOverride,
@@ -115,6 +116,8 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   Offer: aggregateLoader('hr_recruiting.offers'),
   OnboardingPlan: aggregateLoader('hr_onboarding.onboarding_plans'),
   OnboardingTask: aggregateLoader('hr_onboarding.onboarding_tasks'),
+
+  ApprovalChain: aggregateLoader('hr_workflow.approval_chains'),
 
   CompensationPlan: aggregateLoader('compensation_plans'),
   CompensationBand: aggregateLoader('compensation_bands'),
@@ -366,6 +369,7 @@ export class CommandBus implements OnModuleInit {
     @Inject(TransitionLedgerService) private readonly transitionLedger: TransitionLedgerService,
     @Inject(EventBus) _eventBus: EventBus,
     @Optional() @Inject(HcmSetupService) private readonly hcmSetup?: Pick<HcmSetupService, 'getSetup'>,
+    @Optional() @Inject(ApprovalWorkflowService) private readonly approvalWorkflow?: ApprovalWorkflowService,
   ) {
     this.db = createKyselyInstance(getPool());
     this.tenantValidator = new TenantValidator(this.db);
@@ -381,6 +385,7 @@ export class CommandBus implements OnModuleInit {
         this.handlers.set(commandName, instance as CommandHandler);
       }
     }
+    this.approvalWorkflow?.bindCommandExecutor((command) => this.execute(command));
   }
 
   registerHandler(commandName: string, handler: CommandHandler): void {
@@ -428,7 +433,7 @@ export class CommandBus implements OnModuleInit {
         await this.stepEvaluateFieldPolicy(command);
 
         step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
-        await this.stepEvaluateRbac(command);
+        const rbacDecision = await this.evaluateRbacDecision(command);
 
         step = CommandPipelineStep.EVALUATE_COMMAND_AUTHORIZATION_ROLE_SCOPE;
         await this.stepEvaluateRuntimeAccessGovernance(command);
@@ -452,6 +457,25 @@ export class CommandBus implements OnModuleInit {
         await this.stepEvaluateSoD(command);
 
         step = CommandPipelineStep.PERFORM_DOMAIN_TRANSITION_THROUGH_AGGREGATE_METHOD;
+        const approvalResult = await this.approvalWorkflow?.gateCommand(
+          command,
+          ((await this.getRuntimeSetup(command)) ?? {}) as HcmSetupConfig,
+          rbacDecision,
+        );
+        if (approvalResult) {
+          const completedPolicyDecisionEvidence = this.completePolicyDecisionEvidence(policyDecisionEvidence, approvalResult);
+          const auditRecordId = await this.stepWriteAuditRecord(_tx, command, approvalResult, completedPolicyDecisionEvidence);
+          await this.stepWriteOutbox(_tx, command, approvalResult, completedPolicyDecisionEvidence);
+          await this.stepWritePolicyDecisionEvidence(_tx, command, approvalResult, completedPolicyDecisionEvidence);
+          const enriched = {
+            ...approvalResult,
+            auditRecordId,
+            policyDecisionEvidence: completedPolicyDecisionEvidence ? [completedPolicyDecisionEvidence] : [],
+          } as unknown as CommandResult<TResult>;
+          await this.stepStoreIdempotencyResult(_tx, command, enriched);
+          return enriched as CommandOutcome<TResult>;
+        }
+
         const handler = this.handlers.get(command.commandName);
         if (!handler) {
           throw this.makeError(
@@ -793,7 +817,11 @@ export class CommandBus implements OnModuleInit {
 
   }
 
-  private async stepEvaluateRbac(command: HrCommandEnvelope<unknown>): Promise<void> {
+  async stepEvaluateRbac(command: HrCommandEnvelope<unknown>): Promise<void> {
+    await this.evaluateRbacDecision(command);
+  }
+
+  private async evaluateRbacDecision(command: HrCommandEnvelope<unknown>): Promise<AccessControlDecision> {
     const actorType = this.mapActorType(command.actor.actorType, command.actor.roles);
     const acCommand = {
       commandName: command.commandName,
@@ -819,6 +847,7 @@ export class CommandBus implements OnModuleInit {
       );
     }
 
+    return decision;
   }
 
   private async stepEvaluateRuntimeAccessGovernance(command: HrCommandEnvelope<unknown>): Promise<void> {
@@ -828,6 +857,7 @@ export class CommandBus implements OnModuleInit {
 
   private async stepEnforceAppliedPolicyRevision(command: HrCommandEnvelope<unknown>): Promise<CommandPolicyDecisionEvidence | undefined> {
     if (command.actor.actorType === 'SYSTEM') return undefined;
+    if (command.aggregateType === 'ApprovalChain') return undefined;
 
     const requiredArea = requiredPolicyAreaForCommand(command);
     if (!requiredArea) return undefined;
@@ -1415,6 +1445,9 @@ export class CommandBus implements OnModuleInit {
     if (command.actor.actorType === 'SYSTEM' || command.actor.actorType === 'SERVICE_ACCOUNT') {
       return;
     }
+    if (command.aggregateType === 'ApprovalChain') {
+      return;
+    }
 
     const subjectWorkerId = this.resolveSubjectWorkerId(command);
     const decision = await selfServiceAuthorityEngine.execute({
@@ -1553,7 +1586,7 @@ export class CommandBus implements OnModuleInit {
     result: CommandResult<unknown>,
   ): Promise<void> {
     await this.transitionLedger.recordTransition({
-      id: crypto.randomUUID() as unknown as Uuid,
+      id: Uuid.generate(),
       tenantId: command.tenantId,
       aggregateType: command.aggregateType,
       aggregateId: result.aggregateId,
