@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import { SAML, ValidateInResponseTo, type CacheItem, type CacheProvider } from '@node-saml/node-saml';
 import { randomUUID } from 'node:crypto';
 import { AuthService, type AuthTokenPair } from './auth.service.js';
@@ -28,14 +28,22 @@ export interface SamlClientLike {
   metadata(input: { provider: TenantIdentityProviderRecord; acsUrl: string }): string;
 }
 
+export const SSO_SAML_CLIENT = Symbol('SSO_SAML_CLIENT');
+
 @Injectable()
 export class SsoSamlService {
+  private readonly samlClient: SamlClientLike;
+
   constructor(
-    private readonly providers: Pick<TenantIdentityProviderRepository, 'findEnabledByProtocol'> = new TenantIdentityProviderRepository(),
-    private readonly transactions: SsoAuthTransactionRepositoryLike = new SsoAuthTransactionRepository(),
-    private readonly authService: AuthService = new AuthService(),
-    private readonly samlClient: SamlClientLike = new NodeSamlClient(new SsoAuthTransactionRepository()),
-  ) {}
+    @Inject(TenantIdentityProviderRepository)
+    private readonly providers: Pick<TenantIdentityProviderRepository, 'findEnabledByProtocol'>,
+    @Inject(SsoAuthTransactionRepository)
+    private readonly transactions: SsoAuthTransactionRepositoryLike,
+    private readonly authService: AuthService,
+    @Optional() @Inject(SSO_SAML_CLIENT) samlClient?: SamlClientLike,
+  ) {
+    this.samlClient = samlClient ?? new NodeSamlClient(transactions);
+  }
 
   async start(tenantId: string, apiBaseUrl: string): Promise<{ redirectUrl: string }> {
     const provider = await this.providers.findEnabledByProtocol(tenantId, 'SAML');
@@ -71,7 +79,7 @@ export class SsoSamlService {
       throw new UnauthorizedException('SAML provider is no longer enabled');
     }
 
-    const profile = await this.samlClient.validatePostResponse({
+    const profile = await this.validatedProfile({
       provider,
       tenantId,
       acsUrl: transaction.redirectUri,
@@ -100,6 +108,21 @@ export class SsoSamlService {
     const provider = await this.providers.findEnabledByProtocol(tenantId, 'SAML');
     if (!provider) throw new BadRequestException('SAML is not configured for this tenant');
     return this.samlClient.metadata({ provider, acsUrl: samlAcsUrl(apiBaseUrl, tenantId) });
+  }
+
+  private async validatedProfile(input: {
+    provider: TenantIdentityProviderRecord;
+    tenantId: string;
+    acsUrl: string;
+    samlResponse: string;
+    relayState?: string;
+  }): Promise<Record<string, unknown>> {
+    try {
+      return await this.samlClient.validatePostResponse(input);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'SAML validation failed';
+      throw new UnauthorizedException(`Invalid SAML assertion: ${message}`);
+    }
   }
 }
 

@@ -86,8 +86,8 @@ export class UsersRepository {
         last_name: input.lastName ?? '',
         password_hash: input.passwordHash,
         status: input.status ?? 'ACTIVE',
-        roles: input.roles ?? [],
-        permissions: input.permissions ?? [],
+        roles: toJsonb(input.roles ?? []),
+        permissions: toJsonb(input.permissions ?? []),
         idp_provider: input.idpProvider ?? null,
         external_id: input.externalId ?? null,
         failed_login_count: 0,
@@ -170,6 +170,10 @@ export class UsersRepository {
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
+}
+
+function toJsonb(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 function stringArray(value: unknown): string[] {

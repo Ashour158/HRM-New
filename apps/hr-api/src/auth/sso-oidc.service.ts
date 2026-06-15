@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Optional, UnauthorizedException } from '@nestjs/common';
 import {
   buildAuthorizationUrl,
   authorizationCodeGrant,
@@ -39,14 +39,22 @@ export interface OidcClientLike {
   }): Promise<Record<string, unknown>>;
 }
 
+export const SSO_OIDC_CLIENT = Symbol('SSO_OIDC_CLIENT');
+
 @Injectable()
 export class SsoOidcService {
+  private readonly oidcClient: OidcClientLike;
+
   constructor(
-    private readonly providers: Pick<TenantIdentityProviderRepository, 'findEnabledByProtocol'> = new TenantIdentityProviderRepository(),
-    private readonly transactions: SsoAuthTransactionRepositoryLike = new SsoAuthTransactionRepository(),
-    private readonly authService: AuthService = new AuthService(),
-    private readonly oidcClient: OidcClientLike = new OpenIdClientAdapter(),
-  ) {}
+    @Inject(TenantIdentityProviderRepository)
+    private readonly providers: Pick<TenantIdentityProviderRepository, 'findEnabledByProtocol'>,
+    @Inject(SsoAuthTransactionRepository)
+    private readonly transactions: SsoAuthTransactionRepositoryLike,
+    private readonly authService: AuthService,
+    @Optional() @Inject(SSO_OIDC_CLIENT) oidcClient?: OidcClientLike,
+  ) {
+    this.oidcClient = oidcClient ?? new OpenIdClientAdapter();
+  }
 
   async start(tenantId: string, apiBaseUrl: string): Promise<{ redirectUrl: string }> {
     const provider = await this.providers.findEnabledByProtocol(tenantId, 'OIDC');

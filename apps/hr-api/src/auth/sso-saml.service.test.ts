@@ -1,4 +1,3 @@
-import { Uuid } from '@hcm/shared-kernel';
 import bcrypt from 'bcrypt';
 import { describe, expect, it } from 'vitest';
 import { AuthService, type AuthSession } from './auth.service.js';

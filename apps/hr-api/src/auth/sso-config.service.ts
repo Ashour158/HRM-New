@@ -136,11 +136,17 @@ export class SsoConfigService {
   }
 
   private assertManage(actor: HrActor, tenantId: string): void {
-    const actorTenantId = (actor as HrActor & { tenantId?: { value?: string } }).tenantId?.value;
+    const actorTenantId = tenantIdFromActor(actor);
     if (actorTenantId !== tenantId || !actor.permissions.includes('SSO_MANAGE')) {
       throw new ForbiddenException('SSO configuration requires SSO_MANAGE');
     }
   }
+}
+
+function tenantIdFromActor(actor: HrActor): string | undefined {
+  const value = (actor as HrActor & { tenantId?: string | { value?: string } }).tenantId;
+  if (typeof value === 'string') return value;
+  return value?.value;
 }
 
 function toResponse(record: TenantIdentityProviderRecord): SsoConfigResponse {

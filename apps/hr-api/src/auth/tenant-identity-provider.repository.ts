@@ -68,13 +68,13 @@ export class TenantIdentityProviderRepository {
         display_name: input.displayName,
         enabled: input.enabled ?? false,
         jit_provisioning: input.jitProvisioning ?? true,
-        default_roles: input.defaultRoles ?? ['EMPLOYEE'],
-        attribute_mapping: input.attributeMapping ?? {},
-        group_role_mapping: input.groupRoleMapping ?? {},
+        default_roles: toJsonb(input.defaultRoles ?? ['EMPLOYEE']),
+        attribute_mapping: toJsonb(input.attributeMapping ?? {}),
+        group_role_mapping: toJsonb(input.groupRoleMapping ?? {}),
         oidc_issuer_url: input.oidcIssuerUrl ?? null,
         oidc_client_id: input.oidcClientId ?? null,
         oidc_client_secret_enc: input.oidcClientSecretEnc ?? null,
-        oidc_scopes: input.oidcScopes ?? ['openid', 'email', 'profile'],
+        oidc_scopes: toJsonb(input.oidcScopes ?? ['openid', 'email', 'profile']),
         saml_idp_entity_id: input.samlIdpEntityId ?? null,
         saml_idp_sso_url: input.samlIdpSsoUrl ?? null,
         saml_idp_x509_cert: input.samlIdpX509Cert ?? null,
@@ -134,13 +134,13 @@ export class TenantIdentityProviderRepository {
     if (patch.displayName !== undefined) values.display_name = patch.displayName;
     if (patch.enabled !== undefined) values.enabled = patch.enabled;
     if (patch.jitProvisioning !== undefined) values.jit_provisioning = patch.jitProvisioning;
-    if (patch.defaultRoles !== undefined) values.default_roles = patch.defaultRoles;
-    if (patch.attributeMapping !== undefined) values.attribute_mapping = patch.attributeMapping;
-    if (patch.groupRoleMapping !== undefined) values.group_role_mapping = patch.groupRoleMapping;
+    if (patch.defaultRoles !== undefined) values.default_roles = toJsonb(patch.defaultRoles);
+    if (patch.attributeMapping !== undefined) values.attribute_mapping = toJsonb(patch.attributeMapping);
+    if (patch.groupRoleMapping !== undefined) values.group_role_mapping = toJsonb(patch.groupRoleMapping);
     if (patch.oidcIssuerUrl !== undefined) values.oidc_issuer_url = patch.oidcIssuerUrl;
     if (patch.oidcClientId !== undefined) values.oidc_client_id = patch.oidcClientId;
     if (patch.oidcClientSecretEnc !== undefined) values.oidc_client_secret_enc = patch.oidcClientSecretEnc;
-    if (patch.oidcScopes !== undefined) values.oidc_scopes = patch.oidcScopes;
+    if (patch.oidcScopes !== undefined) values.oidc_scopes = toJsonb(patch.oidcScopes);
     if (patch.samlIdpEntityId !== undefined) values.saml_idp_entity_id = patch.samlIdpEntityId;
     if (patch.samlIdpSsoUrl !== undefined) values.saml_idp_sso_url = patch.samlIdpSsoUrl;
     if (patch.samlIdpX509Cert !== undefined) values.saml_idp_x509_cert = patch.samlIdpX509Cert;
@@ -158,6 +158,10 @@ export class TenantIdentityProviderRepository {
   async delete(id: string): Promise<void> {
     await this.db.deleteFrom('tenant_identity_providers').where('id', '=', id).execute();
   }
+}
+
+function toJsonb(value: unknown): string {
+  return JSON.stringify(value);
 }
 
 function stringArray(value: unknown): string[] {

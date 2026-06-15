@@ -66,6 +66,24 @@ describe('SsoConfigService', () => {
       ],
     });
   });
+
+  it('accepts the string tenant claim attached by authenticated JWT actors', async () => {
+    const repo = new InMemoryTenantIdentityProviderRepository();
+    const service = new SsoConfigService(repo);
+    const jwtActor = { ...actor, tenantId };
+
+    const created = await service.create(jwtActor, tenantId, {
+      protocol: 'SAML',
+      displayName: 'Corporate SAML',
+      enabled: true,
+      samlIdpEntityId: 'urn:corporate:idp',
+      samlIdpSsoUrl: 'https://idp.example.com/sso',
+      samlIdpX509Cert: 'cert',
+    });
+
+    expect(created.tenantId).toBe(tenantId);
+    expect(created.hasSamlSpPrivateKey).toBe(false);
+  });
 });
 
 function actorWithoutSsoManage() {
