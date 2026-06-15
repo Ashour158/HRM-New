@@ -8,6 +8,7 @@ const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default
 const RegisterPage = lazy(() => import('@/pages/register').then((module) => ({ default: module.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
 const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
+const NotificationsPage = lazy(() => import('@/pages/notifications').then((module) => ({ default: module.NotificationsPage })));
 const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
 const EmployeeAttendanceAction = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeAttendanceAction })));
 const EmployeeProfile = lazy(() => import('@/pages/employee/profile').then((module) => ({ default: module.EmployeeProfile })));
@@ -374,6 +375,20 @@ export function AppRoutes() {
                 </PortalLayout>
               </AppLayout>
             </RequireRoles>
+          </RequireAuth>
+        }
+      />
+
+      {/* Notifications inbox (any authenticated user) */}
+      <Route
+        path="/notifications"
+        element={
+          <RequireAuth>
+            <AppLayout>
+              <PortalLayout>
+                <NotificationsPage />
+              </PortalLayout>
+            </AppLayout>
           </RequireAuth>
         }
       />

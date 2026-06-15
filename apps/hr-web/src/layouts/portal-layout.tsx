@@ -10,20 +10,12 @@ import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CommandPalette, type CommandPaletteItem } from '@/components/ui/command-palette';
+import { NotificationCenter } from '@/components/ui/notification-center';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { LanguageSwitcher } from '@/i18n/language-switcher';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
   BarChart3,
   BadgeDollarSign,
-  Bell,
   BrainCircuit,
   Briefcase,
   ChevronDown,
@@ -72,15 +64,6 @@ interface PortalConfig {
   description: string;
   navItems: PortalNavItem[];
   theme: PortalType;
-}
-
-interface PlatformNotification {
-  id: string;
-  title: string;
-  body: string;
-  category: string;
-  readAt?: string;
-  createdAt: string;
 }
 
 const portalConfigs: Record<PortalType, PortalConfig> = {
@@ -314,9 +297,6 @@ function WorkspaceShell({
       },
     });
   }, [canSeeSystemConsole, config.navItems, config.title, hasPermission, meInbox, portalType, railItems, t]);
-  const notificationPath = portalType === 'admin' || portalType === 'recruiter' || portalType === 'payroll'
-    ? '/notifications/hr-operations'
-    : '/notifications/me';
   const primaryActionPath = portalType === 'admin'
     ? '/admin/system-console'
     : portalType === 'recruiter'
@@ -331,13 +311,6 @@ function WorkspaceShell({
       : portalType === 'payroll'
         ? 'Run Payroll'
         : 'New Request';
-  const { data: notificationsRaw } = useApiQuery<PlatformNotification[]>(
-    ['platform-notifications', portalType],
-    notificationPath,
-    { enabled: Boolean(user), retry: false },
-  );
-  const notifications = notificationsRaw ?? [];
-  const unreadNotifications = notifications.filter((notification) => !notification.readAt).length;
   const scrollWorkspace = React.useCallback((direction: -1 | 1) => {
     window.scrollBy({
       top: direction * Math.max(window.innerHeight * 0.8, 360),
