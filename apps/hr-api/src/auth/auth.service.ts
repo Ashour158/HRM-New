@@ -13,6 +13,7 @@ import jwt from 'jsonwebtoken';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { generateSecret, generateURI, verify } from 'otplib';
 import * as QRCode from 'qrcode';
+import { getRoleDefinition } from '@hcm/access-control';
 import { AuthSessionStore, type AuthSessionStoreLike } from './auth-session.store.js';
 import { AuthTokenRepository, type AuthTokenRecord, type AuthTokenType } from './auth-token.repository.js';
 import { UsersRepository, type StoredAuthUser } from './users.repository.js';
@@ -44,6 +45,20 @@ export interface AuthTokenPair {
   token: string;
   refreshToken: string;
   session: AuthSession;
+}
+
+export interface SsoUserResolutionInput {
+  tenantId: string;
+  idpProvider: 'OIDC' | 'SAML';
+  externalId: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  groups?: string[];
+  jitProvisioning: boolean;
+  defaultRoles: string[];
+  groupRoleMapping: Record<string, string[]>;
+  mfaAuthenticated?: boolean;
 }
 
 export interface RegisterAuthUserInput {
@@ -254,6 +269,47 @@ export class AuthService {
     }
 
     return this.toAuthUser(user);
+  }
+
+  async createSessionForSsoUser(input: SsoUserResolutionInput): Promise<AuthTokenPair> {
+    const email = normalizeEmail(input.email);
+    validateEmail(email);
+    const existingByExternalId = await this.users.findByExternalId(input.tenantId, input.idpProvider, input.externalId);
+    if (existingByExternalId) {
+      return this.createSession(this.toAuthUser(existingByExternalId), { mfaAuthenticated: input.mfaAuthenticated ?? true });
+    }
+
+    const existingByEmail = await this.users.findByEmail(input.tenantId, email);
+    if (existingByEmail) {
+      if (
+        existingByEmail.idpProvider
+        && (existingByEmail.idpProvider !== input.idpProvider || existingByEmail.externalId !== input.externalId)
+      ) {
+        throw new UnauthorizedException('SSO account is linked to a different identity provider');
+      }
+      const linked = await this.users.linkIdentityProvider(existingByEmail.id, input.idpProvider, input.externalId);
+      if (!linked) throw new UnauthorizedException('Unable to link SSO account');
+      return this.createSession(this.toAuthUser(linked), { mfaAuthenticated: input.mfaAuthenticated ?? true });
+    }
+
+    if (!input.jitProvisioning) {
+      throw new UnauthorizedException('No local account exists for this SSO user; contact your administrator');
+    }
+
+    const roles = rolesFromSsoGroups(input.groups ?? [], input.defaultRoles, input.groupRoleMapping);
+    const created = await this.users.createWithIdentityProvider({
+      tenantId: input.tenantId,
+      email,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      status: 'ACTIVE',
+      roles,
+      permissions: permissionsForRoles(roles),
+      idpProvider: input.idpProvider,
+      externalId: input.externalId,
+    });
+
+    return this.createSession(this.toAuthUser(created), { mfaAuthenticated: input.mfaAuthenticated ?? true });
   }
 
   async createSession(user: AuthUser, options?: { mfaAuthenticated?: boolean }): Promise<AuthTokenPair> {
@@ -559,4 +615,24 @@ function validatePasswordPolicy(password: string): void {
 
 function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
+}
+
+function rolesFromSsoGroups(groups: string[], defaultRoles: string[], groupRoleMapping: Record<string, string[]>): string[] {
+  const roles = new Set(defaultRoles.length > 0 ? defaultRoles : ['EMPLOYEE']);
+  for (const group of groups) {
+    for (const role of groupRoleMapping[group] ?? []) roles.add(role);
+  }
+  return Array.from(roles);
+}
+
+function permissionsForRoles(roles: string[]): string[] {
+  const permissions = new Set<string>();
+  for (const role of roles) {
+    try {
+      getRoleDefinition(role as Parameters<typeof getRoleDefinition>[0]).defaultPermissions.forEach((permission) => permissions.add(permission));
+    } catch {
+      // Ignore unknown IdP mapped roles instead of granting broad access.
+    }
+  }
+  return Array.from(permissions);
 }

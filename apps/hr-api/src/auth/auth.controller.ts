@@ -9,16 +9,18 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import { Public } from '../decorators/public.decorator.js';
 import { Permissions } from '../decorators/permissions.decorator.js';
 import { AuthService, type AuthUser } from './auth.service.js';
 import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
 import { SsoConfigService, type SsoConfigInput } from './sso-config.service.js';
+import { SsoOidcService } from './sso-oidc.service.js';
 
 interface LoginDto {
   email: string;
@@ -65,6 +67,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly ssoConfigService: SsoConfigService,
+    private readonly ssoOidcService: SsoOidcService,
   ) {}
 
   @Post('login')
@@ -221,6 +224,20 @@ export class AuthController {
     return this.ssoConfigService.remove(req.actor, this.authenticatedTenantId(req), id);
   }
 
+  @Get('sso/oidc/:tenantId/start')
+  @Public()
+  async startOidc(@Req() req: Request, @Param('tenantId') tenantId: string, @Res() res: Response) {
+    const result = await this.ssoOidcService.start(tenantId, this.apiBaseUrl(req));
+    res.redirect(302, result.redirectUrl);
+  }
+
+  @Get('sso/oidc/:tenantId/callback')
+  @Public()
+  async oidcCallback(@Req() req: Request, @Param('tenantId') tenantId: string, @Res() res: Response) {
+    const credentials = await this.ssoOidcService.callback(tenantId, absoluteRequestUrl(req));
+    res.redirect(302, webSsoCallbackUrl(req, credentials.token, credentials.refreshToken));
+  }
+
   private resolveTenantId(req: Request, tenantId?: string): string {
     const header = req.headers['x-tenant-id'];
     const headerTenantId = Array.isArray(header) ? header[0] : header;
@@ -253,4 +270,20 @@ export class AuthController {
       }),
     };
   }
+
+  private apiBaseUrl(req: Request): string {
+    return `${req.protocol}://${req.get('host')}`;
+  }
+}
+
+function absoluteRequestUrl(req: Request): URL {
+  return new URL(`${req.protocol}://${req.get('host')}${req.originalUrl || req.url}`);
+}
+
+function webSsoCallbackUrl(req: Request, token: string, refreshToken: string): string {
+  const origin = req.get('x-web-callback-origin') || 'http://localhost:4173';
+  const url = new URL('/auth/sso/callback', origin);
+  url.searchParams.set('token', token);
+  url.searchParams.set('refreshToken', refreshToken);
+  return url.toString();
 }

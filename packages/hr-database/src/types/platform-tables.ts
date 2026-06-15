@@ -314,6 +314,23 @@ export interface TenantIdentityProvidersTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface SsoAuthTransactionsTable {
+  id: string;
+  tenant_id: string;
+  provider_id: string;
+  protocol: string;
+  state: string;
+  pkce_verifier: string | null;
+  nonce: string | null;
+  relay_state: string | null;
+  redirect_uri: string | null;
+  expires_at: ColumnType<Date, string | Date, string | Date>;
+  consumed_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface AuthSessionsTable {
   id: string;
   tenant_id: string;
@@ -2318,6 +2335,7 @@ export interface Database {
   user_roles: UserRolesTable;
   users: UsersTable;
   tenant_identity_providers: TenantIdentityProvidersTable;
+  sso_auth_transactions: SsoAuthTransactionsTable;
   auth_sessions: AuthSessionsTable;
   auth_tokens: AuthTokensTable;
   service_accounts: ServiceAccountsTable;

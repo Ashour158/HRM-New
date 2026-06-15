@@ -55,8 +55,11 @@ describe('auth hardening', () => {
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.requestPasswordReset)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.confirmPasswordReset)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.providers)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.startOidc)).toBe(true);
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.oidcCallback)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.me)).toBeUndefined();
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.invite)).toBeUndefined();
+    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.createSsoConfig)).toBeUndefined();
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.setupMfa)).toBeUndefined();
   });
 
