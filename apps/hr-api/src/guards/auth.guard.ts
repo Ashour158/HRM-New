@@ -95,7 +95,8 @@ export class AuthGuard implements CanActivate {
       }) as JwtPayload;
 
       request.actor = this.buildActorFromJwt(payload);
-      (request.actor as HrActor & { email?: string }).email = payload.email;
+      (request.actor as HrActor & { email?: string; tenantId?: string }).email = payload.email;
+      (request.actor as HrActor & { email?: string; tenantId?: string }).tenantId = payload.tenant_id;
       return true;
     } catch {
       throw new UnauthorizedException('Invalid or expired token');

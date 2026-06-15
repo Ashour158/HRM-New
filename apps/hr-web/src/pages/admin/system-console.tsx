@@ -565,6 +565,7 @@ export function AdminSystemConsole() {
   const primaryRole = user?.roles?.[0]?.name?.replace(/_/g, ' ') ?? 'Administrator';
   const adminPanelTools: AdminPanelTool[] = [
     { label: 'Access Governance', description: 'Users, roles, service accounts, access reviews, sensitive-field access, and duty conflicts.', group: 'Foundation', path: '/admin/system-console/access-governance', icon: UserCog, tone: 'text-[#f59e0b]' },
+    { label: 'Single Sign-On', description: 'Tenant OIDC and SAML identity providers, JIT provisioning, role mapping, and encrypted secrets.', group: 'Foundation', path: '/admin/system-console/sso', icon: KeyRound, tone: 'text-[#6366f1]' },
     { label: 'Company Setup', description: 'Departments, locations, employee IDs, required fields, documents, and policy defaults.', group: 'Foundation', path: '/admin/system-console/settings', icon: Settings, tone: 'text-[#f59e0b]' },
     { label: 'Organization Structure', description: 'Legal entities, org units, departments, managers, and reporting lines.', group: 'Foundation', path: '/admin/organization', icon: Building2, tone: 'text-[#818cf8]' },
     { label: 'Employee Master Data', description: 'Employee records, digital files, employment lifecycle, and worker status.', group: 'Foundation', path: '/admin/employees', icon: Landmark, tone: 'text-[#4f46e5]' },

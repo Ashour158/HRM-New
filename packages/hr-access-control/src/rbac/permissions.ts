@@ -95,6 +95,7 @@ export const INTELLIGENCE_READ = 'INTELLIGENCE_READ';
 export const ADMIN_SYSTEM = 'ADMIN_SYSTEM';
 export const ADMIN_TENANT = 'ADMIN_TENANT';
 export const ADMIN_SECURITY = 'ADMIN_SECURITY';
+export const SSO_MANAGE = 'SSO_MANAGE';
 
 /** All canonical permissions as an array. */
 export const ALL_PERMISSIONS: readonly string[] = [
@@ -114,7 +115,7 @@ export const ALL_PERMISSIONS: readonly string[] = [
   SERVICE_READ, SERVICE_REQUEST, SERVICE_MANAGE,
   COMPLIANCE_READ, COMPLIANCE_MANAGE, LEGAL_HOLD_MANAGE,
   REPORT_READ, REPORT_CREATE, REPORT_EXPORT, INTELLIGENCE_READ,
-  ADMIN_SYSTEM, ADMIN_TENANT, ADMIN_SECURITY,
+  ADMIN_SYSTEM, ADMIN_TENANT, ADMIN_SECURITY, SSO_MANAGE,
 ];
 
 /** Data classification levels required to exercise a permission. */
@@ -207,6 +208,7 @@ const PERMISSION_CATALOG: Record<string, PermissionDefinition> = {
   [ADMIN_SYSTEM]: { code: ADMIN_SYSTEM, description: 'System administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ADMIN_TENANT]: { code: ADMIN_TENANT, description: 'Tenant administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
   [ADMIN_SECURITY]: { code: ADMIN_SECURITY, description: 'Security administration', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
+  [SSO_MANAGE]: { code: SSO_MANAGE, description: 'Manage tenant SSO identity providers', dataClassificationRequired: 'HIGH_SENSITIVITY', auditOnAccess: true },
 };
 
 /** Retrieve permission definition by code. */

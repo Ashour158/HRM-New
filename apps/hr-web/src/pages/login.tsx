@@ -32,25 +32,33 @@ function createLoginSchema(t: (key: string) => string) {
 
 const authProvidersSchema = z.object({
   local: z.object({ enabled: z.boolean() }),
+  providers: z.array(z.object({
+    id: z.string(),
+    protocol: z.enum(['OIDC', 'SAML']),
+    displayName: z.string(),
+    startUrl: z.string(),
+  })).default([]),
   oidc: z.object({
     enabled: z.boolean(),
     issuerUrl: z.string().optional(),
     clientId: z.string().optional(),
     redirectUri: z.string().optional(),
-  }),
+  }).optional(),
   saml: z.object({
     enabled: z.boolean(),
     metadataUrl: z.string().optional(),
     entityId: z.string().optional(),
-  }),
+  }).optional(),
   mfa: z.object({
     required: z.boolean(),
-  }),
+  }).optional(),
   session: z.object({
     accessTokenTtl: z.string(),
     refreshTokenTtl: z.string(),
-  }),
+  }).optional(),
 });
+
+type SsoDiscoveryProvider = NonNullable<AuthProvidersResponse['providers']>[number];
 
 interface LoginFormData {
   email: string;
@@ -73,6 +81,7 @@ export function LoginPage() {
   const [authProviders, setAuthProviders] = React.useState<AuthProvidersResponse | null>(null);
   const [providersLoading, setProvidersLoading] = React.useState(true);
   const [providerError, setProviderError] = React.useState('');
+  const selectedTenantId = formData.tenantId || tenants[0]?.id || '';
 
   React.useEffect(() => {
     if (isAuthenticated) {
@@ -89,8 +98,17 @@ export function LoginPage() {
   React.useEffect(() => {
     let cancelled = false;
 
+    if (!selectedTenantId) {
+      setProvidersLoading(false);
+      setAuthProviders(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setProvidersLoading(true);
     apiClient
-      .get<ApiResponse<AuthProvidersResponse>>('/auth/providers')
+      .get<ApiResponse<AuthProvidersResponse>>(`/auth/providers?tenantId=${encodeURIComponent(selectedTenantId)}`)
       .then((response) => {
         if (cancelled) return;
         const parsed = authProvidersSchema.safeParse(response.data.data);
@@ -114,13 +132,13 @@ export function LoginPage() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [selectedTenantId, t]);
 
-  const ssoProvider = authProviders?.oidc.enabled ? 'OIDC' : authProviders?.saml.enabled ? 'SAML' : null;
+  const ssoProviders = authProviders?.providers ?? [];
   const ssoStatusText = providersLoading
     ? t('login.ssoChecking')
-    : ssoProvider
-      ? t('login.ssoAvailable', { provider: ssoProvider })
+    : ssoProviders.length > 0
+      ? t('login.ssoAvailable', { count: ssoProviders.length })
       : providerError || t('login.ssoNotConfigured');
 
   const validate = (): boolean => {
@@ -141,13 +159,13 @@ export function LoginPage() {
     }
   };
 
-  const handleSsoLogin = () => {
-    if (!ssoProvider) return;
-
+  const handleSsoLogin = (provider: SsoDiscoveryProvider) => {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1';
-    const tenantId = formData.tenantId || tenants[0]?.id || '';
-    const providerPath = ssoProvider === 'OIDC' ? 'oidc' : 'saml';
-    window.location.assign(`${baseUrl}/auth/${providerPath}/start?tenantId=${encodeURIComponent(tenantId)}`);
+    const origin = new URL(baseUrl).origin;
+    const target = provider.startUrl.startsWith('http')
+      ? provider.startUrl
+      : `${origin}${provider.startUrl.startsWith('/') ? provider.startUrl : `/${provider.startUrl}`}`;
+    window.location.assign(target);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -387,17 +405,35 @@ export function LoginPage() {
                   <div className="h-px flex-1 bg-[#e2e8f0]/50" />
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 w-full gap-2"
-                  disabled={providersLoading || !ssoProvider}
-                  aria-describedby="sso-status"
-                  onClick={handleSsoLogin}
-                >
-                  <KeyRound className="h-4 w-4" />
-                  {t('login.ssoButton')}
-                </Button>
+                {ssoProviders.length > 0 ? (
+                  <div className="grid gap-2">
+                    {ssoProviders.map((provider) => (
+                      <Button
+                        key={provider.id}
+                        type="button"
+                        variant="outline"
+                        className="h-11 w-full gap-2"
+                        disabled={providersLoading}
+                        aria-describedby="sso-status"
+                        onClick={() => handleSsoLogin(provider)}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        {t('login.ssoButtonWithProvider', { provider: provider.displayName })}
+                      </Button>
+                    ))}
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 w-full gap-2"
+                    disabled
+                    aria-describedby="sso-status"
+                  >
+                    <KeyRound className="h-4 w-4" />
+                    {t('login.ssoButton')}
+                  </Button>
+                )}
                 <p id="sso-status" className="text-center text-xs text-[#64748b]">
                   {ssoStatusText}
                 </p>

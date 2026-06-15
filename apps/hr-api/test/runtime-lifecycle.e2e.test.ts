@@ -9,6 +9,74 @@ import jwt from 'jsonwebtoken';
 import { beforeAll, afterAll, describe, expect, it, vi } from 'vitest';
 import { getPool } from '@hcm/database';
 
+const oidcMock = vi.hoisted(() => ({
+  sequence: 0,
+  claims: {
+    sub: 'oidc-user',
+    email: 'oidc.user@example.com',
+    given_name: 'Oidc',
+    family_name: 'User',
+    groups: ['employees'],
+  } as Record<string, unknown>,
+}));
+
+const samlMock = vi.hoisted(() => ({
+  profile: {
+    nameID: 'saml-user',
+    email: 'saml.user@example.com',
+    firstName: 'Saml',
+    lastName: 'User',
+    groups: ['employees'],
+  } as Record<string, unknown>,
+}));
+
+vi.mock('openid-client', () => ({
+  ClientSecretPost: () => undefined,
+  discovery: vi.fn(async () => ({ issuer: 'https://mock-oidc.example.com' })),
+  randomState: () => {
+    oidcMock.sequence += 1;
+    return `oidc-state-${oidcMock.sequence}`;
+  },
+  randomNonce: () => `oidc-nonce-${oidcMock.sequence}`,
+  randomPKCECodeVerifier: () => `oidc-verifier-${oidcMock.sequence}`,
+  calculatePKCECodeChallenge: vi.fn(async (verifier: string) => `challenge-${verifier}`),
+  buildAuthorizationUrl: vi.fn((_config: unknown, params: Record<string, string>) => {
+    const url = new URL('https://mock-oidc.example.com/authorize');
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+    return url;
+  }),
+  authorizationCodeGrant: vi.fn(async () => ({
+    claims: () => oidcMock.claims,
+  })),
+}));
+
+vi.mock('@node-saml/node-saml', () => ({
+  ValidateInResponseTo: { always: 'always' },
+  SAML: class MockSaml {
+    constructor(private readonly options: { generateUniqueId?: () => string }) {}
+
+    async getAuthorizeUrlAsync(relayState: string): Promise<string> {
+      const url = new URL('https://mock-saml.example.com/sso');
+      url.searchParams.set('RelayState', relayState);
+      url.searchParams.set('SAMLRequest', this.options.generateUniqueId?.() ?? 'mock-saml-request');
+      return url.toString();
+    }
+
+    async validatePostResponseAsync(payload: { SAMLResponse?: string }): Promise<{ profile: Record<string, unknown> }> {
+      if (String(payload.SAMLResponse ?? '').includes('unsigned') || String(payload.SAMLResponse ?? '').includes('tampered')) {
+        throw new Error('unsigned SAML assertion rejected');
+      }
+      return { profile: samlMock.profile };
+    }
+
+    generateServiceProviderMetadata(): string {
+      return '<EntityDescriptor entityID="hrm-nexus:test" />';
+    }
+  },
+}));
+
 const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const HR_ADMIN_ID = '00000000-0000-0000-0000-000000000010';
 const MANAGER_ID = '00000000-0000-0000-0000-000000000011';
@@ -281,6 +349,31 @@ async function apiPost(path: string, payload: JsonRecord = {}, token = authToken
   return request(app!.getHttpServer()).post(`${apiPrefix}${path}`).set(headers(token)).send(payload);
 }
 
+async function apiPatch(path: string, payload: JsonRecord = {}, token = authToken): Promise<request.Response> {
+  return request(app!.getHttpServer()).patch(`${apiPrefix}${path}`).set(headers(token)).send(payload);
+}
+
+function redirectLocation(response: request.Response, label: string): string {
+  if (response.status < 300 || response.status >= 400) {
+    throw new Error(`${label} expected redirect, got ${response.status}: ${JSON.stringify(response.body)}`);
+  }
+  const location = response.headers.location;
+  if (typeof location !== 'string' || !location) {
+    throw new Error(`${label} did not return a redirect location`);
+  }
+  return location;
+}
+
+function tokensFromSsoRedirect(response: request.Response, label: string): { token: string; refreshToken: string } {
+  const location = redirectLocation(response, label);
+  const url = new URL(location);
+  const token = url.searchParams.get('token') ?? '';
+  const refreshToken = url.searchParams.get('refreshToken') ?? '';
+  expect(token, `${label} should include token`).toBeTruthy();
+  expect(refreshToken, `${label} should include refresh token`).toBeTruthy();
+  return { token, refreshToken };
+}
+
 async function expectDetail(path: string, requiredFields: string[]): Promise<JsonRecord> {
   const response = await apiGet(path);
   const data = expectSuccessful(response, `GET ${path}`);
@@ -340,6 +433,7 @@ beforeAll(async () => {
   process.env.NODE_ENV = 'test';
   process.env.KAFKA_BROKERS = '';
   process.env.JWT_SECRET ??= 'runtime-lifecycle-test-secret';
+  process.env.SSO_SECRET_ENCRYPTION_KEY ??= 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
 
   dbReady = await canReachDatabase();
   if (!dbReady) return;
@@ -412,6 +506,160 @@ afterAll(async () => {
 });
 
 describe.sequential('runtime HTTP lifecycle coverage', () => {
+  lifecycleIt('OIDC SSO config starts, JIT provisions, mints a session, and enforces refresh reuse detection', async () => {
+    await getPool().query('delete from hr_platform.sso_auth_transactions where tenant_id = $1 and protocol = $2', [TENANT_ID, 'OIDC']);
+    await getPool().query('delete from hr_platform.tenant_identity_providers where tenant_id = $1 and protocol = $2', [TENANT_ID, 'OIDC']);
+
+    const email = `oidc.${suffix}@sso.example.com`;
+    const config = await apiPost('/auth/sso/config', {
+      protocol: 'OIDC',
+      displayName: 'Runtime OIDC',
+      enabled: true,
+      jitProvisioning: true,
+      defaultRoles: ['EMPLOYEE'],
+      attributeMapping: {
+        email: 'email',
+        firstName: 'given_name',
+        lastName: 'family_name',
+        groups: 'groups',
+      },
+      groupRoleMapping: {},
+      oidcIssuerUrl: 'https://mock-oidc.example.com',
+      oidcClientId: 'runtime-client',
+      oidcClientSecret: 'runtime-secret',
+      oidcScopes: ['openid', 'email', 'profile'],
+    });
+    const configData = expectSuccessful(config, 'POST /auth/sso/config OIDC');
+    const providerId = stringField(configData, 'id');
+    expect(providerId).toBeTruthy();
+
+    const discovery = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/providers?tenantId=${TENANT_ID}`)
+      .send();
+    const discoveryData = expectSuccessful(discovery, 'GET /auth/providers tenant OIDC');
+    expect(collectRecords(discoveryData.providers).some((provider) => provider.displayName === 'Runtime OIDC')).toBe(true);
+
+    const start = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/oidc/${TENANT_ID}/start`)
+      .redirects(0);
+    const startUrl = new URL(redirectLocation(start, 'GET OIDC start'));
+    const state = startUrl.searchParams.get('state');
+    expect(state).toBeTruthy();
+
+    oidcMock.claims = {
+      sub: `oidc-${suffix}`,
+      email,
+      given_name: 'Runtime',
+      family_name: 'Oidc',
+      groups: ['employees'],
+    };
+    const callback = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/oidc/${TENANT_ID}/callback?code=mock-code&state=${state}`)
+      .redirects(0);
+    const credentials = tokensFromSsoRedirect(callback, 'GET OIDC callback');
+
+    const me = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/me`)
+      .set(headers(credentials.token));
+    const meData = expectSuccessful(me, 'GET /auth/me OIDC session');
+    expect(meData.email).toBe(email);
+
+    const firstRefresh = await request(app!.getHttpServer())
+      .post(`${apiPrefix}/auth/refresh`)
+      .send({ refreshToken: credentials.refreshToken });
+    expectSuccessful(firstRefresh, 'POST /auth/refresh first SSO token use');
+    const reusedRefresh = await request(app!.getHttpServer())
+      .post(`${apiPrefix}/auth/refresh`)
+      .send({ refreshToken: credentials.refreshToken });
+    expect(reusedRefresh.status).toBe(401);
+
+    await apiPatch(`/auth/sso/config/${providerId}`, { jitProvisioning: false }).then((response) => {
+      expectSuccessful(response, 'PATCH /auth/sso/config disable OIDC JIT');
+    });
+    const disabledStart = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/oidc/${TENANT_ID}/start`)
+      .redirects(0);
+    const disabledState = new URL(redirectLocation(disabledStart, 'GET OIDC start JIT disabled')).searchParams.get('state');
+    oidcMock.claims = {
+      sub: `unknown-oidc-${suffix}`,
+      email: `unknown.oidc.${suffix}@sso.example.com`,
+      given_name: 'Unknown',
+      family_name: 'Oidc',
+      groups: ['employees'],
+    };
+    const disabledCallback = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/oidc/${TENANT_ID}/callback?code=mock-code&state=${disabledState}`)
+      .redirects(0);
+    expect(disabledCallback.status).toBe(401);
+  }, 90_000);
+
+  lifecycleIt('SAML SSO config starts, validates ACS, mints a session, and rejects tampered assertions', async () => {
+    await getPool().query('delete from hr_platform.sso_auth_transactions where tenant_id = $1 and protocol = $2', [TENANT_ID, 'SAML']);
+    await getPool().query('delete from hr_platform.tenant_identity_providers where tenant_id = $1 and protocol = $2', [TENANT_ID, 'SAML']);
+
+    const email = `saml.${suffix}@sso.example.com`;
+    const config = await apiPost('/auth/sso/config', {
+      protocol: 'SAML',
+      displayName: 'Runtime SAML',
+      enabled: true,
+      jitProvisioning: true,
+      defaultRoles: ['EMPLOYEE'],
+      attributeMapping: {
+        email: 'email',
+        firstName: 'firstName',
+        lastName: 'lastName',
+        groups: 'groups',
+      },
+      groupRoleMapping: {},
+      samlIdpEntityId: 'https://mock-saml.example.com/idp',
+      samlIdpSsoUrl: 'https://mock-saml.example.com/sso',
+      samlIdpX509Cert: '-----BEGIN CERTIFICATE-----mock-----END CERTIFICATE-----',
+      samlSpPrivateKey: '-----BEGIN PRIVATE KEY-----mock-----END PRIVATE KEY-----',
+    });
+    expectSuccessful(config, 'POST /auth/sso/config SAML');
+
+    const metadata = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/saml/${TENANT_ID}/metadata`);
+    expect(metadata.status).toBe(200);
+    expect(metadata.text).toContain('EntityDescriptor');
+
+    const start = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/saml/${TENANT_ID}/start`)
+      .redirects(0);
+    const startUrl = new URL(redirectLocation(start, 'GET SAML start'));
+    const relayState = startUrl.searchParams.get('RelayState');
+    expect(relayState).toBeTruthy();
+
+    samlMock.profile = {
+      nameID: `saml-${suffix}`,
+      email,
+      firstName: 'Runtime',
+      lastName: 'Saml',
+      groups: ['employees'],
+    };
+    const acs = await request(app!.getHttpServer())
+      .post(`${apiPrefix}/auth/sso/saml/${TENANT_ID}/acs`)
+      .send({ SAMLResponse: 'signed-saml-response', RelayState: relayState })
+      .redirects(0);
+    const credentials = tokensFromSsoRedirect(acs, 'POST SAML ACS');
+
+    const me = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/me`)
+      .set(headers(credentials.token));
+    const meData = expectSuccessful(me, 'GET /auth/me SAML session');
+    expect(meData.email).toBe(email);
+
+    const tamperedStart = await request(app!.getHttpServer())
+      .get(`${apiPrefix}/auth/sso/saml/${TENANT_ID}/start`)
+      .redirects(0);
+    const tamperedRelayState = new URL(redirectLocation(tamperedStart, 'GET SAML start tampered')).searchParams.get('RelayState');
+    const tampered = await request(app!.getHttpServer())
+      .post(`${apiPrefix}/auth/sso/saml/${TENANT_ID}/acs`)
+      .send({ SAMLResponse: 'unsigned-tampered-response', RelayState: tamperedRelayState })
+      .redirects(0);
+    expect(tampered.status).toBe(401);
+  }, 90_000);
+
   lifecycleIt('employee relations case opens, transitions, persists, and lists', async () => {
     const create = await apiPost('/employee-relations/cases', {
       caseNumber: shortCode('ER'),

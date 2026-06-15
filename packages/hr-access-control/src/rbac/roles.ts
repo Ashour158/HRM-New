@@ -161,6 +161,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'REPORT_READ',
       'REPORT_CREATE',
       'ADMIN_TENANT',
+      'SSO_MANAGE',
       'INTELLIGENCE_READ',
       // Module write/read scopes required by domain command authorization. Command
       // authz is role-based (not user-permission based), so without these HR_ADMIN

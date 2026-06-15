@@ -72,6 +72,7 @@ export {
   ADMIN_SYSTEM,
   ADMIN_TENANT,
   ADMIN_SECURITY,
+  SSO_MANAGE,
   ALL_PERMISSIONS,
   type DataClassification,
   type PermissionDefinition,
