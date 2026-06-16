@@ -102,8 +102,10 @@ export class SavedViewsRepository {
       user_id: view.userId.value,
       list_key: view.listKey,
       name: view.name,
-      filters: view.filters,
-      columns: view.columns,
+      // jsonb columns: stringify so the pg driver does not coerce the JS array
+      // (`columns`) into a Postgres array literal, which fails against jsonb.
+      filters: JSON.stringify(view.filters),
+      columns: JSON.stringify(view.columns),
       is_default: view.isDefault,
       aggregate_version: view.aggregateVersion,
       created_at: view.createdAt,

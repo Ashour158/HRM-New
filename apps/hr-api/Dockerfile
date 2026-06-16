@@ -16,6 +16,7 @@ RUN pnpm --filter @hcm/shared-kernel build \
   && pnpm --filter @hcm/platform-core build \
   && pnpm --filter @hcm/policy-engines build \
   && pnpm --filter @hcm/openapi-contracts build \
+  && pnpm --filter @hcm/hr-intelligence build \
   && pnpm --filter @hcm/hr-api build
 RUN CI=true pnpm prune --prod
 

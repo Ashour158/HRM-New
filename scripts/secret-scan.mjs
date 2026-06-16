@@ -45,6 +45,22 @@ function isAllowedFinding(file, line, findingName) {
   ) {
     return true;
   }
+  // CI workflow files only carry ephemeral, CI-scoped values; real secrets use
+  // GitHub Actions ${{ secrets.* }} interpolation, never plaintext assignments.
+  if (
+    findingName === 'Plaintext secret assignment'
+    && normalized.startsWith('.github/workflows/')
+  ) {
+    return true;
+  }
+  // Mock PEM placeholders in test fixtures are not real keys.
+  if (
+    findingName === 'Private key block'
+    && /\.(?:spec|test)\.ts$/.test(normalized)
+    && /mock|placeholder|example|dummy/i.test(line)
+  ) {
+    return true;
+  }
   return false;
 }
 

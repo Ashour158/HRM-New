@@ -51,6 +51,11 @@ interface EventBusLike {
     directPublications: Array<{ eventName: string }>;
     duplicatePublications: Array<{ eventName: string }>;
   };
+  subscribe(
+    topic: string,
+    consumerGroup: string,
+    handler: { consumerGroup: string; handle(event: { eventName?: string; aggregateId?: { value?: string } }): Promise<void> },
+  ): void;
 }
 
 let app: INestApplication | undefined;
@@ -260,9 +265,12 @@ describe.sequential('outbox -> event bus -> inbox drain', () => {
       firstName: 'Drain',
       lastName: 'Probe',
       email: `${shortCode('drain').toLowerCase()}@example.com`,
-      hireDate: isoDate(-10),
+      // Satisfy required field rules / active options in default Admin Settings.
+      workEmail: `${shortCode('drain-work').toLowerCase()}@example.com`,
+      hireDate: '2024-06-01T09:00:00.000Z',
       employmentType: 'FULL_TIME',
-      jobTitle: 'Drain Probe',
+      departmentName: 'People Operations',
+      jobTitle: 'HR Operations Analyst',
     });
     const workerId = findId(workerCreate.body, ['workerId']);
     createdWorkerIds.add(workerId);
@@ -275,6 +283,16 @@ describe.sequential('outbox -> event bus -> inbox drain', () => {
       [TENANT_ID, workerId],
     );
     expect(pending.rowCount ?? 0).toBeGreaterThanOrEqual(1);
+
+    // Subscribe before draining so we can prove the bus actually delivered the
+    // worker's events to a consumer (worker events route to the HR Core topic).
+    const receivedAggregateIds: string[] = [];
+    eventBus!.subscribe('hr.core.v1', 'outbox-drain-e2e', {
+      consumerGroup: 'outbox-drain-e2e',
+      async handle(event) {
+        receivedAggregateIds.push(String(event?.aggregateId?.value ?? ''));
+      },
+    });
 
     // Drive the publisher explicitly and assert it drains the pending rows.
     const publishedCount = await publisher!.pollAndPublish(500);
@@ -295,10 +313,12 @@ describe.sequential('outbox -> event bus -> inbox drain', () => {
     expect(drained.rowCount ?? 0).toBeGreaterThanOrEqual(1);
     expect(drained.rows.every((row) => row.published_at !== null)).toBe(true);
 
-    // The in-process bus must have actually received the publication(s).
-    const diagnostics = eventBus!.getPublicationDiagnostics();
-    const totalPublications = diagnostics.directPublications.length + diagnostics.duplicatePublications.length;
-    expect(totalPublications).toBeGreaterThanOrEqual(1);
+    // The in-process bus must have actually delivered this worker's events to
+    // the subscribed consumer. (Outbox-sourced publications are intentionally
+    // excluded from getPublicationDiagnostics — that counter is a leak detector
+    // for events that bypass the outbox, so it stays empty on a healthy drain.)
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(receivedAggregateIds).toContain(workerId);
 
     // Idempotency: published_at guards re-publishing. A second drain must not
     // re-publish this worker's already-drained rows (their timestamps are stable).
