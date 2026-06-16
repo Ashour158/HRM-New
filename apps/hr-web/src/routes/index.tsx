@@ -24,6 +24,7 @@ const ManagerDashboard = lazy(() => import('@/pages/manager/dashboard').then((mo
 const ManagerTeam = lazy(() => import('@/pages/manager/team').then((module) => ({ default: module.ManagerTeam })));
 const ManagerApprovals = lazy(() => import('@/pages/manager/approvals').then((module) => ({ default: module.ManagerApprovals })));
 const AdminDashboard = lazy(() => import('@/pages/admin/dashboard').then((module) => ({ default: module.AdminDashboard })));
+const AdminGetStarted = lazy(() => import('@/pages/admin/get-started').then((module) => ({ default: module.AdminGetStarted })));
 const AdminWorkers = lazy(() => import('@/pages/admin/workers').then((module) => ({ default: module.AdminWorkers })));
 const AdminEmployeeCreate = lazy(() => import('@/pages/admin/employee-create').then((module) => ({ default: module.AdminEmployeeCreate })));
 const AdminEmployeeProfile = lazy(() => import('@/pages/admin/employee-profile').then((module) => ({ default: module.AdminEmployeeProfile })));
@@ -55,6 +56,8 @@ const AdminModuleOperations = lazy(() => import('@/pages/admin/module-operations
 const AdminCompliance = lazy(() => import('@/pages/admin/compliance').then((module) => ({ default: module.AdminCompliance })));
 const AdminCountryPolicy = lazy(() => import('@/pages/admin/country-policy').then((module) => ({ default: module.AdminCountryPolicy })));
 const AdminPolicies = lazy(() => import('@/pages/admin/policies').then((module) => ({ default: module.AdminPolicies })));
+const AdminSodRules = lazy(() => import('@/pages/admin/sod-rules').then((module) => ({ default: module.AdminSodRules })));
+const AdminFieldAccess = lazy(() => import('@/pages/admin/field-access').then((module) => ({ default: module.AdminFieldAccess })));
 const AdminSettings = lazy(() => import('@/pages/admin/settings').then((module) => ({ default: module.AdminSettings })));
 const AdminSystemConsole = lazy(() => import('@/pages/admin/system-console').then((module) => ({ default: module.AdminSystemConsole })));
 const AdminApprovalsConfig = lazy(() => import('@/pages/admin/approvals-config').then((module) => ({ default: module.AdminApprovalsConfig })));
@@ -211,6 +214,7 @@ export function AppRoutes() {
                 <PortalLayout>
                   <Routes>
                     <Route index element={<HomePage />} />
+                    <Route path="get-started" element={<AdminGetStarted />} />
                     <Route path="dashboard" element={<AdminDashboard />} />
                     <Route
                       path="system-console"
@@ -261,6 +265,22 @@ export function AppRoutes() {
                       element={
                         <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
                           <AdminPolicies />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/sod-rules"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminSodRules />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="system-console/field-access"
+                      element={
+                        <RequireRoles allowedRoles={systemAdminRoleNames} fallback="/admin">
+                          <AdminFieldAccess />
                         </RequireRoles>
                       }
                     />

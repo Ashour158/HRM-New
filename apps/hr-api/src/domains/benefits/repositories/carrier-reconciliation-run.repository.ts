@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { CarrierReconciliationRun } from '../aggregates/carrier-reconciliation-run.aggregate.js';
 
@@ -16,6 +16,14 @@ export class CarrierReconciliationRunRepository extends BaseRepository<'carrier_
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for carrier reconciliation run query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<CarrierReconciliationRun | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['carrier_reconciliation_runs']) : undefined;
@@ -25,7 +33,7 @@ export class CarrierReconciliationRunRepository extends BaseRepository<'carrier_
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('carrier_id', '=', carrierId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('carrier_id', '=', carrierId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['carrier_reconciliation_runs']));
   }

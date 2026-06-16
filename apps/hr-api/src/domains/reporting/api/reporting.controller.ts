@@ -22,6 +22,7 @@ import { ServiceUsageReportingService } from '../services/service-usage-reportin
 import { HrAnalyticsReportingService } from '../services/hr-analytics-reporting.service.js';
 import { ReportBuilderCatalogService } from '../services/report-builder-catalog.service.js';
 import { ReportSemanticQueryService } from '../services/report-semantic-query.service.js';
+import { DocumentExportService, EXPORT_CONTENT_TYPES, type ExportFormat } from '../../../platform/export/document-export.service.js';
 import {
   buildEmployeeImportTemplateCsv,
   buildHrDashboardExportCsv,
@@ -46,6 +47,7 @@ export class ReportingController {
     private readonly hrAnalyticsReporting: HrAnalyticsReportingService,
     private readonly reportBuilderCatalog: ReportBuilderCatalogService,
     private readonly semanticQuery: ReportSemanticQueryService,
+    private readonly documentExport: DocumentExportService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -96,6 +98,32 @@ export class ReportingController {
     this.assertReportingAdmin(req);
     return this.semanticQuery.run({ ...dto, tenantId: this.getTenantId(req).value });
   }
+  @Post('builder/query/export')
+  async exportSemanticReportQuery(
+    @Query('format') format: string,
+    @Body(new ZodValidationPipe(RunSemanticReportQueryDtoSchema)) dto: dtos.RunSemanticReportQueryDto,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    this.assertReportingAdmin(req);
+    const normalized = (format ?? 'xlsx').toLowerCase();
+    if (normalized !== 'xlsx' && normalized !== 'pdf' && normalized !== 'docx') {
+      throw new BadRequestException('format must be one of: xlsx, pdf, docx');
+    }
+    const exportFormat = normalized as ExportFormat;
+    const result = await this.semanticQuery.run({ ...dto, tenantId: this.getTenantId(req).value });
+    const generatedAt = new Date().toISOString();
+    const buffer = await this.documentExport.render({
+      title: dto.dataSource ?? 'Report',
+      columns: result.columns,
+      rows: result.rows.map((row) => result.columns.map((col) => row[col] ?? '')),
+      generatedAt,
+    }, exportFormat);
+    res.setHeader('Content-Type', EXPORT_CONTENT_TYPES[exportFormat]);
+    res.setHeader('Content-Disposition', `attachment; filename="report.${exportFormat}"`);
+    return res.send(buffer);
+  }
+
   @Post('builder/filter-options')
   async getBuilderFilterOptions(@Body(new ZodValidationPipe(GetReportFilterOptionsDtoSchema)) dto: dtos.GetReportFilterOptionsDto, @Req() req: Request) {
     this.assertReportingAdmin(req);

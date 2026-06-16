@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { DevelopmentPlan, type DevelopmentPlanStatus } from '../aggregates/development-plan.aggregate.js';
 
@@ -11,13 +11,21 @@ export class DevelopmentPlanRepository extends BaseRepository<'development_plans
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for development plan query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<DevelopmentPlan | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByWorker(workerId: Uuid): Promise<DevelopmentPlan[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { CompensationBand } from '../aggregates/compensation-band.aggregate.js';
 
@@ -14,6 +14,14 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
 
   constructor() {
     super(createKyselyInstance(getPool()));
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for compensation band query');
+    }
+    return tenantId.value;
   }
 
   async findById(id: Uuid): Promise<CompensationBand | undefined> {
@@ -34,7 +42,7 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('job_family', '=', jobFamily)
+      .where('tenant_id', '=', this.requireTenantId()).where('job_family', '=', jobFamily)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_bands']));
   }

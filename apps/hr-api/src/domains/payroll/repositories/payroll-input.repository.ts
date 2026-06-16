@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,12 +19,12 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollInput[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_inputs']));
   }
 
   async findByWorker(workerId: Uuid): Promise<PayrollInput[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_inputs']));
   }
 
@@ -36,6 +36,14 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_inputs']>);
     }
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for payroll input query');
+    }
+    return tenantId.value;
   }
 
   private toAggregate(row: Database['payroll_inputs']): PayrollInput {

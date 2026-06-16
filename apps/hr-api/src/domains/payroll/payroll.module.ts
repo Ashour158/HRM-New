@@ -55,6 +55,7 @@ import { PayrollCycleGovernanceService } from './services/payroll-cycle-governan
 import { PayrollInputOrchestrationService } from './services/payroll-input-orchestration.service.js';
 import { PayrollApprovedInputProjectionService } from './services/payroll-approved-input-projection.service.js';
 import { PayrollArtifactService } from './services/payroll-artifact.service.js';
+import { DocumentExportService } from '../../platform/export/document-export.service.js';
 import { PayrollEnterpriseWorkflowService } from './services/payroll-enterprise-workflow.service.js';
 import { PayrollBankFileService } from './services/payroll-bank-file.service.js';
 import { PayrollGlPostingService } from './services/payroll-gl-posting.service.js';
@@ -115,6 +116,7 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     PayrollInputOrchestrationService,
     PayrollApprovedInputProjectionService,
     PayrollArtifactService,
+    DocumentExportService,
     PayrollEnterpriseWorkflowService,
     PayrollBankFileService,
     PayrollGlPostingService,
@@ -134,6 +136,7 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     PayrollInputOrchestrationService,
     PayrollApprovedInputProjectionService,
     PayrollArtifactService,
+    DocumentExportService,
     PayrollEnterpriseWorkflowService,
     PayrollBankFileService,
     PayrollGlPostingService,

@@ -113,6 +113,9 @@ jobs:
       - name: Run migrations against PostgreSQL
         run: pnpm --filter @hcm/database migrate
 
+      - name: Run database tests against PostgreSQL (incl. migration roundtrip)
+        run: pnpm --filter @hcm/database test
+
   runtime-lifecycle-e2e:
     name: Runtime HTTP lifecycle E2E
     runs-on: ubuntu-latest
@@ -169,6 +172,20 @@ jobs:
 
       - name: Run runtime lifecycle E2E
         run: pnpm --filter @hcm/hr-api run test:lifecycle
+
+      - name: Run golden workflow + tenant isolation E2E
+        run: >-
+          pnpm --filter @hcm/hr-api exec vitest run
+          test/golden-workflow.e2e.test.ts
+          test/tenant-isolation.e2e.test.ts
+          test/finder-tenant-isolation.e2e.test.ts
+          --passWithNoTests
+
+      - name: Run outbox -> bus -> inbox drain E2E
+        run: >-
+          pnpm --filter @hcm/hr-api exec vitest run
+          test/outbox-drain.e2e.test.ts
+          --passWithNoTests
 
   security:
     name: Security scan

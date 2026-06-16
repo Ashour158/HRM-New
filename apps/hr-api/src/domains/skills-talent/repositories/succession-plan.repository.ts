@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,13 +13,21 @@ export class SuccessionPlanRepository extends BaseRepository<'succession_plans',
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for succession plan query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<SuccessionPlan | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByPosition(positionId: Uuid): Promise<SuccessionPlan | undefined> {
-    const row = await this.db.selectFrom(this.tableName).selectAll().where('position_id', '=', positionId.value).executeTakeFirst();
+    const row = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('position_id', '=', positionId.value).executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 

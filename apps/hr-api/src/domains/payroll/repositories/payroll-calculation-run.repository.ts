@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,7 +19,7 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollCalculationRun[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_calculation_runs']));
   }
 
@@ -31,6 +31,14 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_calculation_runs']>);
     }
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for payroll calculation run query');
+    }
+    return tenantId.value;
   }
 
   private toAggregate(row: Database['payroll_calculation_runs']): PayrollCalculationRun {

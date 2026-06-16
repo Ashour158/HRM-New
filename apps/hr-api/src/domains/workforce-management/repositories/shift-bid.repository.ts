@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,6 +13,14 @@ export class ShiftBidRepository extends BaseRepository<'shift_bids', ShiftBid> {
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for shift bid query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<ShiftBid | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['shift_bids']) : undefined;
@@ -24,7 +32,7 @@ export class ShiftBidRepository extends BaseRepository<'shift_bids', ShiftBid> {
   }
 
   async findByWorker(workerId: Uuid): Promise<ShiftBid[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_bids']));
   }
 

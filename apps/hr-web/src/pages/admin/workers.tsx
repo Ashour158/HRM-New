@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
+import { NextActions } from '@/components/common/next-actions';
 import { ErrorState } from '@/components/common/error-state';
 import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
@@ -272,6 +273,8 @@ export function AdminWorkers() {
 
   return (
     <div className="space-y-6">
+      <NextActions storageKey="admin-workers" />
+
       <div className="flex items-center justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,13 +13,21 @@ export class HrCaseTaskRepository extends BaseRepository<'hr_case_tasks', HrCase
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for hr case task query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<HrCaseTask | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['hr_case_tasks']) : undefined;
   }
 
   async findByCase(caseId: Uuid): Promise<HrCaseTask[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('case_id', '=', caseId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('case_id', '=', caseId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_case_tasks']));
   }
 
@@ -27,7 +35,7 @@ export class HrCaseTaskRepository extends BaseRepository<'hr_case_tasks', HrCase
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('assigned_to', '=', assigneeId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('assigned_to', '=', assigneeId.value)
       .orderBy('due_date', 'asc')
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_case_tasks']));

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -35,13 +35,21 @@ export class Feedback360CycleRepository extends BaseRepository<'feedback_360_cyc
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for hr engagement.feedback 360 cycle query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<Feedback360Cycle | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findBySubjectWorker(subjectWorkerId: Uuid): Promise<Feedback360Cycle[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('subject_worker_id', '=', subjectWorkerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('subject_worker_id', '=', subjectWorkerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

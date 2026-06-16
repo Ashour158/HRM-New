@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid, Email } from '@hcm/shared-kernel';
@@ -15,6 +15,14 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
 
   constructor() {
     super(createKyselyInstance(getPool()));
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for worker query');
+    }
+    return tenantId.value;
   }
 
   async findById(id: Uuid): Promise<WorkerProfile | undefined> {
@@ -36,7 +44,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('employee_number', '=', employeeNumber)
+      .where('tenant_id', '=', this.requireTenantId()).where('employee_number', '=', employeeNumber)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
   }
@@ -55,7 +63,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('email', '=', email)
+      .where('tenant_id', '=', this.requireTenantId()).where('email', '=', email)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
   }
@@ -74,7 +82,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('manager_id', '=', managerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('manager_id', '=', managerId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
@@ -93,7 +101,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('department_id', '=', departmentId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('department_id', '=', departmentId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
@@ -112,7 +120,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('legal_entity_id', '=', legalEntityId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('legal_entity_id', '=', legalEntityId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
@@ -131,7 +139,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('status', '=', 'ACTIVE')
+      .where('tenant_id', '=', this.requireTenantId()).where('status', '=', 'ACTIVE')
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
@@ -157,7 +165,8 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   async search(query: string, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
     let dbQuery = this.db
       .selectFrom(this.tableName)
-      .selectAll();
+      .selectAll()
+      .where('tenant_id', '=', this.requireTenantId());
 
     if (query) {
       const like = `%${query}%`;

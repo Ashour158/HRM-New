@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { Feedback360Response, type Feedback360ResponseStatus } from '../aggregates/feedback-360-response.aggregate.js';
 import { parseJsonRecord } from '../utils/feedback-360-records.js';
@@ -12,23 +12,31 @@ export class Feedback360ResponseRepository extends BaseRepository<'performance_f
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for performance feedback 360 response query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<Feedback360Response | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByCycle(cycleId: Uuid): Promise<Feedback360Response[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('cycle_id', '=', cycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('cycle_id', '=', cycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewee(revieweeId: Uuid): Promise<Feedback360Response[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('reviewee_id', '=', revieweeId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('reviewee_id', '=', revieweeId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewer(reviewerId: Uuid): Promise<Feedback360Response[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('reviewer_id', '=', reviewerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('reviewer_id', '=', reviewerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { NextActions } from '@/components/common/next-actions';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
@@ -251,6 +252,8 @@ export function PayrollWorkspace() {
 
   return (
     <div className="space-y-6">
+      <NextActions storageKey="payroll-workspace" />
+
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="font-headline text-3xl font-extrabold text-slate-950">Payroll Workspace</h1>
