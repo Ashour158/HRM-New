@@ -18,13 +18,13 @@ describe('EraseWorkerPersonalDataHandler', () => {
     commandId: Uuid.generate(),
   } as unknown as HrCommandEnvelope<unknown>;
 
-  const makeRecord = () =>
+  const makeRecord = (dataCategory: 'BASIC' | 'CONTACT' | 'MEDICAL' = 'BASIC') =>
     PersonalDataRecord.create(
       {
         id: Uuid.generate(),
         tenantId,
         workerId,
-        dataCategory: 'BASIC',
+        dataCategory,
         dataClassification: 'CONFIDENTIAL',
         payload: { phoneNumber: '555' },
         consentStatus: 'GRANTED',
@@ -32,6 +32,16 @@ describe('EraseWorkerPersonalDataHandler', () => {
       },
       command.correlationId,
     );
+
+  const makeHandler = (records: PersonalDataRecord[], save = vi.fn()) => {
+    const workerRepo = { findByIdForTenant: vi.fn().mockResolvedValue({ aggregateVersion: 1 }) } as unknown as WorkerRepository;
+    const personalDataRepo = {
+      findByWorkerForTenant: vi.fn().mockResolvedValue(records),
+      save,
+    } as unknown as PersonalDataRecordRepository;
+    const guard = { assertNotUnderHold: vi.fn().mockResolvedValue(undefined) } as unknown as LegalHoldGuard;
+    return { handler: new EraseWorkerPersonalDataHandler(workerRepo, personalDataRepo, guard), save };
+  };
 
   it('blocks erasure when the worker is under an active legal hold', async () => {
     const workerRepo = { findByIdForTenant: vi.fn().mockResolvedValue({ aggregateVersion: 1 }) } as unknown as WorkerRepository;
@@ -62,5 +72,35 @@ describe('EraseWorkerPersonalDataHandler', () => {
     expect(record.state).toBe('DELETED');
     expect(personalDataRepo.save).toHaveBeenCalledTimes(1);
     expect((result.data as { erasedCategories: string[] }).erasedCategories).toEqual(['BASIC']);
+  });
+
+  it('erases only the requested data categories', async () => {
+    const basic = makeRecord('BASIC');
+    const contact = makeRecord('CONTACT');
+    const medical = makeRecord('MEDICAL');
+    const { handler, save } = makeHandler([basic, contact, medical]);
+
+    const result = await handler.handle({
+      ...command,
+      payload: { ...(command.payload as object), dataCategories: ['CONTACT', 'MEDICAL'] },
+    } as unknown as HrCommandEnvelope<unknown>);
+
+    expect(basic.state).toBe('DRAFT');
+    expect(contact.state).toBe('DELETED');
+    expect(medical.state).toBe('DELETED');
+    expect(save).toHaveBeenCalledTimes(2);
+    expect((result.data as { erasedCategories: string[] }).erasedCategories.sort()).toEqual(['CONTACT', 'MEDICAL']);
+  });
+
+  it('is idempotent: skips records already deleted', async () => {
+    const record = makeRecord('BASIC');
+    record.deleteWithConsent(command.correlationId);
+    const { handler, save } = makeHandler([record]);
+
+    const result = await handler.handle(command);
+
+    expect(result.success).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+    expect((result.data as { erasedCategories: string[] }).erasedCategories).toEqual([]);
   });
 });

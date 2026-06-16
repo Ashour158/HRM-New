@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PersonalDataRetentionJob, type PersonalDataRetentionRepositoryPort } from './personal-data-retention-job.js';
 import type { JobContext } from './scheduled-job.js';
-import { Uuid } from '@hcm/shared-kernel';
+import { Uuid, ConflictError } from '@hcm/shared-kernel';
 
 describe('PersonalDataRetentionJob', () => {
   const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
@@ -36,8 +36,10 @@ describe('PersonalDataRetentionJob', () => {
     expect(outcome.itemsProcessed).toBe(2);
     expect(runCommand).toHaveBeenCalledTimes(2);
     const aCall = runCommand.mock.calls.find((c) => c[0].payload.workerId.value === workerA.value);
-    expect(aCall?.[0].commandName).toBe('EraseWorkerPersonalData');
-    expect([...aCall?.[0].payload.dataCategories].sort()).toEqual(['BASIC', 'CONTACT']);
+    expect(aCall).toBeDefined();
+    if (!aCall) throw new Error('Expected a runCommand call for workerA');
+    expect(aCall[0].commandName).toBe('EraseWorkerPersonalData');
+    expect([...aCall[0].payload.dataCategories].sort()).toEqual(['BASIC', 'CONTACT']);
   });
 
   it('records a skip and continues when a worker erasure is blocked', async () => {
@@ -50,7 +52,7 @@ describe('PersonalDataRetentionJob', () => {
     const runCommand = vi
       .fn()
       .mockResolvedValueOnce({})
-      .mockRejectedValueOnce(new Error('under an active legal hold'));
+      .mockRejectedValueOnce(new ConflictError('under an active legal hold'));
     const job = new PersonalDataRetentionJob(repo);
 
     const outcome = await job.runForTenant(makeCtx(runCommand));

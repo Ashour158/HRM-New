@@ -48,8 +48,11 @@ export function decryptWithKey(encrypted: string, key: Buffer): string {
 export function resolveKeyFromEnv(envVar: string, nonProductionSeed: string): Buffer {
   const configured = process.env[envVar];
   if (!configured) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(`${envVar} must be configured in production`);
+    // Fail closed in any production-like environment; the deterministic fallback
+    // is for local development and tests only.
+    const env = process.env.NODE_ENV;
+    if (env === 'production' || env === 'staging') {
+      throw new Error(`${envVar} must be configured in ${env}`);
     }
     return Buffer.from(nonProductionSeed.padEnd(32, '!')).subarray(0, 32);
   }

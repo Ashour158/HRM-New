@@ -1,6 +1,7 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { createKyselyInstance, getPool } from '@hcm/database';
-import { Uuid } from '@hcm/shared-kernel';
+import { Uuid, ConflictError } from '@hcm/shared-kernel';
+import { EraseWorkerPersonalDataCommandName } from '@hcm/command-contracts';
 import { sql } from 'kysely';
 import type { JobContext, JobOutcome, ScheduledJob } from './scheduled-job.js';
 
@@ -110,7 +111,7 @@ export class PersonalDataRetentionJob implements ScheduledJob {
       const workerId = new Uuid(workerIdValue);
       try {
         await ctx.runCommand({
-          commandName: 'EraseWorkerPersonalData',
+          commandName: EraseWorkerPersonalDataCommandName,
           aggregateType: 'Worker',
           subjectWorkerId: workerId,
           payload: {
@@ -124,12 +125,17 @@ export class PersonalDataRetentionJob implements ScheduledJob {
         });
         processed += 1;
       } catch (error) {
-        // A legal hold (or other conflict) placed after the query blocks this
-        // worker; record it and continue rather than failing the whole run.
-        errors.push({
-          message: `worker ${workerIdValue}: ${(error as Error).message}`,
-          code: 'RETENTION_SKIPPED',
-        });
+        // A legal hold placed between query and dispatch blocks this worker;
+        // record it as skipped and continue. Any other failure (infra, db,
+        // permissions) is a real error and must surface, not be masked.
+        if (error instanceof ConflictError) {
+          errors.push({
+            message: `worker ${workerIdValue}: ${error.message}`,
+            code: 'RETENTION_SKIPPED',
+          });
+          continue;
+        }
+        throw error;
       }
     }
 

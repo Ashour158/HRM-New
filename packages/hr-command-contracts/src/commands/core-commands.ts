@@ -217,6 +217,28 @@ export const UpdateWorkerPersonalDataPayloadSchema = z.object({
 
 export const EraseWorkerPersonalDataCommandName = 'EraseWorkerPersonalData' as const;
 
+/** Supported personal data categories (mirrors PersonalDataRecord.DataCategory). */
+export const PersonalDataCategorySchema = z.enum([
+  'BASIC',
+  'CONTACT',
+  'BANKING',
+  'TAX',
+  'MEDICAL',
+  'EMERGENCY_CONTACT',
+  'DEPENDENT',
+  'BACKGROUND',
+  'COMPENSATION',
+  'DOCUMENT',
+  'WORK_AUTHORIZATION',
+  'ASSET_ACCESS',
+  'SKILLS',
+  'CONSENT',
+  'CUSTOM',
+  'SPECIAL_CATEGORY',
+]);
+
+export type PersonalDataCategory = z.infer<typeof PersonalDataCategorySchema>;
+
 /**
  * Right-to-erasure command. Deletes (or suppresses) a worker's personal data
  * records. Blocked when the worker is under an active legal hold.
@@ -224,7 +246,7 @@ export const EraseWorkerPersonalDataCommandName = 'EraseWorkerPersonalData' as c
 export interface EraseWorkerPersonalDataPayload {
   workerId: Uuid;
   /** Optional subset of data categories to erase; all categories if omitted. */
-  dataCategories?: string[];
+  dataCategories?: PersonalDataCategory[];
   /** AUDIT trail: who requested erasure and why. */
   requestedByWorkerId: Uuid;
   reason: string;
@@ -232,7 +254,7 @@ export interface EraseWorkerPersonalDataPayload {
 
 export const EraseWorkerPersonalDataPayloadSchema = z.object({
   workerId: z.string().uuid(),
-  dataCategories: z.array(z.string()).optional(),
+  dataCategories: z.array(PersonalDataCategorySchema).optional(),
   requestedByWorkerId: z.string().uuid(),
   reason: z.string().min(1),
 });

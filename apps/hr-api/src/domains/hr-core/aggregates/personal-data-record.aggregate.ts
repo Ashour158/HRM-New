@@ -128,7 +128,9 @@ export class PersonalDataRecord extends AggregateRoot {
   readonly workerId: Uuid;
   dataCategory: DataCategory;
   dataClassification: 'LOW' | 'CONFIDENTIAL' | 'HIGH_SENSITIVITY' | 'SPECIAL_CATEGORY' | 'LEGAL_HOLD';
+  /** @classification SPECIAL_CATEGORY — opaque AES-256-GCM ciphertext of the sensitive payload. */
   encryptedPayloadRef?: string;
+  /** @classification CONFIDENTIAL..HIGH_SENSITIVITY — plaintext PII for non-SPECIAL_CATEGORY records only. */
   payload?: Record<string, unknown> | null;
   consentStatus: string;
   state: PersonalDataRecordState;
