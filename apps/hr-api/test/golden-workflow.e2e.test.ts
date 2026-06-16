@@ -346,7 +346,7 @@ describe.sequential('golden multi-domain workflow', () => {
 
     const balance = await apiPost('/absence/leave/accrual-balances', {
       workerId,
-      leaveType: 'ANNUAL',
+      leaveType: 'VACATION',
       balanceHours: 160,
       accruedHours: 160,
       usedHours: 0,
@@ -359,7 +359,7 @@ describe.sequential('golden multi-domain workflow', () => {
 
     const leave = await apiPost('/absence/leave/absence-requests', {
       workerId,
-      absenceType: 'ANNUAL',
+      absenceType: 'VACATION',
       startDate: isoDate(10),
       endDate: isoDate(10),
       reason: 'Golden workflow leave',
