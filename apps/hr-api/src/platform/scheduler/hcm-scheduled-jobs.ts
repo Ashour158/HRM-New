@@ -9,6 +9,7 @@ import type { ReminderEscalationTier } from './reminder-emitter.js';
 import { EffectiveDatingActivator } from './effective-dating-activator.js';
 import type { EffectiveDatingCandidate } from './effective-dating-activator.js';
 import { parseOffsetString } from './scheduler-time.js';
+import { PersonalDataRetentionJob } from './personal-data-retention-job.js';
 
 export interface AccrualBalanceJobRecord {
   id: Uuid;
@@ -4693,6 +4694,7 @@ export const HCM_SCHEDULED_JOB_PROVIDERS = [
   WellnessProgramEnrollmentWindowJob,
   ScheduledReportGenerationJob,
   PeriodicMetricSnapshotJob,
+  PersonalDataRetentionJob,
 ];
 
 export function monthPeriodKey(now: Date): string {

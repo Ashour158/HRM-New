@@ -70,6 +70,15 @@ export {
   encryptSecret,
   decryptSecret,
 } from './crypto/secret-encryption.js';
+export {
+  encryptPiiPayload,
+  decryptPiiPayload,
+} from './crypto/pii-encryption.js';
+export {
+  encryptWithKey,
+  decryptWithKey,
+  resolveKeyFromEnv,
+} from './crypto/aes-gcm.js';
 
 // Config
 export { loadFromEnv } from './config/platform-config.js';

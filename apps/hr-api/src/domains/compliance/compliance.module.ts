@@ -19,6 +19,7 @@ import { PlaceLegalHoldHandler } from './commands/place-legal-hold.handler.js';
 import { ReleaseLegalHoldHandler } from './commands/release-legal-hold.handler.js';
 import { SubmitStatutoryReportHandler } from './commands/submit-statutory-report.handler.js';
 import { ComplianceEventsPublisher } from './events/compliance-events.publisher.js';
+import { LegalHoldGuard } from './services/legal-hold-guard.service.js';
 
 /**
  * Compliance domain module.
@@ -51,7 +52,9 @@ import { ComplianceEventsPublisher } from './events/compliance-events.publisher.
     SubmitStatutoryReportHandler,
     // Event publisher
     ComplianceEventsPublisher,
+    // Governance enforcement
+    LegalHoldGuard,
   ],
-  exports: [PolicyDocumentRepository, LegalHoldRepository, StatutoryReportRepository],
+  exports: [PolicyDocumentRepository, LegalHoldRepository, StatutoryReportRepository, LegalHoldGuard],
 })
 export class ComplianceModule {}

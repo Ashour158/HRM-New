@@ -38,6 +38,22 @@ export class LegalHoldRepository {
       .filter((h) => h.affectedWorkerIds.some((id) => id.value === workerId.value));
   }
 
+  /**
+   * Tenant-scoped active holds affecting a worker. Used by the legal-hold
+   * guard to enforce hold blocking on deletion/erasure within a single tenant.
+   */
+  async findActiveByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<LegalHold[]> {
+    const rows = await this.db
+      .selectFrom('hr_compliance.legal_holds')
+      .selectAll()
+      .where('status', '=', 'ACTIVE')
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows
+      .map((r: any) => this.toAggregate(r))
+      .filter((h) => h.affectedWorkerIds.some((id) => id.value === workerId.value));
+  }
+
   async findActive(): Promise<LegalHold[]> {
     const rows = await this.db
       .selectFrom('hr_compliance.legal_holds')

@@ -1,6 +1,7 @@
 import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
+import { ComplianceModule } from '../compliance/compliance.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { HrCoreController } from './api/hr-core.controller.js';
 import { WorkerRepository } from './repositories/worker.repository.js';
@@ -12,6 +13,7 @@ import { CreateWorkerHandler } from './commands/create-worker.handler.js';
 import { ActivateWorkerHandler } from './commands/activate-worker.handler.js';
 import { TerminateWorkerHandler } from './commands/terminate-worker.handler.js';
 import { UpdateWorkerPersonalDataHandler } from './commands/update-worker-personal-data.handler.js';
+import { EraseWorkerPersonalDataHandler } from './commands/erase-worker-personal-data.handler.js';
 import { SuspendWorkerHandler } from './commands/suspend-worker.handler.js';
 import { ReinstateWorkerHandler } from './commands/reinstate-worker.handler.js';
 import { RehireWorkerHandler } from './commands/rehire-worker.handler.js';
@@ -33,7 +35,7 @@ import { registerJobAssignmentFsm } from './fsm/job-assignment.fsm.js';
 import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js';
 
 @Module({
-  imports: [PlatformModule, HcmSetupModule],
+  imports: [PlatformModule, HcmSetupModule, ComplianceModule],
   controllers: [HrCoreController],
   providers: [
     WorkerRepository,
@@ -45,6 +47,7 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     ActivateWorkerHandler,
     TerminateWorkerHandler,
     UpdateWorkerPersonalDataHandler,
+    EraseWorkerPersonalDataHandler,
     SuspendWorkerHandler,
     ReinstateWorkerHandler,
     RehireWorkerHandler,
