@@ -110,8 +110,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build @hcm/database and its dependencies
-        run: pnpm --filter "...@hcm/database" build
+      - name: Build database package graph
+        run: pnpm --filter @hcm/database... build
 
       - name: Run migrations against PostgreSQL
         run: pnpm --filter @hcm/database migrate
