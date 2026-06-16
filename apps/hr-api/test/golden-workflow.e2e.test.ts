@@ -177,10 +177,15 @@ async function runCommand(basePath: string, id: string, action: string, payload:
 
 async function expectAllowedActions(path: string): Promise<string[]> {
   const response = await apiGet(path);
-  const data = expectSuccessful(response, `GET ${path}`);
-  // The endpoint returns a bare action array; tolerate both that and an
-  // envelope carrying allowedActions/allowedNextActions.
-  const actions = Array.isArray(data) ? data : (data.allowedActions ?? data.allowedNextActions);
+  if (response.status < 200 || response.status >= 300) {
+    throw new Error(`GET ${path} returned ${response.status}: ${JSON.stringify(response.body)}`);
+  }
+  // The endpoint returns a bare action array (envelope.data); asRecord() would
+  // flatten it to {}, so read the raw payload and tolerate either shape.
+  const payload = payloadOf(response.body);
+  const actions = Array.isArray(payload)
+    ? payload
+    : (asRecord(payload).allowedActions ?? asRecord(payload).allowedNextActions);
   expect(Array.isArray(actions)).toBe(true);
   return actions as string[];
 }
