@@ -1,4 +1,5 @@
 import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-kernel';
+import { encryptPiiPayload, decryptPiiPayload } from '@hcm/platform-core';
 
 export type PersonalDataRecordState = 'DRAFT' | 'ACTIVE' | 'SUPPRESSED' | 'DELETED';
 export type DataCategory =
@@ -173,6 +174,34 @@ export class PersonalDataRecord extends AggregateRoot {
       }
     }
 
+    return PersonalDataRecord.#build(props, correlationId);
+  }
+
+  /**
+   * Factory for SPECIAL_CATEGORY records that takes a plaintext sensitive
+   * payload and encrypts it at rest into `encryptedPayloadRef`. The raw
+   * payload is never persisted.
+   */
+  static createSpecialCategory(
+    props: Omit<PersonalDataRecordProps, 'payload' | 'encryptedPayloadRef' | 'dataCategory'> & {
+      sensitivePayload: Record<string, unknown>;
+    },
+    correlationId: Uuid,
+  ): PersonalDataRecord {
+    const { sensitivePayload, ...rest } = props;
+    return PersonalDataRecord.#build(
+      {
+        ...rest,
+        dataCategory: 'SPECIAL_CATEGORY',
+        payload: null,
+        encryptedPayloadRef: encryptPiiPayload(sensitivePayload),
+      },
+      correlationId,
+    );
+  }
+
+  static #build(props: PersonalDataRecordProps, correlationId: Uuid): PersonalDataRecord {
+
     const record = new PersonalDataRecord({
       ...props,
       state: 'DRAFT',
@@ -249,5 +278,21 @@ export class PersonalDataRecord extends AggregateRoot {
     );
     this.incrementVersion();
     this.updatedAt = new Date();
+  }
+
+  /**
+   * Decrypt and return the SPECIAL_CATEGORY sensitive payload.
+   *
+   * Returns `undefined` once the record has been deleted (the ref is cleared).
+   * Throws for non-special categories, whose payload is available directly.
+   */
+  readSensitivePayload(): Record<string, unknown> | undefined {
+    if (this.dataCategory !== 'SPECIAL_CATEGORY') {
+      throw new ValidationError('readSensitivePayload is only valid for SPECIAL_CATEGORY data');
+    }
+    if (this.state === 'DELETED' || !this.encryptedPayloadRef) {
+      return undefined;
+    }
+    return decryptPiiPayload(this.encryptedPayloadRef);
   }
 }
