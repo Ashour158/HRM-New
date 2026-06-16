@@ -260,9 +260,12 @@ describe.sequential('outbox -> event bus -> inbox drain', () => {
       firstName: 'Drain',
       lastName: 'Probe',
       email: `${shortCode('drain').toLowerCase()}@example.com`,
-      hireDate: isoDate(-10),
+      // Satisfy required field rules / active options in default Admin Settings.
+      workEmail: `${shortCode('drain-work').toLowerCase()}@example.com`,
+      hireDate: '2024-06-01T09:00:00.000Z',
       employmentType: 'FULL_TIME',
-      jobTitle: 'Drain Probe',
+      departmentName: 'People Operations',
+      jobTitle: 'HR Operations Analyst',
     });
     const workerId = findId(workerCreate.body, ['workerId']);
     createdWorkerIds.add(workerId);
