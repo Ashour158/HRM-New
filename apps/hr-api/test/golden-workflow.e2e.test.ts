@@ -178,7 +178,9 @@ async function runCommand(basePath: string, id: string, action: string, payload:
 async function expectAllowedActions(path: string): Promise<string[]> {
   const response = await apiGet(path);
   const data = expectSuccessful(response, `GET ${path}`);
-  const actions = data.allowedActions ?? data.allowedNextActions;
+  // The endpoint returns a bare action array; tolerate both that and an
+  // envelope carrying allowedActions/allowedNextActions.
+  const actions = Array.isArray(data) ? data : (data.allowedActions ?? data.allowedNextActions);
   expect(Array.isArray(actions)).toBe(true);
   return actions as string[];
 }

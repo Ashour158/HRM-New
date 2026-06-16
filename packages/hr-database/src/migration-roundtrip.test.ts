@@ -28,12 +28,13 @@ async function expectKeyTablesPresent(): Promise<void> {
        to_regclass('hr_platform.outbox_events') as outbox_events,
        to_regclass('hr_core.workers') as workers`,
   );
-  expect(result.rows[0]).toMatchObject({
-    tenants: 'hr_platform.tenants',
-    audit_log: 'hr_platform.audit_log',
-    outbox_events: 'hr_platform.outbox_events',
-    workers: 'hr_core.workers',
-  });
+  // to_regclass renders names unqualified when the schema is on the
+  // search_path, so assert presence (non-null) rather than the exact
+  // schema-qualified string.
+  const row = result.rows[0] as Record<string, unknown>;
+  for (const key of ['tenants', 'audit_log', 'outbox_events', 'workers']) {
+    expect(row[key], `expected ${key} to exist after migration`).toBeTruthy();
+  }
 }
 
 describe('migration rollback/forward roundtrip', () => {
