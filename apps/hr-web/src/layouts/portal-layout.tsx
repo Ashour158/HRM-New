@@ -43,6 +43,8 @@ import {
   Landmark,
   Scale,
   ShieldCheck,
+  ShieldAlert,
+  EyeOff,
   Sparkles,
 } from 'lucide-react';
 
@@ -102,6 +104,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
     theme: 'admin',
     navItems: [
       { label: 'Home', path: '/admin' },
+      { label: 'Get started', path: '/admin/get-started' },
       { label: 'Dashboard', path: '/admin/dashboard' },
       { label: 'Employees', path: '/admin/employees' },
       { label: 'Organization', path: '/admin/organization' },
@@ -176,6 +179,7 @@ const managerRailItems: PortalRailItem[] = [
 
 const adminRailItems: PortalRailItem[] = [
   { label: 'Home', path: '/admin', icon: Home },
+  { label: 'Get started', path: '/admin/get-started', icon: Sparkles },
   { label: 'Dashboard', path: '/admin/dashboard', icon: BarChart3 },
   { label: 'Employees', path: '/admin/employees', icon: Users },
   { label: 'Organization', path: '/admin/organization', icon: Network },
@@ -200,6 +204,9 @@ const adminRailItems: PortalRailItem[] = [
   { label: 'Modules', path: '/admin/modules', icon: UserRoundCheck },
   { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
   { label: 'System Console', path: '/admin/system-console', icon: Settings, systemOnly: true },
+  { label: 'Policy Builder', path: '/admin/system-console/policies', icon: ShieldCheck, systemOnly: true },
+  { label: 'SoD Rules', path: '/admin/system-console/sod-rules', icon: ShieldAlert, systemOnly: true },
+  { label: 'Field Access', path: '/admin/system-console/field-access', icon: EyeOff, systemOnly: true },
 ];
 
 const recruiterRailItems: PortalRailItem[] = [
@@ -253,6 +260,16 @@ function WorkspaceShell({
     () => portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole),
     [canSeeSystemConsole, portalType],
   );
+  const navLabel = React.useCallback(
+    (item: PortalNavItem) => {
+      if (item.path === '/admin/get-started') return t('adminGetStarted.title');
+      if (item.path === '/admin/system-console/policies') return t('lowCode.nav.policyBuilder');
+      if (item.path === '/admin/system-console/sod-rules') return t('lowCode.nav.sodRules');
+      if (item.path === '/admin/system-console/field-access') return t('lowCode.nav.fieldAccess');
+      return item.label;
+    },
+    [t],
+  );
   const { data: meInbox } = useApiQuery<MeInbox>(
     ['me-inbox', 'command-palette', portalType],
     '/me/inbox',
@@ -274,7 +291,7 @@ function WorkspaceShell({
         return true;
       })
       .map((item) => ({
-        label: item.label,
+        label: navLabel(item),
         path: item.path,
         group: item.systemOnly ? t('commandPalette.groupGovernance') : t('commandPalette.groupNavigate'),
         keywords: [portalType, config.title],
@@ -296,7 +313,7 @@ function WorkspaceShell({
         searchResult: (query) => t('commandPalette.searchResult', { query }),
       },
     });
-  }, [canSeeSystemConsole, config.navItems, config.title, hasPermission, meInbox, portalType, railItems, t]);
+  }, [canSeeSystemConsole, config.navItems, config.title, hasPermission, meInbox, navLabel, portalType, railItems, t]);
   const primaryActionPath = portalType === 'admin'
     ? '/admin/system-console'
     : portalType === 'recruiter'
@@ -366,7 +383,7 @@ function WorkspaceShell({
                   && (!hash || location.hash === `#${hash}`);
                 return (
                   <Link
-                    key={item.label}
+                    key={item.path}
                     to={item.path}
                     className={cn(
                       'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
@@ -376,7 +393,7 @@ function WorkspaceShell({
                     )}
                   >
                     <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
-                    <span>{item.label}</span>
+                    <span>{navLabel(item)}</span>
                   </Link>
                 );
               })}
@@ -481,7 +498,7 @@ function WorkspaceShell({
                       && (!hash || location.hash === `#${hash}`);
                     return (
                       <Link
-                        key={item.label}
+                        key={item.path}
                         to={item.path}
                         className={cn(
                           'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
@@ -491,7 +508,7 @@ function WorkspaceShell({
                         )}
                       >
                         <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
-                        <span>{item.label}</span>
+                        <span>{navLabel(item)}</span>
                       </Link>
                     );
                   })}

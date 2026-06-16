@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { NextActions } from '@/components/common/next-actions';
 import { useUIStore } from '@/stores/ui-store';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, RefreshCw, Users, Workflow, XCircle } from 'lucide-react';
 import type { AbsenceRequest } from '@/types';
@@ -301,6 +302,8 @@ export function ManagerApprovals() {
 
   return (
     <div className="space-y-6">
+      <NextActions storageKey="manager-approvals" />
+
       <div className="flex flex-col gap-4 border-b border-white/40 pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
