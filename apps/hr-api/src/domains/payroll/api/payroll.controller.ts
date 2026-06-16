@@ -45,6 +45,7 @@ import {
 import { PayrollInputOrchestrationService, type PayrollInputDraft } from '../services/payroll-input-orchestration.service.js';
 import { PayrollApprovedInputProjectionService, type PayrollApprovedInputRecord } from '../services/payroll-approved-input-projection.service.js';
 import { PayrollArtifactService } from '../services/payroll-artifact.service.js';
+import { DocumentExportService, EXPORT_CONTENT_TYPES } from '../../../platform/export/document-export.service.js';
 import { PayrollEnterpriseWorkflowService, type PayrollReconciliationRow } from '../services/payroll-enterprise-workflow.service.js';
 import { PayrollBankFileService, type PayrollBankFileFormat } from '../services/payroll-bank-file.service.js';
 import { PayrollGlPostingService } from '../services/payroll-gl-posting.service.js';
@@ -160,6 +161,7 @@ export class PayrollController {
     private readonly payrollInputOrchestration: PayrollInputOrchestrationService,
     private readonly payrollApprovedInputProjection: PayrollApprovedInputProjectionService,
     private readonly payrollArtifact: PayrollArtifactService,
+    private readonly documentExport: DocumentExportService,
     _payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
     _payrollBankFile: PayrollBankFileService,
     private readonly payrollGlPosting: PayrollGlPostingService,
@@ -1793,6 +1795,42 @@ export class PayrollController {
     res.setHeader('X-Data-Classification', 'HIGH_SENSITIVITY');
     res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
     res.send(this.payrollInputOrchestration.renderPayslipHtml(payslip));
+  }
+
+  @Get('cycles/:id/payslips/:workerId.pdf')
+  async getPayrollCyclePayslipPdf(
+    @Param('id') id: string,
+    @Param('workerId') workerId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    this.assertCanExportPayroll(req);
+    const artifact = await this.payslipArtifactRepo.findByCycleAndWorker(this.getTenantId(req), new Uuid(id), new Uuid(workerId));
+    if (!artifact) throw new BadRequestException('Payslip artifact not found for this employee and cycle');
+    const payslip = artifact.payslipPayload;
+
+    const moneyRows: Array<Array<string | number>> = (payslip?.lines ?? []).map((line) => [
+      line.lineType, line.description, line.amount, line.currency,
+    ]);
+    moneyRows.push(['SUMMARY', 'Gross pay', artifact.grossPay, artifact.currency]);
+    if (payslip) {
+      moneyRows.push(['SUMMARY', 'Taxes', payslip.taxes, artifact.currency]);
+      moneyRows.push(['SUMMARY', 'Deductions', payslip.deductions, artifact.currency]);
+    }
+    moneyRows.push(['SUMMARY', 'Net pay', artifact.netPay, artifact.currency]);
+
+    const buffer = await this.documentExport.toPdf({
+      title: `Payslip — ${payslip?.employeeName ?? artifact.employeeId} (${artifact.employeeId})`,
+      columns: ['Type', 'Description', 'Amount', 'Currency'],
+      rows: moneyRows,
+      generatedAt: new Date().toISOString(),
+    });
+    res.setHeader('Content-Type', EXPORT_CONTENT_TYPES.pdf);
+    res.setHeader('Content-Disposition', `attachment; filename="payslip-${artifact.employeeId}.pdf"`);
+    res.setHeader('X-Data-Classification', artifact.dataClassification);
+    res.setHeader('X-Visibility-Scope', 'PAYROLL_ADMIN_ONLY');
+    res.setHeader('X-Content-Hash', artifact.contentHash);
+    return res.send(buffer);
   }
 
   /* Payroll Inputs */

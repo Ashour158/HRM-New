@@ -32,6 +32,7 @@ import { HrAnalyticsReportingService } from './services/hr-analytics-reporting.s
 import { ReportBuilderCatalogService } from './services/report-builder-catalog.service.js';
 import { ReportSemanticQueryService } from './services/report-semantic-query.service.js';
 import { SEMANTIC_REPORT_ROW_PROVIDER, SqlSemanticReportRowProviderService } from './services/report-semantic-row-provider.service.js';
+import { DocumentExportService } from '../../platform/export/document-export.service.js';
 
 @Module({
   imports: [PlatformModule],
@@ -46,6 +47,7 @@ import { SEMANTIC_REPORT_ROW_PROVIDER, SqlSemanticReportRowProviderService } fro
     ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService,
     SqlSemanticReportRowProviderService,
     { provide: SEMANTIC_REPORT_ROW_PROVIDER, useExisting: SqlSemanticReportRowProviderService },
+    DocumentExportService,
   ],
   exports: [ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService],
 })
