@@ -53,8 +53,20 @@ async function insertPerformanceReview(workerId: string, reviewCycleId: string, 
   return id;
 }
 
+async function insertLearningCourse(courseId: string): Promise<void> {
+  await getPool().query(
+    `insert into hr_learning.learning_courses (
+      id, tenant_id, title, content_type, status, aggregate_version, created_at, updated_at
+    ) values ($1, $2, 'Finder Isolation Course', 'COURSE', 'PUBLISHED', 0, now(), now())`,
+    [courseId, TENANT_A],
+  );
+  cleanup.push({ table: 'hr_learning.learning_courses', id: courseId });
+}
+
 async function insertLearningAssignment(workerId: string, courseId: string, assignedBy: string): Promise<string> {
   const id = randomUUID();
+  // Satisfy the learning_assignments -> learning_courses FK before assigning.
+  await insertLearningCourse(courseId);
   await getPool().query(
     `insert into hr_learning.learning_assignments (
       id, tenant_id, worker_id, course_id, assigned_by, assigned_at, status, aggregate_version, created_at, updated_at

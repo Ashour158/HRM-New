@@ -277,7 +277,10 @@ describe.sequential('golden multi-domain workflow', () => {
       workEmail: `${shortCode('golden-work').toLowerCase()}@example.com`,
       hireDate: isoDate(-30),
       employmentType: 'FULL_TIME',
-      jobTitle: 'Golden Analyst',
+      // Department is a required field rule and jobTitle must be an active
+      // option in the default Admin Settings (hcm-setup.defaults).
+      departmentName: 'People Operations',
+      jobTitle: 'HR Operations Analyst',
       grossSalaryAmount: 12_000,
       salaryCurrency: 'EGP',
       salaryBasis: 'MONTHLY',
