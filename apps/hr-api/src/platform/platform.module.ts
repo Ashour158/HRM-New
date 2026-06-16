@@ -44,6 +44,7 @@ import { IntelligenceRepository } from '../domains/intelligence/repositories/int
 import { LearningAssignmentRepository } from '../domains/learning/repositories/learning-assignment.repository.js';
 import { OnboardingTaskRepository } from '../domains/onboarding/repositories/onboarding-task.repository.js';
 import { JobRunner } from './scheduler/job-runner.service.js';
+import { PersonalDataRetentionReadRepository } from './scheduler/personal-data-retention-job.js';
 import {
   HCM_SCHEDULED_JOB_PROVIDERS,
   HcmDomainSchedulerReadRepository,
@@ -133,6 +134,7 @@ const eventBusProvider = {
     HcmSchedulerReadRepository,
     HcmDomainSchedulerReadRepository,
     HcmGovernanceSchedulerReadRepository,
+    PersonalDataRetentionReadRepository,
     ...HCM_SCHEDULED_JOB_PROVIDERS,
     {
       provide: SCHEDULED_JOBS,
