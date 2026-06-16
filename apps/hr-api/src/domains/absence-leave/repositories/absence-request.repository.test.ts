@@ -15,8 +15,10 @@ describe('AbsenceRequestRepository date-only mapping', () => {
       worker_id: '00000000-0000-0000-0000-000000000012',
       absence_type: 'VACATION',
       policy_code: 'VACATION',
-      start_date: new Date('2026-07-19T21:00:00.000Z'),
-      end_date: new Date('2026-07-19T21:00:00.000Z'),
+      // node-pg hydrates a Postgres `date` as local midnight of that calendar
+      // day. Build that local-midnight instant so the test is TZ-independent.
+      start_date: new Date(2026, 6, 20),
+      end_date: new Date(2026, 6, 20),
       duration_unit: 'DAYS',
       duration_amount: 1,
       start_time: null,

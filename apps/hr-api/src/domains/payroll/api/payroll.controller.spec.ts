@@ -451,6 +451,7 @@ describe('PayrollController salary governance', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
       new PayrollGlPostingService() as never,
     );
     const req = {
@@ -878,6 +879,7 @@ describe('PayrollController salary governance', () => {
           updatedAt: new Date(),
         })),
       } as never,
+      {} as never,
       {} as never,
       {} as never,
       new PayrollGlPostingService() as never,
