@@ -275,7 +275,9 @@ describe.sequential('golden multi-domain workflow', () => {
       lastName: 'Worker',
       email: `${shortCode('golden').toLowerCase()}@example.com`,
       workEmail: `${shortCode('golden-work').toLowerCase()}@example.com`,
-      hireDate: isoDate(-30),
+      // hireDate must be in the past; isoDate() is anchored to a future year
+      // for deterministic payroll periods, so use a fixed historical date here.
+      hireDate: '2024-06-01T09:00:00.000Z',
       employmentType: 'FULL_TIME',
       // Department is a required field rule and jobTitle must be an active
       // option in the default Admin Settings (hcm-setup.defaults).
