@@ -45,11 +45,13 @@ function isAllowedFinding(file, line, findingName) {
   ) {
     return true;
   }
-  // CI workflow files only carry ephemeral, CI-scoped values; real secrets use
-  // GitHub Actions ${{ secrets.* }} interpolation, never plaintext assignments.
+  // CI workflow files use GitHub Actions ${{ secrets.* }} for real secrets;
+  // any plaintext assignment must additionally look CI-scoped/ephemeral to be
+  // allowed, so a real-looking secret committed here is still flagged.
   if (
     findingName === 'Plaintext secret assignment'
     && normalized.startsWith('.github/workflows/')
+    && /\bci[-_]|ephemeral|runtime-lifecycle|fake[-_]?secret/i.test(line)
   ) {
     return true;
   }
