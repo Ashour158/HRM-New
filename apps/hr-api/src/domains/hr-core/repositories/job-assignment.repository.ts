@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -14,6 +14,14 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
 
   constructor() {
     super(createKyselyInstance(getPool()));
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for job assignment query');
+    }
+    return tenantId.value;
   }
 
   async findById(id: Uuid): Promise<JobAssignment | undefined> {
@@ -35,7 +43,7 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['job_assignments']));
   }
@@ -54,7 +62,7 @@ export class JobAssignmentRepository extends BaseRepository<'job_assignments', J
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .where('state', '=', 'ACTIVE')
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['job_assignments']) : undefined;

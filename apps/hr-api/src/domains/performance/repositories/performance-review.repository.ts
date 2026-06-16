@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,23 +13,31 @@ export class PerformanceReviewRepository extends BaseRepository<'performance_rev
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for performance review query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<PerformanceReview | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByWorker(workerId: Uuid): Promise<PerformanceReview[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<PerformanceReview[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('review_cycle_id', '=', reviewCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByManager(managerId: Uuid): Promise<PerformanceReview[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('manager_id', '=', managerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('manager_id', '=', managerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

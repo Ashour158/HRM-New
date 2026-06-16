@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,6 +13,14 @@ export class EmployeeRelationsCaseRepository extends BaseRepository<'employee_re
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for employee relations case query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<EmployeeRelationsCase | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['employee_relations_cases']) : undefined;
@@ -24,7 +32,7 @@ export class EmployeeRelationsCaseRepository extends BaseRepository<'employee_re
   }
 
   async findBySubjectWorker(subjectWorkerId: Uuid): Promise<EmployeeRelationsCase[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('subject_worker_id', '=', subjectWorkerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('subject_worker_id', '=', subjectWorkerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['employee_relations_cases']));
   }
 

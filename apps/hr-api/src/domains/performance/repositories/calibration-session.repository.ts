@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,13 +13,21 @@ export class CalibrationSessionRepository extends BaseRepository<'calibration_se
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for calibration session query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<CalibrationSession | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<CalibrationSession[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('review_cycle_id', '=', reviewCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

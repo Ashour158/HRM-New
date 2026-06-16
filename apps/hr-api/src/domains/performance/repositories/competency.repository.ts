@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { Competency, type CompetencyStatus } from '../aggregates/competency.aggregate.js';
 
@@ -9,6 +9,14 @@ export class CompetencyRepository extends BaseRepository<'competencies', Compete
 
   constructor() {
     super(createKyselyInstance(getPool()));
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for competencie query');
+    }
+    return tenantId.value;
   }
 
   async findById(id: Uuid): Promise<Competency | undefined> {
@@ -22,7 +30,7 @@ export class CompetencyRepository extends BaseRepository<'competencies', Compete
   }
 
   async findByCategory(category: string): Promise<Competency[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('category', '=', category).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('category', '=', category).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

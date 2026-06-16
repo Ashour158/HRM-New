@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { LegalEntity } from '../aggregates/legal-entity.aggregate.js';
 
@@ -16,6 +16,14 @@ export class LegalEntityRepository extends BaseRepository<'hr_org.legal_entities
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for hr org.legal entitie query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<LegalEntity | undefined> {
     const row = await super.findById(id);
     return row ? this.toEntity(row as unknown as Database['hr_org.legal_entities']) : undefined;
@@ -25,7 +33,7 @@ export class LegalEntityRepository extends BaseRepository<'hr_org.legal_entities
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('code', '=', code)
+      .where('tenant_id', '=', this.requireTenantId()).where('code', '=', code)
       .executeTakeFirst();
     return row ? this.toEntity(row as unknown as Database['hr_org.legal_entities']) : undefined;
   }

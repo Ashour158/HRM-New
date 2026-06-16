@@ -8,9 +8,10 @@ type LooseDatabase = Record<string, Record<string, unknown>>;
 type LooseExecutor = Kysely<LooseDatabase> | Transaction<LooseDatabase>;
 
 /**
- * Tables that carry a `tenant_id` column. `update()`/`delete()` enforce tenant
- * scoping, so the base class is constrained to tenant-owned tables to keep that
- * guarantee type-safe for future subclasses.
+ * Tables that carry a `tenant_id` column. All CRUD operations (`findById`,
+ * `findAll`, `insert`, `update`, `delete`) enforce tenant scoping, so the base
+ * class is constrained to tenant-owned tables to keep that guarantee type-safe
+ * for future subclasses.
  */
 export type TenantTableNames = {
   [K in keyof Database]: 'tenant_id' extends keyof Database[K] ? K : never;
@@ -34,16 +35,28 @@ export abstract class BaseRepository<TTable extends TenantTableNames, TAggregate
   }
 
   async findById(id: Uuid): Promise<TAggregate | undefined> {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for findById');
+    }
     const result = await this.queryExecutor
       .selectFrom(this.table)
       .selectAll()
       .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
       .executeTakeFirst();
     return result as unknown as TAggregate | undefined;
   }
 
   async findAll(options?: { limit?: number; offset?: number }): Promise<TAggregate[]> {
-    let query = this.queryExecutor.selectFrom(this.table).selectAll();
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for findAll');
+    }
+    let query = this.queryExecutor
+      .selectFrom(this.table)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value);
     if (options?.limit !== undefined) {
       query = query.limit(options.limit);
     }

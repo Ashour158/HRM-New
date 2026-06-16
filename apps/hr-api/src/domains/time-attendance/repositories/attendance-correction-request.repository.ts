@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -39,6 +39,14 @@ export class AttendanceCorrectionRequestRepository {
   private readonly db = createKyselyInstance(getPool());
   private readonly tableName = 'attendance_correction_requests' as const;
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for attendance correction request query');
+    }
+    return tenantId.value;
+  }
+
   async create(record: Omit<AttendanceCorrectionRequestRecord, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<AttendanceCorrectionRequestRecord> {
     const now = new Date();
     const row = await this.db
@@ -54,7 +62,7 @@ export class AttendanceCorrectionRequestRepository {
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('id', '=', id.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('id', '=', id.value)
       .executeTakeFirst();
     return row ? this.toRecord(row as Database['attendance_correction_requests']) : undefined;
   }

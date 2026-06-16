@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -11,6 +11,14 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
 
   constructor() {
     super(createKyselyInstance(getPool()));
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for coverage gap query');
+    }
+    return tenantId.value;
   }
 
   async findById(id: Uuid): Promise<CoverageGap | undefined> {
@@ -31,7 +39,7 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
   }
 
   async findByDepartment(departmentId: Uuid): Promise<CoverageGap[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('department_id', '=', departmentId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('department_id', '=', departmentId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['coverage_gaps']));
   }
 

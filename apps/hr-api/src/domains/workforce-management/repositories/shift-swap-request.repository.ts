@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,6 +13,14 @@ export class ShiftSwapRequestRepository extends BaseRepository<'shift_swap_reque
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for shift swap request query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<ShiftSwapRequest | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['shift_swap_requests']) : undefined;
@@ -24,7 +32,7 @@ export class ShiftSwapRequestRepository extends BaseRepository<'shift_swap_reque
   }
 
   async findByRequester(requesterWorkerId: Uuid): Promise<ShiftSwapRequest[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('requester_worker_id', '=', requesterWorkerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('requester_worker_id', '=', requesterWorkerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['shift_swap_requests']));
   }
 

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { sql, type Insertable, type Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -41,6 +41,14 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for personal data record query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<PersonalDataRecord | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
@@ -50,7 +58,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['personal_data_records']));
   }
@@ -69,7 +77,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .where('data_category', '=', dataCategory)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
@@ -98,7 +106,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('data_category', '=', dataCategory)
+      .where('tenant_id', '=', this.requireTenantId()).where('data_category', '=', dataCategory)
       .where(sql<string>`payload ->> ${fieldName}`, '=', value)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
@@ -125,10 +133,11 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   }
 
   async findExpiringWithinForTenant(days: number, tenantId?: Uuid): Promise<PersonalDataExpiryAlertRow[]> {
-    const query = this.db.selectFrom(this.tableName).selectAll();
-    const rows = tenantId
-      ? await query.where('tenant_id', '=', tenantId.value).execute()
-      : await query.execute();
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId?.value ?? this.requireTenantId())
+      .execute();
     const alerts: PersonalDataExpiryAlertRow[] = [];
 
     for (const row of rows) {

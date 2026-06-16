@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { Objective, type ObjectiveStatus } from '../aggregates/objective.aggregate.js';
 
@@ -11,28 +11,36 @@ export class ObjectiveRepository extends BaseRepository<'objectives', Objective>
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for objective query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<Objective | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByOwner(ownerId: Uuid): Promise<Objective[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('owner_id', '=', ownerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('owner_id', '=', ownerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByOrgUnit(orgUnitId: Uuid): Promise<Objective[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('org_unit_id', '=', orgUnitId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('org_unit_id', '=', orgUnitId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByReviewCycle(reviewCycleId: Uuid): Promise<Objective[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('review_cycle_id', '=', reviewCycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('review_cycle_id', '=', reviewCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
   async findByParent(parentObjectiveId: Uuid): Promise<Objective[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('parent_objective_id', '=', parentObjectiveId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('parent_objective_id', '=', parentObjectiveId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

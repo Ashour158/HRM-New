@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { OrgUnit } from '../aggregates/org-unit.aggregate.js';
 
@@ -31,6 +31,14 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for hr org.org unit query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<OrgUnit | undefined> {
     const row = await super.findById(id);
     return row ? this.toEntity(row as unknown as Database['hr_org.org_units']) : undefined;
@@ -40,7 +48,7 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('parent_id', '=', parentId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('parent_id', '=', parentId.value)
       .execute();
     return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.org_units']));
   }
@@ -49,7 +57,7 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('legal_entity_id', '=', legalEntityId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('legal_entity_id', '=', legalEntityId.value)
       .execute();
     return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.org_units']));
   }

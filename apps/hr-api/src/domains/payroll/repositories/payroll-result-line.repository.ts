@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,17 +19,17 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
   async findByCalculationRun(calculationRunId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('calculation_run_id', '=', calculationRunId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('calculation_run_id', '=', calculationRunId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
   async findByWorker(workerId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
@@ -41,6 +41,14 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_result_lines']>);
     }
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for payroll result line query');
+    }
+    return tenantId.value;
   }
 
   private toAggregate(row: Database['payroll_result_lines']): PayrollResultLine {

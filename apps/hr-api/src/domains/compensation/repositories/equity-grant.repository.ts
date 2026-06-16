@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { EquityGrant, type VestingScheduleEntry } from '../aggregates/equity-grant.aggregate.js';
 
@@ -16,6 +16,14 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for equity grant query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<EquityGrant | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['equity_grants']) : undefined;
@@ -25,7 +33,7 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['equity_grants']));
   }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { ManagerRelationship } from '../aggregates/manager-relationship.aggregate.js';
 
@@ -16,6 +16,14 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for hr org.manager relationship query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<ManagerRelationship | undefined> {
     const row = await super.findById(id);
     return row ? this.toEntity(row as unknown as Database['hr_org.manager_relationships']) : undefined;
@@ -25,7 +33,7 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .execute();
     return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
   }
@@ -34,7 +42,7 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('manager_id', '=', managerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('manager_id', '=', managerId.value)
       .execute();
     return rows.map((r: any) => this.toEntity(r as unknown as Database['hr_org.manager_relationships']));
   }
@@ -52,7 +60,7 @@ export class ManagerRelationshipRepository extends BaseRepository<'hr_org.manage
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('worker_id', '=', workerId.value)
+      .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
       .where('end_date', 'is', null)
       .executeTakeFirst();
     return row ? this.toEntity(row as unknown as Database['hr_org.manager_relationships']) : undefined;

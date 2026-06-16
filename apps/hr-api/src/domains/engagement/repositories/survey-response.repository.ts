@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,13 +13,21 @@ export class SurveyResponseRepository extends BaseRepository<'survey_responses',
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for survey response query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<SurveyResponse | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findBySurvey(surveyId: Uuid): Promise<SurveyResponse[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('survey_id', '=', surveyId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('survey_id', '=', surveyId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 

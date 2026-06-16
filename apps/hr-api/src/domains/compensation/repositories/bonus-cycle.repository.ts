@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { BonusCycle } from '../aggregates/bonus-cycle.aggregate.js';
 
@@ -14,6 +14,14 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
 
   constructor() {
     super(createKyselyInstance(getPool()));
+  }
+
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for bonus cycle query');
+    }
+    return tenantId.value;
   }
 
   async findById(id: Uuid): Promise<BonusCycle | undefined> {
@@ -34,7 +42,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
     const rows = await this.db
       .selectFrom(this.tableName)
       .selectAll()
-      .where('cycle_year', '=', cycleYear)
+      .where('tenant_id', '=', this.requireTenantId()).where('cycle_year', '=', cycleYear)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['bonus_cycles']));
   }

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -13,6 +13,14 @@ export class WfmOvertimeApprovalRepository extends BaseRepository<'wfm_overtime_
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for wfm overtime approval query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<WfmOvertimeApproval | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Database['wfm_overtime_approvals']) : undefined;
@@ -24,7 +32,7 @@ export class WfmOvertimeApprovalRepository extends BaseRepository<'wfm_overtime_
   }
 
   async findByWorker(workerId: Uuid): Promise<WfmOvertimeApproval[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('worker_id', '=', workerId.value).execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['wfm_overtime_approvals']));
   }
 

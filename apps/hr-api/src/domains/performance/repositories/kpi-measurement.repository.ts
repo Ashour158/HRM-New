@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { KpiMeasurement, type KpiMeasurementStatus } from '../aggregates/kpi-measurement.aggregate.js';
 
@@ -11,13 +11,21 @@ export class KpiMeasurementRepository extends BaseRepository<'kpi_measurements',
     super(createKyselyInstance(getPool()));
   }
 
+  private requireTenantId(): string {
+    const tenantId = getCurrentTenantId();
+    if (!tenantId) {
+      throw new Error('Tenant context required for kpi measurement query');
+    }
+    return tenantId.value;
+  }
+
   async findById(id: Uuid): Promise<KpiMeasurement | undefined> {
     const row = await super.findById(id);
     return row ? this.toAggregate(row as unknown as Record<string, never>) : undefined;
   }
 
   async findByKpi(kpiId: Uuid): Promise<KpiMeasurement[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('kpi_id', '=', kpiId.value).orderBy('period_start desc').execute();
+    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('kpi_id', '=', kpiId.value).orderBy('period_start desc').execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Record<string, never>));
   }
 
