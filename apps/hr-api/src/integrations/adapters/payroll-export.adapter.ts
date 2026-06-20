@@ -13,6 +13,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { ExportResult, IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export type ExportFormat = 'CSV' | 'XML' | 'JSON' | 'API';
 
@@ -30,8 +31,7 @@ export class PayrollExportAdapter implements IntegrationAdapter {
   private readonly logger = new Logger(PayrollExportAdapter.name);
 
   async healthCheck(): Promise<boolean> {
-    // Mock: in production ping Finance/ERP health endpoint
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -42,16 +42,12 @@ export class PayrollExportAdapter implements IntegrationAdapter {
   async exportPayrollCycle(cycleId: Uuid, format: ExportFormat): Promise<ExportResult> {
     this.logger.log({ type: 'PAYROLL_EXPORT_CYCLE', cycleId: cycleId.value, format });
 
-    // Mock implementation
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_PAYROLL_CYCLE',
+      cycleId,
       format,
-      recordCount: 0,
-      details: { cycleId: cycleId.value },
-    };
+    });
+    return { ...result, format };
   }
 
   /**
@@ -61,15 +57,11 @@ export class PayrollExportAdapter implements IntegrationAdapter {
   async exportPayslips(cycleId: Uuid): Promise<ExportResult> {
     this.logger.log({ type: 'PAYROLL_EXPORT_PAYSLIPS', cycleId: cycleId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'PDF',
-      recordCount: 0,
-      details: { cycleId: cycleId.value },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_PAYSLIPS',
+      cycleId,
+    });
+    return { ...result, format: 'PDF' };
   }
 
   /**
@@ -79,15 +71,11 @@ export class PayrollExportAdapter implements IntegrationAdapter {
   async exportJournalEntries(cycleId: Uuid): Promise<ExportResult> {
     this.logger.log({ type: 'PAYROLL_EXPORT_JOURNAL', cycleId: cycleId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'API',
-      recordCount: 0,
-      details: { cycleId: cycleId.value },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_JOURNAL',
+      cycleId,
+    });
+    return { ...result, format: 'API' };
   }
 
   /**
@@ -97,8 +85,13 @@ export class PayrollExportAdapter implements IntegrationAdapter {
   async validateExport(cycleId: Uuid): Promise<ValidationResult> {
     this.logger.log({ type: 'PAYROLL_VALIDATE_EXPORT', cycleId: cycleId.value });
 
-    // Mock implementation – in production run schema/平衡 checks
-    return { valid: true, errors: [], warnings: [] };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'VALIDATE_EXPORT',
+      cycleId,
+    });
+    return result.success
+      ? { valid: true, errors: [], warnings: [] }
+      : { valid: false, errors: [result.error ?? 'Payroll export validation failed'], warnings: [] };
   }
 
   async send(payload: unknown): Promise<IntegrationResult> {

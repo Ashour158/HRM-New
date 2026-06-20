@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import { Uuid, ValidationError } from '@hcm/shared-kernel';
+import { evaluateCountryPolicyPackImpact } from '@hcm/policy-engines';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
 import { CountryPolicyImpactSimulationRepository } from '../repositories/country-policy-impact-simulation.repository.js';
 import { CountryPolicyImpactSimulation } from '../aggregates/country-policy-impact-simulation.aggregate.js';
@@ -43,18 +44,24 @@ export class SimulateCountryPolicyPackImpactHandler implements ICommandHandler {
     );
     sim.start(command.correlationId);
 
-    // Simulate impact analysis
-    const results: Record<string, unknown> = { scope: payload.simulationScope, impactedCount: 0 };
-    const recalculationRequired = false;
+    // Real structural impact estimation derived from the pack's sections.
+    const impact = evaluateCountryPolicyPackImpact({ sections: pack.sections });
+    const results: Record<string, unknown> = {
+      scope: payload.simulationScope,
+      impactLevel: impact.impactLevel,
+      impactedDomains: impact.impactedDomains,
+      impactedSectionCount: impact.impactedSectionCount,
+      recalculationRequired: impact.recalculationRequired,
+    };
 
-    sim.complete(command.correlationId, results, 'LOW', {
+    sim.complete(command.correlationId, results, impact.impactLevel, {
       workers: [],
       payrollRuns: [],
       taxAssignments: [],
       leaveBalances: [],
       benefits: [],
     });
-    pack.simulateImpact(command.correlationId, sim.id, recalculationRequired);
+    pack.simulateImpact(command.correlationId, sim.id, impact.recalculationRequired);
 
     await this.simRepo.save(sim);
     await this.packRepo.save(pack);

@@ -73,6 +73,8 @@ export {
 export {
   encryptPiiPayload,
   decryptPiiPayload,
+  encryptPiiField,
+  decryptPiiField,
 } from './crypto/pii-encryption.js';
 export {
   encryptWithKey,

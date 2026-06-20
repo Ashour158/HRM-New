@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import { Uuid, ValidationError } from '@hcm/shared-kernel';
+import { evaluateCountryPolicyPackValidation } from '@hcm/policy-engines';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
 import { CountryPolicyValidationRunRepository } from '../repositories/country-policy-validation-run.repository.js';
@@ -63,12 +64,23 @@ export class ValidateCountryPolicyPackHandler implements ICommandHandler {
     );
     run.start(command.correlationId);
 
-    // Simulate validation logic
-    const success = true;
+    // Real structural/semantic validation via the country-policy validation engine.
+    const validation = evaluateCountryPolicyPackValidation({
+      countryCode: pack.countryCode,
+      sections: pack.sections,
+      requiredApprovals: pack.requiredApprovals,
+      sourceEvidence: pack.sourceEvidence,
+      effectiveFrom: pack.effectiveFrom,
+      effectiveUntil: pack.effectiveUntil,
+      validationType: payload.validationType,
+    });
+
     const results: Record<string, unknown> = {
-      valid: true,
+      valid: validation.valid,
+      decisionCode: validation.decisionCode,
+      violations: validation.violations,
       policyEvidence: {
-        engine: 'CountryPolicyRuntimeGate',
+        engine: 'country-policy-validation',
         revisionId: runtime.policyEvidenceRevisionId,
         validationEnabled: runtime.validationEnabled ?? true,
         allowedCountryCodes: runtime.allowedCountryCodes,
@@ -76,11 +88,13 @@ export class ValidateCountryPolicyPackHandler implements ICommandHandler {
       },
     };
 
-    if (success) {
+    if (validation.valid) {
       run.complete(command.correlationId, results);
       pack.validate(command.correlationId, run.id, true);
     } else {
-      run.fail(command.correlationId, 'Validation failed', { errors: [] });
+      run.fail(command.correlationId, 'Validation failed', {
+        errors: validation.violations.filter((v) => v.severity === 'ERROR'),
+      });
       pack.validate(command.correlationId, run.id, false);
     }
 
@@ -89,13 +103,21 @@ export class ValidateCountryPolicyPackHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { packId: pack.id.value, status: pack.status, validationRunId: run.id.value, policyEvidence: results.policyEvidence },
+      data: {
+        packId: pack.id.value,
+        status: pack.status,
+        validationRunId: run.id.value,
+        valid: validation.valid,
+        decisionCode: validation.decisionCode,
+        violations: validation.violations,
+        policyEvidence: results.policyEvidence,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: pack.id,
       newState: pack.status,
       newVersion: pack.aggregateVersion,
-      allowedNextActions: ['RequireImpactSimulation'],
+      allowedNextActions: validation.valid ? ['RequireImpactSimulation'] : ['Quarantine'],
       fieldAccessDecisions: {},
       eventsEmitted: [...pack.domainEvents.map((e) => e.eventName), ...run.domainEvents.map((e) => e.eventName)],
       auditRecordId: Uuid.generate(),

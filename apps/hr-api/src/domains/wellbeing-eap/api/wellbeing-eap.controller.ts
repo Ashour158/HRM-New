@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { EapReferralRepository } from '../repositories/eap-referral.repository.js';
 import { WellnessProgramRepository } from '../repositories/wellness-program.repository.js';
@@ -18,8 +19,21 @@ import {
   ZodValidationPipe,
 } from './wellbeing-eap.dto.js';
 
+// Wellbeing/EAP records are SPECIAL_CATEGORY (health) data. Access is restricted to
+// dedicated wellbeing/EAP administrators and senior HR/platform admins only.
+const WELLBEING_EAP_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'WELLBEING_ADMIN',
+  'EAP_ADMIN',
+  'OCCUPATIONAL_HEALTH',
+]);
+
 @ApiTags('Wellbeing EAP')
 @Controller('wellbeing-eap')
+@UseGuards(AuthGuard)
 export class WellbeingEapController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -35,6 +49,7 @@ export class WellbeingEapController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
+    this.assertEapAdminScope(req);
     const tenantId = requireTenantId(req, 'Wellbeing EAP');
     const actor = requireActor(req, 'Wellbeing EAP');
     return {
@@ -56,7 +71,14 @@ export class WellbeingEapController {
     };
   }
 
+  private assertEapAdminScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => WELLBEING_EAP_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only wellbeing/EAP or HR administrators can access wellbeing and EAP records');
+  }
+
   private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    this.assertEapAdminScope(req);
     const requestTenantId = requireTenantId(req, 'Wellbeing EAP');
     if (requestTenantId.value !== tenantId) {
       throw new BadRequestException('Tenant mismatch');
@@ -105,7 +127,8 @@ export class WellbeingEapController {
   }
 
   @Get('eap-referrals/:id')
-  async getReferral(@Param('id') id: string) {
+  async getReferral(@Param('id') id: string, @Req() req: Request) {
+    this.assertEapAdminScope(req);
     return this.eapReferralRepo.findById(new Uuid(id));
   }
 
@@ -155,7 +178,8 @@ export class WellbeingEapController {
   }
 
   @Get('wellness-programs/:id')
-  async getProgram(@Param('id') id: string) {
+  async getProgram(@Param('id') id: string, @Req() req: Request) {
+    this.assertEapAdminScope(req);
     return this.wellnessProgramRepo.findById(new Uuid(id));
   }
 
@@ -198,7 +222,8 @@ export class WellbeingEapController {
   }
 
   @Get('mental-health-cases/:id')
-  async getMhCase(@Param('id') id: string) {
+  async getMhCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertEapAdminScope(req);
     return this.mentalHealthCaseRepo.findById(new Uuid(id));
   }
 

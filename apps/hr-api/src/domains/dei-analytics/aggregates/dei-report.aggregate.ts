@@ -1,4 +1,5 @@
 import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-kernel';
+import { applyKAnonymitySuppression } from './k-anonymity.js';
 
 export type DeiReportStatus = 'DRAFT' | 'GENERATED' | 'REVIEWED' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -78,29 +79,12 @@ export class DeiReport extends AggregateRoot {
 
   generate(correlationId: Uuid, metrics: Record<string, unknown>): void {
     if (this.status !== 'DRAFT') throw new ValidationError(`Cannot generate from state ${this.status}`);
-    this.metrics = this.applySuppression(metrics, this.aggregationThreshold) as Record<string, unknown>;
+    this.metrics = applyKAnonymitySuppression(metrics, this.aggregationThreshold) as Record<string, unknown>;
     this.suppressionApplied = true;
     this.status = 'GENERATED';
     this.addDomainEvent(new DeiReportGenerated({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
-  }
-
-  private applySuppression(data: unknown, threshold: number): unknown {
-    if (Array.isArray(data)) return data.map((item) => this.applySuppression(item, threshold));
-    if (typeof data === 'object' && data !== null) {
-      const obj = data as Record<string, unknown>;
-      const out: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(obj)) {
-        if ((k === 'count' || k === 'headcount') && typeof v === 'number' && v < threshold) {
-          out[k] = 'SUPRESSED';
-        } else {
-          out[k] = this.applySuppression(v, threshold);
-        }
-      }
-      return out;
-    }
-    return data;
   }
 
   review(correlationId: Uuid): void {

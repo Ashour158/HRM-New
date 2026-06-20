@@ -3,6 +3,7 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import { AccommodationCase, type AccommodationCaseStatus } from '../aggregates/accommodation-case.aggregate.js';
 
 @Injectable()
@@ -41,8 +42,8 @@ export class AccommodationCaseRepository extends BaseRepository<'accommodation_c
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       requestType: row.request_type,
-      description: '',
-      medicalDocumentation: row.medical_documentation ?? undefined,
+      description: row.description != null ? decryptPiiField(row.description) : '',
+      medicalDocumentation: row.medical_documentation != null ? decryptPiiField(row.medical_documentation) : undefined,
       status: row.status as AccommodationCaseStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -56,7 +57,8 @@ export class AccommodationCaseRepository extends BaseRepository<'accommodation_c
       tenant_id: entity.tenantId.value,
       worker_id: entity.workerId.value,
       request_type: entity.requestType,
-      medical_documentation: entity.medicalDocumentation ?? null,
+      description: entity.description ? encryptPiiField(entity.description) : null,
+      medical_documentation: entity.medicalDocumentation ? encryptPiiField(entity.medicalDocumentation) : null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

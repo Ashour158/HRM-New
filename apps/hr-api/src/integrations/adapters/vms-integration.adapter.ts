@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export interface VmsResult extends IntegrationResult {
   vmsReferenceId?: string;
@@ -48,8 +49,7 @@ export class VmsIntegrationAdapter implements IntegrationAdapter {
   private readonly logger = new Logger(VmsIntegrationAdapter.name);
 
   async healthCheck(): Promise<boolean> {
-    // Mock: ping VMS health endpoint
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -71,14 +71,10 @@ export class VmsIntegrationAdapter implements IntegrationAdapter {
       workerId: assignment.workerId.value,
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      vmsReferenceId: `VMS-${assignment.assignmentId.value}`,
-      details: { vendorId: assignment.vendorId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SYNC_WORKER_ASSIGNMENT',
+      ...assignment,
+    }) as Promise<VmsResult>;
   }
 
   /**
@@ -95,14 +91,10 @@ export class VmsIntegrationAdapter implements IntegrationAdapter {
   }): Promise<VmsResult> {
     this.logger.log({ type: 'VMS_SYNC_SOW', sowId: sow.sowId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      vmsReferenceId: `VMS-SOW-${sow.sowId.value}`,
-      details: { vendorId: sow.vendorId.value, totalValue: sow.totalValue },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SYNC_SOW_ENGAGEMENT',
+      ...sow,
+    }) as Promise<VmsResult>;
   }
 
   /**
@@ -123,15 +115,10 @@ export class VmsIntegrationAdapter implements IntegrationAdapter {
       workerId: timesheet.workerId.value,
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      timesheetId: timesheet.timesheetId,
-      hoursApproved: timesheet.hours,
-      details: { assignmentId: timesheet.assignmentId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'RECEIVE_TIMESHEET',
+      ...timesheet,
+    }) as Promise<TimesheetResult>;
   }
 
   /**
@@ -152,15 +139,10 @@ export class VmsIntegrationAdapter implements IntegrationAdapter {
       workerId: expense.workerId.value,
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      expenseReportId: expense.expenseReportId,
-      amountApproved: expense.amount,
-      details: { currency: expense.currency },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'RECEIVE_EXPENSE',
+      ...expense,
+    }) as Promise<ExpenseResult>;
   }
 
   /**

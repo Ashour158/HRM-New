@@ -21,7 +21,7 @@ export class StartHrAiBiasTestHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as StartHrAiBiasTestPayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiBiasTestId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiBiasTestId), command.tenantId);
     if (!entity) throw new Error('HrAiBiasTest not found');
     entity.start(command.correlationId);
     await this.repo.save(entity);

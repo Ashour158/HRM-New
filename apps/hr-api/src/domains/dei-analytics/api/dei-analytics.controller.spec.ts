@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
@@ -120,10 +120,19 @@ describe('DeiAnalyticsController', () => {
     const { controller, deiReportRepo } = makeController();
     (deiReportRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ id: new Uuid(deiReportId), status: 'GENERATED' });
 
-    await expect(controller.getDeiReport(deiReportId)).resolves.toMatchObject({ status: 'GENERATED' });
+    await expect(controller.getDeiReport(deiReportId, request())).resolves.toMatchObject({ status: 'GENERATED' });
     (deiReportRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
 
     await expect(controller.generateDeiReport({ deiReportId, metrics: {} }, request())).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects callers without a DEI/people-analytics or HR admin role', async () => {
+    const { controller, deiReportRepo } = makeController();
+    (deiReportRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(deiReportId), status: 'GENERATED' });
+    const unprivileged = { tenantId, actor: { ...actor(), roles: ['EMPLOYEE'] }, headers: {} } as unknown as Request;
+
+    await expect(controller.getDeiReport(deiReportId, unprivileged)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(deiReportRepo.findById).not.toHaveBeenCalled();
   });
 
   it('lists DEI analytics records by the authenticated tenant only', async () => {

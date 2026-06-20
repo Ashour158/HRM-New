@@ -21,7 +21,7 @@ export class TriggerHrAiKillSwitchHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as TriggerHrAiKillSwitchPayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiKillSwitchId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiKillSwitchId), command.tenantId);
     if (!entity) throw new Error('HrAiKillSwitch not found');
     entity.trigger(command.correlationId);
     await this.repo.save(entity);

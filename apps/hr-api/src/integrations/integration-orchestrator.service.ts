@@ -15,14 +15,28 @@ import type {
   IntegrationHealth,
   IntegrationProviderReadiness,
   IntegrationResult,
+  IntegrationRetryPolicy,
   IntegrationStatus,
 } from './types.js';
 import { IntegrationHealthService } from './integration-health.service.js';
+import { isRetryableIntegrationResult } from './http-transport.js';
+
+export interface IntegrationDeadLetterEntry {
+  adapterName: string;
+  payload: unknown;
+  attempt: number;
+  error: string;
+  createdAt: Date;
+}
+
+type IntegrationSendError = Error & { retryable?: boolean; recorded?: boolean };
 
 @Injectable()
 export class IntegrationOrchestrator implements OnModuleInit {
   private readonly logger = new Logger(IntegrationOrchestrator.name);
   private readonly adapters = new Map<string, IntegrationAdapter>();
+  // No integration DLQ table exists today; keep a process-local operator view without inventing schema.
+  private readonly deadLetters: IntegrationDeadLetterEntry[] = [];
 
   constructor(
     private readonly healthService: IntegrationHealthService,
@@ -74,6 +88,10 @@ export class IntegrationOrchestrator implements OnModuleInit {
     return this.healthService.getReadiness(adapterName);
   }
 
+  getDeadLetters(): IntegrationDeadLetterEntry[] {
+    return [...this.deadLetters];
+  }
+
   /** Unified outbound send – delegates to the named adapter. */
   async send(adapterName: string, payload: unknown): Promise<IntegrationResult> {
     const adapter = this.adapters.get(adapterName);
@@ -85,18 +103,67 @@ export class IntegrationOrchestrator implements OnModuleInit {
       this.logger.warn({ type: 'INTEGRATION_SEND_BLOCKED', adapterName, reason: 'CREDENTIALS_NOT_CONFIGURED' });
       throw new Error(`Adapter '${adapterName}' credentials are not configured.`);
     }
-    const start = Date.now();
-    try {
-      const result = await adapter.send(payload);
-      this.healthService.recordSuccess(adapterName, Date.now() - start);
-      this.logger.log({ type: 'INTEGRATION_SEND_SUCCESS', adapterName, operationId: result.operationId });
-      return result;
-    } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      this.healthService.recordFailure(adapterName, error);
-      this.logger.error({ type: 'INTEGRATION_SEND_FAILURE', adapterName, error: error.message });
-      throw error;
+    const retryPolicy = adapter.readiness.retryPolicy;
+    const maxAttempts = Math.max(1, retryPolicy.maxAttempts);
+    let lastError: IntegrationSendError | undefined;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const start = Date.now();
+      try {
+        const result = await adapter.send(payload);
+        if (result.success) {
+          this.healthService.recordSuccess(adapterName, Date.now() - start);
+          this.logger.log({ type: 'INTEGRATION_SEND_SUCCESS', adapterName, operationId: result.operationId, attempt });
+          return result;
+        }
+
+        lastError = new Error(result.error ?? `Adapter '${adapterName}' returned an unsuccessful result.`) as IntegrationSendError;
+        (lastError as IntegrationSendError).retryable = isRetryableIntegrationResult(result);
+        (lastError as IntegrationSendError).recorded = true;
+        this.healthService.recordFailure(adapterName, lastError);
+        this.logger.warn({ type: 'INTEGRATION_SEND_RETRYABLE_RESULT', adapterName, attempt, error: lastError.message });
+        if (!(lastError as IntegrationSendError).retryable) {
+          throw lastError;
+        }
+      } catch (err) {
+        lastError = (err instanceof Error ? err : new Error(String(err))) as IntegrationSendError;
+        if (!lastError.recorded) {
+          this.healthService.recordFailure(adapterName, lastError);
+        }
+        this.logger.error({ type: 'INTEGRATION_SEND_FAILURE', adapterName, attempt, error: lastError.message });
+        if (lastError.retryable === false) {
+          throw lastError;
+        }
+        if (attempt >= maxAttempts) {
+          this.deadLetter(adapterName, payload, attempt, lastError);
+          throw lastError;
+        }
+      }
+
+      if (attempt >= maxAttempts) {
+        const error = lastError ?? new Error(`Adapter '${adapterName}' failed.`);
+        this.deadLetter(adapterName, payload, attempt, error);
+        throw error;
+      }
+
+      // Back off before the next retry per the adapter's retry policy so a failing
+      // or rate-limited (429) provider is not hammered with immediate retries.
+      const delayMs = this.backoffDelayMs(retryPolicy, attempt);
+      if (delayMs > 0) await this.sleep(delayMs);
     }
+
+    throw lastError ?? new Error(`Adapter '${adapterName}' failed.`);
+  }
+
+  private backoffDelayMs(retryPolicy: IntegrationRetryPolicy, attempt: number): number {
+    const base = retryPolicy.backoff === 'EXPONENTIAL'
+      ? retryPolicy.initialDelayMs * 2 ** (attempt - 1)
+      : retryPolicy.initialDelayMs * attempt;
+    return Math.min(base, retryPolicy.maxDelayMs);
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Unified inbound receive – delegates to the named adapter. */
@@ -106,5 +173,16 @@ export class IntegrationOrchestrator implements OnModuleInit {
       throw new Error(`Adapter '${adapterName}' is not registered.`);
     }
     return adapter.receive();
+  }
+
+  private deadLetter(adapterName: string, payload: unknown, attempt: number, error: Error): void {
+    this.deadLetters.push({
+      adapterName,
+      payload,
+      attempt,
+      error: error.message,
+      createdAt: new Date(),
+    });
+    this.logger.error({ type: 'INTEGRATION_SEND_DEAD_LETTERED', adapterName, attempt, error: error.message });
   }
 }

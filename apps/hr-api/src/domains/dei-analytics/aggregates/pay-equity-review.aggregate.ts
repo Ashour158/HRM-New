@@ -1,4 +1,5 @@
 import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-kernel';
+import { applyKAnonymitySuppression, DEFAULT_AGGREGATION_THRESHOLD } from './k-anonymity.js';
 
 export type PayEquityReviewStatus = 'PLANNED' | 'IN_PROGRESS' | 'FINDINGS' | 'REMEDIATION' | 'CLOSED';
 
@@ -88,7 +89,7 @@ export class PayEquityReview extends AggregateRoot {
 
   recordFindings(correlationId: Uuid, findings: Record<string, unknown>): void {
     if (this.status !== 'IN_PROGRESS') throw new ValidationError(`Cannot record findings from state ${this.status}`);
-    this.findings = findings;
+    this.findings = applyKAnonymitySuppression(findings, DEFAULT_AGGREGATION_THRESHOLD) as Record<string, unknown>;
     this.status = 'FINDINGS';
     this.addDomainEvent(new PayEquityReviewFindings({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();

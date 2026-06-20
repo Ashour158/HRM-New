@@ -15,6 +15,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export interface IamProvisioningResult extends IntegrationResult {
   iamUserId?: string;
@@ -40,8 +41,7 @@ export class IamProvisioningAdapter implements IntegrationAdapter {
 
   /** Health probe – checks IAM command port reachability. */
   async healthCheck(): Promise<boolean> {
-    // Mock: in production this would ping the IAM /health endpoint
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -57,17 +57,12 @@ export class IamProvisioningAdapter implements IntegrationAdapter {
   ): Promise<IamProvisioningResult> {
     this.logger.log({ type: 'IAM_PROVISION_USER', workerId: workerId.value, email, roleCount: roles.length });
 
-    // Mock implementation – replace with real IAM API call
-    const iamUserId = `IAM-${workerId.value}`;
-
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      iamUserId,
-      details: { workerId: workerId.value, email, roles: roles.map((r) => r.roleName) },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'PROVISION_USER',
+      workerId,
+      email,
+      roles,
+    }) as Promise<IamProvisioningResult>;
   }
 
   /**
@@ -77,14 +72,10 @@ export class IamProvisioningAdapter implements IntegrationAdapter {
   async deprovisionUser(workerId: Uuid): Promise<IamProvisioningResult> {
     this.logger.log({ type: 'IAM_DEPROVISION_USER', workerId: workerId.value });
 
-    // Mock implementation
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      details: { workerId: workerId.value, action: 'DEACTIVATED' },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'DEPROVISION_USER',
+      workerId,
+    }) as Promise<IamProvisioningResult>;
   }
 
   /**
@@ -95,14 +86,11 @@ export class IamProvisioningAdapter implements IntegrationAdapter {
   async updateUserRoles(workerId: Uuid, roles: IamRole[]): Promise<IamProvisioningResult> {
     this.logger.log({ type: 'IAM_UPDATE_ROLES', workerId: workerId.value, roleCount: roles.length });
 
-    // Mock implementation
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      details: { workerId: workerId.value, roles: roles.map((r) => r.roleName) },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'UPDATE_USER_ROLES',
+      workerId,
+      roles,
+    }) as Promise<IamProvisioningResult>;
   }
 
   /** Generic send façade – delegates to provisionUser for well-formed payloads. */

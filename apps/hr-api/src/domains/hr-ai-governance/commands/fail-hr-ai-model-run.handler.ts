@@ -22,7 +22,7 @@ export class FailHrAiModelRunHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as FailHrAiModelRunPayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiModelRunId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiModelRunId), command.tenantId);
     if (!entity) throw new Error('HrAiModelRun not found');
     entity.fail(command.correlationId, payload.reason);
     await this.repo.save(entity);

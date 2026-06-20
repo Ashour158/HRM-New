@@ -10,13 +10,13 @@ export class HrAiModelRunRepository {
   private readonly db: Kysely<Database>;
   constructor() { this.db = createKyselyInstance(getPool()); }
 
-  async findById(id: Uuid): Promise<HrAiModelRun | undefined> {
-    const row = await this.db.selectFrom('hr_ai.hr_ai_model_runs').selectAll().where('id', '=', id.value).executeTakeFirst();
+  async findById(id: Uuid, tenantId: Uuid): Promise<HrAiModelRun | undefined> {
+    const row = await this.db.selectFrom('hr_ai.hr_ai_model_runs').selectAll().where('id', '=', id.value).where('tenant_id', '=', tenantId.value).executeTakeFirst();
     return row ? this.toAggregate(row) : undefined;
   }
 
-  async findByUseCaseId(useCaseId: Uuid): Promise<HrAiModelRun[]> {
-    const rows = await this.db.selectFrom('hr_ai.hr_ai_model_runs').selectAll().where('use_case_id', '=', useCaseId.value).execute();
+  async findByUseCaseId(useCaseId: Uuid, tenantId: Uuid): Promise<HrAiModelRun[]> {
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_model_runs').selectAll().where('use_case_id', '=', useCaseId.value).where('tenant_id', '=', tenantId.value).execute();
     return rows.map((r: any) => this.toAggregate(r));
   }
 

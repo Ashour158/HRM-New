@@ -1870,6 +1870,7 @@ export interface DisciplinaryActionsTable {
   er_case_id: string;
   action_type: string;
   severity: string;
+  description: string | null;
   effective_date: Date;
   expiry_date: Date | null;
   status: string;
@@ -1883,6 +1884,7 @@ export interface AccommodationCasesTable {
   tenant_id: string;
   worker_id: string;
   request_type: string;
+  description: string | null;
   medical_documentation: string | null;
   status: string;
   aggregate_version: number;

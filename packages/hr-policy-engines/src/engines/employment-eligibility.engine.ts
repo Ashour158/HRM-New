@@ -22,6 +22,61 @@ export interface EmploymentEligibilityInput {
   readonly legalEntityId: string;
 }
 
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' ? value.toUpperCase() : undefined;
+}
+
+/**
+ * Pure, deterministic employment-eligibility evaluation. Replaces the previous
+ * hardcoded `ELIGIBLE`: work authorization, background-check status, and worker
+ * eligibility flags now drive the outcome, failing safe toward NOT_ELIGIBLE.
+ */
+export function evaluateEmploymentEligibility(input: EmploymentEligibilityInput): {
+  decisionCode: EmploymentEligibilityDecisionCode;
+  reason: string;
+} {
+  const auth = input.workAuthorization ?? {};
+  const profile = input.workerProfile ?? {};
+
+  // Hard ineligibility flags on the worker profile.
+  const profileStatus = str(profile.eligibilityStatus) ?? str(profile.status);
+  if (profileStatus === 'INELIGIBLE' || profileStatus === 'BARRED' || profile.eligible === false) {
+    return { decisionCode: 'NOT_ELIGIBLE', reason: 'Worker profile is flagged ineligible' };
+  }
+  if (profile.minimumWorkingAgeMet === false) {
+    return { decisionCode: 'NOT_ELIGIBLE', reason: 'Worker is below the minimum working age' };
+  }
+
+  // Work authorization must be present and valid (when required for the country).
+  const authRequired = profile.requiresWorkAuthorization !== false;
+  if (authRequired) {
+    const authStatus = str(auth.status);
+    const hasAuth = Object.keys(auth).length > 0 && authStatus !== undefined;
+    if (!hasAuth || authStatus === 'NONE' || authStatus === 'MISSING') {
+      return { decisionCode: 'REQUIRES_WORK_AUTHORIZATION', reason: 'No valid work authorization on file' };
+    }
+    if (authStatus === 'EXPIRED' || authStatus === 'REVOKED') {
+      return { decisionCode: 'REQUIRES_WORK_AUTHORIZATION', reason: `Work authorization is ${authStatus}` };
+    }
+    const expiresAt = auth.expiresAt ? new Date(auth.expiresAt as string) : undefined;
+    if (expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= Date.now()) {
+      return { decisionCode: 'REQUIRES_WORK_AUTHORIZATION', reason: 'Work authorization has expired' };
+    }
+  }
+
+  // Background check (where mandated) must have passed.
+  const bgRequired = profile.backgroundCheckRequired === true || auth.backgroundCheckRequired === true;
+  const bgStatus = str(profile.backgroundCheckStatus);
+  if (bgRequired && bgStatus !== 'PASSED' && bgStatus !== 'CLEARED') {
+    return {
+      decisionCode: 'REQUIRES_BACKGROUND_CHECK',
+      reason: `Background check not cleared (${bgStatus ?? 'NONE'})`,
+    };
+  }
+
+  return { decisionCode: 'ELIGIBLE', reason: 'All hiring eligibility criteria satisfied' };
+}
+
 /**
  * Employment Eligibility Engine.
  *
@@ -56,8 +111,7 @@ export class EmploymentEligibilityEngine implements PolicyEngine<EmploymentEligi
     input: EmploymentEligibilityInput,
     context: EngineContext,
   ): Promise<DecisionRecord> {
-    // Stub: real implementation loads the rule pack and evaluates conditions.
-    const decisionCode: EmploymentEligibilityDecisionCode = 'ELIGIBLE';
+    const { decisionCode, reason } = evaluateEmploymentEligibility(input);
 
     const record: DecisionRecord = {
       decisionId: new Uuid(randomUUID()),
@@ -68,7 +122,7 @@ export class EmploymentEligibilityEngine implements PolicyEngine<EmploymentEligi
       ruleSetVersion: '1.0.0',
       explanation:
         `Employment eligibility evaluated for country ${input.countryCode} `
-        + `and legal entity ${input.legalEntityId}. Result: ${decisionCode}.`,
+        + `and legal entity ${input.legalEntityId}. Result: ${decisionCode}; ${reason}.`,
       sourceInputIds: [input.legalEntityId],
       inputSnapshotHash: '<SHA-256>',
       timestamp: new Date(),

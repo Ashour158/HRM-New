@@ -21,7 +21,7 @@ export class ActivateHrAiUseCaseHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as ActivateHrAiUseCasePayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiUseCaseId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiUseCaseId), command.tenantId);
     if (!entity) throw new Error('HrAiUseCase not found');
     entity.activate(command.correlationId);
     await this.repo.save(entity);

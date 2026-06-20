@@ -7,6 +7,8 @@ import {
   Query,
   Req,
   BadRequestException,
+  ForbiddenException,
+  UseGuards,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -15,6 +17,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { CountryRuleSetRepository } from '../repositories/country-rule-set.repository.js';
 import { StatutoryLeaveTypeRepository } from '../repositories/statutory-leave-type.repository.js';
@@ -34,8 +37,22 @@ import {
   ZodValidationPipe,
 } from './dtos.js';
 
+// Global-HR records include personal data (work authorization, international
+// assignments) and works-council consultations. Mutations and personal-data reads
+// are restricted to global-mobility / HR / platform administrators. Reference data
+// (country rule sets, statutory leave types) requires only authentication.
+const GLOBAL_HR_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'GLOBAL_MOBILITY_ADMIN',
+]);
+
 @ApiTags('Global HR')
 @Controller('global-hr')
+@UseGuards(AuthGuard)
 export class GlobalHrController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -59,6 +76,7 @@ export class GlobalHrController {
       effectiveDate?: Date;
     },
   ): HrCommandEnvelope<TPayload> {
+    this.assertGlobalHrAdminScope(req);
     const tenantId = requireTenantId(req, 'Global HR');
     const actor = requireActor(req, 'Global HR');
     return {
@@ -84,7 +102,14 @@ export class GlobalHrController {
     };
   }
 
+  private assertGlobalHrAdminScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => GLOBAL_HR_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only global-mobility or HR administrators can access global-HR personal data');
+  }
+
   private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    this.assertGlobalHrAdminScope(req);
     const requestTenantId = requireTenantId(req, 'Global HR');
     if (requestTenantId.value !== tenantId) {
       throw new BadRequestException('Tenant mismatch');
@@ -170,12 +195,14 @@ export class GlobalHrController {
   }
 
   @Get('works-council-consultations/legal-entity/:legalEntityId')
-  async getWorksCouncilConsultationsByLegalEntity(@Param('legalEntityId') legalEntityId: string) {
+  async getWorksCouncilConsultationsByLegalEntity(@Param('legalEntityId') legalEntityId: string, @Req() req: Request) {
+    this.assertGlobalHrAdminScope(req);
     return this.worksCouncilConsultationRepo.findByLegalEntity(new Uuid(legalEntityId));
   }
 
   @Get('works-council-consultations/:id')
-  async getWorksCouncilConsultation(@Param('id') id: string) {
+  async getWorksCouncilConsultation(@Param('id') id: string, @Req() req: Request) {
+    this.assertGlobalHrAdminScope(req);
     return this.worksCouncilConsultationRepo.findById(new Uuid(id));
   }
 
@@ -313,12 +340,14 @@ export class GlobalHrController {
   }
 
   @Get('work-authorization-cases/worker/:workerId')
-  async getWorkAuthorizationCasesByWorker(@Param('workerId') workerId: string) {
+  async getWorkAuthorizationCasesByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertGlobalHrAdminScope(req);
     return this.workAuthorizationCaseRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('work-authorization-cases/:id')
-  async getWorkAuthorizationCase(@Param('id') id: string) {
+  async getWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertGlobalHrAdminScope(req);
     return this.workAuthorizationCaseRepo.findById(new Uuid(id));
   }
 
@@ -429,12 +458,14 @@ export class GlobalHrController {
   }
 
   @Get('international-assignments/worker/:workerId')
-  async getInternationalAssignmentsByWorker(@Param('workerId') workerId: string) {
+  async getInternationalAssignmentsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertGlobalHrAdminScope(req);
     return this.internationalAssignmentRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('international-assignments/:id')
-  async getInternationalAssignment(@Param('id') id: string) {
+  async getInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
+    this.assertGlobalHrAdminScope(req);
     return this.internationalAssignmentRepo.findById(new Uuid(id));
   }
 }

@@ -21,7 +21,7 @@ export class RetireHrAiUseCaseHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as RetireHrAiUseCasePayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiUseCaseId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiUseCaseId), command.tenantId);
     if (!entity) throw new Error('HrAiUseCase not found');
     entity.retire(command.correlationId);
     await this.repo.save(entity);

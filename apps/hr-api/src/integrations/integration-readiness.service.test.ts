@@ -127,6 +127,9 @@ describe('integration provider readiness', () => {
     const iam = new IamProvisioningAdapter();
     const { healthService } = registerAdapters([iam]);
 
+    // Health is now a real configuration-readiness probe: the outbound endpoint must
+    // be configured for the adapter to report HEALTHY (restored by afterEach).
+    process.env.HR_IAM_SANDBOX_ENDPOINT = 'https://iam.sandbox.example/health';
     healthService.markCredentialsConfigured(iam.name);
     await healthService.check(iam);
 
