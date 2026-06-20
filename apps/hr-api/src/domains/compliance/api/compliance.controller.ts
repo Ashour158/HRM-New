@@ -115,8 +115,29 @@ export class ComplianceController {
   @Get('summary')
   async getComplianceSummary(@Req() req: Request) {
     this.assertComplianceAdminScope(req);
+    const tenantId = new Uuid(
+      (req['tenantId'] as string | undefined) ?? '00000000-0000-0000-0000-000000000001',
+    );
     const policyStatuses = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PUBLISHED', 'ARCHIVED', 'REJECTED'];
     const policies = (await Promise.all(policyStatuses.map((status) => this.policyDocumentRepo.findByStatus(status)))).flat();
+
+    // Acknowledgement progress per policy (real query against the acknowledgement ledger).
+    const acknowledgements = await Promise.all(
+      policies.map(async (policy) => {
+        const acks = await this.policyAcknowledgementRepo.findByPolicyDocument(policy.id);
+        const acknowledged = acks.filter((a) => a.status === 'ACKNOWLEDGED').length;
+        const overdue = acks.filter((a) => a.status === 'OVERDUE').length;
+        return {
+          policyDocumentId: policy.id.value,
+          title: policy.title,
+          required: acks.length,
+          acknowledged,
+          pending: acks.length - acknowledged,
+          overdue,
+        };
+      }),
+    );
+
     return {
       policies: policies.map((policy) => ({
         id: policy.id.value,
@@ -127,14 +148,22 @@ export class ComplianceController {
         status: policy.status,
         requiresAcknowledgement: policy.content.requiresAcknowledgement === true,
       })),
-      acknowledgements: [],
+      acknowledgements: acknowledgements.filter((a) => a.required > 0),
       legalHolds: (await this.legalHoldRepo.findActive()).map((hold) => ({
         id: hold.id.value,
         description: hold.description ?? hold.holdName,
         issuedAt: hold.placedAt.toISOString(),
         status: hold.status,
       })),
-      statutoryReports: [],
+      statutoryReports: (await this.statutoryReportRepo.findByTenant(tenantId)).map((report) => ({
+        id: report.id.value,
+        reportType: report.reportType,
+        reportingPeriod: report.reportingPeriod,
+        countryCode: report.countryCode,
+        status: report.status,
+        submittedAt: report.submittedAt?.toISOString() ?? null,
+        filedAt: report.filedAt?.toISOString() ?? null,
+      })),
     };
   }
 

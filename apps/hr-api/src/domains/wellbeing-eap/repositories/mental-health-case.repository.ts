@@ -3,6 +3,7 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import { MentalHealthCase, type MentalHealthCaseStatus } from '../aggregates/mental-health-case.aggregate.js';
 
 @Injectable()
@@ -43,7 +44,7 @@ export class MentalHealthCaseRepository extends BaseRepository<'mental_health_ca
       severity: row.severity,
       status: row.status as MentalHealthCaseStatus,
       providerId: row.provider_id ? new Uuid(row.provider_id) : undefined,
-      notes: row.notes ?? undefined,
+      notes: row.notes != null ? decryptPiiField(row.notes) : undefined,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -58,7 +59,7 @@ export class MentalHealthCaseRepository extends BaseRepository<'mental_health_ca
       severity: entity.severity,
       status: entity.status,
       provider_id: entity.providerId?.value ?? null,
-      notes: entity.notes ?? null,
+      notes: entity.notes != null ? encryptPiiField(entity.notes) : null,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,
       updated_at: entity.updatedAt,

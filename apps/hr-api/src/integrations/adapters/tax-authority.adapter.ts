@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export interface FilingResult extends IntegrationResult {
   filingId?: string;
@@ -48,8 +49,7 @@ export class TaxAuthorityAdapter implements IntegrationAdapter {
   private readonly logger = new Logger(TaxAuthorityAdapter.name);
 
   async healthCheck(): Promise<boolean> {
-    // Mock: ping tax authority API
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -60,14 +60,11 @@ export class TaxAuthorityAdapter implements IntegrationAdapter {
   async generateTaxFiling(cycleId: Uuid, jurisdiction: string): Promise<FilingResult> {
     this.logger.log({ type: 'TAX_GENERATE_FILING', cycleId: cycleId.value, jurisdiction });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      filingId: `FIL-${cycleId.value}-${jurisdiction}`,
-      details: { cycleId: cycleId.value, jurisdiction },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'GENERATE_TAX_FILING',
+      cycleId,
+      jurisdiction,
+    }) as Promise<FilingResult>;
   }
 
   /**
@@ -77,15 +74,11 @@ export class TaxAuthorityAdapter implements IntegrationAdapter {
   async submitTaxFiling(filingId: string): Promise<SubmissionResult> {
     this.logger.log({ type: 'TAX_SUBMIT_FILING', filingId });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      acknowledgementCode: `ACK-${filingId}`,
-      submittedAt: new Date(),
-      details: { filingId },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SUBMIT_TAX_FILING',
+      filingId,
+    });
+    return { ...result, submittedAt: result.success ? new Date() : undefined } as SubmissionResult;
   }
 
   /**
@@ -97,15 +90,13 @@ export class TaxAuthorityAdapter implements IntegrationAdapter {
   async generateYearEndForm(workerId: Uuid, year: number, formType: YearEndFormType): Promise<FormResult> {
     this.logger.log({ type: 'TAX_GENERATE_YEAR_END', workerId: workerId.value, year, formType });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'GENERATE_YEAR_END_FORM',
+      workerId,
+      year,
       formType,
-      formUrl: `/tax/forms/${workerId.value}/${year}/${formType}.pdf`,
-      details: { workerId: workerId.value, year, formType },
-    };
+    });
+    return { ...result, formType } as FormResult;
   }
 
   /**
@@ -115,7 +106,13 @@ export class TaxAuthorityAdapter implements IntegrationAdapter {
   async validateTaxData(workerId: Uuid): Promise<ValidationResult> {
     this.logger.log({ type: 'TAX_VALIDATE_DATA', workerId: workerId.value });
 
-    return { valid: true, errors: [], warnings: [] };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'VALIDATE_TAX_DATA',
+      workerId,
+    });
+    return result.success
+      ? { valid: true, errors: [], warnings: [] }
+      : { valid: false, errors: [result.error ?? 'Tax data validation failed'], warnings: [] };
   }
 
   async send(payload: unknown): Promise<IntegrationResult> {

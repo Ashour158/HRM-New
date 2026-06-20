@@ -11,6 +11,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export interface CarrierResult extends IntegrationResult {
   carrierReference?: string;
@@ -56,8 +57,7 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
   private readonly logger = new Logger(BenefitsCarrierAdapter.name);
 
   async healthCheck(): Promise<boolean> {
-    // Mock: ping carrier API gateway
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -71,14 +71,10 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
       workerId: enrollment.workerId.value,
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      carrierReference: `CAR-${enrollment.enrollmentId.value}`,
-      details: { programId: enrollment.programId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SEND_ENROLLMENT',
+      ...enrollment,
+    }) as Promise<CarrierResult>;
   }
 
   /**
@@ -88,13 +84,10 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
   async sendTermination(enrollmentId: Uuid): Promise<CarrierResult> {
     this.logger.log({ type: 'CARRIER_SEND_TERMINATION', enrollmentId: enrollmentId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      details: { enrollmentId: enrollmentId.value, action: 'TERMINATED' },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SEND_TERMINATION',
+      enrollmentId,
+    }) as Promise<CarrierResult>;
   }
 
   /**
@@ -104,13 +97,10 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
   async sendLifeEventUpdate(event: LifeEventPayload): Promise<CarrierResult> {
     this.logger.log({ type: 'CARRIER_SEND_LIFE_EVENT', lifeEventId: event.lifeEventId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      details: { eventType: event.eventType, workerId: event.workerId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SEND_LIFE_EVENT_UPDATE',
+      ...event,
+    }) as Promise<CarrierResult>;
   }
 
   /**
@@ -120,16 +110,10 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
   async receiveReconciliation(file: unknown): Promise<ReconciliationResult> {
     this.logger.log({ type: 'CARRIER_RECEIVE_RECONCILIATION' });
 
-    // Mock implementation
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      matchedCount: 0,
-      discrepancyCount: 0,
-      details: { file },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'RECEIVE_RECONCILIATION',
+      file,
+    }) as Promise<ReconciliationResult>;
   }
 
   /**
@@ -140,7 +124,14 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
   async validateEligibility(workerId: Uuid, programId: Uuid): Promise<EligibilityResult> {
     this.logger.log({ type: 'CARRIER_VALIDATE_ELIGIBILITY', workerId: workerId.value, programId: programId.value });
 
-    return { eligible: true, effectiveDate: new Date().toISOString() };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'VALIDATE_ELIGIBILITY',
+      workerId,
+      programId,
+    });
+    return result.success
+      ? { eligible: true, effectiveDate: new Date().toISOString() }
+      : { eligible: false, reason: result.error ?? 'Carrier eligibility validation failed' };
   }
 
   async send(payload: unknown): Promise<IntegrationResult> {

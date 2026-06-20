@@ -64,14 +64,16 @@ export type {
   EmploymentEligibilityInput,
 } from './engines/employment-eligibility.engine.js';
 
-export { EmploymentEligibilityEngine } from './engines/employment-eligibility.engine.js';
+export { EmploymentEligibilityEngine, evaluateEmploymentEligibility } from './engines/employment-eligibility.engine.js';
 
 export type {
   PayrollValidationDecisionCode,
   PayrollValidationInput,
+  PayrollValidationViolation,
+  PayrollValidationResult,
 } from './engines/payroll-validation.engine.js';
 
-export { PayrollValidationEngine } from './engines/payroll-validation.engine.js';
+export { PayrollValidationEngine, evaluatePayrollValidation } from './engines/payroll-validation.engine.js';
 
 export type {
   SelfServiceAllowlistDecisionCode,
@@ -85,7 +87,23 @@ export type {
   FieldAccessInput,
 } from './engines/field-access.engine.js';
 
-export { FieldAccessPolicyEngine } from './engines/field-access.engine.js';
+export { FieldAccessPolicyEngine, evaluateFieldAccess } from './engines/field-access.engine.js';
+
+export type {
+  CountryPolicyValidationDecisionCode,
+  CountryPolicyValidationInput,
+  CountryPolicyViolation,
+  CountryPolicyValidationResult,
+  CountryPolicyImpactLevel,
+  CountryPolicyImpactResult,
+} from './engines/country-policy-validation.engine.js';
+
+export {
+  CountryPolicyValidationEngine,
+  evaluateCountryPolicyPackValidation,
+  evaluateCountryPolicyPackImpact,
+  KNOWN_SECTION_TYPES,
+} from './engines/country-policy-validation.engine.js';
 
 export {
   engineRegistry,
@@ -93,4 +111,5 @@ export {
   payrollValidationEngine,
   selfServiceAuthorityEngine,
   fieldAccessPolicyEngine,
+  countryPolicyValidationEngine,
 } from './engines/registered-engines.js';

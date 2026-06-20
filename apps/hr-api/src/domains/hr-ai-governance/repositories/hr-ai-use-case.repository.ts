@@ -10,13 +10,13 @@ export class HrAiUseCaseRepository {
   private readonly db: Kysely<Database>;
   constructor() { this.db = createKyselyInstance(getPool()); }
 
-  async findById(id: Uuid): Promise<HrAiUseCase | undefined> {
-    const row = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('id', '=', id.value).executeTakeFirst();
+  async findById(id: Uuid, tenantId: Uuid): Promise<HrAiUseCase | undefined> {
+    const row = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('id', '=', id.value).where('tenant_id', '=', tenantId.value).executeTakeFirst();
     return row ? this.toAggregate(row) : undefined;
   }
 
-  async findByStatus(status: string): Promise<HrAiUseCase[]> {
-    const rows = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('status', '=', status).execute();
+  async findByStatus(status: string, tenantId: Uuid): Promise<HrAiUseCase[]> {
+    const rows = await this.db.selectFrom('hr_ai.hr_ai_use_cases').selectAll().where('status', '=', status).where('tenant_id', '=', tenantId.value).execute();
     return rows.map((r: any) => this.toAggregate(r));
   }
 

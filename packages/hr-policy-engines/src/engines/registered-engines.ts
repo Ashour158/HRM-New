@@ -3,6 +3,7 @@ import { EmploymentEligibilityEngine } from './employment-eligibility.engine.js'
 import { FieldAccessPolicyEngine } from './field-access.engine.js';
 import { PayrollValidationEngine } from './payroll-validation.engine.js';
 import { SelfServiceAuthorityEngine } from './self-service.engine.js';
+import { CountryPolicyValidationEngine } from './country-policy-validation.engine.js';
 
 /**
  * Singleton registry holding the declarative definitions for every
@@ -471,3 +472,23 @@ engineRegistry.register({
 });
 
 export const fieldAccessPolicyEngine = new FieldAccessPolicyEngine();
+
+/* ── 27. Country Policy Validation ── */
+engineRegistry.register({
+  engineName: 'country-policy-validation',
+  engineVersion: '1.4.0',
+  description:
+    'Validates the structural and semantic integrity of a country policy pack '
+    + '(country code, sections, effective window, provenance, approvals).',
+  inputTypes: ['CountryPolicyPack'],
+  outputDecisionCodes: ['VALID', 'INVALID', 'REQUIRES_REVIEW'],
+  associatedRulePacks: ['country-policy-pack-rules'],
+  associatedTables: ['country_policy_packs', 'country_policy_validation_runs'],
+  invocationPattern: 'SYNC',
+  maxDurationMs: 500,
+  requiresCountryPolicyPack: false,
+  requiresHumanReview: false,
+  auditRequired: true,
+});
+
+export const countryPolicyValidationEngine = new CountryPolicyValidationEngine();

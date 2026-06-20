@@ -22,7 +22,7 @@ export class FailHrAiBiasTestHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as FailHrAiBiasTestPayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiBiasTestId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiBiasTestId), command.tenantId);
     if (!entity) throw new Error('HrAiBiasTest not found');
     entity.fail(command.correlationId, payload.reason);
     await this.repo.save(entity);

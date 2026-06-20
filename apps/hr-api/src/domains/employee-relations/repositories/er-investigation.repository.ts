@@ -3,6 +3,7 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import { ErInvestigation, type ErInvestigationStatus } from '../aggregates/er-investigation.aggregate.js';
 
 @Injectable()
@@ -41,7 +42,7 @@ export class ErInvestigationRepository extends BaseRepository<'er_investigations
       tenantId: new Uuid(row.tenant_id),
       erCaseId: new Uuid(row.er_case_id),
       leadInvestigatorId: new Uuid(row.investigator_id),
-      findings: typeof row.findings === 'string' ? row.findings : undefined,
+      findings: typeof row.findings === 'string' ? decryptPiiField(row.findings) : undefined,
       status: row.status as ErInvestigationStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -55,7 +56,7 @@ export class ErInvestigationRepository extends BaseRepository<'er_investigations
       tenant_id: entity.tenantId.value,
       er_case_id: entity.erCaseId.value,
       investigator_id: entity.leadInvestigatorId.value,
-      findings: entity.findings ?? null,
+      findings: entity.findings != null ? encryptPiiField(entity.findings) : null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

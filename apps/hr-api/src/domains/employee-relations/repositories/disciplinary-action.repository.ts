@@ -3,6 +3,7 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import { DisciplinaryAction, type DisciplinaryActionStatus } from '../aggregates/disciplinary-action.aggregate.js';
 
 @Injectable()
@@ -43,7 +44,7 @@ export class DisciplinaryActionRepository extends BaseRepository<'disciplinary_a
       erCaseId: new Uuid(row.er_case_id),
       actionType: row.action_type,
       severity: row.severity,
-      description: '',
+      description: row.description != null ? decryptPiiField(row.description) : '',
       effectiveDate: row.effective_date,
       status: row.status as DisciplinaryActionStatus,
       aggregateVersion: row.aggregate_version,
@@ -60,6 +61,7 @@ export class DisciplinaryActionRepository extends BaseRepository<'disciplinary_a
       er_case_id: entity.erCaseId.value,
       action_type: entity.actionType,
       severity: entity.severity,
+      description: entity.description ? encryptPiiField(entity.description) : null,
       effective_date: entity.effectiveDate,
       expiry_date: null,
       status: entity.status,

@@ -1,4 +1,5 @@
 import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-kernel';
+import { applyKAnonymitySuppression, DEFAULT_AGGREGATION_THRESHOLD } from './k-anonymity.js';
 
 export type AttritionSegmentReportStatus = 'DRAFT' | 'GENERATED' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -61,7 +62,7 @@ export class AttritionSegmentReport extends AggregateRoot {
 
   generate(correlationId: Uuid, segments: Record<string, unknown>): void {
     if (this.status !== 'DRAFT') throw new ValidationError(`Cannot generate from state ${this.status}`);
-    this.segments = segments;
+    this.segments = applyKAnonymitySuppression(segments, DEFAULT_AGGREGATION_THRESHOLD) as Record<string, unknown>;
     this.status = 'GENERATED';
     this.addDomainEvent(new AttritionSegmentReportGenerated({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { EmployeeRelationsCaseRepository } from '../repositories/employee-relations-case.repository.js';
 import { ErInvestigationRepository } from '../repositories/er-investigation.repository.js';
@@ -18,8 +19,21 @@ import {
   ZodValidationPipe,
 } from './dtos.js';
 
+// Employee-relations records (investigations, disciplinary actions, and
+// SPECIAL_CATEGORY accommodation/medical data) are restricted to employee-relations
+// specialists and senior HR/platform administrators.
+const EMPLOYEE_RELATIONS_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'EMPLOYEE_RELATIONS_ADMIN',
+]);
+
 @ApiTags('Employee Relations')
 @Controller('employee-relations')
+@UseGuards(AuthGuard)
 export class EmployeeRelationsController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -36,6 +50,7 @@ export class EmployeeRelationsController {
     req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number; subjectWorkerId?: Uuid },
   ): HrCommandEnvelope<TPayload> {
+    this.assertErAdminScope(req);
     const tenantId = requireTenantId(req, 'Employee Relations');
     const actor = requireActor(req, 'Employee Relations');
     return {
@@ -57,7 +72,14 @@ export class EmployeeRelationsController {
     };
   }
 
+  private assertErAdminScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => EMPLOYEE_RELATIONS_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only employee-relations or HR administrators can access employee-relations records');
+  }
+
   private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    this.assertErAdminScope(req);
     const requestTenantId = requireTenantId(req, 'Employee Relations');
     if (requestTenantId.value !== tenantId) {
       throw new BadRequestException('Tenant mismatch');
@@ -107,12 +129,14 @@ export class EmployeeRelationsController {
   }
 
   @Get('cases/:id')
-  async getErCase(@Param('id') id: string) {
+  async getErCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertErAdminScope(req);
     return this.erCaseRepo.findById(new Uuid(id));
   }
 
   @Get('cases/subject/:workerId')
-  async getErCasesBySubject(@Param('workerId') workerId: string) {
+  async getErCasesBySubject(@Param('workerId') workerId: string, @Req() req: Request) {
+    this.assertErAdminScope(req);
     return this.erCaseRepo.findBySubjectWorker(new Uuid(workerId));
   }
 
@@ -149,7 +173,8 @@ export class EmployeeRelationsController {
   }
 
   @Get('investigations/:id')
-  async getErInvestigation(@Param('id') id: string) {
+  async getErInvestigation(@Param('id') id: string, @Req() req: Request) {
+    this.assertErAdminScope(req);
     return this.erInvestigationRepo.findById(new Uuid(id));
   }
 
@@ -200,7 +225,8 @@ export class EmployeeRelationsController {
   }
 
   @Get('disciplinary-actions/:id')
-  async getDisciplinaryAction(@Param('id') id: string) {
+  async getDisciplinaryAction(@Param('id') id: string, @Req() req: Request) {
+    this.assertErAdminScope(req);
     return this.disciplinaryActionRepo.findById(new Uuid(id));
   }
 
@@ -251,7 +277,8 @@ export class EmployeeRelationsController {
   }
 
   @Get('accommodation-cases/:id')
-  async getAccommodationCase(@Param('id') id: string) {
+  async getAccommodationCase(@Param('id') id: string, @Req() req: Request) {
+    this.assertErAdminScope(req);
     return this.accommodationCaseRepo.findById(new Uuid(id));
   }
 

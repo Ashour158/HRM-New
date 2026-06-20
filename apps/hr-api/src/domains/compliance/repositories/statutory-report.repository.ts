@@ -45,6 +45,15 @@ export class StatutoryReportRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findByTenant(tenantId: Uuid): Promise<StatutoryReport[]> {
+    const rows = await this.db
+      .selectFrom('hr_compliance.statutory_reports')
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: StatutoryReport): Promise<void> {
     const existing = await this.db
       .selectFrom('hr_compliance.statutory_reports')

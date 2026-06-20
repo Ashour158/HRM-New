@@ -11,6 +11,7 @@ export interface EngagementSurveyProps {
   anonymous?: boolean;
   startDate?: Date;
   endDate?: Date;
+  results?: Record<string, unknown>;
   status?: EngagementSurveyStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -59,6 +60,7 @@ export class EngagementSurvey extends AggregateRoot {
   anonymous: boolean;
   startDate?: Date;
   endDate?: Date;
+  results?: Record<string, unknown>;
   status: EngagementSurveyStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -76,6 +78,7 @@ export class EngagementSurvey extends AggregateRoot {
     this.anonymous = props.anonymous ?? false;
     this.startDate = props.startDate;
     this.endDate = props.endDate;
+    this.results = props.results;
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
@@ -114,8 +117,9 @@ export class EngagementSurvey extends AggregateRoot {
     this.updatedAt = new Date();
   }
 
-  analyze(correlationId: Uuid): void {
+  analyze(correlationId: Uuid, results?: Record<string, unknown>): void {
     if (this.status !== 'CLOSED') throw new ValidationError(`Cannot analyze from ${this.status}`);
+    if (results !== undefined) this.results = results;
     this.status = 'ANALYZED';
     this.addDomainEvent(new EngagementSurveyAnalyzed({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();

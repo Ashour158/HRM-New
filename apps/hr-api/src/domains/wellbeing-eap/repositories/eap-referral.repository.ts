@@ -3,6 +3,7 @@ import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import { EapReferral, type EapReferralStatus } from '../aggregates/eap-referral.aggregate.js';
 
 @Injectable()
@@ -40,12 +41,12 @@ export class EapReferralRepository extends BaseRepository<'eap_referrals', EapRe
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
-      reason: row.reason,
+      reason: decryptPiiField(row.reason),
       status: row.status as EapReferralStatus,
       scheduledDate: row.scheduled_date ?? undefined,
       completedDate: row.completed_date ?? undefined,
       providerId: row.provider_id ? new Uuid(row.provider_id) : undefined,
-      notes: row.notes ?? undefined,
+      notes: row.notes != null ? decryptPiiField(row.notes) : undefined,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -57,12 +58,12 @@ export class EapReferralRepository extends BaseRepository<'eap_referrals', EapRe
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       worker_id: entity.workerId.value,
-      reason: entity.reason,
+      reason: encryptPiiField(entity.reason),
       status: entity.status,
       scheduled_date: entity.scheduledDate ?? null,
       completed_date: entity.completedDate ?? null,
       provider_id: entity.providerId?.value ?? null,
-      notes: entity.notes ?? null,
+      notes: entity.notes != null ? encryptPiiField(entity.notes) : null,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,
       updated_at: entity.updatedAt,

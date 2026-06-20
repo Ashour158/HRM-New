@@ -9,6 +9,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { ExportResult, IntegrationAdapter, IntegrationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export interface ScheduleResult extends IntegrationResult {
   scheduleId?: string;
@@ -36,8 +37,7 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
   private readonly logger = new Logger(DataWarehouseAdapter.name);
 
   async healthCheck(): Promise<boolean> {
-    // Mock: ping warehouse loader health endpoint
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -47,15 +47,11 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
   async exportWorkers(tenantId: Uuid): Promise<ExportResult> {
     this.logger.log({ type: 'WAREHOUSE_EXPORT_WORKERS', tenantId: tenantId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'PARQUET',
-      recordCount: 0,
-      details: { tenantId: tenantId.value, entity: 'workers' },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_WORKERS',
+      tenantId,
+    });
+    return { ...result, format: 'PARQUET' };
   }
 
   /**
@@ -66,15 +62,12 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
   async exportPayroll(tenantId: Uuid, period: string): Promise<ExportResult> {
     this.logger.log({ type: 'WAREHOUSE_EXPORT_PAYROLL', tenantId: tenantId.value, period });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'PARQUET',
-      recordCount: 0,
-      details: { tenantId: tenantId.value, period, entity: 'payroll' },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_PAYROLL',
+      tenantId,
+      period,
+    });
+    return { ...result, format: 'PARQUET' };
   }
 
   /**
@@ -85,15 +78,12 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
   async exportTimeAndAttendance(tenantId: Uuid, period: string): Promise<ExportResult> {
     this.logger.log({ type: 'WAREHOUSE_EXPORT_TIME', tenantId: tenantId.value, period });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'PARQUET',
-      recordCount: 0,
-      details: { tenantId: tenantId.value, period, entity: 'time_attendance' },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_TIME_ATTENDANCE',
+      tenantId,
+      period,
+    });
+    return { ...result, format: 'PARQUET' };
   }
 
   /**
@@ -104,15 +94,12 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
   async exportBenefits(tenantId: Uuid, period: string): Promise<ExportResult> {
     this.logger.log({ type: 'WAREHOUSE_EXPORT_BENEFITS', tenantId: tenantId.value, period });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'PARQUET',
-      recordCount: 0,
-      details: { tenantId: tenantId.value, period, entity: 'benefits' },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_BENEFITS',
+      tenantId,
+      period,
+    });
+    return { ...result, format: 'PARQUET' };
   }
 
   /**
@@ -129,15 +116,13 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
       to: to.toISOString(),
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      format: 'JSONL',
-      recordCount: 0,
-      details: { tenantId: tenantId.value, from: from.toISOString(), to: to.toISOString(), entity: 'events' },
-    };
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'EXPORT_EVENTS',
+      tenantId,
+      from: from.toISOString(),
+      to: to.toISOString(),
+    });
+    return { ...result, format: 'JSONL' };
   }
 
   /**
@@ -151,15 +136,10 @@ export class DataWarehouseAdapter implements IntegrationAdapter {
       exportType: config.exportType,
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      scheduleId: crypto.randomUUID(),
-      nextRunAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      details: { exportType: config.exportType, cron: config.cronExpression },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SCHEDULE_EXPORT',
+      config,
+    }) as Promise<ScheduleResult>;
   }
 
   async send(payload: unknown): Promise<IntegrationResult> {

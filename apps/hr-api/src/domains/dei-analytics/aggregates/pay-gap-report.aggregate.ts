@@ -1,4 +1,5 @@
 import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-kernel';
+import { applyKAnonymitySuppression, DEFAULT_AGGREGATION_THRESHOLD } from './k-anonymity.js';
 
 export type PayGapReportStatus = 'DRAFT' | 'CALCULATED' | 'REVIEWED' | 'PUBLISHED' | 'ARCHIVED';
 
@@ -80,7 +81,7 @@ export class PayGapReport extends AggregateRoot {
     if (this.status !== 'DRAFT') throw new ValidationError(`Cannot calculate from state ${this.status}`);
     this.meanHourlyGap = meanHourlyGap;
     this.medianHourlyGap = medianHourlyGap;
-    this.quartileDistribution = quartileDistribution;
+    this.quartileDistribution = applyKAnonymitySuppression(quartileDistribution, DEFAULT_AGGREGATION_THRESHOLD) as Record<string, unknown>;
     this.status = 'CALCULATED';
     this.addDomainEvent(new PayGapReportCalculated({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();

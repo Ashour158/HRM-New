@@ -17,6 +17,9 @@ const EmployeeBenefits = lazy(() => import('@/pages/employee/benefits').then((mo
 const EmployeeTimeOff = lazy(() => import('@/pages/employee/time-off').then((module) => ({ default: module.EmployeeTimeOff })));
 const EmployeePerformance = lazy(() => import('@/pages/employee/performance').then((module) => ({ default: module.EmployeePerformance })));
 const EmployeeFeedback360 = lazy(() => import('@/pages/employee/feedback-360').then((module) => ({ default: module.EmployeeFeedback360 })));
+const EmployeeSurveys = lazy(() => import('@/pages/employee/surveys').then((module) => ({ default: module.EmployeeSurveys })));
+const EmployeeRecognition = lazy(() => import('@/pages/employee/recognition').then((module) => ({ default: module.EmployeeRecognition })));
+const EmployeePulse = lazy(() => import('@/pages/employee/pulse').then((module) => ({ default: module.EmployeePulse })));
 const EmployeeLearning = lazy(() => import('@/pages/employee/learning').then((module) => ({ default: module.EmployeeLearning })));
 const EmployeeOnboarding = lazy(() => import('@/pages/employee/onboarding').then((module) => ({ default: module.EmployeeOnboarding })));
 const EmployeeServices = lazy(() => import('@/pages/employee/services').then((module) => ({ default: module.EmployeeServices })));
@@ -172,6 +175,9 @@ export function AppRoutes() {
                   <Route path="onboarding" element={<EmployeeOnboarding />} />
                   <Route path="performance" element={<EmployeePerformance />} />
                   <Route path="feedback-360" element={<EmployeeFeedback360 />} />
+                  <Route path="surveys" element={<EmployeeSurveys />} />
+                  <Route path="recognition" element={<EmployeeRecognition />} />
+                  <Route path="pulse" element={<EmployeePulse />} />
                   <Route path="learning" element={<EmployeeLearning />} />
                   <Route path="services" element={<EmployeeServices />} />
                   <Route path="*" element={<Navigate to="/employee" replace />} />

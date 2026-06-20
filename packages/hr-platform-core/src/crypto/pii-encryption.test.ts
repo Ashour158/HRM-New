@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { decryptPiiPayload, encryptPiiPayload } from './pii-encryption.js';
+import {
+  decryptPiiField,
+  decryptPiiPayload,
+  encryptPiiField,
+  encryptPiiPayload,
+} from './pii-encryption.js';
 
 const key = Buffer.from('fedcba9876543210fedcba9876543210').toString('base64');
 
@@ -47,5 +52,30 @@ describe('PII payload encryption', () => {
     delete process.env.PII_DATA_ENCRYPTION_KEY;
 
     expect(() => encryptPiiPayload({ ssn: '1' })).toThrow(/PII_DATA_ENCRYPTION_KEY/);
+  });
+
+  it('round-trips a single special-category field without exposing plaintext', () => {
+    process.env.PII_DATA_ENCRYPTION_KEY = key;
+    const notes = 'patient reports acute anxiety';
+
+    const stored = encryptPiiField(notes);
+
+    expect(stored).not.toContain('anxiety');
+    expect(stored.startsWith('encpii:')).toBe(true);
+    expect(decryptPiiField(stored)).toBe(notes);
+  });
+
+  it('returns legacy plaintext field values unchanged (backward compatibility)', () => {
+    process.env.PII_DATA_ENCRYPTION_KEY = key;
+
+    expect(decryptPiiField('legacy plaintext note')).toBe('legacy plaintext note');
+  });
+
+  it('does not mistake plaintext shaped like an encryption envelope for ciphertext', () => {
+    process.env.PII_DATA_ENCRYPTION_KEY = key;
+    // Legacy free-text that happens to look like the underlying token format.
+    const lookalike = 'v1.2mg dosage.taper.review next visit';
+
+    expect(decryptPiiField(lookalike)).toBe(lookalike);
   });
 });

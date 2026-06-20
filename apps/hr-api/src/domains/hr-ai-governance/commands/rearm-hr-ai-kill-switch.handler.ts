@@ -21,7 +21,7 @@ export class RearmHrAiKillSwitchHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as RearmHrAiKillSwitchPayload;
-    const entity = await this.repo.findById(new Uuid(payload.hrAiKillSwitchId));
+    const entity = await this.repo.findById(new Uuid(payload.hrAiKillSwitchId), command.tenantId);
     if (!entity) throw new Error('HrAiKillSwitch not found');
     entity.rearm(command.correlationId);
     await this.repo.save(entity);

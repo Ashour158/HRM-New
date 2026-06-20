@@ -5,6 +5,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { LearningContentPackageRepository } from '../repositories/learning-content-package.repository.js';
 import { LearningEventsPublisher } from '../events/learning-events.publisher.js';
+import { parseLearningContentManifest } from '../learning-content-validation.js';
 
 @CommandHandler('ParseLearningContentPackage')
 @Injectable()
@@ -19,6 +20,10 @@ export class ParseLearningContentPackageHandler {
     const payload = command.payload as { learningContentPackageId: Uuid };
     const ar = await this.repo.findById(payload.learningContentPackageId);
     if (!ar) throw new Error('Content package not found');
+    // Extract structured metadata from the declared manifest and record it so the
+    // subsequent validate step (and the player) can read identifier/launch URL/etc.
+    const parsed = parseLearningContentManifest(ar.packageType, ar.manifest);
+    ar.manifest = { ...(ar.manifest ?? {}), parsed };
     ar.parse(command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);

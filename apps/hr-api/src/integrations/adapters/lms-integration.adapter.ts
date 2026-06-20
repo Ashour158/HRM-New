@@ -15,6 +15,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { IntegrationAdapter, IntegrationResult, ValidationResult } from '../types.js';
 import { createReadinessMetadata } from '../readiness.js';
+import { integrationEndpointConfigured, sendIntegrationHttpPayload } from '../http-transport.js';
 
 export interface LmsResult extends IntegrationResult {
   lmsAssignmentId?: string;
@@ -67,8 +68,7 @@ export class LmsIntegrationAdapter implements IntegrationAdapter {
   private readonly logger = new Logger(LmsIntegrationAdapter.name);
 
   async healthCheck(): Promise<boolean> {
-    // Mock: ping LMS health endpoint
-    return true;
+    return integrationEndpointConfigured(this.readiness);
   }
 
   /**
@@ -87,14 +87,10 @@ export class LmsIntegrationAdapter implements IntegrationAdapter {
       workerId: assignment.workerId.value,
     });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      lmsAssignmentId: `LMS-A-${assignment.assignmentId.value}`,
-      details: { courseId: assignment.courseId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'PUSH_ASSIGNMENT',
+      ...assignment,
+    }) as Promise<LmsResult>;
   }
 
   /**
@@ -104,16 +100,10 @@ export class LmsIntegrationAdapter implements IntegrationAdapter {
   async pullCompletion(assignmentId: Uuid): Promise<CompletionResult> {
     this.logger.log({ type: 'LMS_PULL_COMPLETION', assignmentId: assignmentId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      completionStatus: 'COMPLETED',
-      scoreRaw: 85,
-      sessionTime: 'PT1H30M',
-      details: { assignmentId: assignmentId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'PULL_COMPLETION',
+      assignmentId,
+    }) as Promise<CompletionResult>;
   }
 
   /**
@@ -124,15 +114,11 @@ export class LmsIntegrationAdapter implements IntegrationAdapter {
   async launchContent(contentPackageId: Uuid, workerId: Uuid): Promise<LaunchResult> {
     this.logger.log({ type: 'LMS_LAUNCH_CONTENT', contentPackageId: contentPackageId.value, workerId: workerId.value });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      launchUrl: `/lms/launch/${contentPackageId.value}?user=${workerId.value}`,
-      sessionId: crypto.randomUUID(),
-      details: { contentPackageId: contentPackageId.value, workerId: workerId.value },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'LAUNCH_CONTENT',
+      contentPackageId,
+      workerId,
+    }) as Promise<LaunchResult>;
   }
 
   /**
@@ -142,14 +128,11 @@ export class LmsIntegrationAdapter implements IntegrationAdapter {
   async terminateContent(sessionId: string): Promise<TerminationResult> {
     this.logger.log({ type: 'LMS_TERMINATE_CONTENT', sessionId });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
+    const result = await sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'TERMINATE_CONTENT',
       sessionId,
-      details: { action: 'TERMINATED' },
-    };
+    });
+    return { ...result, sessionId } as TerminationResult;
   }
 
   /**
@@ -159,14 +142,10 @@ export class LmsIntegrationAdapter implements IntegrationAdapter {
   async uploadContentPackage(file: unknown): Promise<UploadResult> {
     this.logger.log({ type: 'LMS_UPLOAD_PACKAGE' });
 
-    return {
-      success: true,
-      adapterName: this.name,
-      operationId: crypto.randomUUID(),
-      timestamp: new Date(),
-      contentPackageId: crypto.randomUUID(),
-      details: { file },
-    };
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'UPLOAD_CONTENT_PACKAGE',
+      file,
+    }) as Promise<UploadResult>;
   }
 
   /**

@@ -3,6 +3,7 @@ export { runWithTenant, getCurrentTenantId } from './connection/tenant-context.j
 export { runWithTransaction, getCurrentTransaction } from './connection/transaction-context.js';
 export { createKyselyInstance, type Database } from './kysely/database.js';
 export { TenantFilterPlugin } from './plugins/tenant-plugin.js';
+export { isRlsEnabled, createTenantBoundPool, maybeTenantBoundPool, NIL_TENANT_ID } from './connection/rls-pool.js';
 export { BaseRepository } from './repository/base-repository.js';
 export { runMigrations } from './migration-runner.js';
 export type { BaseTable, AuditTable } from './types/base-tables.js';

@@ -316,7 +316,7 @@ describe('admin controller auth hardening', () => {
       } as never,
       {} as never,
       { findActive: vi.fn(async () => []) } as never,
-      {} as never,
+      { findByTenant: vi.fn(async () => []) } as never,
     );
 
     await expect((controller.getComplianceSummary as any)(request(['EMPLOYEE']))).rejects.toBeInstanceOf(ForbiddenException);

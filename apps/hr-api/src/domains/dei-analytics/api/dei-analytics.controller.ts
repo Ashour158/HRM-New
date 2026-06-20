@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Req, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Req, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
@@ -6,6 +6,7 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
+import { AuthGuard } from '../../../guards/auth.guard.js';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { DeiReportRepository } from '../repositories/dei-report.repository.js';
 import { PayGapReportRepository } from '../repositories/pay-gap-report.repository.js';
@@ -19,8 +20,21 @@ import {
   CreateAttritionSegmentReportDtoSchema, GenerateAttritionSegmentReportDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 
+// DEI / pay-equity analytics expose protected-class and pay-gap data. Access is
+// restricted to DEI / people-analytics, compensation, and senior HR/platform admins.
+const DEI_ANALYTICS_ADMIN_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'DEI_ANALYTICS_ADMIN',
+  'PEOPLE_ANALYTICS_ADMIN',
+  'COMPENSATION_ADMIN',
+]);
+
 @ApiTags('DEI & People Analytics')
 @Controller('dei-analytics')
+@UseGuards(AuthGuard)
 export class DeiAnalyticsController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -34,6 +48,7 @@ export class DeiAnalyticsController {
     commandName: string, aggregateType: string, payload: TPayload, req: Request,
     options?: { aggregateId?: Uuid; expectedState?: string; expectedVersion?: number },
   ): HrCommandEnvelope<TPayload> {
+    this.assertDeiAnalyticsScope(req);
     const tenantId = requireTenantId(req, 'DEI Analytics');
     const actor = requireActor(req, 'DEI Analytics');
     return {
@@ -45,7 +60,14 @@ export class DeiAnalyticsController {
     };
   }
 
+  private assertDeiAnalyticsScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => DEI_ANALYTICS_ADMIN_ROLES.has(role))) return;
+    throw new ForbiddenException('Only DEI/people-analytics, compensation, or HR administrators can access DEI and pay-equity analytics');
+  }
+
   private requireMatchingTenant(req: Request, tenantId: string): Uuid {
+    this.assertDeiAnalyticsScope(req);
     const requestTenantId = requireTenantId(req, 'DEI Analytics');
     if (requestTenantId.value !== tenantId) {
       throw new BadRequestException('Tenant mismatch');
@@ -76,13 +98,13 @@ export class DeiAnalyticsController {
     return this.commandBus.execute(this.buildCommand('PublishDeiReport', 'DeiReport', { deiReportId: id }, req, { aggregateId: new Uuid(id), expectedState: r.status, expectedVersion: r.aggregateVersion }));
   }
   @Get('dei-reports')
-  async listDeiReports(@Query('status') status?: string) { return this.deiReportRepo.findByStatus(status ?? 'DRAFT'); }
+  async listDeiReports(@Req() req: Request, @Query('status') status?: string) { this.assertDeiAnalyticsScope(req); return this.deiReportRepo.findByStatus(status ?? 'DRAFT'); }
   @Get('dei-reports/tenant/:tenantId')
   async listDeiReportsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
     return this.deiReportRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
   @Get('dei-reports/:id')
-  async getDeiReport(@Param('id') id: string) { return this.deiReportRepo.findById(new Uuid(id)); }
+  async getDeiReport(@Param('id') id: string, @Req() req: Request) { this.assertDeiAnalyticsScope(req); return this.deiReportRepo.findById(new Uuid(id)); }
 
   @Post('pay-gap-reports')
   async createPayGapReport(@Body(new ZodValidationPipe(CreatePayGapReportDtoSchema)) dto: dtos.CreatePayGapReportDto, @Req() req: Request) {
@@ -107,13 +129,13 @@ export class DeiAnalyticsController {
     return this.commandBus.execute(this.buildCommand('PublishPayGapReport', 'PayGapReport', { payGapReportId: id }, req, { aggregateId: new Uuid(id), expectedState: r.status, expectedVersion: r.aggregateVersion }));
   }
   @Get('pay-gap-reports')
-  async listPayGapReports(@Query('status') status?: string) { return this.payGapReportRepo.findByStatus(status ?? 'DRAFT'); }
+  async listPayGapReports(@Req() req: Request, @Query('status') status?: string) { this.assertDeiAnalyticsScope(req); return this.payGapReportRepo.findByStatus(status ?? 'DRAFT'); }
   @Get('pay-gap-reports/tenant/:tenantId')
   async listPayGapReportsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
     return this.payGapReportRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
   @Get('pay-gap-reports/:id')
-  async getPayGapReport(@Param('id') id: string) { return this.payGapReportRepo.findById(new Uuid(id)); }
+  async getPayGapReport(@Param('id') id: string, @Req() req: Request) { this.assertDeiAnalyticsScope(req); return this.payGapReportRepo.findById(new Uuid(id)); }
 
   @Post('pay-equity-reviews')
   async createPayEquityReview(@Body(new ZodValidationPipe(CreatePayEquityReviewDtoSchema)) dto: dtos.CreatePayEquityReviewDto, @Req() req: Request) {
@@ -144,13 +166,13 @@ export class DeiAnalyticsController {
     return this.commandBus.execute(this.buildCommand('ClosePayEquityReview', 'PayEquityReview', dto, req, { aggregateId: new Uuid(dto.payEquityReviewId), expectedState: r.status, expectedVersion: r.aggregateVersion }));
   }
   @Get('pay-equity-reviews')
-  async listPayEquityReviews(@Query('status') status?: string) { return this.payEquityReviewRepo.findByStatus(status ?? 'PLANNED'); }
+  async listPayEquityReviews(@Req() req: Request, @Query('status') status?: string) { this.assertDeiAnalyticsScope(req); return this.payEquityReviewRepo.findByStatus(status ?? 'PLANNED'); }
   @Get('pay-equity-reviews/tenant/:tenantId')
   async listPayEquityReviewsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
     return this.payEquityReviewRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
   @Get('pay-equity-reviews/:id')
-  async getPayEquityReview(@Param('id') id: string) { return this.payEquityReviewRepo.findById(new Uuid(id)); }
+  async getPayEquityReview(@Param('id') id: string, @Req() req: Request) { this.assertDeiAnalyticsScope(req); return this.payEquityReviewRepo.findById(new Uuid(id)); }
 
   @Post('attrition-segment-reports')
   async createAttritionSegmentReport(@Body(new ZodValidationPipe(CreateAttritionSegmentReportDtoSchema)) dto: dtos.CreateAttritionSegmentReportDto, @Req() req: Request) {
@@ -169,11 +191,11 @@ export class DeiAnalyticsController {
     return this.commandBus.execute(this.buildCommand('PublishAttritionSegmentReport', 'AttritionSegmentReport', { attritionSegmentReportId: id }, req, { aggregateId: new Uuid(id), expectedState: r.status, expectedVersion: r.aggregateVersion }));
   }
   @Get('attrition-segment-reports')
-  async listAttritionSegmentReports(@Query('status') status?: string) { return this.attritionSegmentReportRepo.findByStatus(status ?? 'DRAFT'); }
+  async listAttritionSegmentReports(@Req() req: Request, @Query('status') status?: string) { this.assertDeiAnalyticsScope(req); return this.attritionSegmentReportRepo.findByStatus(status ?? 'DRAFT'); }
   @Get('attrition-segment-reports/tenant/:tenantId')
   async listAttritionSegmentReportsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
     return this.attritionSegmentReportRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
   @Get('attrition-segment-reports/:id')
-  async getAttritionSegmentReport(@Param('id') id: string) { return this.attritionSegmentReportRepo.findById(new Uuid(id)); }
+  async getAttritionSegmentReport(@Param('id') id: string, @Req() req: Request) { this.assertDeiAnalyticsScope(req); return this.attritionSegmentReportRepo.findById(new Uuid(id)); }
 }
