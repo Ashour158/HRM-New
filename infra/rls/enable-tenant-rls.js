@@ -20,7 +20,10 @@
  */
 
 const POLICY = 'tenant_isolation';
-const SCHEMA_LIKE = 'hr\\_%';
+// Cover EVERY tenant_id table regardless of schema (most are hr_*, but a few admin
+// tables live in `public`). Only system catalogs are excluded; the tenant_id column
+// filter already restricts the set to tenant-owned tables.
+const SYSTEM_SCHEMAS = ['pg_catalog', 'information_schema'];
 // Cross-tenant tables that must NOT be tenant-scoped (platform-global / dispatcher).
 const EXEMPT_TABLES = ['tenants'];
 
@@ -37,7 +40,7 @@ exports.up = (pgm) => {
           ON t.table_schema = c.table_schema AND t.table_name = c.table_name
         WHERE c.column_name = 'tenant_id'
           AND t.table_type = 'BASE TABLE'
-          AND c.table_schema LIKE '${SCHEMA_LIKE}'
+          AND c.table_schema <> ALL ('{${SYSTEM_SCHEMAS.join(',')}}')
           AND c.table_name <> ALL ('{${EXEMPT_TABLES.join(',')}}')
       LOOP
         EXECUTE format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY', r.table_schema, r.table_name);
@@ -67,7 +70,7 @@ exports.down = (pgm) => {
           ON t.table_schema = c.table_schema AND t.table_name = c.table_name
         WHERE c.column_name = 'tenant_id'
           AND t.table_type = 'BASE TABLE'
-          AND c.table_schema LIKE '${SCHEMA_LIKE}'
+          AND c.table_schema <> ALL ('{${SYSTEM_SCHEMAS.join(',')}}')
       LOOP
         EXECUTE format('DROP POLICY IF EXISTS ${POLICY} ON %I.%I', r.table_schema, r.table_name);
         EXECUTE format('ALTER TABLE %I.%I NO FORCE ROW LEVEL SECURITY', r.table_schema, r.table_name);
