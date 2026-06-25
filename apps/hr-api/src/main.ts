@@ -6,6 +6,7 @@ import { AppModule } from './app.module.js';
 import { loadAppConfig } from './config/app.config.js';
 import { shutdownOpenTelemetry, startOpenTelemetry } from './observability/opentelemetry.js';
 import { StructuredLoggerService } from './observability/structured-logger.service.js';
+import { assertRlsRuntimeSafety } from './config/rls-runtime-check.js';
 
 async function bootstrap(): Promise<void> {
   const config = loadAppConfig();
@@ -59,6 +60,10 @@ async function bootstrap(): Promise<void> {
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/docs', app, document);
+
+  // Fail fast on RLS misconfiguration (superuser/bypass role or missing system pool)
+  // so tenant isolation is never silently inert.
+  await assertRlsRuntimeSafety(logger);
 
   const port = config.port;
   await app.listen(port);
