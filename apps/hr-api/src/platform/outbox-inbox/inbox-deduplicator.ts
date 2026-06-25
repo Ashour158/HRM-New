@@ -2,7 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { createSystemKyselyInstance } from '@hcm/database';
 import type { InboxEvent } from './inbox-consumer.js';
 
 @Injectable()
@@ -10,7 +10,7 @@ export class InboxDeduplicator {
   private readonly db: Pick<Kysely<Database>, 'selectFrom' | 'updateTable'>;
 
   constructor(@Optional() db?: Pick<Kysely<Database>, 'selectFrom' | 'updateTable'>) {
-    this.db = db ?? createKyselyInstance(getPool());
+    this.db = db ?? createSystemKyselyInstance();
   }
 
   async isProcessed(

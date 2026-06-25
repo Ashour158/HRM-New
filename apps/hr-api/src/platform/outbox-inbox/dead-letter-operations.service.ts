@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException, Optional } from '@n
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createSystemKyselyInstance } from '@hcm/database';
 import { InboxConsumer } from './inbox-consumer.js';
 import { OutboxPublisher } from './outbox-publisher.js';
 
@@ -150,7 +150,7 @@ export class DeadLetterOperationsService {
     private readonly outboxPublisher: OutboxPublisher,
     @Optional() db?: Kysely<Database>,
   ) {
-    this.db = db ?? createKyselyInstance(getPool());
+    this.db = db ?? createSystemKyselyInstance();
   }
 
   async getSummary(tenantId: Uuid): Promise<DeadLetterSummary> {
