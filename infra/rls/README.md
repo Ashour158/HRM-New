@@ -3,34 +3,35 @@
 Defense-in-depth multi-tenancy enforced by Postgres. See the design rationale in
 [`docs/RLS-ROLLOUT-PLAN.md`](../../docs/RLS-ROLLOUT-PLAN.md).
 
-These files are **staged, not auto-applied**. RLS only takes effect once the app
-connects as a non-superuser role AND the connection wrapper is enabled — otherwise
-queries either stay unprotected (superuser bypass) or return zero rows (policies on,
-GUC unset). Activation is therefore a deliberate, ordered operation.
+The **policy migration is now in the auto-run chain**
+(`infra/migrations/20260625000002000_enable_tenant_rls.js`), so RLS policies exist in
+every environment. They are **inert until activated**: with the default superuser
+connection (`hcm_admin`) RLS is bypassed; enforcement turns on only when the app
+connects as the non-superuser `hcm_app` AND `DB_RLS_ENABLED=true`. A boot-time guard
+(`apps/hr-api/src/config/rls-runtime-check.ts`) fails fast if `DB_RLS_ENABLED=true`
+while the request role is superuser/BYPASSRLS or `SYSTEM_DATABASE_URL` is unset.
 
-## What ships already (safe, inert)
-- `packages/hr-database/src/connection/rls-pool.ts` — connection wrapper that binds
-  `app.current_tenant` per checkout and resets on release. **Gated by `DB_RLS_ENABLED`
-  (default off)** — a no-op until enabled. Unit-tested in `rls-pool.test.ts`.
+## What ships already
+- Policy migration in `infra/migrations/` — `tenant_isolation` on every `tenant_id`
+  table (any non-system schema); applied by the normal migration run.
+- `packages/hr-database/src/connection/rls-pool.ts` — connection wrapper binding
+  `app.current_tenant` per checkout. **Gated by `DB_RLS_ENABLED` (default off).**
+- `getSystemPool()` / `SYSTEM_DATABASE_URL` — BYPASSRLS pool for cross-tenant workers.
 
-## Activation sequence (staging first)
-1. **Provision the restricted role:** run `provision-app-role.sql` as a superuser
-   (creates `hcm_app`, grants DML on `hr_*`, plus an optional `hcm_system` BYPASSRLS
-   role for cross-tenant jobs). Set a real password via `-v app_password=...`.
-2. **Enable the wrapper:** set `DB_RLS_ENABLED=true` in the app environment.
-3. **Apply policies:** move `enable-tenant-rls.js` into `infra/migrations/` with a
-   timestamp prefix (e.g. `20260620000002000_enable_tenant_rls.js`) and run migrations.
-   It enables + FORCEs RLS and creates a `tenant_isolation` policy on every `hr_*`
-   table with a `tenant_id` column.
-4. **Switch the runtime connection:** point `DATABASE_URL` at `hcm_app`. Keep the
-   migration runner / outbox dispatcher on the admin or `hcm_system` role.
-5. **Verify:** cross-tenant probes return zero rows; INSERT with a foreign tenant id
-   is rejected by `WITH CHECK`; background jobs still function via the system role.
+## Activation sequence (per environment)
+1. **Provision roles:** run `provision-app-role.sql` as a superuser (creates `hcm_app`
+   + `hcm_system`, grants both). Set a real password via `-v app_password=...`.
+2. Set `DB_RLS_ENABLED=true`, `DATABASE_URL`→`hcm_app`, `SYSTEM_DATABASE_URL`→`hcm_system`.
+   Keep the migration runner / seed on the admin role.
+3. Boot — the runtime guard verifies the role is non-superuser; the app fails to start
+   on misconfiguration.
+4. **Verify:** cross-tenant probes return zero rows; foreign-tenant INSERT rejected by
+   `WITH CHECK`; background jobs still function via the system role.
 
 ## Rollback
-Any of: set `DB_RLS_ENABLED=false`, revert `DATABASE_URL` to `hcm_admin`, or run the
-`enable-tenant-rls.js` down migration (`DISABLE ROW LEVEL SECURITY`). The wrapper is
-inert when the flag is off, so reverting is immediate.
+Set `DB_RLS_ENABLED=false` (+ revert `DATABASE_URL` to a bypass role): the wrapper goes
+inert and the superuser connection bypasses the still-present policies — immediate and
+safe. To remove policies entirely, run the migration's `down`.
 
 ## Notes
 - `TenantFilterPlugin` (app-layer WHERE rewriting) stays in place as belt-and-suspenders
