@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import type { Request } from 'express';
 import { AppController } from './app.controller.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -62,6 +63,11 @@ import { DomainExceptionFilter } from './filters/domain-exception.filter.js';
       ttl: Number(process.env.THROTTLE_TTL_MS ?? 60_000),
       limit: Number(process.env.THROTTLE_LIMIT ?? 300),
     }],
+    // Shared rate-limit state across replicas when THROTTLE_REDIS=true (prod);
+    // otherwise the default in-memory store (single-process / dev / tests).
+    storage: process.env.THROTTLE_REDIS === 'true'
+      ? new ThrottlerStorageRedisService(process.env.REDIS_URL ?? 'redis://localhost:6379')
+      : undefined,
     // Don't rate-limit liveness/metrics scraping, or automated tests.
     skipIf: (ctx) => {
       if (process.env.NODE_ENV === 'test' || process.env.THROTTLE_DISABLED === 'true') return true;

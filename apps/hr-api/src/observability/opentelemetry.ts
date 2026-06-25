@@ -7,7 +7,10 @@ import type { StructuredLoggerService } from './structured-logger.service.js';
 let activeSdk: NodeSDK | undefined;
 
 export function shouldStartOpenTelemetry(config: AppConfig): boolean {
-  return config.otelEnabled === true;
+  // Start when explicitly enabled, OR automatically when an OTLP endpoint is
+  // configured (there is somewhere to export to). Stays off when no endpoint and
+  // not explicitly enabled, so we never spam a non-existent local collector.
+  return config.otelEnabled === true || Boolean(config.otelExporterOtlpEndpoint);
 }
 
 export function buildOpenTelemetryOptions(config: AppConfig): Partial<NodeSDKConfiguration> {
