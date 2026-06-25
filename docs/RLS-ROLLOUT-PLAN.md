@@ -1,7 +1,40 @@
 # Postgres Row-Level Security (RLS) Rollout Plan
 
-**Status:** DESIGN — for review before implementation. Closes P0 item #7 of the 2026-06-20 e2e audit.
+**Status:** PROVEN AT DB LEVEL — policies + roles validated against live Postgres (2026-06-25). App-connection activation has one remaining blocker (boot path under RLS); see §8.
 **Goal:** Defense-in-depth multi-tenancy enforced by the database, so a missing `WHERE tenant_id`, a raw query, an INSERT, or a plugin bypass can no longer leak or cross-write tenant data.
+
+---
+
+## 8. Validation results (2026-06-25, live Postgres)
+
+Provisioned `hcm_app` (non-superuser, RLS-subject) + `hcm_system` (BYPASSRLS) via the fixed
+`infra/rls/provision-app-role.sql` (the original `:app_password` interpolation was broken inside
+dollar-quoted `DO` blocks — now uses `:'app_password'` + `\gexec`). Applied the staged policy migration:
+**166 `hr_*` tables** got `ENABLE`+`FORCE ROW LEVEL SECURITY` and a `tenant_isolation` policy.
+
+Direct proof as `hcm_app`:
+
+| Scenario | Result |
+| --- | --- |
+| `SET app.current_tenant` = owning tenant, `SELECT` | sees only that tenant's rows ✓ |
+| GUC = a different tenant | **0 rows** ✓ |
+| GUC unset | **0 rows (fail-closed)** ✓ |
+| `INSERT` a row for a different tenant (WITH CHECK) | **ERROR: violates row-level security policy** ✓ |
+
+DB-level cross-tenant read **and** write are blocked independent of the app-layer plugin.
+
+### Remaining blocker before flipping the app to `hcm_app`
+Booting the full Nest app as `hcm_app` with `DB_RLS_ENABLED=true` hangs in startup: boot-time / background
+queries that run **without a request tenant** fail-closed (or need privileges) under RLS. To activate the
+app connection (not just the policies), still required:
+1. Route background workers (outbox dispatcher, scheduler, inbox recovery, tenant onboarding) through the
+   `hcm_system` BYPASSRLS role (separate pool), since they legitimately operate cross-tenant.
+2. Audit boot-path / global reads for tenant-less queries; make them tolerate empty results or run as `hcm_system`.
+3. Then: `DB_RLS_ENABLED=true` + `DATABASE_URL` → `hcm_app`, keep migrations/seed on the admin role.
+
+Until then the policy migration stays **staged in `infra/rls/`** (not in `infra/migrations/`); the app keeps
+connecting as the superuser `hcm_admin`, which bypasses RLS, so nothing is enforced in normal operation yet —
+the proof above shows it *works* once the connection is flipped.
 
 ---
 

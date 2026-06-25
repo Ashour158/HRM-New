@@ -6,8 +6,6 @@ import { useUIStore } from '@/stores/ui-store';
 import { apiClient } from '@/lib/api-client';
 import {
   buildClockActionPath,
-  buildGoogleMapsEmbedUrl,
-  buildGoogleMapsSearchUrl,
   geolocationFailureMessage,
   hasCoordinateEvidence,
   sanitizeGeolocationCoordinates,
@@ -24,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
 import { cn } from '@/lib/utils';
+import { AttendanceLocationMap, EvidenceMetric, FeedRow, KpiTile } from './dashboard/dashboard-widgets';
 import {
   AlertTriangle,
   ArrowRight,
@@ -874,7 +873,7 @@ export function EmployeeDashboard() {
               {rangeLabel(attendanceRange)}
             </span>
             <Select value={attendanceRange} onValueChange={(value) => setAttendanceRange(value as AttendancePeriodRange)}>
-              <SelectTrigger className="h-9 w-[132px] rounded-xl bg-white/80">
+              <SelectTrigger aria-label="Attendance period" className="h-9 w-[132px] rounded-xl bg-white/80">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1022,7 +1021,7 @@ export function EmployeeDashboard() {
                           </div>
 
                           <div className="mt-5">
-                            <div className="ml-1 h-10 rounded bg-[#fde68a] px-3 py-1 text-xs">
+                            <div className="ms-1 h-10 rounded bg-[#fde68a] px-3 py-1 text-xs">
                               <p className="font-medium">Daily Shift</p>
                               <p>{setup.attendancePolicy.standardDailyMinutes / 60} working hours</p>
                             </div>
@@ -1031,7 +1030,7 @@ export function EmployeeDashboard() {
                                 const isToday = date.toDateString() === today.toDateString();
                                 return (
                                   <div key={date.toISOString()} className="relative min-w-0 px-1 pt-3 text-xs">
-                                    <span className={cn('absolute -top-1 left-0 h-2 w-2 rounded-full bg-slate-300', isToday && 'bg-[#6366f1]')} />
+                                    <span className={cn('absolute -top-1 start-0 h-2 w-2 rounded-full bg-slate-300', isToday && 'bg-[#6366f1]')} />
                                     <p className="truncate text-slate-800">{formatDate(date)}</p>
                                     <p className={cn('mt-2 truncate', isToday ? 'font-semibold text-[#6366f1]' : 'text-slate-500')}>
                                       {isToday ? 'Today' : date.getDay() === 5 || date.getDay() === 6 ? 'Weekend' : 'Scheduled'}
@@ -1145,7 +1144,7 @@ export function EmployeeDashboard() {
                           <p className="text-xs text-slate-500">{activeWorker?.employeeId ?? user?.email ?? 'No employee profile linked'}</p>
                         </div>
                         <Select value={workplaceCode} onValueChange={setWorkplaceCode}>
-                          <SelectTrigger><SelectValue placeholder="Select workplace" /></SelectTrigger>
+                          <SelectTrigger aria-label="Workplace"><SelectValue placeholder="Select workplace" /></SelectTrigger>
                           <SelectContent>
                             {setup.locations.filter((location) => location.active).map((location) => (
                               <SelectItem key={location.code} value={location.code}>{location.flag} {location.label}</SelectItem>
@@ -1215,11 +1214,11 @@ export function EmployeeDashboard() {
                       <p className="mt-1 text-sm text-slate-600">Request a missing or corrected punch with manager approval.</p>
                       <div className="mt-4 space-y-3">
                         <div className="grid grid-cols-2 gap-2">
-                          <Input type="date" value={correctionDate} onChange={(event) => setCorrectionDate(event.target.value)} />
-                          <Input type="time" value={correctionTime} onChange={(event) => setCorrectionTime(event.target.value)} />
+                          <Input aria-label="Correction date" type="date" value={correctionDate} onChange={(event) => setCorrectionDate(event.target.value)} />
+                          <Input aria-label="Correction time" type="time" value={correctionTime} onChange={(event) => setCorrectionTime(event.target.value)} />
                         </div>
                         <Select value={correctionEventType} onValueChange={(value) => setCorrectionEventType(value as 'CLOCK_IN' | 'CLOCK_OUT')}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger aria-label="Correction event type"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="CLOCK_IN">Missing check-in</SelectItem>
                             <SelectItem value="CLOCK_OUT">Missing check-out</SelectItem>
@@ -1232,7 +1231,7 @@ export function EmployeeDashboard() {
                           onClick={submitCorrection}
                           disabled={!correctionReason.trim() || !correctionTime || correctionMutation.isPending}
                         >
-                          <Send className="mr-2 h-4 w-4" />
+                          <Send className="me-2 h-4 w-4" />
                           Send Correction
                         </Button>
                       </div>
@@ -1449,7 +1448,7 @@ export function EmployeeAttendanceAction() {
         </p>
         <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
           Workplace: <span className="font-semibold">{workplaceCode ?? 'Not selected'}</span>
-          {requiresGeolocation ? <span className="ml-2 text-amber-700">Location required by policy</span> : null}
+          {requiresGeolocation ? <span className="ms-2 text-amber-700">Location required by policy</span> : null}
         </div>
         {message ? <p className="mt-5 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
         {error ? <p className="mt-5 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p> : null}
@@ -1509,122 +1508,3 @@ export function EmployeeAttendanceAction() {
   );
 }
 
-function AttendanceLocationMap({
-  point,
-  subtitle,
-  title,
-}: {
-  point: CoordinateEvidence;
-  subtitle?: string;
-  title: string;
-}) {
-  const embedUrl = buildGoogleMapsEmbedUrl(point, import.meta.env.VITE_GOOGLE_MAPS_API_KEY);
-  const searchUrl = buildGoogleMapsSearchUrl(point);
-  if (!hasCoordinateEvidence(point)) return null;
-
-  return (
-    <div className="overflow-hidden fusion-glass rounded-2xl">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
-        <div>
-          <h4 className="font-semibold text-[#0f172a]">{title}</h4>
-          {subtitle ? <p className="mt-1 text-xs text-slate-600">{subtitle}</p> : null}
-        </div>
-        {searchUrl ? (
-          <a className="text-sm font-semibold text-[#4f46e5] underline" href={searchUrl} rel="noreferrer" target="_blank">
-            Open in Google Maps
-          </a>
-        ) : null}
-      </div>
-      {embedUrl ? (
-        <iframe
-          className="h-64 w-full border-0"
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          src={embedUrl}
-          title={title}
-        />
-      ) : (
-        <div className="grid h-64 place-items-center bg-slate-50 px-5 text-center text-sm text-slate-600">
-          <div>
-            <MapPin className="mx-auto mb-3 h-6 w-6 text-[#4f46e5]" />
-            <p className="font-medium text-slate-800">Map preview is not configured.</p>
-            <p className="mt-1">Your location was captured and can still be reviewed by HR.</p>
-          </div>
-        </div>
-      )}
-      <div className="grid gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600 md:grid-cols-3">
-        <span>Latitude: <strong>{point.latitude}</strong></span>
-        <span>Longitude: <strong>{point.longitude}</strong></span>
-        <span>Accuracy: <strong>{point.accuracyMeters !== undefined ? `${point.accuracyMeters}m` : 'not reported'}</strong></span>
-      </div>
-    </div>
-  );
-}
-
-function FeedRow({
-  icon,
-  title,
-  subtitle,
-  rightTitle,
-  rightSubtitle,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  rightTitle?: string;
-  rightSubtitle?: string;
-}) {
-  return (
-    <div className="fusion-glass rounded-2xl p-5">
-      <div className="flex items-center gap-4">
-        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-orange-50">{icon}</div>
-        <div className="min-w-0">
-          <h3 className="font-semibold">{title}</h3>
-          <p className="text-sm text-slate-600">{subtitle}</p>
-        </div>
-        {rightTitle ? (
-          <div className="ml-auto min-w-[180px] text-sm">
-            <p className="font-semibold">{rightTitle}</p>
-            <p className="text-slate-600">{rightSubtitle}</p>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function EvidenceMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 truncate font-semibold text-slate-950">{value}</p>
-    </div>
-  );
-}
-
-function KpiTile({
-  icon: Icon,
-  value,
-  label,
-  gradient,
-  shadow,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  value: string | number;
-  label: string;
-  gradient: string;
-  shadow: string;
-}) {
-  return (
-    <div className={cn('fusion-hover relative overflow-hidden rounded-[2rem] bg-gradient-to-br p-6 text-white shadow-lg', gradient, shadow)}>
-      <div className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/15 blur-xl" />
-      <div className="relative flex items-center justify-between">
-        <span className="grid h-11 w-11 place-items-center rounded-2xl bg-white/20">
-          <Icon className="h-5 w-5" />
-        </span>
-      </div>
-      <p className="relative mt-5 font-headline text-4xl font-extrabold leading-none tracking-tight">{value}</p>
-      <p className="relative mt-2 text-xs font-semibold text-white/80">{label}</p>
-    </div>
-  );
-}
