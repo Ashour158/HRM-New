@@ -23,14 +23,51 @@ Direct proof as `hcm_app`:
 
 DB-level cross-tenant read **and** write are blocked independent of the app-layer plugin.
 
+### Kit completeness fix (applied + re-validated)
+The kit originally scoped policies and grants to `hr_%` only, but **3 tenant_id tables live in `public`**
+(`admin_module_operation_controls`/`records`/`workflows`). Fixed:
+- `enable-tenant-rls.js` now covers every tenant_id base table in any non-system schema (was `hr_%`) →
+  **169 tables** RLS+FORCE (was 166).
+- `provision-app-role.sql` now also grants `hcm_app` on the `public` tenant tables (per-table, excluding
+  `pgmigrations`). Re-validated: `hcm_app` reads `public.admin_module_operation_records` tenant-scoped with
+  no permission error.
+
 ### Remaining blocker before flipping the app to `hcm_app`
-Booting the full Nest app as `hcm_app` with `DB_RLS_ENABLED=true` hangs in startup: boot-time / background
-queries that run **without a request tenant** fail-closed (or need privileges) under RLS. To activate the
-app connection (not just the policies), still required:
-1. Route background workers (outbox dispatcher, scheduler, inbox recovery, tenant onboarding) through the
-   `hcm_system` BYPASSRLS role (separate pool), since they legitimately operate cross-tenant.
-2. Audit boot-path / global reads for tenant-less queries; make them tolerate empty results or run as `hcm_system`.
-3. Then: `DB_RLS_ENABLED=true` + `DATABASE_URL` → `hcm_app`, keep migrations/seed on the admin role.
+Even with grants+policies complete, booting the full app as `hcm_app` with `DB_RLS_ENABLED=true` still hangs
+in `beforeAll` — so it is NOT just a grant gap. Boot-time lifecycle hooks and background workers run
+**without a request tenant** and fail-closed/hang under RLS. Confirmed boot-time DB hooks:
+`platform/command-bus/command-bus.ts` and `integrations/consumers/email-notification.consumer.ts`
+(onApplicationBootstrap), plus the outbox dispatcher / inbox recovery / scheduler / tenant-onboarding workers.
+To activate the app connection (not just the policies), still required:
+1. Route those workers + boot hooks through the `hcm_system` BYPASSRLS role (a separate pool, e.g.
+   `SYSTEM_DATABASE_URL` → `getSystemPool()`), since they legitimately operate cross-tenant.
+2. Add a focused boot probe (temporary logger) to pin the exact first hanging query, then make each such
+   read tenant-tolerant or system-scoped.
+3. Then: `DB_RLS_ENABLED=true` + `DATABASE_URL` → `hcm_app`, keeping migrations/seed on the admin role.
+This is a multi-file change with real blast radius (all background DB access), so it is staged as its own
+task rather than bundled here.
+
+### Root cause found (2026-06-25) — the app boots fine under RLS; the e2e hang is a TEST-HARNESS artifact
+A standalone boot probe (compiled `AppModule`, same overrides as the e2e but **logger ON**, connected as
+`hcm_app` with `DB_RLS_ENABLED=true`) showed **`app.init()` COMPLETES in ~5s** — the app starts cleanly
+under RLS. The 60s hang is therefore **after** `app.init()`, in the e2e's own `beforeAll` seeding:
+`tenant-isolation.e2e.test.ts:198-204` does a **raw `getPool().query('insert into hr_platform.tenants …')`**.
+Because `createTenantBoundPool` mutates the **shared singleton** pool's `connect`, that raw seeding (and the
+later raw `insert into hr_core.workers`) runs through the tenant-binding wrapper with **no request tenant**
+→ GUC = nil → the write misbehaves under RLS and the harness stalls.
+
+Corrected conclusions:
+1. **The application runs under RLS** — boot is not a blocker (earlier "app-side boot hang" was a misread of
+   the e2e harness, not the app).
+2. The real remaining production work is narrower than feared and is **runtime, not boot**:
+   - **Background workers** (outbox dispatcher, inbox recovery, scheduler, tenant onboarding) operate
+     cross-tenant and must use the `hcm_system` BYPASSRLS pool (`SYSTEM_DATABASE_URL` → `getSystemPool()`).
+   - The real-DB **e2e harness** must seed through a request/tenant context (or via the admin/`hcm_system`
+     role), not a raw `getPool().query`, to be runnable under RLS.
+3. Caveat to revisit: the wrapper mutating the **shared singleton** pool means raw `getPool()` consumers are
+   silently tenant-bound once any Kysely instance is created with the flag on. For the app that is intended;
+   for tests/tools that expect raw access it is surprising — consider a dedicated bound pool rather than
+   in-place mutation when activating.
 
 Until then the policy migration stays **staged in `infra/rls/`** (not in `infra/migrations/`); the app keeps
 connecting as the superuser `hcm_admin`, which bypasses RLS, so nothing is enforced in normal operation yet —

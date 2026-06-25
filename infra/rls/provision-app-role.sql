@@ -32,6 +32,21 @@ BEGIN
   END LOOP;
 END $$;
 
+-- A few tenant-scoped tables (admin_module_operation_*) live in `public`. Grant the
+-- app role on exactly those (NOT on public.pgmigrations, which only the admin/migration
+-- role touches), per-table so the role stays least-privilege.
+DO $$
+DECLARE t RECORD;
+BEGIN
+  GRANT USAGE ON SCHEMA public TO hcm_app;
+  FOR t IN
+    SELECT table_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND column_name = 'tenant_id'
+  LOOP
+    EXECUTE format('GRANT SELECT, INSERT, UPDATE, DELETE ON public.%I TO hcm_app', t.table_name);
+  END LOOP;
+END $$;
+
 -- 2. Optional system role for cross-tenant background jobs (outbox dispatcher,
 --    scheduler, tenant onboarding). BYPASSRLS lets these operate across tenants.
 --    Keep its use narrow and audited.
