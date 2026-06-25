@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,9 +8,10 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
-import { buildOrganizationSetupJourney, type OrganizationSetupJourneyTone, type OrganizationSetupTab } from '@/lib/organization-setup-journey';
-import { cn } from '@/lib/utils';
-import { BarChart3, Brain, Briefcase, Building2, Calculator, GitBranch, Network, Save, Sparkles, UserCog } from 'lucide-react';
+import { buildOrganizationSetupJourney, type OrganizationSetupTab } from '@/lib/organization-setup-journey';
+import { BarChart3, Brain, Briefcase, Calculator, GitBranch, Network, Save, Sparkles, UserCog } from 'lucide-react';
+import { OrgTree, ReportingTree } from './organization/organization-trees';
+import { OrganizationSummaryHeader } from './organization/organization-summary';
 
 type LegalEntity = {
   id: string;
@@ -288,13 +288,6 @@ const emptyOrgChart: OrgUnit[] = [];
 const emptyPositions: PositionControlPosition[] = [];
 const emptyHeadcountRequests: HeadcountRequest[] = [];
 
-const setupToneClasses: Record<OrganizationSetupJourneyTone, string> = {
-  attention: 'border-red-200 bg-red-50 text-red-700',
-  default: 'border-indigo-100 bg-indigo-50 text-indigo-700',
-  success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-  warning: 'border-orange-200 bg-orange-50 text-orange-700',
-};
-
 const moneyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',
@@ -396,64 +389,6 @@ function buildReportingTree(workers: Worker[], relationships: ManagerRelationshi
   };
 
   return sortNodes([...nodes.values()].filter((node) => !directReportIds.has(node.id)));
-}
-
-function OrgTree({ nodes, depth = 0 }: { nodes: OrgUnit[]; depth?: number }) {
-  if (nodes.length === 0) {
-    return <p className="text-sm text-muted-foreground">No active org structure yet. Create a legal entity, then add departments or teams.</p>;
-  }
-
-  return (
-    <div className="space-y-2">
-      {nodes.map((node) => (
-        <div key={node.id}>
-          <div className="fusion-glass flex items-center gap-3 rounded-2xl p-3" style={{ marginLeft: depth * 20 }}>
-            <Network className="h-4 w-4 text-primary" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">{node.name}</p>
-              <p className="text-xs text-muted-foreground">{node.status} · level {node.level}</p>
-            </div>
-            <Badge variant="outline">{node.children?.length ?? 0} children</Badge>
-          </div>
-          {node.children && node.children.length > 0 ? <OrgTree nodes={node.children} depth={depth + 1} /> : null}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ReportingTree({ nodes, depth = 0, visited = new Set<string>() }: { nodes: ReportingNode[]; depth?: number; visited?: Set<string> }) {
-  if (nodes.length === 0) {
-    return <p className="text-sm text-muted-foreground">No active employee reporting lines yet.</p>;
-  }
-
-  return (
-    <div className="space-y-2">
-      {nodes.map((node) => {
-        const hasCycle = visited.has(node.id);
-        const nextVisited = new Set(visited);
-        nextVisited.add(node.id);
-
-        return (
-          <div key={`${node.id}-${depth}`}>
-            <div className="fusion-glass flex items-center gap-3 rounded-2xl p-3" style={{ marginLeft: depth * 20 }}>
-              <UserCog className="h-4 w-4 text-primary" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{node.name}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {node.jobTitle ?? 'No title'}{node.employeeId ? ` · ${node.employeeId}` : ''}
-                </p>
-              </div>
-              <Badge variant={node.directReports.length > 0 ? 'default' : 'outline'}>{node.directReports.length}</Badge>
-            </div>
-            {!hasCycle && node.directReports.length > 0 ? (
-              <ReportingTree nodes={node.directReports} depth={depth + 1} visited={nextVisited} />
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 const positionCommandRoutes: Record<string, string> = {
@@ -1009,90 +944,17 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
 
   return (
     <div className="space-y-6 p-5">
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
-            Live org graph
-          </div>
-          <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
-            <Building2 className="h-7 w-7 text-[#6366f1]" />
-            <span className="fusion-gradient-text">Organization Admin</span>
-          </h2>
-          <p className="mt-2 text-sm text-slate-500">Create legal entities, departments, reporting lines, and employee assignments.</p>
-        </div>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {setupJourney.map((step, index) => {
-          const content = (
-            <div className="flex h-full min-h-[138px] flex-col justify-between rounded-[1.5rem] border border-white/70 bg-white/65 p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-md">
-              <div>
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{index + 1}. {step.category}</p>
-                  <span className={cn('rounded-full border px-2.5 py-1 text-[11px] font-bold', setupToneClasses[step.tone])}>
-                    {step.status}
-                  </span>
-                </div>
-                <h3 className="mt-3 text-sm font-extrabold text-slate-950">{step.label}</h3>
-              </div>
-              <div className="mt-4 text-sm font-bold text-indigo-600">{step.actionLabel}</div>
-            </div>
-          );
-
-          if (step.href) {
-            return <Link key={step.label} to={step.href} className="group">{content}</Link>;
-          }
-
-          return (
-            <button
-              key={step.label}
-              type="button"
-              className="group"
-              onClick={() => step.targetTab && setActiveTab(step.targetTab)}
-            >
-              {content}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-indigo-500 to-violet-500 p-5 text-white">
-          <p className="text-sm font-medium text-white/85">Legal Entities</p>
-          <p className="mt-2 text-4xl font-extrabold">{legalEntities.length}</p>
-        </div>
-        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-violet-500 to-purple-500 p-5 text-white">
-          <p className="text-sm font-medium text-white/85">Org Units</p>
-          <p className="mt-2 text-4xl font-extrabold">{orgUnits.length}</p>
-        </div>
-        <div className="fusion-hover rounded-[2rem] bg-gradient-to-br from-teal-500 to-emerald-500 p-5 text-white">
-          <p className="text-sm font-medium text-white/85">Assigned Workers</p>
-          <p className="mt-2 text-4xl font-extrabold">{assignedWorkerCount}</p>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
-          <p className="text-sm text-muted-foreground">Active Headcount</p>
-          <p className="mt-1 text-3xl font-bold">{planning?.summary?.activeHeadcount ?? 0}</p>
-        </div>
-        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
-          <p className="text-sm text-muted-foreground">Vacancies</p>
-          <p className="mt-1 text-3xl font-bold">{planning?.summary?.vacancies ?? 0}</p>
-        </div>
-        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
-          <p className="text-sm text-muted-foreground">Pending Demand</p>
-          <p className="mt-1 text-3xl font-bold">{planning?.summary?.pendingHeadcount ?? 0}</p>
-        </div>
-        <div className="fusion-glass fusion-hover rounded-[2rem] p-5">
-          <p className="text-sm text-muted-foreground">Annual Workforce Cost</p>
-          <p className="mt-1 text-3xl font-bold">{formatMoney(planning?.workforceCostPlan?.totalAnnualCost)}</p>
-        </div>
-      </div>
+      <OrganizationSummaryHeader
+        activeHeadcount={planning?.summary?.activeHeadcount ?? 0}
+        assignedWorkerCount={assignedWorkerCount}
+        legalEntityCount={legalEntities.length}
+        onTabChange={setActiveTab}
+        orgUnitCount={orgUnits.length}
+        pendingHeadcount={planning?.summary?.pendingHeadcount ?? 0}
+        setupJourney={setupJourney}
+        totalAnnualCost={formatMoney(planning?.workforceCostPlan?.totalAnnualCost)}
+        vacancies={planning?.summary?.vacancies ?? 0}
+      />
 
       <ErrorMessage error={
         summaryQuery.error
