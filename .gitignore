@@ -39,3 +39,7 @@ coverage/
 # Misc
 *.tgz
 *.tar.gz
+
+# DB backup artifacts
+backups/
+*.dump

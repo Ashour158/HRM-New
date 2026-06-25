@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hcm-db-restore-drill
+  labels:
+    app: hcm-platform
+    component: backup
+spec:
+  # Weekly restore drill — restores the latest backup into a scratch DB and asserts
+  # integrity, so "restore works" is continuously proven, not assumed (SRE-2).
+  schedule: "30 3 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 4
+  failedJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: restore-drill
+              image: postgres:15-alpine
+              command: ["sh", "-c"]
+              args:
+                - >
+                  set -e;
+                  LATEST=$(ls -1t /backups/*.dump | head -1);
+                  echo "restoring $LATEST into drill DB";
+                  SCRATCH="restore_drill_$(date +%s)";
+                  psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE ${SCRATCH}";
+                  RESTORE_URL=$(echo "$ADMIN_DATABASE_URL" | sed "s#/postgres#/${SCRATCH}#");
+                  pg_restore --no-owner --no-privileges -d "$RESTORE_URL" "$LATEST";
+                  T=$(psql "$RESTORE_URL" -tAc "select count(*) from information_schema.tables where table_schema like 'hr\_%' and table_type='BASE TABLE'");
+                  M=$(psql "$RESTORE_URL" -tAc "select count(*) from public.pgmigrations");
+                  echo "restored: $T hr_* tables, $M migrations";
+                  psql "$ADMIN_DATABASE_URL" -c "DROP DATABASE ${SCRATCH}";
+                  test "$T" -ge 150 && test "$M" -ge 70 && echo "RESTORE DRILL PASS" || (echo "RESTORE DRILL FAILED" && exit 1)
+              env:
+                # Admin URL points at the maintenance 'postgres' db so the drill can
+                # CREATE/DROP the scratch database.
+                - name: ADMIN_DATABASE_URL
+                  valueFrom: { secretKeyRef: { name: hcm-secrets, key: ADMIN_DATABASE_URL } }
+              resources:
+                requests: { cpu: "100m", memory: "256Mi" }
+                limits: { cpu: "500m", memory: "512Mi" }
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: hcm-db-backups
