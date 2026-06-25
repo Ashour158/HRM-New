@@ -1,4 +1,5 @@
 import { Injectable, LoggerService } from '@nestjs/common';
+import { getRequestContext } from './request-context.js';
 
 export type StructuredLogLevel = 'debug' | 'info' | 'warn' | 'error' | 'verbose';
 
@@ -60,10 +61,17 @@ export class StructuredLoggerService implements LoggerService {
         : typeof entry.type === 'string'
           ? entry.type
           : 'LOG';
+    // Enrich with the ambient request correlation/trace when the caller didn't
+    // set them explicitly, so service-layer logs are attributable to a request.
+    const ctx = getRequestContext();
+    const ambient: Partial<StructuredLogEntry> = {};
+    if (ctx?.correlationId && entry.correlationId === undefined) ambient.correlationId = ctx.correlationId;
+    if (ctx?.traceId && entry.traceId === undefined) ambient.traceId = ctx.traceId;
     return {
       timestamp: new Date().toISOString(),
       service: this.serviceName,
       level,
+      ...ambient,
       ...entry,
       eventType,
     };

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import type { Request } from 'express';
 import { AppController } from './app.controller.js';
 import { AuthModule } from './auth/auth.module.js';
 import { ObservabilityModule } from './observability/observability.module.js';
@@ -52,13 +54,35 @@ import { ManagerTeamController } from './manager-team.controller.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { PermissionGuard } from './guards/permission.guard.js';
+import { DomainExceptionFilter } from './filters/domain-exception.filter.js';
 
 @Module({
-  imports: [ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntelligenceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule, SavedViewsModule],
+  imports: [ThrottlerModule.forRoot({
+    throttlers: [{
+      ttl: Number(process.env.THROTTLE_TTL_MS ?? 60_000),
+      limit: Number(process.env.THROTTLE_LIMIT ?? 300),
+    }],
+    // Don't rate-limit liveness/metrics scraping, or automated tests.
+    skipIf: (ctx) => {
+      if (process.env.NODE_ENV === 'test' || process.env.THROTTLE_DISABLED === 'true') return true;
+      const path = ctx.switchToHttp().getRequest<Request>().path ?? '';
+      return path.includes('/observability') || path.endsWith('/health') || path.endsWith('/metrics');
+    },
+  }), ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntelligenceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule, SavedViewsModule],
   controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController],
   providers: [
     AppService,
     AdminReadinessService,
+    {
+      provide: APP_FILTER,
+      useClass: DomainExceptionFilter,
+    },
+    {
+      // Baseline per-IP rate limit across all routes (runs before auth so
+      // unauthenticated floods are throttled too). Login keeps its own stricter guard.
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
     {
       provide: APP_GUARD,
       useClass: AuthGuard,

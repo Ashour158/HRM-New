@@ -95,6 +95,41 @@ function recordText(record: DomainRecord, key: string): string {
   return String(value);
 }
 
+function humanizeField(key: string): string {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^./, (char) => char.toUpperCase());
+}
+
+function detailRows(record: DomainRecord, entity: DomainEntityConfig) {
+  const preferredKeys = [
+    ...entity.fields.map((field) => field.key),
+    entity.secondaryField,
+    'status',
+    'createdAt',
+    'updatedAt',
+  ].filter((key): key is string => Boolean(key));
+  const seen = new Set<string>();
+  const keys = [
+    ...preferredKeys,
+    ...Object.keys(record).filter((key) => !['id', entity.titleField].includes(key)),
+  ].filter((key) => {
+    if (seen.has(key)) return false;
+    seen.add(key);
+    const value = record[key];
+    return value !== undefined && value !== null && value !== '';
+  });
+
+  return keys.slice(0, 16).map((key) => ({
+    key,
+    label: entity.fields.find((field) => field.key === key)?.label ?? humanizeField(key),
+    value: recordText(record, key) || '-',
+  }));
+}
+
 function statusBadge(status: unknown) {
   const value = String(status ?? 'DRAFT');
   const normalized = value.toUpperCase();
@@ -294,6 +329,14 @@ function DomainEntityPanel({ entity }: { entity: DomainEntityConfig }) {
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/60 p-3">
                 <span className="text-sm font-semibold text-slate-600">Status</span>
                 {statusBadge(selectedRecord.status)}
+              </div>
+              <div className="max-h-[26rem] space-y-2 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                {detailRows(selectedRecord, entity).map((row) => (
+                  <div key={row.key} className="grid gap-1 border-b border-slate-200/70 pb-2 last:border-b-0 last:pb-0">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{row.label}</span>
+                    <span className="break-words text-sm text-slate-900">{row.value}</span>
+                  </div>
+                ))}
               </div>
               <AllowedActions
                 aggregateType={entity.aggregateType}

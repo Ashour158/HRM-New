@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { AuthGuard } from '../../../guards/auth.guard.js';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
+import { clampLimit } from '../../../platform/http/pagination.js';
 
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
@@ -1155,7 +1156,7 @@ export class PayrollController {
   @Get('export-jobs')
   async getPayrollExportJobs(@Query('limit') limit: string | undefined, @Req() req: Request) {
     this.assertCanExportPayroll(req);
-    return this.exportJobRepo.findByTenant(this.getTenantId(req), limit ? Number(limit) : 20);
+    return this.exportJobRepo.findByTenant(this.getTenantId(req), clampLimit(limit, { def: 20, max: 100 }));
   }
 
   private async findExistingCycleSummaries(req: Request): Promise<ExistingPayrollCycleSummary[]> {

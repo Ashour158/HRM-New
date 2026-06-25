@@ -60,14 +60,29 @@ export class AttendanceLedgerBuilderService {
     const departmentLabels = new Map(setup.departments.map((department) => [department.code, department.label]));
     const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 5000 });
 
+    // Batch-load personal data + schedules for all active workers in two queries
+    // (instead of two per worker), then group in memory — avoids an N+1 on a hot path.
+    const workerIds = activeWorkers.map((worker) => worker.id);
+    const groupByWorker = <T extends { workerId: Uuid }>(items: T[]): Map<string, T[]> => {
+      const map = new Map<string, T[]>();
+      for (const item of items) {
+        const list = map.get(item.workerId.value) ?? [];
+        list.push(item);
+        map.set(item.workerId.value, list);
+      }
+      return map;
+    };
+    const recordsByWorker = groupByWorker(await this.personalDataRepo.findByWorkers(workerIds));
+    const schedulesByWorker = groupByWorker(await this.workScheduleRepo.findByWorkers(workerIds));
+
     const workersWithSchedules = await Promise.all(activeWorkers.map(async (worker): Promise<AttendanceLedgerWorker> => {
       const departmentId = worker.departmentId?.value;
-      const records = await this.personalDataRepo.findByWorker(worker.id);
+      const records = recordsByWorker.get(worker.id.value) ?? [];
       const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
       const contact = payloadByCategory.CONTACT ?? {};
       const workLocation = contact.workLocation as Record<string, unknown> | undefined;
       const workLocationCode = typeof workLocation?.code === 'string' ? workLocation.code : defaultWorkplaceCode;
-      const activeSchedule = (await this.workScheduleRepo.findByWorker(worker.id))
+      const activeSchedule = (schedulesByWorker.get(worker.id.value) ?? [])
         .filter((schedule) => isScheduleEffective(schedule, workDate))
         .sort((left, right) => right.startDate.getTime() - left.startDate.getTime())[0];
       const resolvedPolicy = this.policyResolution.resolveWorkerDay({

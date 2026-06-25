@@ -314,6 +314,9 @@ export class AuthService {
 
   async createSession(user: AuthUser, options?: { mfaAuthenticated?: boolean }): Promise<AuthTokenPair> {
     const sessionId = randomUUID();
+    // When MFA is required by policy, a fresh session is NOT yet stepped up
+    // (false) and must complete verifyMfa(); when MFA is not required there is no
+    // second factor to demand, so the session is considered step-up-satisfied.
     const mfaAuthenticated = options?.mfaAuthenticated ?? !this.config.mfaRequired;
     const session: AuthSession = {
       sessionId,

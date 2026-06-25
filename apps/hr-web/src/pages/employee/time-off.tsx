@@ -4,9 +4,11 @@ import { useApiQuery, useApiMutation } from '@/hooks/use-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FormField } from '@/components/common/form-field';
+import { Spinner } from '@/components/ui/loading-state';
 import {
   Dialog,
   DialogContent,
@@ -23,7 +25,6 @@ import {
   AlertCircle,
   CalendarDays,
   CheckCircle2,
-  Clock,
   FileText,
   Landmark,
   Plus,
@@ -74,6 +75,12 @@ const EMPTY_FORM: LeaveRequestForm = {
   endTime: '',
   reason: '',
 };
+
+const leaveWizardSteps = [
+  { id: 'policy', label: 'Policy' },
+  { id: 'dates', label: 'Dates' },
+  { id: 'review', label: 'Review' },
+] as const;
 
 function unitLabel(unit: string, amount?: number) {
   const normalized = unit.toLowerCase();
@@ -204,6 +211,7 @@ function RequestCard({ request }: { request: AbsenceRequest }) {
 
 export function EmployeeTimeOff() {
   const [showForm, setShowForm] = React.useState(false);
+  const [requestStep, setRequestStep] = React.useState(0);
   const [formData, setFormData] = React.useState<LeaveRequestForm>(EMPTY_FORM);
   const addNotification = useUIStore((s) => s.addNotification);
 
@@ -264,6 +272,14 @@ export function EmployeeTimeOff() {
       : undefined,
   ].filter((message): message is string => Boolean(message));
   const submitBlocked = createMutation.isPending || formValidationMessages.length > 0;
+  const isHourlyRequest = selectedPolicy?.unit === 'HOURS';
+  const canContinueFromPolicy = Boolean(formData.type);
+  const canContinueFromDates = Boolean(
+    selectedPolicy
+    && formData.startDate
+    && (isHourlyRequest ? formData.startTime && formData.endTime : formData.endDate)
+    && formValidationMessages.length === 0
+  );
   const upcomingHolidays = (leavePolicyResponse?.publicHolidays ?? [])
     .filter((holiday) => holiday.date >= new Date().toISOString().slice(0, 10))
     .slice(0, 5);
@@ -288,6 +304,7 @@ export function EmployeeTimeOff() {
 
   const resetForm = React.useCallback(() => {
     setFormData(EMPTY_FORM);
+    setRequestStep(0);
     createMutation.reset();
   }, [createMutation]);
 
@@ -324,8 +341,13 @@ export function EmployeeTimeOff() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (requestStep < leaveWizardSteps.length - 1) {
+      if (requestStep === 0 && canContinueFromPolicy) setRequestStep(1);
+      if (requestStep === 1 && canContinueFromDates) setRequestStep(2);
+      return;
+    }
     if (formValidationMessages.length > 0) return;
-    const isHourly = selectedPolicy?.unit === 'HOURS';
+    const isHourly = isHourlyRequest;
     const payload: LeaveRequestPayload = {
       type: formData.type,
       startDate: formData.startDate,
@@ -614,161 +636,207 @@ export function EmployeeTimeOff() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
-            <div className="grid gap-4 lg:grid-cols-4">
-              <div className="space-y-2 lg:col-span-2">
-                <Label htmlFor="type">Leave Type</Label>
-                <select
-                  id="type"
-                  className="flex h-10 w-full rounded-lg border border-transparent bg-[#f1f5f9] px-3 py-2 text-sm text-[#0f172a] focus:border-[#4f46e5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/20"
-                  value={formData.type}
-                  onChange={(e) => handlePolicyChange(e.target.value)}
-                  required
-                >
-                  <option value="">Select type</option>
-                  {(leavePolicyResponse?.policies ?? []).map((policy) => (
-                    <option key={policy.code} value={policy.code}>
-                      {policy.label} ({policy.unit.toLowerCase()})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Start Date</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) => updateStartDate(e.target.value)}
-                  onInput={(e) => updateStartDate(e.currentTarget.value)}
-                  required
-                />
-              </div>
-              {selectedPolicy?.unit === 'HOURS' ? (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="startTime">Start</Label>
-                    <Input
-                      id="startTime"
-                      type="time"
-                      value={formData.startTime}
-                      onChange={(e) => updateFormField('startTime', e.target.value)}
-                      onInput={(e) => updateFormField('startTime', e.currentTarget.value)}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="endTime">End</Label>
-                    <Input
-                      id="endTime"
-                      type="time"
-                      value={formData.endTime}
-                      onChange={(e) => updateFormField('endTime', e.target.value)}
-                      onInput={(e) => updateFormField('endTime', e.currentTarget.value)}
-                      required
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <Label htmlFor="endDate">End Date</Label>
-                  <Input
-                    id="endDate"
-                    type="date"
-                    value={formData.endDate}
-                    onChange={(e) => updateFormField('endDate', e.target.value)}
-                    onInput={(e) => updateFormField('endDate', e.currentTarget.value)}
-                    required
-                  />
-                </div>
-              )}
+            <div className="grid gap-2 sm:grid-cols-3" aria-label="Leave request steps">
+              {leaveWizardSteps.map((step, index) => {
+                const isActive = index === requestStep;
+                const isComplete = index < requestStep;
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    className={cn(
+                      'rounded-lg border px-3 py-2 text-left text-sm font-semibold transition-colors',
+                      isActive && 'border-primary bg-primary/10 text-primary',
+                      isComplete && 'border-primary/40 bg-primary/5 text-foreground',
+                      !isActive && !isComplete && 'border-border bg-muted/40 text-muted-foreground',
+                    )}
+                    onClick={() => {
+                      if (index === 0 || (index === 1 && canContinueFromPolicy) || (index === 2 && canContinueFromDates)) {
+                        setRequestStep(index);
+                      }
+                    }}
+                  >
+                    <span className="block text-xs uppercase tracking-wide">Step {index + 1}</span>
+                    {step.label}
+                  </button>
+                );
+              })}
             </div>
 
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-              <div className="space-y-2">
-                <Label htmlFor="reason">Reason</Label>
-                <Input
-                  id="reason"
-                  placeholder="Optional reason for leave"
-                  value={formData.reason}
-                  onChange={(e) => updateFormField('reason', e.target.value)}
-                  onInput={(e) => updateFormField('reason', e.currentTarget.value)}
-                />
-              </div>
-              <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-3 text-sm">
-                <p className="font-semibold text-[#0f172a]">Policy result</p>
-                <p className="mt-1 text-[#475569]">
-                  {selectedPolicy
-                    ? `${estimatedDuration ?? '-'} ${unitLabel(selectedPolicy.unit, estimatedDuration)} - ${formatEnum(selectedPolicy.payrollImpact)}`
-                    : 'Select a policy'}
-                </p>
-              </div>
-            </div>
-
-            {selectedPolicy ? (
-              <div className="grid gap-3 lg:grid-cols-3">
-                <div className="rounded-lg border border-[#e2e8f0] p-4 text-sm">
-                  <p className="flex items-center gap-2 font-semibold text-[#0f172a]">
-                    <ShieldCheck className="h-4 w-4 text-[#4f46e5]" />
-                    Validation
+            {requestStep === 0 ? (
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                <FormField id="type" label="Leave Type" required>
+                  <Select value={formData.type} onValueChange={handlePolicyChange}>
+                    <SelectTrigger aria-label="Leave Type">
+                      <SelectValue placeholder="Select leave type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(leavePolicyResponse?.policies ?? []).map((policy) => (
+                        <SelectItem key={policy.code} value={policy.code}>
+                          {policy.label} ({policy.unit.toLowerCase()})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+                <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+                  <p className="font-semibold text-foreground">Policy result</p>
+                  <p className="mt-1 text-muted-foreground">
+                    {selectedPolicy
+                      ? `${estimatedDuration ?? '-'} ${unitLabel(selectedPolicy.unit, estimatedDuration)} - ${formatEnum(selectedPolicy.payrollImpact)}`
+                      : 'Select a policy'}
                   </p>
-                  <ul className="mt-3 space-y-1 text-[#475569]">
-                    {policyDetails.map((detail) => <li key={detail}>{detail}</li>)}
-                  </ul>
                 </div>
-                <div className="rounded-lg border border-[#e2e8f0] p-4 text-sm">
-                  <p className="font-semibold text-[#0f172a]">Balance Impact</p>
-                  {selectedPolicy.deductFromBalance ? (
-                    balanceImpact ? (
-                      <div className="mt-3 space-y-1 text-[#475569]">
-                        <p>Current: {balanceImpact.before} {unitLabel(selectedPolicy.unit, balanceImpact.before)}</p>
-                        <p>Requested: {balanceImpact.requested} {unitLabel(selectedPolicy.unit, balanceImpact.requested)}</p>
-                        <p className={cn(balanceImpact.over && 'font-semibold text-[#e11d48]')}>
-                          After approval: {balanceImpact.after} {unitLabel(selectedPolicy.unit, balanceImpact.after)}
-                        </p>
-                        {balanceImpact.over ? <p className="text-[#e11d48]">This request exceeds your available balance and cannot be submitted.</p> : null}
-                      </div>
+                {selectedPolicy ? (
+                  <div className="rounded-lg border p-4 text-sm lg:col-span-2">
+                    <p className="flex items-center gap-2 font-semibold text-foreground">
+                      <ShieldCheck className="h-4 w-4 text-primary" />
+                      Validation
+                    </p>
+                    <ul className="mt-3 grid gap-1 text-muted-foreground sm:grid-cols-2">
+                      {policyDetails.map((detail) => <li key={detail}>{detail}</li>)}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {requestStep === 1 ? (
+              <div className="grid gap-4 lg:grid-cols-4">
+                <FormField id="startDate" label="Start Date" required>
+                  <Input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={(e) => updateStartDate(e.target.value)}
+                    onInput={(e) => updateStartDate(e.currentTarget.value)}
+                  />
+                </FormField>
+                {isHourlyRequest ? (
+                  <>
+                    <FormField id="startTime" label="Start" required>
+                      <Input
+                        type="time"
+                        value={formData.startTime}
+                        onChange={(e) => updateFormField('startTime', e.target.value)}
+                        onInput={(e) => updateFormField('startTime', e.currentTarget.value)}
+                      />
+                    </FormField>
+                    <FormField id="endTime" label="End" required>
+                      <Input
+                        type="time"
+                        value={formData.endTime}
+                        onChange={(e) => updateFormField('endTime', e.target.value)}
+                        onInput={(e) => updateFormField('endTime', e.currentTarget.value)}
+                      />
+                    </FormField>
+                  </>
+                ) : (
+                  <FormField id="endDate" label="End Date" required>
+                    <Input
+                      type="date"
+                      value={formData.endDate}
+                      onChange={(e) => updateFormField('endDate', e.target.value)}
+                      onInput={(e) => updateFormField('endDate', e.currentTarget.value)}
+                    />
+                  </FormField>
+                )}
+                <FormField id="reason" label="Reason" className="lg:col-span-4">
+                  <Input
+                    placeholder="Optional reason for leave"
+                    value={formData.reason}
+                    onChange={(e) => updateFormField('reason', e.target.value)}
+                    onInput={(e) => updateFormField('reason', e.currentTarget.value)}
+                  />
+                </FormField>
+                {selectedPolicy ? (
+                  <div className="rounded-lg border p-4 text-sm lg:col-span-4">
+                    <p className="font-semibold text-foreground">Balance Impact</p>
+                    {selectedPolicy.deductFromBalance ? (
+                      balanceImpact ? (
+                        <div className="mt-3 grid gap-1 text-muted-foreground sm:grid-cols-3">
+                          <p>Current: {balanceImpact.before} {unitLabel(selectedPolicy.unit, balanceImpact.before)}</p>
+                          <p>Requested: {balanceImpact.requested} {unitLabel(selectedPolicy.unit, balanceImpact.requested)}</p>
+                          <p className={cn(balanceImpact.over && 'font-semibold text-destructive')}>
+                            After approval: {balanceImpact.after} {unitLabel(selectedPolicy.unit, balanceImpact.after)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-muted-foreground">Select dates to preview balance deduction.</p>
+                      )
                     ) : (
-                      <p className="mt-3 text-[#475569]">Select dates to preview balance deduction.</p>
-                    )
-                  ) : (
-                    <p className="mt-3 text-[#475569]">This policy does not deduct from leave balance.</p>
-                  )}
+                      <p className="mt-3 text-muted-foreground">This policy does not deduct from leave balance.</p>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {requestStep === 2 ? (
+              <div className="grid gap-3 lg:grid-cols-3">
+                <div className="rounded-lg border p-4 text-sm">
+                  <p className="font-semibold text-foreground">Request Summary</p>
+                  <div className="mt-3 space-y-1 text-muted-foreground">
+                    <p>Type: {selectedPolicy?.label ?? '-'}</p>
+                    <p>Dates: {formData.startDate || '-'} to {isHourlyRequest ? formData.startDate || '-' : formData.endDate || '-'}</p>
+                    <p>Duration: {estimatedDuration ?? '-'} {selectedPolicy ? unitLabel(selectedPolicy.unit, estimatedDuration) : ''}</p>
+                  </div>
                 </div>
-                <div className="rounded-lg border border-[#e2e8f0] p-4 text-sm">
-                  <p className="font-semibold text-[#0f172a]">Payroll Impact</p>
-                  <p className="mt-3 text-[#475569]">{formatEnum(selectedPolicy.payrollImpact)}</p>
-                  <p className="text-[#475569]">{selectedPolicy.paid ? 'Paid absence' : 'Unpaid absence'}</p>
+                <div className="rounded-lg border p-4 text-sm">
+                  <p className="font-semibold text-foreground">Balance Impact</p>
+                  <div className="mt-3 space-y-1 text-muted-foreground">
+                    <p>Current: {balanceImpact?.before ?? '-'}</p>
+                    <p>Requested: {balanceImpact?.requested ?? '-'}</p>
+                    <p>After approval: {balanceImpact?.after ?? '-'}</p>
+                  </div>
+                </div>
+                <div className="rounded-lg border p-4 text-sm">
+                  <p className="font-semibold text-foreground">Payroll Impact</p>
+                  <p className="mt-3 text-muted-foreground">{formatEnum(selectedPolicy?.payrollImpact)}</p>
+                  <p className="text-muted-foreground">{selectedPolicy?.paid ? 'Paid absence' : 'Unpaid absence'}</p>
                 </div>
               </div>
             ) : null}
 
-                {formValidationMessages.length > 0 ? (
-                  <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#9f1239]">
-                    <p className="font-semibold">This request needs adjustment before it can be submitted.</p>
-                    <ul className="mt-2 list-disc space-y-1 pl-5">
-                      {formValidationMessages.map((message) => <li key={message}>{message}</li>)}
-                    </ul>
-                  </div>
-                ) : null}
+            {formValidationMessages.length > 0 ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <p className="font-semibold">This request needs adjustment before it can be submitted.</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {formValidationMessages.map((message) => <li key={message}>{message}</li>)}
+                </ul>
+              </div>
+            ) : null}
 
-                {createMutation.error ? (
-                  <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-3 text-sm text-[#9f1239]">
-                    <p className="font-semibold">Leave request was rejected by policy validation.</p>
-                    <p className="mt-1">{errorMessage(createMutation.error)}</p>
-                  </div>
-                ) : null}
+            {createMutation.error ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <p className="font-semibold">Leave request was rejected by policy validation.</p>
+                <p className="mt-1">{errorMessage(createMutation.error)}</p>
+              </div>
+            ) : null}
 
-            <DialogFooter className="gap-2 border-t border-[#e2e8f0]/70 pt-4">
+            <DialogFooter className="gap-2 border-t pt-4">
               <Button type="button" variant="outline" onClick={() => handleDialogChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitBlocked}>
+              {requestStep > 0 ? (
+                <Button type="button" variant="outline" onClick={() => setRequestStep((current) => Math.max(0, current - 1))}>
+                  Back
+                </Button>
+              ) : null}
+              <Button
+                type="submit"
+                disabled={
+                  createMutation.isPending
+                  || (requestStep === 0 && !canContinueFromPolicy)
+                  || (requestStep === 1 && !canContinueFromDates)
+                  || (requestStep === 2 && submitBlocked)
+                }
+              >
                 {createMutation.isPending ? (
-                  <Clock className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
+                  <Spinner className="mr-2" />
+                ) : requestStep === leaveWizardSteps.length - 1 ? (
                   <Plus className="mr-2 h-4 w-4" />
-                )}
-                Submit Request
+                ) : null}
+                {requestStep === leaveWizardSteps.length - 1 ? 'Submit Request' : 'Continue'}
               </Button>
             </DialogFooter>
           </form>

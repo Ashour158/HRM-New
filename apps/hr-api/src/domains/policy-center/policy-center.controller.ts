@@ -7,6 +7,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { AuthGuard } from '../../guards/auth.guard.js';
 import { CommandBus } from '../../platform/command-bus/command-bus.js';
 import { actorClientType, requireActor } from '../../platform/http/request-context.js';
+import { clampLimit } from '../../platform/http/pagination.js';
 import { PolicyCenterService } from './policy-center.service.js';
 import {
   POLICY_AREAS,
@@ -71,8 +72,7 @@ export class PolicyCenterController {
   @Get('decision-evidence')
   async decisionEvidence(@Req() req: Request, @Query('limit') limit?: string) {
     this.assertPolicyAdmin(req);
-    const parsedLimit = Number.parseInt(limit ?? '25', 10);
-    return this.service.listDecisionEvidence(this.getTenantId(req), Number.isFinite(parsedLimit) ? parsedLimit : 25);
+    return this.service.listDecisionEvidence(this.getTenantId(req), clampLimit(limit, { def: 25, max: 200 }));
   }
 
   @Get('revisions/:id/export')
