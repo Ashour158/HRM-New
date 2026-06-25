@@ -23,7 +23,7 @@ export function DateRangePicker({ label, value, onChange, className }: DateRange
   return (
     <fieldset className={cn('rounded-2xl border border-border bg-card p-4 text-card-foreground', className)}>
       <legend className="px-1 text-sm font-semibold text-foreground">
-        <CalendarDays className="mr-2 inline-block" aria-hidden="true" />
+        <CalendarDays className="me-2 inline-block" aria-hidden="true" />
         {label}
       </legend>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">

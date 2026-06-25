@@ -129,11 +129,11 @@ export function DataTable<T>({
 
   const renderSortIcon = (column: DataTableColumn<T>) => {
     if (!column.sortable) return null;
-    if (sortColumn !== column.key) return <ArrowUpDown className="ml-2 h-4 w-4" />;
+    if (sortColumn !== column.key) return <ArrowUpDown className="ms-2 h-4 w-4" />;
     return sortDirection === 'asc' ? (
-      <ArrowUp className="ml-2 h-4 w-4" />
+      <ArrowUp className="ms-2 h-4 w-4" />
     ) : (
-      <ArrowDown className="ml-2 h-4 w-4" />
+      <ArrowDown className="ms-2 h-4 w-4" />
     );
   };
 
@@ -184,7 +184,7 @@ export function DataTable<T>({
           <thead className="[&_tr]:border-b bg-muted/50">
             <tr>
               {selectable ? (
-                <th className="h-12 w-12 px-4 text-left align-middle">
+                <th className="h-12 w-12 px-4 text-start align-middle">
                   <input
                     aria-label="Select all rows"
                     checked={allVisibleSelected}
@@ -199,7 +199,7 @@ export function DataTable<T>({
                 <th
                   key={column.key}
                   className={cn(
-                    'h-12 px-4 text-left align-middle font-medium text-muted-foreground',
+                    'h-12 px-4 text-start align-middle font-medium text-muted-foreground',
                     column.sortable && 'cursor-pointer select-none',
                     column.className
                   )}
@@ -242,7 +242,7 @@ export function DataTable<T>({
                       </td>
                     ) : null}
                     {visibleColumns.map((column) => (
-                      <td key={column.key} className={cn('p-4 align-middle', column.className)}>
+                      <td key={column.key} className={cn('p-4 text-start align-middle', column.className)}>
                         {renderCell(column, row)}
                       </td>
                     ))}
@@ -259,7 +259,7 @@ export function DataTable<T>({
           <p className="text-sm text-muted-foreground">
             Showing {Math.min((page - 1) * pageSize + 1, total)} to {Math.min(page * pageSize, total)} of {total} entries
           </p>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"

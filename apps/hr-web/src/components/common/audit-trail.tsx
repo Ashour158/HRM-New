@@ -5,6 +5,7 @@ import { formatDate } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { Clock, User, FileText, AlertTriangle } from 'lucide-react';
 import type { AuditEntry } from '@/types';
 
@@ -13,19 +14,19 @@ interface AuditTrailProps {
   resourceId: string;
 }
 
-const actionIcons: Record<string, React.ReactNode> = {
-  CREATE: <FileText className="h-4 w-4 text-green-500" />,
-  UPDATE: <FileText className="h-4 w-4 text-indigo-500" />,
-  DELETE: <AlertTriangle className="h-4 w-4 text-red-500" />,
-  VIEW: <Clock className="h-4 w-4 text-gray-500" />,
-};
-
 const actionColors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   CREATE: 'default',
   UPDATE: 'secondary',
   DELETE: 'destructive',
   VIEW: 'outline',
 };
+
+function actionIcon(action: string) {
+  if (action === 'CREATE') return <FileText className="h-4 w-4" aria-hidden="true" />;
+  if (action === 'UPDATE') return <FileText className="h-4 w-4" aria-hidden="true" />;
+  if (action === 'DELETE') return <AlertTriangle className="h-4 w-4" aria-hidden="true" />;
+  return <Clock className="h-4 w-4" aria-hidden="true" />;
+}
 
 /**
  * Displays audit log entries for a resource in a timeline view.
@@ -64,7 +65,7 @@ export function AuditTrail({ resourceType, resourceId }: AuditTrailProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-4 items-end">
+      <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
           <label className="text-sm font-medium">Action</label>
           <Select value={actionFilter} onValueChange={setActionFilter}>
@@ -80,34 +81,25 @@ export function AuditTrail({ resourceType, resourceId }: AuditTrailProps) {
             </SelectContent>
           </Select>
         </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium">From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm font-medium">To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-        </div>
+        <DateRangePicker
+          className="min-w-[20rem] flex-1 p-3"
+          label="Date range"
+          value={{ from: dateFrom, to: dateTo }}
+          onChange={(value) => {
+            setDateFrom(value.from ?? '');
+            setDateTo(value.to ?? '');
+          }}
+        />
       </div>
 
       <div className="relative">
-        <div className="absolute left-4 top-0 bottom-0 w-px bg-border" />
+        <div className="absolute bottom-0 start-4 top-0 w-px bg-border" />
         <div className="space-y-4">
           {entries && entries.length > 0 ? (
             entries.map((entry) => (
-              <div key={entry.id} className="relative pl-10">
-                <div className="absolute left-2 top-1 h-5 w-5 rounded-full bg-background border-2 border-border flex items-center justify-center">
-                  {actionIcons[entry.action] || <Clock className="h-3 w-3" />}
+              <div key={entry.id} className="relative ps-10">
+                <div className="absolute start-2 top-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-border bg-background">
+                  {actionIcon(entry.action)}
                 </div>
                 <div className="rounded-lg border bg-card p-3 shadow-sm">
                   <div className="flex items-center justify-between">
@@ -116,7 +108,10 @@ export function AuditTrail({ resourceType, resourceId }: AuditTrailProps) {
                       <span className="text-sm font-medium">{entry.actorName}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant={actionColors[entry.action] || 'default'}>{entry.action}</Badge>
+                      <Badge variant={actionColors[entry.action] || 'default'} className="gap-1">
+                        {actionIcon(entry.action)}
+                        {entry.action}
+                      </Badge>
                       <span className="text-xs text-muted-foreground">
                         {formatDate(entry.timestamp, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
