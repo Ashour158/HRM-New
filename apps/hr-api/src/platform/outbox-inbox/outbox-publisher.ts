@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Kysely, sql } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { createSystemKyselyInstance } from '@hcm/database';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { EventBus } from '../event-bus/event-bus.js';
 import { outboxMetadataForEvent, outboxRowToEnvelope, type OutboxEventRow } from './outbox-event-envelope.js';
@@ -21,7 +21,7 @@ export class OutboxPublisher {
     @Optional() @Inject(ObservabilityMetricsService)
     private readonly metrics?: ObservabilityMetricsService,
   ) {
-    this.db = createKyselyInstance(getPool());
+    this.db = createSystemKyselyInstance();
   }
 
   async schedule(

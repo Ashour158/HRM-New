@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { createSystemKyselyInstance } from '@hcm/database';
 import { getTopicForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
 import { InboxDeduplicator } from './inbox-deduplicator.js';
 import { outboxRowToEnvelope, type OutboxEventRow } from './outbox-event-envelope.js';
@@ -47,9 +47,9 @@ export class InboxConsumer {
   ) {
     if (isMetricsService(metricsOrDb)) {
       this.metrics = metricsOrDb;
-      this.db = db ?? createKyselyInstance(getPool());
+      this.db = db ?? createSystemKyselyInstance();
     } else {
-      this.db = metricsOrDb ?? createKyselyInstance(getPool());
+      this.db = metricsOrDb ?? createSystemKyselyInstance();
     }
   }
 

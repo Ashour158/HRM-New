@@ -7,7 +7,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { BaseRepository, createKyselyInstance, getPool, runWithTenant, type Database } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getSystemPool, runWithTenant, type Database } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 
 vi.mock('openid-client', () => ({
@@ -195,7 +195,9 @@ beforeAll(async () => {
     { expiresIn: '1h' },
   );
 
-  const pool = getPool();
+  // Seed via the system pool: under RLS the request pool (hcm_app) is tenant-bound,
+  // so raw cross-tenant seed inserts must use the BYPASSRLS system connection.
+  const pool = getSystemPool();
   await pool.query(
     `insert into hr_platform.tenants (id, name, slug, status)
      values ($1, 'Tenant Isolation B', $2, 'ACTIVE')
@@ -206,7 +208,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   if (dbReady) {
-    const pool = getPool();
+    const pool = getSystemPool();
     if (seededWorkerId) {
       await pool.query('delete from hr_core.workers where id = $1', [seededWorkerId]).catch(() => undefined);
     }
@@ -219,7 +221,8 @@ describe.sequential('tenant isolation and privacy runtime regressions', () => {
   tenantIt('repository findById and findAll require tenant context and isolate cross-tenant rows', async () => {
     const repo = new WorkerRowRepository();
     seededWorkerId = randomUUID();
-    await getPool().query(
+    // Seed the cross-tenant probe row via the BYPASSRLS system pool.
+    await getSystemPool().query(
       `insert into hr_core.workers (
         id, tenant_id, employee_number, status, first_name, last_name, email, hire_date,
         termination_date, legal_entity_id, department_id, manager_id, job_title,

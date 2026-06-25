@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import { createKyselyInstance, getPool, type Database } from '@hcm/database';
+import { createSystemKyselyInstance, type Database } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Kysely } from 'kysely';
 
@@ -28,7 +28,7 @@ export class EffectiveDatingActivationLogRepository implements EffectiveDatingAc
   private readonly db: Kysely<Database>;
 
   constructor(@Optional() db?: Kysely<Database>) {
-    this.db = db ?? createKyselyInstance(getPool());
+    this.db = db ?? createSystemKyselyInstance();
   }
 
   async tryStartActivation(input: EffectiveDatingActivationLogStartInput): Promise<EffectiveDatingActivationStartResult> {

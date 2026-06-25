@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createSystemKyselyInstance } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
 import type { HcmSetupConfig, LeavePolicy, PolicyRuleLedger } from '../../domains/hcm-setup/hcm-setup.types.js';
@@ -667,7 +667,7 @@ export interface ReportingSchedulerRepositoryPort {
 
 @Injectable()
 export class HcmSchedulerReadRepository implements LeaveSchedulerRepositoryPort, AttendanceSchedulerRepositoryPort, PayrollSchedulerRepositoryPort {
-  private readonly db = createKyselyInstance(getPool());
+  private readonly db = createSystemKyselyInstance();
 
   async findActiveAccrualBalances(input: { tenantId: Uuid }): Promise<AccrualBalanceJobRecord[]> {
     const rows = await this.db
@@ -1006,7 +1006,7 @@ export class HcmDomainSchedulerReadRepository implements
   OnboardingSchedulerRepositoryPort,
   SkillsTalentSchedulerRepositoryPort,
   CompensationSchedulerRepositoryPort {
-  private readonly db = createKyselyInstance(getPool());
+  private readonly db = createSystemKyselyInstance();
 
   async findReviewCyclesDueForReminder(input: { tenantId: Uuid; now: Date }): Promise<ReviewCycleDueRecord[]> {
     const horizon = addDays(input.now, 7);
@@ -1498,7 +1498,7 @@ export class HcmGovernanceSchedulerReadRepository implements
   ContingentSchedulerRepositoryPort,
   WellbeingSchedulerRepositoryPort,
   ReportingSchedulerRepositoryPort {
-  private readonly db = createKyselyInstance(getPool());
+  private readonly db = createSystemKyselyInstance();
 
   async findPolicyAcknowledgementReminders(input: { tenantId: Uuid; now: Date }): Promise<PolicyAcknowledgementReminderRecord[]> {
     const rows = await this.db
