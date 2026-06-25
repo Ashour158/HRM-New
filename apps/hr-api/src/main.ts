@@ -17,9 +17,15 @@ async function bootstrap(): Promise<void> {
   // Global API prefix
   app.setGlobalPrefix('api/v1');
 
-  // CORS
+  // CORS. Reflecting an arbitrary origin together with credentials is unsafe
+  // (any site could make credentialed calls), so a wildcard origin disables
+  // credentials; an explicit allow-list keeps them.
   if (config.corsOrigins.includes('*')) {
-    app.enableCors({ origin: true, credentials: true });
+    logger.warn?.({
+      eventType: 'CORS_WILDCARD',
+      message: 'CORS_ORIGINS includes "*"; credentials disabled. Set explicit origins in production.',
+    });
+    app.enableCors({ origin: true, credentials: false });
   } else {
     app.enableCors({
       origin: config.corsOrigins,

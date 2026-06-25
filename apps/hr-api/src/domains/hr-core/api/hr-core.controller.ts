@@ -32,6 +32,7 @@ import { EmploymentContractRepository } from '../repositories/employment-contrac
 import { PersonalDataRecordRepository } from '../repositories/personal-data-record.repository.js';
 import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import { clampLimit } from '../../../platform/http/pagination.js';
 
 import type * as dtos from './dtos.js';
 import {
@@ -536,8 +537,8 @@ export class HrCoreController {
   ) {
     this.assertHrCoreAdminScope(req);
     const tenantId = this.getTenantId(req);
-    const limit = pageSize ? parseInt(pageSize, 10) : 50;
-    const offset = page ? (parseInt(page, 10) - 1) * limit : 0;
+    const limit = clampLimit(pageSize, { def: 50, max: 200 });
+    const offset = page ? Math.max(0, (parseInt(page, 10) - 1) * limit) : 0;
 
     const workers = await this.workerRepo.searchForTenant(search ?? '', tenantId, {
       limit,

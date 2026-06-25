@@ -63,6 +63,18 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['personal_data_records']));
   }
 
+  /** Batch variant of {@link findByWorker} — one query for many workers (avoids N+1). */
+  async findByWorkers(workerIds: Uuid[]): Promise<PersonalDataRecord[]> {
+    if (workerIds.length === 0) return [];
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', this.requireTenantId())
+      .where('worker_id', 'in', workerIds.map((id) => id.value))
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['personal_data_records']));
+  }
+
   async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<PersonalDataRecord[]> {
     const rows = await this.db
       .selectFrom(this.tableName)

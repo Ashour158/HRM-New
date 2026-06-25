@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BulkActionToolbar, type BulkAction } from '@/components/ui/bulk-action-toolbar';
 import { InlineEdit } from '@/components/common/inline-edit';
 import { useSavedViews, type SavedViewRecord } from '@/hooks/use-saved-views';
@@ -313,6 +315,7 @@ function SavedViewsToolbar<T>({
   const { views, createView, isSaving } = useSavedViews(listKey);
   const [selectedViewId, setSelectedViewId] = React.useState('');
   const [viewName, setViewName] = React.useState('');
+  const currentViewValue = '__current_view__';
 
   React.useEffect(() => {
     const defaultView = views.find((view) => view.isDefault);
@@ -336,6 +339,11 @@ function SavedViewsToolbar<T>({
   };
 
   const applyView = (viewId: string) => {
+    if (viewId === currentViewValue) {
+      setSelectedViewId('');
+      setActiveColumnKeys(defaultColumnKeys);
+      return;
+    }
     setSelectedViewId(viewId);
     const view = views.find((candidate) => candidate.id === viewId);
     if (!view) return;
@@ -367,21 +375,22 @@ function SavedViewsToolbar<T>({
       <div className="grid gap-2 sm:grid-cols-2 lg:flex lg:items-end">
         <label className="space-y-1 text-sm font-medium text-foreground">
           <span>{t('savedViews.viewLabel', { defaultValue: 'Saved view' })}</span>
-          <select
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            value={selectedViewId}
-            onChange={(event) => applyView(event.target.value)}
-          >
-            <option value="">{t('savedViews.selectPlaceholder', { defaultValue: 'Current view' })}</option>
-            {views.map((view) => (
-              <option key={view.id} value={view.id}>{view.name}</option>
-            ))}
-          </select>
+          <Select value={selectedViewId || currentViewValue} onValueChange={applyView}>
+            <SelectTrigger className="h-9 min-w-[12rem]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={currentViewValue}>{t('savedViews.selectPlaceholder', { defaultValue: 'Current view' })}</SelectItem>
+              {views.map((view) => (
+                <SelectItem key={view.id} value={view.id}>{view.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <label className="space-y-1 text-sm font-medium text-foreground">
           <span>{t('savedViews.nameLabel', { defaultValue: 'View name' })}</span>
-          <input
-            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          <Input
+            className="h-9 min-w-[12rem]"
             onChange={(event) => setViewName(event.target.value)}
             placeholder={t('savedViews.namePlaceholder', { defaultValue: 'My filtered view' })}
             value={viewName}

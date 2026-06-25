@@ -3,6 +3,8 @@ import {
   Catch,
   ArgumentsHost,
   HttpStatus,
+  HttpException,
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import {
@@ -25,30 +27,41 @@ interface ErrorResponse {
 }
 
 /**
- * Maps domain errors to appropriate HTTP status codes and returns a
- * uniform error payload.
+ * Global exception filter producing a uniform error envelope.
+ *
+ * Precedence: framework `HttpException`s (incl. guard/pipe errors like
+ * Forbidden/NotFound/validation) keep their own status and message; domain
+ * errors map to their semantic HTTP status; anything else is a 500 and is
+ * logged with its correlation id. Registered via `APP_FILTER`.
  */
-@Catch(DomainError, Error)
+@Catch()
 export class DomainExceptionFilter implements ExceptionFilter {
-  catch(error: DomainError | Error, host: ArgumentsHost): void {
+  private readonly logger = new Logger(DomainExceptionFilter.name);
+
+  catch(error: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status = this.resolveStatus(error);
     const correlationId =
       request.correlationId ??
       (request.headers['x-correlation-id'] as string | undefined) ??
       'unknown';
 
+    const { status, errorCode, errorMessage, errorDetails } = this.describe(error);
+
+    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+      this.logger.error(
+        { correlationId, errorCode, path: request.url, method: request.method },
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+
     const body: ErrorResponse = {
       success: false,
-      errorCode: error instanceof DomainError ? error.code : 'INTERNAL_ERROR',
-      errorMessage: error.message,
-      errorDetails:
-        error instanceof DomainError
-          ? (error.details ?? undefined)
-          : undefined,
+      errorCode,
+      errorMessage,
+      errorDetails,
       correlationId,
       timestamp: new Date().toISOString(),
     };
@@ -56,7 +69,40 @@ export class DomainExceptionFilter implements ExceptionFilter {
     response.status(status).json(body);
   }
 
-  private resolveStatus(error: Error): number {
+  private describe(error: unknown): {
+    status: number;
+    errorCode: string;
+    errorMessage: string;
+    errorDetails?: Record<string, unknown>;
+  } {
+    // Framework exceptions (guards, pipes, explicit throws) own their status.
+    if (error instanceof HttpException) {
+      const res = error.getResponse();
+      const detail = typeof res === 'object' && res !== null ? (res as Record<string, unknown>) : undefined;
+      const message = detail && 'message' in detail ? detail.message : error.message;
+      return {
+        status: error.getStatus(),
+        errorCode: (detail?.error as string) ?? error.name ?? 'HTTP_EXCEPTION',
+        errorMessage: Array.isArray(message) ? message.join('; ') : String(message ?? error.message),
+        errorDetails: detail,
+      };
+    }
+    if (error instanceof DomainError) {
+      return {
+        status: this.resolveDomainStatus(error),
+        errorCode: error.code,
+        errorMessage: error.message,
+        errorDetails: error.details ?? undefined,
+      };
+    }
+    return {
+      status: HttpStatus.INTERNAL_SERVER_ERROR,
+      errorCode: 'INTERNAL_ERROR',
+      errorMessage: error instanceof Error ? error.message : 'Internal server error',
+    };
+  }
+
+  private resolveDomainStatus(error: DomainError): number {
     if (error instanceof BadRequestError) return HttpStatus.BAD_REQUEST;
     if (error instanceof UnauthorizedError) return HttpStatus.UNAUTHORIZED;
     if (error instanceof ForbiddenError) return HttpStatus.FORBIDDEN;

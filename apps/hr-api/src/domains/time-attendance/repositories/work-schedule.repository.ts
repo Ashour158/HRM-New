@@ -31,6 +31,18 @@ export class WorkScheduleRepository extends BaseRepository<'work_schedules', Wor
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['work_schedules']));
   }
 
+  /** Batch variant of {@link findByWorker} — one query for many workers (avoids N+1). */
+  async findByWorkers(workerIds: Uuid[]): Promise<WorkSchedule[]> {
+    if (workerIds.length === 0) return [];
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', this.requireTenantId())
+      .where('worker_id', 'in', workerIds.map((id) => id.value))
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['work_schedules']));
+  }
+
   async save(entity: WorkSchedule): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

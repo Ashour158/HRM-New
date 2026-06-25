@@ -3,6 +3,7 @@ import { Injectable, NestMiddleware } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
 import { ObservabilityMetricsService } from './observability-metrics.service.js';
 import { StructuredLoggerService } from './structured-logger.service.js';
+import { runWithRequestContext } from './request-context.js';
 
 @Injectable()
 export class ObservabilityMiddleware implements NestMiddleware {
@@ -45,7 +46,12 @@ export class ObservabilityMiddleware implements NestMiddleware {
       });
     });
 
-    next();
+    // Propagate correlation/trace through the whole async request so any service
+    // log line is automatically attributable to this request.
+    runWithRequestContext(
+      { correlationId, traceId: trace.traceId, spanId: trace.spanId },
+      () => next(),
+    );
   }
 
   private correlationId(request: Request): string {
