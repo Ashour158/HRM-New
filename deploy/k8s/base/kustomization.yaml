@@ -12,6 +12,8 @@ resources:
   - web-service.yaml
   - migration-job.yaml
   - ingress.yaml
+  - backup-cronjob.yaml
+  - restore-drill-cronjob.yaml
 
 images:
   - name: ghcr.io/your-org/hr-hcm-api

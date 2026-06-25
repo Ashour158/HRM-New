@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hcm-db-backup
+  labels:
+    app: hcm-platform
+    component: backup
+spec:
+  # Nightly base backup. Combine with WAL archiving (managed-PG / wal-g) for PITR.
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 7
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: backup
+              image: postgres:15-alpine
+              command: ["sh", "-c"]
+              args:
+                - >
+                  set -e;
+                  TS=$(date -u +%Y-%m-%dT%H-%M-%SZ);
+                  echo "pg_dump -> /backups/hcm_${TS}.dump";
+                  pg_dump "$DATABASE_URL" -Fc -f "/backups/hcm_${TS}.dump";
+                  find /backups -name '*.dump' -mtime +14 -delete;
+                  echo "backup complete"
+              env:
+                - name: DATABASE_URL
+                  valueFrom: { secretKeyRef: { name: hcm-secrets, key: DATABASE_URL } }
+              resources:
+                requests: { cpu: "100m", memory: "256Mi" }
+                limits: { cpu: "500m", memory: "512Mi" }
+              volumeMounts:
+                - name: backups
+                  mountPath: /backups
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: hcm-db-backups
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hcm-db-backups
+  labels: { app: hcm-platform, component: backup }
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi

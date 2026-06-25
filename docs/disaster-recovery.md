@@ -16,6 +16,17 @@ This runbook defines the minimum backup, restore, and disaster recovery evidence
 - Retain at least 35 days of daily backups and 7 days of WAL logs, unless a legal hold requires longer retention.
 - Record backup id, timestamp, database version, application version, migration version, and operator in the release evidence.
 
+## Automation (implemented)
+
+- **Base backup:** `scripts/backup/pg-backup.mjs` (`pnpm db:backup`) — `pg_dump -Fc` to `BACKUP_DIR`
+  with retention pruning. Scheduled nightly by `deploy/k8s/base/backup-cronjob.yaml` (CronJob + 20Gi PVC).
+- **Restore drill:** `scripts/backup/pg-restore-drill.mjs` (`pnpm db:restore-drill`) — restores the
+  backup into a throwaway scratch DB and asserts integrity (hr_* table count + migrations), exits non-zero
+  on failure. Scheduled weekly by `deploy/k8s/base/restore-drill-cronjob.yaml`. **Executed against the
+  live database 2026-06-25: restored 168 hr_* tables + 73 migrations → PASS.**
+- **WAL archiving / PITR:** still required at the Postgres/managed-service layer (e.g. `wal-g`/`pgbackrest`
+  or the cloud provider's PITR) to meet the 15-min RPO — base backups alone give last-backup RPO.
+
 ## Restore Procedure
 
 1. Freeze application writes by scaling API workers down or routing traffic to maintenance mode.

@@ -22,6 +22,8 @@
     "db:migrate": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate",
     "db:migrate:create": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate:create",
     "db:seed": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database seed",
+    "db:backup": "pnpm exec dotenv -e .env -- node scripts/backup/pg-backup.mjs",
+    "db:restore-drill": "pnpm exec dotenv -e .env -- node scripts/backup/pg-restore-drill.mjs",
     "api:start": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/hr-api start:dev",
     "web:dev": "pnpm exec dotenv -e .env -- pnpm --filter hr-web dev",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
