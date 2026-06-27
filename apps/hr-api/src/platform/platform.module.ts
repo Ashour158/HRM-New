@@ -8,8 +8,8 @@ import { createKyselyInstance, getPool } from '@hcm/database';
 import { AccessControlService } from '@hcm/access-control';
 import { ObservabilityModule } from '../observability/observability.module.js';
 import { CommandBus } from './command-bus/command-bus.js';
-import { EventBus, InMemoryEventBus } from './event-bus/event-bus.js';
-import { KafkaEventBus } from './event-bus/kafka-event-bus.js';
+import { EventBus } from './event-bus/event-bus.js';
+import { createEventBus } from './event-bus/event-bus.factory.js';
 import { OutboxPublisher } from './outbox-inbox/outbox-publisher.js';
 import { OutboxPublisherWorker } from './outbox-inbox/outbox-publisher.worker.js';
 import { InboxConsumer } from './outbox-inbox/inbox-consumer.js';
@@ -68,13 +68,7 @@ import { MeInboxService } from './me/me-inbox.service.js';
 
 const eventBusProvider = {
   provide: EventBus,
-  useFactory: (): EventBus => {
-    const brokers = process.env.KAFKA_BROKERS?.split(',') ?? [];
-    if (brokers.length > 0 && brokers[0]) {
-      return new KafkaEventBus(brokers);
-    }
-    return new InMemoryEventBus();
-  },
+  useFactory: (): EventBus => createEventBus(),
 };
 
 @Global()
