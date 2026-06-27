@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DataTable } from '@/components/common/data-table';
 import { buildOrganizationSetupJourney, type OrganizationSetupTab } from '@/lib/organization-setup-journey';
-import { BarChart3, Brain, Briefcase, Calculator, GitBranch, Network, Save, Sparkles, UserCog } from 'lucide-react';
-import { OrgTree, ReportingTree } from './organization/organization-trees';
+import { BarChart3, Brain, Calculator, GitBranch, Network, Sparkles } from 'lucide-react';
+import { OrgTree } from './organization/organization-trees';
 import { OrganizationSummaryHeader } from './organization/organization-summary';
+import { HeadcountTab, PositionsTab, VacanciesTab } from './organization/position-control-tabs';
+import { AssignmentsTab, DepartmentsTab, LegalEntitiesTab, ManagerRelationshipsTab } from './organization/organization-setup-tabs';
 
 type LegalEntity = {
   id: string;
@@ -1272,378 +1273,103 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
           </div>
         </TabsContent>
 
-        <TabsContent value="positions" className="grid gap-4 lg:grid-cols-[24rem_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Briefcase className="h-5 w-5" />
-                Create Position
-              </CardTitle>
-              <CardDescription>Approved headcount slots that can be activated, frozen, filled, vacated, or closed.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={(event) => {
-                event.preventDefault();
-                createPosition.mutate(positionForm);
-              }}>
-                <div className="space-y-2">
-                  <Label htmlFor="position-code">Position Code</Label>
-                  <Input id="position-code" value={positionForm.positionCode} onChange={(event) => setPositionForm({ ...positionForm, positionCode: event.target.value })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position-title">Title</Label>
-                  <Input id="position-title" value={positionForm.title} onChange={(event) => setPositionForm({ ...positionForm, title: event.target.value })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position-employment-type">Employment Type</Label>
-                  <select id="position-employment-type" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.employmentType} onChange={(event) => setPositionForm({ ...positionForm, employmentType: event.target.value })}>
-                    <option value="FULL_TIME">Full time</option>
-                    <option value="PART_TIME">Part time</option>
-                    <option value="CONTRACTOR">Contractor</option>
-                    <option value="INTERN">Intern</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position-entity">Legal Entity</Label>
-                  <select id="position-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.legalEntityId} onChange={(event) => setPositionForm({ ...positionForm, legalEntityId: event.target.value })}>
-                    <option value="">No entity</option>
-                    {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position-department">Department</Label>
-                  <select id="position-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.departmentId} onChange={(event) => setPositionForm({ ...positionForm, departmentId: event.target.value })}>
-                    <option value="">No department</option>
-                    {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="position-job-family">Job Family</Label>
-                    <Input id="position-job-family" value={positionForm.jobFamily} onChange={(event) => setPositionForm({ ...positionForm, jobFamily: event.target.value })} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="position-job-level">Job Level</Label>
-                    <Input id="position-job-level" value={positionForm.jobLevel} onChange={(event) => setPositionForm({ ...positionForm, jobLevel: event.target.value })} />
-                  </div>
-                </div>
-                <Button type="submit" disabled={createPosition.isPending || !positionForm.positionCode || !positionForm.title}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Position
-                </Button>
-                <ErrorMessage error={createPosition.error} />
-              </form>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-4">
-              {[
-                ['Draft', positionStatusCounts.DRAFT ?? 0],
-                ['Active', positionStatusCounts.ACTIVE ?? 0],
-                ['Filled', positionStatusCounts.FILLED ?? 0],
-                ['Frozen', positionStatusCounts.FROZEN ?? 0],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="fusion-glass rounded-[1.5rem] p-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-                  <p className="mt-1 text-2xl font-bold">{value}</p>
-                </div>
-              ))}
-            </div>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Positions</CardTitle>
-                <CardDescription>Position control records from the position-control aggregate.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DataTable columns={positionColumns} data={positions} keyExtractor={(row) => normalizePositionId(row)} isLoading={positionsQuery.isLoading} emptyMessage="No positions created" />
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="positions">
+          <PositionsTab
+            createError={<ErrorMessage error={createPosition.error} />}
+            isCreating={createPosition.isPending}
+            isLoading={positionsQuery.isLoading}
+            legalEntities={legalEntities}
+            onCreate={() => createPosition.mutate(positionForm)}
+            onFormChange={setPositionForm}
+            orgUnits={orgUnits}
+            positionColumns={positionColumns}
+            positionForm={positionForm}
+            positionKeyExtractor={normalizePositionId}
+            positionStatusCounts={positionStatusCounts}
+            positions={positions}
+          />
         </TabsContent>
 
         <TabsContent value="vacancies">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Briefcase className="h-5 w-5" />
-                Vacancies
-              </CardTitle>
-              <CardDescription>Vacant positions created manually or by the headcount approval saga.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable columns={vacancyColumns} data={vacantPositions} keyExtractor={(row) => normalizePositionId(row)} isLoading={vacantPositionsQuery.isLoading} emptyMessage="No vacant positions" />
-            </CardContent>
-          </Card>
+          <VacanciesTab
+            isLoading={vacantPositionsQuery.isLoading}
+            positionKeyExtractor={normalizePositionId}
+            vacancyColumns={vacancyColumns}
+            vacantPositions={vacantPositions}
+          />
         </TabsContent>
 
-        <TabsContent value="headcount" className="grid gap-4 xl:grid-cols-[24rem_1fr]">
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Request Headcount</CardTitle>
-                <CardDescription>Submit demand for new approved positions.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4" onSubmit={(event) => {
-                  event.preventDefault();
-                  submitHeadcountRequest.mutate(headcountForm);
-                }}>
-                  <div className="space-y-2">
-                    <Label htmlFor="headcount-positions">Positions Requested</Label>
-                    <Input id="headcount-positions" min="1" type="number" value={headcountForm.requestedPositions} onChange={(event) => setHeadcountForm({ ...headcountForm, requestedPositions: event.target.value })} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="headcount-entity">Legal Entity</Label>
-                    <select id="headcount-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={headcountForm.legalEntityId} onChange={(event) => setHeadcountForm({ ...headcountForm, legalEntityId: event.target.value })}>
-                      <option value="">No entity</option>
-                      {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="headcount-department">Department</Label>
-                    <select id="headcount-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={headcountForm.departmentId} onChange={(event) => setHeadcountForm({ ...headcountForm, departmentId: event.target.value })}>
-                      <option value="">No department</option>
-                      {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="headcount-justification">Justification</Label>
-                    <Input id="headcount-justification" value={headcountForm.justification} onChange={(event) => setHeadcountForm({ ...headcountForm, justification: event.target.value })} required />
-                  </div>
-                  <Button type="submit" disabled={submitHeadcountRequest.isPending || !headcountForm.justification}>
-                    Submit Headcount
-                  </Button>
-                  <ErrorMessage error={submitHeadcountRequest.error} />
-                </form>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Headcount automation</CardTitle>
-                <CardDescription>Approved requests are consumed by the position-headcount saga to create approved position records.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-[#f1f5f9] p-3">
-                    <p className="text-xs text-muted-foreground">Approved Requests</p>
-                    <p className="text-2xl font-bold">{approvedHeadcountRequests.length}</p>
-                  </div>
-                  <div className="rounded-lg bg-[#f1f5f9] p-3">
-                    <p className="text-xs text-muted-foreground">Saga Positions</p>
-                    <p className="text-2xl font-bold">{approvedSagaPositionCount}</p>
-                  </div>
-                </div>
-                {approvedHeadcountRequests.length > 0 ? (
-                  <div className="space-y-2">
-                    {approvedHeadcountRequests.map((request) => (
-                      <div key={request.id} className="rounded-lg border p-3 text-sm">
-                        <p className="font-semibold">{request.requestNumber}</p>
-                        <p className="text-muted-foreground">{request.positionsApproved ?? 0} positions auto-created when approved</p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">No approved headcount requests have produced positions yet.</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Headcount Requests</CardTitle>
-              <CardDescription>Demand approvals with state transitions and downstream position creation.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable columns={headcountColumns} data={headcountRequests} keyExtractor={(row) => row.id} isLoading={headcountRequestsQuery.isLoading} emptyMessage="No headcount requests submitted" />
-            </CardContent>
-          </Card>
+        <TabsContent value="headcount">
+          <HeadcountTab
+            approvedHeadcountRequests={approvedHeadcountRequests}
+            approvedSagaPositionCount={approvedSagaPositionCount}
+            headcountColumns={headcountColumns}
+            headcountError={<ErrorMessage error={submitHeadcountRequest.error} />}
+            headcountForm={headcountForm}
+            headcountRequests={headcountRequests}
+            isLoading={headcountRequestsQuery.isLoading}
+            isSubmitting={submitHeadcountRequest.isPending}
+            legalEntities={legalEntities}
+            onFormChange={setHeadcountForm}
+            onSubmit={() => submitHeadcountRequest.mutate(headcountForm)}
+            orgUnits={orgUnits}
+          />
         </TabsContent>
 
-        <TabsContent value="entities" className="grid gap-4 lg:grid-cols-[22rem_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{legalEntityForm.id ? 'Edit Legal Entity' : 'Add Legal Entity'}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={(event) => {
-                event.preventDefault();
-                saveLegalEntity.mutate(legalEntityForm);
-              }}>
-                <div className="space-y-2">
-                  <Label htmlFor="entity-name">Name</Label>
-                  <Input id="entity-name" value={legalEntityForm.name} onChange={(event) => setLegalEntityForm({ ...legalEntityForm, name: event.target.value })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="country-code">Country Code</Label>
-                  <Input id="country-code" maxLength={2} value={legalEntityForm.countryCode} onChange={(event) => setLegalEntityForm({ ...legalEntityForm, countryCode: event.target.value.toUpperCase() })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="registration">Registration Number</Label>
-                  <Input id="registration" value={legalEntityForm.registrationNumber} onChange={(event) => setLegalEntityForm({ ...legalEntityForm, registrationNumber: event.target.value })} />
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={saveLegalEntity.isPending}>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
-                  {legalEntityForm.id ? <Button type="button" variant="outline" onClick={() => setLegalEntityForm(emptyLegalEntity)}>Clear</Button> : null}
-                </div>
-                <ErrorMessage error={saveLegalEntity.error} />
-              </form>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Legal Entities</CardTitle>
-              <CardDescription>Registered operating companies and countries.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable columns={legalEntityColumns} data={legalEntities} keyExtractor={(row) => row.id} isLoading={legalEntitiesQuery.isLoading || summaryQuery.isLoading} emptyMessage="No legal entities created" />
-            </CardContent>
-          </Card>
+        <TabsContent value="entities">
+          <LegalEntitiesTab
+            emptyLegalEntity={emptyLegalEntity}
+            form={legalEntityForm}
+            formError={<ErrorMessage error={saveLegalEntity.error} />}
+            isLoading={legalEntitiesQuery.isLoading || summaryQuery.isLoading}
+            isSaving={saveLegalEntity.isPending}
+            legalEntities={legalEntities}
+            legalEntityColumns={legalEntityColumns}
+            onClear={setLegalEntityForm}
+            onFormChange={setLegalEntityForm}
+            onSave={() => saveLegalEntity.mutate(legalEntityForm)}
+          />
         </TabsContent>
 
-        <TabsContent value="departments" className="grid gap-4 lg:grid-cols-[22rem_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">{orgUnitForm.id ? 'Edit Department / Team' : 'Add Department / Team'}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={(event) => {
-                event.preventDefault();
-                saveOrgUnit.mutate(orgUnitForm);
-              }}>
-                <div className="space-y-2">
-                  <Label htmlFor="unit-name">Name</Label>
-                  <Input id="unit-name" value={orgUnitForm.name} onChange={(event) => setOrgUnitForm({ ...orgUnitForm, name: event.target.value })} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="unit-entity">Legal Entity</Label>
-                  <select id="unit-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={orgUnitForm.legalEntityId} onChange={(event) => setOrgUnitForm({ ...orgUnitForm, legalEntityId: event.target.value })} required>
-                    <option value="">Select entity</option>
-                    {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="parent-unit">Parent Unit</Label>
-                  <select id="parent-unit" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={orgUnitForm.parentOrgUnitId} onChange={(event) => setOrgUnitForm({ ...orgUnitForm, parentOrgUnitId: event.target.value })}>
-                    <option value="">Root department</option>
-                    {orgUnits.filter((unit) => unit.id !== orgUnitForm.id).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-                  </select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="submit" disabled={saveOrgUnit.isPending}>
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
-                  {orgUnitForm.id ? <Button type="button" variant="outline" onClick={() => setOrgUnitForm(emptyOrgUnit)}>Clear</Button> : null}
-                </div>
-                <ErrorMessage error={saveOrgUnit.error} />
-              </form>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Departments and Teams</CardTitle>
-              <CardDescription>Hierarchical org units under legal entities.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable columns={orgUnitColumns} data={orgUnits} keyExtractor={(row) => row.id} isLoading={orgUnitsQuery.isLoading || summaryQuery.isLoading} emptyMessage="No departments or teams created" />
-            </CardContent>
-          </Card>
+        <TabsContent value="departments">
+          <DepartmentsTab
+            emptyOrgUnit={emptyOrgUnit}
+            form={orgUnitForm}
+            formError={<ErrorMessage error={saveOrgUnit.error} />}
+            isLoading={orgUnitsQuery.isLoading || summaryQuery.isLoading}
+            isSaving={saveOrgUnit.isPending}
+            legalEntities={legalEntities}
+            onClear={setOrgUnitForm}
+            onFormChange={setOrgUnitForm}
+            onSave={() => saveOrgUnit.mutate(orgUnitForm)}
+            orgUnitColumns={orgUnitColumns}
+            orgUnits={orgUnits}
+          />
         </TabsContent>
 
-        <TabsContent value="assignments" className="grid gap-4 lg:grid-cols-[24rem_1fr]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <UserCog className="h-5 w-5" />
-                Assign Employee
-              </CardTitle>
-              <CardDescription>Assign a worker to entity, department, manager, and title.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form className="space-y-4" onSubmit={(event) => {
-                event.preventDefault();
-                assignWorker.mutate(assignmentForm);
-              }}>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-worker">Employee</Label>
-                  <select id="assignment-worker" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={assignmentForm.workerId} onChange={(event) => setAssignmentForm({ ...assignmentForm, workerId: event.target.value })} required>
-                    <option value="">Select employee</option>
-                    {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.employeeId} · {workerName(worker)}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-title">Job Title</Label>
-                  <Input id="assignment-title" value={assignmentForm.jobTitle} onChange={(event) => setAssignmentForm({ ...assignmentForm, jobTitle: event.target.value })} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-entity">Legal Entity</Label>
-                  <select id="assignment-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={assignmentForm.legalEntityId} onChange={(event) => setAssignmentForm({ ...assignmentForm, legalEntityId: event.target.value })}>
-                    <option value="">No entity</option>
-                    {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-department">Department / Team</Label>
-                  <select id="assignment-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={assignmentForm.departmentId} onChange={(event) => setAssignmentForm({ ...assignmentForm, departmentId: event.target.value })}>
-                    <option value="">No department</option>
-                    {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignment-manager">Manager</Label>
-                  <select id="assignment-manager" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={assignmentForm.managerId} onChange={(event) => setAssignmentForm({ ...assignmentForm, managerId: event.target.value })}>
-                    <option value="">No manager</option>
-                    {workers.filter((worker) => worker.id !== assignmentForm.workerId).map((worker) => <option key={worker.id} value={worker.id}>{workerName(worker)}</option>)}
-                  </select>
-                </div>
-                <Button type="submit" disabled={assignWorker.isPending || !assignmentForm.workerId}>
-                  <Save className="mr-2 h-4 w-4" />
-                  Save Assignment
-                </Button>
-                <ErrorMessage error={assignWorker.error} />
-              </form>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Employee Organization Assignments</CardTitle>
-              <CardDescription>Real worker assignments, not just setup dropdown values.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable columns={assignmentColumns} data={workers} keyExtractor={(row) => row.id} isLoading={workersQuery.isLoading} emptyMessage="No workers found" />
-            </CardContent>
-          </Card>
+        <TabsContent value="assignments">
+          <AssignmentsTab
+            assignmentColumns={assignmentColumns}
+            form={assignmentForm}
+            formError={<ErrorMessage error={assignWorker.error} />}
+            isLoading={workersQuery.isLoading}
+            isSaving={assignWorker.isPending}
+            legalEntities={legalEntities}
+            onFormChange={setAssignmentForm}
+            onSave={() => assignWorker.mutate(assignmentForm)}
+            orgUnits={orgUnits}
+            workerLabel={(worker) => `${worker.employeeId} · ${workerName(worker)}`}
+            workers={workers}
+          />
         </TabsContent>
 
-        <TabsContent value="managers" className="grid gap-4 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(32rem,1.1fr)]">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Network className="h-5 w-5" />
-                Reporting Tree
-              </CardTitle>
-              <CardDescription>Employee-to-manager hierarchy built from active reporting lines.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ReportingTree nodes={reportingTree} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Manager Relationships</CardTitle>
-              <CardDescription>Active reporting lines created from employee assignments.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <DataTable columns={managerColumns} data={managerRelationships} keyExtractor={(row) => row.id} isLoading={summaryQuery.isLoading} emptyMessage="No manager relationships created" />
-            </CardContent>
-          </Card>
+        <TabsContent value="managers">
+          <ManagerRelationshipsTab
+            isLoading={summaryQuery.isLoading}
+            managerColumns={managerColumns}
+            managerRelationships={managerRelationships}
+            reportingTree={reportingTree}
+          />
         </TabsContent>
       </Tabs>
     </div>
