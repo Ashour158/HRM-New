@@ -35,4 +35,30 @@ describe('loadAppConfig security defaults', () => {
 
     expect(() => loadAppConfig()).toThrow('SYSTEM_API_KEY');
   });
+
+  it('rejects a low-entropy/dev-marked JWT secret in production (not just the exact placeholder)', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'dev-secret-change-me'; // passed the old guard, weak
+    expect(() => loadAppConfig()).toThrow('JWT_SECRET');
+  });
+
+  it('rejects a too-short JWT secret in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'Xk9$pQ2!'; // strong chars but < 32
+    expect(() => loadAppConfig()).toThrow(/at least 32/);
+  });
+
+  it('rejects a JWT secret with too little entropy in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'a'.repeat(40); // long but 1 distinct char
+    expect(() => loadAppConfig()).toThrow(/entropy/);
+  });
+
+  it('accepts strong production secrets', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'h8Q$2vNzR7pK!wL4mXbY9cF6tG1sD0jUaE5oI3w';
+    process.env.SYSTEM_API_KEY = 'Zr7Z!q9Pk2Lm4Xv8Bn1';
+    process.env.INTEGRATION_API_KEY = 'Wq3!Yt8Pn5Lk2Rm9Xb4';
+    expect(() => loadAppConfig()).not.toThrow();
+  });
 });
