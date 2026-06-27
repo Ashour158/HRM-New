@@ -10,6 +10,7 @@ describe('loadAppConfig security defaults', () => {
     delete process.env.JWT_SECRET;
     delete process.env.SYSTEM_API_KEY;
     delete process.env.INTEGRATION_API_KEY;
+    delete process.env.CORS_ORIGINS;
     process.env.NODE_ENV = 'development';
   });
 
@@ -59,6 +60,43 @@ describe('loadAppConfig security defaults', () => {
     process.env.JWT_SECRET = 'h8Q$2vNzR7pK!wL4mXbY9cF6tG1sD0jUaE5oI3w';
     process.env.SYSTEM_API_KEY = 'Zr7Z!q9Pk2Lm4Xv8Bn1';
     process.env.INTEGRATION_API_KEY = 'Wq3!Yt8Pn5Lk2Rm9Xb4';
+    expect(() => loadAppConfig()).not.toThrow();
+  });
+
+  const setStrongSecrets = (): void => {
+    process.env.JWT_SECRET = 'h8Q$2vNzR7pK!wL4mXbY9cF6tG1sD0jUaE5oI3w';
+    process.env.SYSTEM_API_KEY = 'Zr7Z!q9Pk2Lm4Xv8Bn1';
+    process.env.INTEGRATION_API_KEY = 'Wq3!Yt8Pn5Lk2Rm9Xb4';
+  };
+
+  it('rejects a wildcard CORS origin in production (SEC-7)', () => {
+    process.env.NODE_ENV = 'production';
+    setStrongSecrets();
+    process.env.CORS_ORIGINS = 'https://app.example.com,*';
+    expect(() => loadAppConfig()).toThrow(/CORS_ORIGINS/);
+  });
+
+  it('rejects an empty CORS allow-list in production', () => {
+    process.env.NODE_ENV = 'production';
+    setStrongSecrets();
+    process.env.CORS_ORIGINS = '  ,  ';
+    expect(() => loadAppConfig()).toThrow(/CORS_ORIGINS/);
+  });
+
+  it('accepts an explicit CORS allow-list in production', () => {
+    process.env.NODE_ENV = 'production';
+    setStrongSecrets();
+    process.env.CORS_ORIGINS = 'https://app.example.com,https://admin.example.com';
+    expect(() => loadAppConfig()).not.toThrow();
+    expect(loadAppConfig().corsOrigins).toEqual([
+      'https://app.example.com',
+      'https://admin.example.com',
+    ]);
+  });
+
+  it('allows a wildcard CORS origin in development (degrades, does not throw)', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.CORS_ORIGINS = '*';
     expect(() => loadAppConfig()).not.toThrow();
   });
 });

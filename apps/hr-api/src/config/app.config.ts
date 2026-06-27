@@ -95,11 +95,23 @@ export function loadAppConfig(): AppConfig {
   const integrationApiKey =
     process.env.INTEGRATION_API_KEY ?? (isProduction ? undefined : 'integration-api-key');
 
+  const corsOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+
   if (isProduction) {
     // Reject placeholders AND low-entropy/known-dev secrets, not just exact literals.
     assertStrongProductionSecret('JWT_SECRET', jwtSecret, 32);
     assertStrongProductionSecret('SYSTEM_API_KEY', systemApiKey, 16);
     assertStrongProductionSecret('INTEGRATION_API_KEY', integrationApiKey, 16);
+    // A "*" origin forces credentials off (see main.ts) — in production that is a
+    // misconfiguration, not a silent degrade. Require an explicit allow-list.
+    if (corsOrigins.length === 0 || corsOrigins.includes('*')) {
+      throw new Error(
+        'CORS_ORIGINS must be an explicit allow-list in production (no "*" wildcard and at least one origin).',
+      );
+    }
   }
 
   return {
@@ -126,10 +138,7 @@ export function loadAppConfig(): AppConfig {
     apiKeyHeader: process.env.API_KEY_HEADER ?? 'X-API-Key',
     systemApiKey,
     integrationApiKey,
-    corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://localhost:4173')
-      .split(',')
-      .map((o) => o.trim())
-      .filter(Boolean),
+    corsOrigins,
     logLevel: process.env.LOG_LEVEL ?? 'info',
     otelEnabled: (process.env.OTEL_ENABLED ?? 'false').toLowerCase() === 'true',
     otelServiceName: process.env.OTEL_SERVICE_NAME ?? 'hr-api',
