@@ -1,0 +1,23 @@
+# PodDisruptionBudgets keep at least one replica serving during voluntary
+# disruptions (node drains, rolling upgrades) so the API/web stay available.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hcm-api
+  labels: { app: hcm-platform, component: api }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: hcm-api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hcm-web
+  labels: { app: hcm-platform, component: web }
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: hcm-web
