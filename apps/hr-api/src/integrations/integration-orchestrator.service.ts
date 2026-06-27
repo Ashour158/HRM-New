@@ -10,6 +10,7 @@
  */
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { getSystemPool } from '@hcm/database';
 import type {
   IntegrationAdapter,
   IntegrationHealth,
@@ -35,7 +36,8 @@ type IntegrationSendError = Error & { retryable?: boolean; recorded?: boolean };
 export class IntegrationOrchestrator implements OnModuleInit {
   private readonly logger = new Logger(IntegrationOrchestrator.name);
   private readonly adapters = new Map<string, IntegrationAdapter>();
-  // No integration DLQ table exists today; keep a process-local operator view without inventing schema.
+  // Recent in-process operator view; the durable record lives in
+  // hr_platform.integration_dead_letters (see getPersistedDeadLetters).
   private readonly deadLetters: IntegrationDeadLetterEntry[] = [];
 
   constructor(
@@ -88,8 +90,23 @@ export class IntegrationOrchestrator implements OnModuleInit {
     return this.healthService.getReadiness(adapterName);
   }
 
+  /** Recent dead-letters held in-process (fast operator view). */
   getDeadLetters(): IntegrationDeadLetterEntry[] {
     return [...this.deadLetters];
+  }
+
+  /** Durable dead-letters from hr_platform.integration_dead_letters (survives restart). */
+  async getPersistedDeadLetters(limit = 100): Promise<IntegrationDeadLetterEntry[]> {
+    const bounded = Math.max(1, Math.min(limit, 500));
+    const { rows } = await getSystemPool().query<{
+      adapter_name: string; payload: unknown; attempt: number; error: string; created_at: Date;
+    }>(
+      'SELECT adapter_name, payload, attempt, error, created_at FROM hr_platform.integration_dead_letters ORDER BY created_at DESC LIMIT $1',
+      [bounded],
+    );
+    return rows.map((r) => ({
+      adapterName: r.adapter_name, payload: r.payload, attempt: r.attempt, error: r.error, createdAt: r.created_at,
+    }));
   }
 
   /** Unified outbound send – delegates to the named adapter. */
@@ -176,13 +193,24 @@ export class IntegrationOrchestrator implements OnModuleInit {
   }
 
   private deadLetter(adapterName: string, payload: unknown, attempt: number, error: Error): void {
-    this.deadLetters.push({
-      adapterName,
-      payload,
-      attempt,
-      error: error.message,
-      createdAt: new Date(),
-    });
+    const entry: IntegrationDeadLetterEntry = { adapterName, payload, attempt, error: error.message, createdAt: new Date() };
+    this.deadLetters.push(entry);
     this.logger.error({ type: 'INTEGRATION_SEND_DEAD_LETTERED', adapterName, attempt, error: error.message });
+    // Persist durably (best-effort): never let a DLQ write failure mask the original
+    // integration error or crash the request.
+    void this.persistDeadLetter(entry).catch((persistErr: unknown) => {
+      this.logger.error({
+        type: 'INTEGRATION_DEAD_LETTER_PERSIST_FAILED',
+        adapterName,
+        error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+      });
+    });
+  }
+
+  private async persistDeadLetter(entry: IntegrationDeadLetterEntry): Promise<void> {
+    await getSystemPool().query(
+      'INSERT INTO hr_platform.integration_dead_letters (adapter_name, payload, attempt, error) VALUES ($1, $2, $3, $4)',
+      [entry.adapterName, JSON.stringify(entry.payload ?? null), entry.attempt, entry.error],
+    );
   }
 }
