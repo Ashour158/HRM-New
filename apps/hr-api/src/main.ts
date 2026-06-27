@@ -49,17 +49,24 @@ async function bootstrap(): Promise<void> {
     void shutdownOpenTelemetry(logger);
   });
 
-  // Swagger / OpenAPI
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('HR/HCM Platform API')
-    .setDescription('Enterprise HR/HCM Platform REST API')
-    .setVersion('1.4.0')
-    .addBearerAuth()
-    .addApiKey({ type: 'apiKey', name: config.apiKeyHeader, in: 'header' }, 'apiKey')
-    .build();
+  // Swagger / OpenAPI. The spec exposes the full route topology + auth schemes, so it
+  // is served only outside production unless explicitly opted in (SWAGGER_ENABLED=true).
+  const swaggerEnabled =
+    config.nodeEnv !== 'production' || process.env.SWAGGER_ENABLED === 'true';
+  if (swaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('HR/HCM Platform API')
+      .setDescription('Enterprise HR/HCM Platform REST API')
+      .setVersion('1.4.0')
+      .addBearerAuth()
+      .addApiKey({ type: 'apiKey', name: config.apiKeyHeader, in: 'header' }, 'apiKey')
+      .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+  } else {
+    logger.info({ eventType: 'SWAGGER_DISABLED', message: 'OpenAPI docs disabled in production' });
+  }
 
   // Fail fast on RLS misconfiguration (superuser/bypass role or missing system pool)
   // so tenant isolation is never silently inert.

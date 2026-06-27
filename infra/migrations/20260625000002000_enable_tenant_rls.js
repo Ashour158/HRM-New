@@ -1,18 +1,20 @@
 /**
- * Tenant Row-Level Security policies — STAGED ARTIFACT, NOT AUTO-APPLIED.
+ * Tenant Row-Level Security policies.
  *
- * This file lives in infra/rls/ (NOT infra/migrations/) on purpose: enabling RLS
- * must be coordinated with two operational prerequisites, or every query breaks:
+ * This migration creates the policies and FORCEs RLS, but enforcement only takes
+ * effect once two operational prerequisites are met, or every query still works
+ * unfiltered:
  *
- *   1. The runtime must connect as a NON-superuser, NON-owner role. Today the app
- *      connects as `hcm_admin` (POSTGRES_USER), a superuser that BYPASSES RLS even
- *      with FORCE. Provision a restricted role and point DATABASE_URL at it first.
+ *   1. The runtime must connect as a NON-superuser, NON-owner role. By default the
+ *      app connects as `hcm_admin` (POSTGRES_USER), a superuser that BYPASSES RLS
+ *      even with FORCE. Provision a restricted role and point DATABASE_URL at it.
  *   2. `DB_RLS_ENABLED=true` so the connection wrapper sets `app.current_tenant`
- *      on every checkout (packages/hr-database/src/connection/rls-pool.ts).
+ *      on every checkout (packages/hr-database/src/connection/rls-pool.ts). The
+ *      runtime guard (apps/hr-api/src/config/rls-runtime-check.ts) fails boot if
+ *      RLS is enabled while still connected as a superuser/BYPASSRLS role.
  *
- * Activation sequence: provision role → grants → set DB_RLS_ENABLED=true → move
- * this file into infra/migrations/ with a timestamp prefix → run migrations →
- * switch DATABASE_URL to the restricted role. Roll back with the down migration
+ * Activation sequence: provision role → grants → set DB_RLS_ENABLED=true → switch
+ * DATABASE_URL to the restricted role. Roll back with the down migration
  * (or `DB_RLS_ENABLED=false` + revert DATABASE_URL) at any point.
  *
  * The policy is generated dynamically for every table in an `hr_*` schema that has
