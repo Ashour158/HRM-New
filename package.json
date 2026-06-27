@@ -24,6 +24,7 @@
     "db:seed": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database seed",
     "db:backup": "pnpm exec dotenv -e .env -- node scripts/backup/pg-backup.mjs",
     "db:restore-drill": "pnpm exec dotenv -e .env -- node scripts/backup/pg-restore-drill.mjs",
+    "load:smoke": "node scripts/load/smoke.mjs",
     "api:start": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/hr-api start:dev",
     "web:dev": "pnpm exec dotenv -e .env -- pnpm --filter hr-web dev",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
