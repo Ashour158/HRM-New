@@ -1,0 +1,55 @@
+# Alertmanager routing for the HRM Nexus alert rules (deploy/observability/prometheus-rules.yaml).
+# The rules emit a `severity` label (critical|warning) and a `service` label; this routes them
+# to receivers and de-dupes/groups them. Replace the placeholder receiver URLs/keys with real
+# secrets at deploy time (do NOT commit real credentials).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  labels: { app: hcm-platform, component: observability }
+data:
+  alertmanager.yml: |
+    global:
+      resolve_timeout: 5m
+
+    route:
+      receiver: default
+      group_by: ['alertname', 'service']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        # Page on-call for anything critical, fast.
+        - matchers: ['severity = critical']
+          receiver: pagerduty
+          group_wait: 10s
+          repeat_interval: 1h
+          continue: true
+        # Warnings go to the team channel.
+        - matchers: ['severity = warning']
+          receiver: slack-alerts
+
+    inhibit_rules:
+      # A firing critical for a service silences warnings for the same service.
+      - source_matchers: ['severity = critical']
+        target_matchers: ['severity = warning']
+        equal: ['service']
+
+    receivers:
+      - name: default
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/slack_webhook_url
+            channel: '#hcm-alerts'
+            send_resolved: true
+      - name: slack-alerts
+        slack_configs:
+          - api_url_file: /etc/alertmanager/secrets/slack_webhook_url
+            channel: '#hcm-alerts'
+            send_resolved: true
+            title: '{{ .CommonAnnotations.summary }}'
+            text: "{{ range .Alerts }}*{{ .Labels.alertname }}* ({{ .Labels.severity }}) — {{ .Annotations.summary }}\nRunbook: {{ .Annotations.runbook_url }}\n{{ end }}"
+      - name: pagerduty
+        pagerduty_configs:
+          - routing_key_file: /etc/alertmanager/secrets/pagerduty_routing_key
+            send_resolved: true
+            description: '{{ .CommonAnnotations.summary }}'

@@ -24,8 +24,11 @@ This runbook defines the minimum backup, restore, and disaster recovery evidence
   backup into a throwaway scratch DB and asserts integrity (hr_* table count + migrations), exits non-zero
   on failure. Scheduled weekly by `deploy/k8s/base/restore-drill-cronjob.yaml`. **Executed against the
   live database 2026-06-25: restored 168 hr_* tables + 73 migrations → PASS.**
-- **WAL archiving / PITR:** still required at the Postgres/managed-service layer (e.g. `wal-g`/`pgbackrest`
-  or the cloud provider's PITR) to meet the 15-min RPO — base backups alone give last-backup RPO.
+- **WAL archiving / PITR:** required at the Postgres/managed-service layer to meet the 15-min RPO (base
+  backups alone give last-backup RPO). Concrete config — managed PITR or self-managed `wal-g`
+  (`archive_command`, restore-to-timestamp) — is in [`docs/postgres-pitr.md`](postgres-pitr.md).
+- **Migration rollback:** production is forward-only (expand/contract); see
+  [`docs/migration-rollback-policy.md`](migration-rollback-policy.md).
 
 ## Restore Procedure
 
