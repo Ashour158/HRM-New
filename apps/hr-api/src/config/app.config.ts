@@ -64,6 +64,29 @@ function parsePositiveIntEnv(name: string, fallback: number, min: number, max: n
   return parsed;
 }
 
+/** Substrings that mark a secret as a placeholder / dev value, rejected in production. */
+const WEAK_SECRET_MARKERS = ['change-me', 'changeme', 'dev-', 'dev_', 'demo', 'example', 'placeholder', 'password', 'localhost', '123456', 'system-api-key', 'integration-api-key'];
+
+/**
+ * In production, reject not just the exact placeholder but any low-entropy or
+ * known-dev secret: missing, too short, all-one-character, or containing a
+ * well-known weak marker. Fail-closed so a deployment can't ship a guessable secret.
+ */
+export function assertStrongProductionSecret(name: string, value: string | undefined, minLength: number): void {
+  if (!value) throw new Error(`${name} must be configured in production`);
+  if (value.length < minLength) {
+    throw new Error(`${name} must be at least ${minLength} characters in production`);
+  }
+  const lower = value.toLowerCase();
+  const marker = WEAK_SECRET_MARKERS.find((m) => lower.includes(m));
+  if (marker) {
+    throw new Error(`${name} looks like a placeholder/dev secret (contains "${marker}"); use a strong random value in production`);
+  }
+  if (new Set(value).size < 8) {
+    throw new Error(`${name} has too little entropy (fewer than 8 distinct characters) for production`);
+  }
+}
+
 export function loadAppConfig(): AppConfig {
   const nodeEnv = process.env.NODE_ENV ?? 'development';
   const isProduction = nodeEnv === 'production';
@@ -72,14 +95,11 @@ export function loadAppConfig(): AppConfig {
   const integrationApiKey =
     process.env.INTEGRATION_API_KEY ?? (isProduction ? undefined : 'integration-api-key');
 
-  if (isProduction && jwtSecret === 'change-me-in-production') {
-    throw new Error('JWT_SECRET must be configured to a non-placeholder value in production');
-  }
-  if (isProduction && systemApiKey === 'system-api-key') {
-    throw new Error('SYSTEM_API_KEY must not use the demo value in production');
-  }
-  if (isProduction && integrationApiKey === 'integration-api-key') {
-    throw new Error('INTEGRATION_API_KEY must not use the demo value in production');
+  if (isProduction) {
+    // Reject placeholders AND low-entropy/known-dev secrets, not just exact literals.
+    assertStrongProductionSecret('JWT_SECRET', jwtSecret, 32);
+    assertStrongProductionSecret('SYSTEM_API_KEY', systemApiKey, 16);
+    assertStrongProductionSecret('INTEGRATION_API_KEY', integrationApiKey, 16);
   }
 
   return {
