@@ -118,6 +118,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'Compensation', path: '/admin/compensation' },
       { label: 'Performance', path: '/admin/performance/operations' },
       { label: 'Feedback 360', path: '/admin/feedback-360' },
+      { label: 'Recruiting', path: '/admin/recruiting' },
       { label: 'Learning', path: '/admin/learning' },
       { label: 'Skills & Talent', path: '/admin/skills-talent' },
       { label: 'Employee Relations', path: '/admin/employee-relations' },
@@ -196,6 +197,7 @@ const adminRailItems: PortalRailItem[] = [
   { label: 'Compensation', path: '/admin/compensation', icon: BadgeDollarSign },
   { label: 'Performance', path: '/admin/performance/operations', icon: TrendingUp },
   { label: 'Feedback 360', path: '/admin/feedback-360', icon: MessageSquare },
+  { label: 'Recruiting', path: '/admin/recruiting', icon: Briefcase },
   { label: 'Learning', path: '/admin/learning', icon: GraduationCap },
   { label: 'Skills & Talent', path: '/admin/skills-talent', icon: Sparkles },
   { label: 'Employee Relations', path: '/admin/employee-relations', icon: ShieldCheck },
@@ -269,6 +271,7 @@ function WorkspaceShell({
   const navLabel = React.useCallback(
     (item: PortalNavItem) => {
       if (item.path === '/admin/get-started') return t('adminGetStarted.title');
+      if (item.path === '/admin/recruiting') return t('adminRecruiting.title');
       if (item.path === '/admin/system-console/policies') return t('lowCode.nav.policyBuilder');
       if (item.path === '/admin/system-console/sod-rules') return t('lowCode.nav.sodRules');
       if (item.path === '/admin/system-console/field-access') return t('lowCode.nav.fieldAccess');

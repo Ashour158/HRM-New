@@ -41,6 +41,7 @@ const AdminCompensation = lazy(() => import('@/pages/admin/compensation').then((
 const AdminPerformance = lazy(() => import('@/pages/admin/performance').then((module) => ({ default: module.AdminPerformance })));
 const AdminPerformanceOperations = lazy(() => import('@/pages/admin/performance-operations').then((module) => ({ default: module.AdminPerformanceOperations })));
 const AdminFeedback360 = lazy(() => import('@/pages/admin/feedback-360').then((module) => ({ default: module.AdminFeedback360 })));
+const AdminRecruiting = lazy(() => import('@/pages/admin/recruiting').then((module) => ({ default: module.AdminRecruiting })));
 const AdminLearning = lazy(() => import('@/pages/admin/learning').then((module) => ({ default: module.AdminLearning })));
 const AdminSkillsTalent = lazy(() => import('@/pages/admin/skills-talent').then((module) => ({ default: module.AdminSkillsTalent })));
 const AdminEmployeeRelations = lazy(() => import('@/pages/admin/employee-relations').then((module) => ({ default: module.AdminEmployeeRelations })));
@@ -362,6 +363,7 @@ export function AppRoutes() {
                     <Route path="performance" element={<AdminPerformance />} />
                     <Route path="performance/operations" element={<AdminPerformanceOperations />} />
                     <Route path="feedback-360" element={<AdminFeedback360 />} />
+                    <Route path="recruiting" element={<AdminRecruiting />} />
                     <Route path="learning" element={<AdminLearning />} />
                     <Route path="skills-talent" element={<AdminSkillsTalent />} />
                     <Route path="employee-relations" element={<AdminEmployeeRelations />} />
