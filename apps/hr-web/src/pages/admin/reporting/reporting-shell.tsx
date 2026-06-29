@@ -44,7 +44,7 @@ export function ReportingTabs({
   onTabChange: (value: ReportingTab) => void;
 }) {
   return (
-    <div role="tablist" aria-label="Reporting sections" className="inline-flex h-auto flex-wrap items-center justify-start rounded-md bg-[#f8fafc] p-1 text-muted-foreground">
+    <div role="tablist" aria-label="Reporting sections" className="inline-flex h-auto flex-wrap items-center justify-start rounded-md bg-muted p-1 text-muted-foreground">
       {reportingTabs.map((tab) => {
         const active = activeTab === tab.value;
         return (

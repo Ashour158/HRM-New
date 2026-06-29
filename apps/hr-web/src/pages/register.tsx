@@ -73,20 +73,20 @@ export function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen fusion-bg px-5 py-10 text-[#0f172a]">
+    <main className="min-h-screen fusion-bg px-5 py-10 text-foreground">
       <div className="mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-[960px] items-center justify-center">
-        <section className="w-full max-w-[520px] rounded-xl border border-[#e2e8f0]/70 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-          <Link className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-[#4f46e5]" to="/login">
+        <section className="w-full max-w-[520px] rounded-xl border border-border/70 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+          <Link className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-primary" to="/login">
             <ArrowLeft className="h-4 w-4" />
             Back to sign in
           </Link>
           <div className="mb-7 flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#8b5cf6] text-white">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary text-white">
               <UserPlus className="h-6 w-6" />
             </div>
             <div>
               <h1 className="font-headline text-3xl font-semibold">Create your account</h1>
-              <p className="text-sm text-[#64748b]">Use your organization and work email to start self-service.</p>
+              <p className="text-sm text-muted-foreground">Use your organization and work email to start self-service.</p>
             </div>
           </div>
 
@@ -106,7 +106,7 @@ export function RegisterPage() {
                 </Select>
               ) : (
                 <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+                  <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input id="tenant" value={tenants[0]?.name || 'Default Tenant'} disabled readOnly className="pl-9" />
                 </div>
               )}

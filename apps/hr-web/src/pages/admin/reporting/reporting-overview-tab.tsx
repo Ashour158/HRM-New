@@ -23,10 +23,10 @@ export function ReportingOverviewTab({
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-        <Card className="rounded-2xl border-[#e2e8f0]">
+        <Card className="rounded-2xl border-border">
           <CardHeader>
             <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
-              <FileText className="h-5 w-5 text-[#4f46e5]" />
+              <FileText className="h-5 w-5 text-primary" />
               Report Activity
             </h2>
           </CardHeader>
@@ -44,24 +44,24 @@ export function ReportingOverviewTab({
           </CardContent>
         </Card>
 
-        <Card className="rounded-2xl border-[#e2e8f0]">
+        <Card className="rounded-2xl border-border">
           <CardHeader>
             <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
-              <ShieldAlert className="h-5 w-5 text-[#f59e0b]" />
+              <ShieldAlert className="h-5 w-5 text-warning" />
               Attention Queue
             </h2>
           </CardHeader>
           <CardContent className="space-y-3">
             {attentionReports.length > 0 ? attentionReports.map((report) => (
-              <div key={report.code} className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3">
+              <div key={report.code} className="rounded-xl border border-warning bg-warning/10 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold text-[#0f172a]">{report.title}</p>
+                  <p className="font-semibold text-foreground">{report.title}</p>
                   <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.readiness}</Badge>
                 </div>
-                <p className="mt-1 text-sm text-[#475569]">{report.issues} issue(s), {report.queueBacklog} queued item(s)</p>
+                <p className="mt-1 text-sm text-muted-foreground">{report.issues} issue(s), {report.queueBacklog} queued item(s)</p>
               </div>
             )) : (
-              <div className="rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm text-[#166534]">
+              <div className="rounded-xl border border-success bg-success/15 p-4 text-sm text-success-foreground">
                 All report groups are clear.
               </div>
             )}

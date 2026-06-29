@@ -122,10 +122,10 @@ function formatDate(value: string | undefined) {
 }
 
 function stateClass(state: IntegrationState) {
-  if (state === 'HEALTHY') return 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]';
-  if (state === 'DEGRADED' || state === 'UNKNOWN') return 'border-[#f59e0b]/30 bg-[#fde68a]/60 text-[#78350f]';
-  if (state === 'CREDENTIALS_NOT_CONFIGURED') return 'border-[#f59e0b]/30 bg-[#fff7ed] text-[#9a3412]';
-  return 'border-[#e11d48]/30 bg-[#e11d48]/10 text-[#e11d48]';
+  if (state === 'HEALTHY') return 'border-secondary/30 bg-secondary/10 text-primary';
+  if (state === 'DEGRADED' || state === 'UNKNOWN') return 'border-warning/30 bg-warning/60 text-warning-foreground';
+  if (state === 'CREDENTIALS_NOT_CONFIGURED') return 'border-warning/30 bg-warning/10 text-warning-foreground';
+  return 'border-destructive/30 bg-destructive/10 text-destructive';
 }
 
 function HealthBadge({ state }: { state: IntegrationState }) {
@@ -214,8 +214,8 @@ export function AdminIntegrations() {
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/60 fusion-glass px-3 py-1 font-mono text-xs uppercase tracking-wider text-[#475569]">
-                <PlugZap className="h-3.5 w-3.5 text-[#4f46e5]" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/60 fusion-glass px-3 py-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                <PlugZap className="h-3.5 w-3.5 text-primary" />
                 System Development Control
               </div>
               <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
@@ -224,7 +224,7 @@ export function AdminIntegrations() {
               </span>
             </div>
             <h2 className="mt-3 font-headline text-4xl font-bold fusion-gradient-text">System Control - Integrations</h2>
-            <p className="mt-2 max-w-3xl text-lg leading-8 text-[#475569]">
+            <p className="mt-2 max-w-3xl text-lg leading-8 text-muted-foreground">
               Manage the integration area of the System Admin Console: registered adapters, health probes, metrics,
               and safe manual adapter checks.
             </p>
@@ -285,7 +285,7 @@ export function AdminIntegrations() {
           <Card className="overflow-hidden rounded-[2rem]">
             <CardHeader className="p-5">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <Router className="h-5 w-5 text-[#4f46e5]" />
+                <Router className="h-5 w-5 text-primary" />
                 Adapter Registry
               </CardTitle>
               <CardDescription>
@@ -299,7 +299,7 @@ export function AdminIntegrations() {
                 <ErrorState error={statusQuery.error} onRetry={() => statusQuery.refetch()} />
               ) : adapters.length > 0 ? (
                 <div className="overflow-x-auto overflow-hidden rounded-2xl border border-white/50 fusion-glass">
-                  <div className="grid min-w-[760px] grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] border-b border-[#e2e8f0] bg-[#eef2ff]/70 px-4 py-3 font-mono text-xs uppercase tracking-wider text-[#475569]">
+                  <div className="grid min-w-[760px] grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] border-b border-border bg-accent/70 px-4 py-3 font-mono text-xs uppercase tracking-wider text-muted-foreground">
                     <span>Adapter</span>
                     <span>Direction</span>
                     <span>State</span>
@@ -312,13 +312,13 @@ export function AdminIntegrations() {
                         key={adapter.adapterName}
                         type="button"
                         onClick={() => setSelectedAdapter(adapter.adapterName)}
-                        className={`grid w-full grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] items-center gap-3 border-b border-[#e2e8f0]/60 px-4 py-3 text-left text-sm transition-colors hover:bg-[#eef2ff] ${
-                          selected?.adapterName === adapter.adapterName ? 'bg-[#8b5cf6]/10' : ''
+                        className={`grid w-full grid-cols-[1.1fr_.7fr_.7fr_.7fr_.7fr] items-center gap-3 border-b border-border/60 px-4 py-3 text-left text-sm transition-colors hover:bg-accent ${
+                          selected?.adapterName === adapter.adapterName ? 'bg-secondary/10' : ''
                         }`}
                       >
                         <span>
-                          <span className="block font-semibold text-[#0f172a]">{adapter.adapterName}</span>
-                          <span className="font-mono text-[11px] uppercase tracking-wider text-[#94a3b8]">
+                          <span className="block font-semibold text-foreground">{adapter.adapterName}</span>
+                          <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
                             {adapter.totalSuccesses} successes
                           </span>
                         </span>
@@ -344,12 +344,12 @@ export function AdminIntegrations() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Activity className="h-5 w-5 text-[#4f46e5]" />
+                  <Activity className="h-5 w-5 text-primary" />
                   Selected Adapter
                 </CardTitle>
                 <CardDescription>{selected?.adapterName ?? 'Select an adapter'}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+              <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
                 {selected ? (
                   <>
                     <div className="flex items-center justify-between fusion-glass rounded-2xl p-3">
@@ -358,17 +358,17 @@ export function AdminIntegrations() {
                     </div>
                     <div className="flex items-center justify-between fusion-glass rounded-2xl p-3">
                       <span>Direction</span>
-                      <span className="font-semibold text-[#0f172a]">{selected.direction}</span>
+                      <span className="font-semibold text-foreground">{selected.direction}</span>
                     </div>
                     <div className="flex items-center justify-between fusion-glass rounded-2xl p-3">
                       <span>Last failure</span>
-                      <span className="font-semibold text-[#0f172a]">{formatDate(selected.lastFailureAt)}</span>
+                      <span className="font-semibold text-foreground">{formatDate(selected.lastFailureAt)}</span>
                     </div>
                     {selectedHealth ? (
                       <div className="fusion-glass rounded-2xl p-3">
-                        <p className="font-semibold text-[#0f172a]">Last probe</p>
+                        <p className="font-semibold text-foreground">Last probe</p>
                         <p>{selectedHealth.healthy ? 'Healthy' : 'Unhealthy'} / {metricValue(selectedHealth.latencyMs, 'ms')}</p>
-                        {selectedHealth.errorMessage ? <p className="mt-1 text-[#e11d48]">{selectedHealth.errorMessage}</p> : null}
+                        {selectedHealth.errorMessage ? <p className="mt-1 text-destructive">{selectedHealth.errorMessage}</p> : null}
                       </div>
                     ) : null}
                   </>
@@ -381,11 +381,11 @@ export function AdminIntegrations() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Clock3 className="h-5 w-5 text-[#6366f1]" />
+                  <Clock3 className="h-5 w-5 text-primary" />
                   Metrics
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+              <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
                 {metricsQuery.isLoading ? (
                   <Skeleton className="h-24 w-full" />
                 ) : metricsQuery.isError ? (
@@ -394,15 +394,15 @@ export function AdminIntegrations() {
                   <>
                     <div className="grid grid-cols-3 gap-2">
                       <div className="fusion-glass rounded-2xl p-3 text-center">
-                        <p className="text-2xl font-bold text-[#0f172a]">{metricsQuery.data.totalCalls}</p>
+                        <p className="text-2xl font-bold text-foreground">{metricsQuery.data.totalCalls}</p>
                         <p className="text-xs">calls</p>
                       </div>
                       <div className="fusion-glass rounded-2xl p-3 text-center">
-                        <p className="text-2xl font-bold text-[#4f46e5]">{metricsQuery.data.successfulCalls}</p>
+                        <p className="text-2xl font-bold text-primary">{metricsQuery.data.successfulCalls}</p>
                         <p className="text-xs">success</p>
                       </div>
                       <div className="fusion-glass rounded-2xl p-3 text-center">
-                        <p className="text-2xl font-bold text-[#e11d48]">{metricsQuery.data.failedCalls}</p>
+                        <p className="text-2xl font-bold text-destructive">{metricsQuery.data.failedCalls}</p>
                         <p className="text-xs">failed</p>
                       </div>
                     </div>
@@ -419,9 +419,9 @@ export function AdminIntegrations() {
         </section>
 
         {triggerMutation.data ? (
-          <Card className="border-[#8b5cf6]/40 bg-[#8b5cf6]/5">
-            <CardContent className="p-4 text-sm text-[#0f172a]">
-              <CheckCircle2 className="mr-2 inline h-4 w-4 text-[#4f46e5]" />
+          <Card className="border-secondary/40 bg-secondary/5">
+            <CardContent className="p-4 text-sm text-foreground">
+              <CheckCircle2 className="mr-2 inline h-4 w-4 text-primary" />
               Manual trigger returned {triggerMutation.data.result.success ? 'success' : 'failure'} for {triggerMutation.data.adapterName}
               {' '}at {formatDate(triggerMutation.data.result.timestamp)}.
             </CardContent>
@@ -429,8 +429,8 @@ export function AdminIntegrations() {
         ) : null}
 
         {triggerMutation.error ? (
-          <Card className="border-[#e11d48]/40 bg-[#e11d48]/5">
-            <CardContent className="p-4 text-sm text-[#e11d48]">
+          <Card className="border-destructive/40 bg-destructive/5">
+            <CardContent className="p-4 text-sm text-destructive">
               <AlertTriangle className="mr-2 inline h-4 w-4" />
               Manual trigger failed: {triggerMutation.error.message}
             </CardContent>
@@ -438,10 +438,10 @@ export function AdminIntegrations() {
         ) : null}
 
         <section className="grid gap-4 xl:grid-cols-[1fr_24rem]">
-          <Card className="overflow-hidden rounded-[2rem] border-[#8b5cf6]/20">
+          <Card className="overflow-hidden rounded-[2rem] border-secondary/20">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl">
-                <Mail className="h-5 w-5 text-[#4f46e5]" />
+                <Mail className="h-5 w-5 text-primary" />
                 Communication Delivery Readiness
               </CardTitle>
               <CardDescription>
@@ -455,11 +455,11 @@ export function AdminIntegrations() {
                 <ErrorState error={readinessQuery.error} onRetry={() => readinessQuery.refetch()} />
               ) : communicationAdapters.length > 0 ? (
                 communicationAdapters.map((adapter) => (
-                  <div key={adapter.adapterName} className="rounded-2xl border border-[#e2e8f0] bg-white p-4">
+                  <div key={adapter.adapterName} className="rounded-2xl border border-border bg-white p-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
-                        <p className="font-semibold text-[#0f172a]">{adapter.adapterName}</p>
-                        <p className="mt-1 text-sm leading-6 text-[#475569]">
+                        <p className="font-semibold text-foreground">{adapter.adapterName}</p>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
                           Owned by {adapter.owner.team}. Used for outbound employee and administrator messages.
                         </p>
                       </div>
@@ -468,22 +468,22 @@ export function AdminIntegrations() {
                     <div className="mt-4 grid gap-3 md:grid-cols-3">
                       {adapter.environments.map((environment) => (
                         <div key={environment.name} className="fusion-glass rounded-2xl p-3">
-                          <p className="font-mono text-xs uppercase tracking-wider text-[#64748b]">{environment.name}</p>
-                          <p className={`mt-2 font-semibold ${environment.credentialState === 'CONFIGURED' ? 'text-[#047857]' : 'text-[#9a3412]'}`}>
+                          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{environment.name}</p>
+                          <p className={`mt-2 font-semibold ${environment.credentialState === 'CONFIGURED' ? 'text-success' : 'text-warning-foreground'}`}>
                             {environment.credentialState === 'CONFIGURED' ? 'Credentials configured' : 'Credentials required'}
                           </p>
                         </div>
                       ))}
                       <div className="fusion-glass rounded-2xl p-3">
-                        <p className="font-mono text-xs uppercase tracking-wider text-[#64748b]">Retry Policy</p>
-                        <p className="mt-2 font-semibold text-[#0f172a]">
+                        <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Retry Policy</p>
+                        <p className="mt-2 font-semibold text-foreground">
                           {adapter.retryPolicy.maxAttempts} attempts / {adapter.retryPolicy.backoff.toLowerCase()}
                         </p>
-                        <p className="text-sm text-[#64748b]">Dead-letter after {adapter.retryPolicy.deadLetterAfterAttempts}</p>
+                        <p className="text-sm text-muted-foreground">Dead-letter after {adapter.retryPolicy.deadLetterAfterAttempts}</p>
                       </div>
                     </div>
                     {adapter.blockers.length > 0 ? (
-                      <div className="mt-4 rounded-2xl border border-[#f59e0b]/30 bg-[#fff7ed] p-3 text-sm text-[#9a3412]">
+                      <div className="mt-4 rounded-2xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning-foreground">
                         <AlertTriangle className="mr-2 inline h-4 w-4" />
                         {adapter.blockers.join(', ')}
                       </div>
@@ -500,42 +500,42 @@ export function AdminIntegrations() {
             </CardContent>
           </Card>
 
-          <Card className={communicationReady ? 'border-[#8b5cf6]/20 bg-[#8b5cf6]/5' : 'border-[#f59e0b]/30 bg-[#fff7ed]'}>
+          <Card className={communicationReady ? 'border-secondary/20 bg-secondary/5' : 'border-warning/30 bg-warning/10'}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <BellRing className="h-5 w-5 text-[#4f46e5]" />
+                <BellRing className="h-5 w-5 text-primary" />
                 Message Gate
               </CardTitle>
               <CardDescription>
                 Operator decision point before relying on outbound email for approvals and policy changes.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 text-sm leading-6 text-[#475569]">
+            <CardContent className="space-y-3 text-sm leading-6 text-muted-foreground">
               <div className="flex items-center justify-between rounded-2xl bg-white/70 p-3">
                 <span>Outbound email</span>
-                <span className={`font-semibold ${communicationReady ? 'text-[#047857]' : 'text-[#9a3412]'}`}>
+                <span className={`font-semibold ${communicationReady ? 'text-success' : 'text-warning-foreground'}`}>
                   {communicationReady ? 'Ready' : 'Blocked'}
                 </span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/70 p-3">
                 <span>Platform inbox</span>
-                <span className="font-semibold text-[#047857]">Ready</span>
+                <span className="font-semibold text-success">Ready</span>
               </div>
               <div className="flex items-center justify-between rounded-2xl bg-white/70 p-3">
                 <span>Recovery path</span>
-                <span className="font-semibold text-[#0f172a]">Dead-letter queue</span>
+                <span className="font-semibold text-foreground">Dead-letter queue</span>
               </div>
               {communicationBlockers.length > 0 ? (
                 <ul className="space-y-2 rounded-2xl bg-white/70 p-3">
                   {communicationBlockers.slice(0, 4).map((blocker) => (
-                    <li key={blocker} className="flex gap-2 text-[#9a3412]">
+                    <li key={blocker} className="flex gap-2 text-warning-foreground">
                       <AlertTriangle className="mt-1 h-4 w-4 shrink-0" />
                       <span>{blocker}</span>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="rounded-2xl bg-white/70 p-3 text-[#047857]">Communication delivery is ready for governed workflow notifications.</p>
+                <p className="rounded-2xl bg-white/70 p-3 text-success">Communication delivery is ready for governed workflow notifications.</p>
               )}
             </CardContent>
           </Card>
@@ -544,7 +544,7 @@ export function AdminIntegrations() {
         <Card className="overflow-hidden rounded-[2rem]">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-xl">
-              <ShieldCheck className="h-5 w-5 text-[#f59e0b]" />
+              <ShieldCheck className="h-5 w-5 text-warning" />
               Integration Governance Gaps
             </CardTitle>
             <CardDescription>Visible on purpose so the console does not pretend these controls are production-complete.</CardDescription>
@@ -556,9 +556,9 @@ export function AdminIntegrations() {
               ['Retry policy', 'Adapter retry/dead-letter controls need a governed backend workflow before UI actions are exposed.'],
             ].map(([title, body]) => (
               <div key={title} className="fusion-glass rounded-2xl p-4">
-                <FileText className="h-5 w-5 text-[#4f46e5]" />
-                <p className="mt-3 font-semibold text-[#0f172a]">{title}</p>
-                <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>
+                <FileText className="h-5 w-5 text-primary" />
+                <p className="mt-3 font-semibold text-foreground">{title}</p>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
               </div>
             ))}
           </CardContent>

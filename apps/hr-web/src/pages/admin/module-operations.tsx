@@ -491,23 +491,23 @@ function mapControl(control: OperationControlApi): GovernanceControl {
 }
 
 function statusTone(status: OperationalRecord['status'] | WorkflowItem['state']) {
-  if (status === 'Blocked' || status === 'Needs Approval') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
-  if (status === 'Ready' || status === 'Active' || status === 'Closed') return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
-  if (status === 'In Review' || status === 'In Progress') return 'border-[#6366f1]/25 bg-[#6366f1]/10 text-[#6366f1]';
-  return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
+  if (status === 'Blocked' || status === 'Needs Approval') return 'border-destructive/25 bg-destructive/10 text-destructive-foreground';
+  if (status === 'Ready' || status === 'Active' || status === 'Closed') return 'border-secondary/25 bg-secondary/10 text-primary';
+  if (status === 'In Review' || status === 'In Progress') return 'border-primary/25 bg-primary/10 text-primary';
+  return 'border-warning/30 bg-warning/70 text-warning-foreground';
 }
 
 function riskTone(risk: OperationalRecord['risk']) {
-  if (risk === 'High') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
-  if (risk === 'Medium') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
-  return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
+  if (risk === 'High') return 'border-destructive/25 bg-destructive/10 text-destructive-foreground';
+  if (risk === 'Medium') return 'border-warning/30 bg-warning/70 text-warning-foreground';
+  return 'border-secondary/25 bg-secondary/10 text-primary';
 }
 
 function controlTone(status: GovernanceControl['status']) {
-  if (status === 'Applied') return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
-  if (status === 'Approved') return 'border-[#6366f1]/25 bg-[#6366f1]/10 text-[#6366f1]';
-  if (status === 'In Review') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
-  return 'border-[#e2e8f0] bg-white text-[#475569]';
+  if (status === 'Applied') return 'border-secondary/25 bg-secondary/10 text-primary';
+  if (status === 'Approved') return 'border-primary/25 bg-primary/10 text-primary';
+  if (status === 'In Review') return 'border-warning/30 bg-warning/70 text-warning-foreground';
+  return 'border-border bg-white text-muted-foreground';
 }
 
 function nextControlAction(control: GovernanceControl): { label: string; command: string } | undefined {
@@ -518,9 +518,9 @@ function nextControlAction(control: GovernanceControl): { label: string; command
 }
 
 function readinessTone(status: ModuleDepthApi['status'] | ModuleDepthCapabilityApi['status']) {
-  if (status === 'Blocked') return 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]';
-  if (status === 'Needs Work') return 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]';
-  return 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]';
+  if (status === 'Blocked') return 'border-destructive/25 bg-destructive/10 text-destructive-foreground';
+  if (status === 'Needs Work') return 'border-warning/30 bg-warning/70 text-warning-foreground';
+  return 'border-secondary/25 bg-secondary/10 text-primary';
 }
 
 function nextRecordStatus(record: OperationalRecord): OperationalRecord['status'] {
@@ -579,7 +579,7 @@ function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
             lastEvent: `${record.object} rejected`,
             title: 'Reject benefits enrollment',
             variant: 'outline',
-            className: 'border-[#fecdd3] bg-[#fff1f2] text-[#be123c] hover:bg-[#ffe4e6] hover:text-[#9f1239]',
+            className: 'border-destructive bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive-foreground',
             Icon: XCircle,
           },
         ];
@@ -624,7 +624,7 @@ function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
           lastEvent: `${record.object} rejected`,
           title: 'Reject benefits life event',
           variant: 'outline',
-          className: 'border-[#fecdd3] bg-[#fff1f2] text-[#be123c] hover:bg-[#ffe4e6] hover:text-[#9f1239]',
+          className: 'border-destructive bg-destructive/10 text-destructive hover:bg-destructive/10 hover:text-destructive-foreground',
           Icon: XCircle,
         },
       ];
@@ -652,13 +652,13 @@ function MetricCard({ label, value, detail, icon: Icon }: {
     <Card className="relative overflow-hidden border-transparent fusion-glass rounded-2xl fusion-hover">
       <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-400" />
       <CardContent className="flex min-h-[132px] items-center gap-4 p-5">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary">
           <Icon className="h-6 w-6" />
         </div>
         <div>
           <p className="lumina-label">{label}</p>
-          <p className="mt-1 font-headline text-3xl font-bold text-[#0f172a]">{value}</p>
-          <p className="mt-1 text-sm leading-5 text-[#475569]">{detail}</p>
+          <p className="mt-1 font-headline text-3xl font-bold text-foreground">{value}</p>
+          <p className="mt-1 text-sm leading-5 text-muted-foreground">{detail}</p>
         </div>
       </CardContent>
     </Card>
@@ -669,7 +669,7 @@ function ChipList({ items }: { items: string[] }) {
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((item) => (
-        <span key={item} className="rounded-md border border-[#e2e8f0]/70 bg-[#eef2ff] px-2 py-1 text-xs font-medium text-[#475569]">
+        <span key={item} className="rounded-md border border-border/70 bg-accent px-2 py-1 text-xs font-medium text-muted-foreground">
           {item}
         </span>
       ))}
@@ -679,7 +679,7 @@ function ChipList({ items }: { items: string[] }) {
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="fusion-glass rounded-2xl border-dashed p-8 text-center text-sm text-[#475569]">
+    <div className="fusion-glass rounded-2xl border-dashed p-8 text-center text-sm text-muted-foreground">
       {label}
     </div>
   );
@@ -1062,7 +1062,7 @@ export function AdminModuleOperations() {
                 <Badge variant="outline" className="border-white/40 bg-white/10 font-mono text-xs uppercase tracking-wider text-white">
                   {module.category}
                 </Badge>
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#c7d2fe]">
+                <span className="text-xs font-semibold uppercase tracking-wider text-primary">
                   Operations workspace
                 </span>
               </div>
@@ -1071,7 +1071,7 @@ export function AdminModuleOperations() {
             </div>
             <div className="flex flex-col gap-2 lg:items-end lg:justify-end">
               <Button
-                className="bg-white text-[#4f46e5] hover:bg-[#eef2ff]"
+                className="bg-white text-primary hover:bg-accent"
                 disabled={createRecord.isPending}
                 onClick={() => createRecord.mutate({ action: profile.primaryAction, lastEvent: `${profile.primaryAction} staged` })}
               >
@@ -1119,7 +1119,7 @@ export function AdminModuleOperations() {
                     <button
                       key={action}
                       type="button"
-                      className="fusion-glass rounded-2xl p-4 text-left transition-colors hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]"
+                      className="fusion-glass rounded-2xl p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent"
                       disabled={createRecord.isPending}
                       onClick={() => createRecord.mutate({
                         action,
@@ -1129,10 +1129,10 @@ export function AdminModuleOperations() {
                       })}
                     >
                       <div className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#4f46e5]" />
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                         <div>
-                          <p className="font-semibold text-[#0f172a]">{action}</p>
-                          <p className="mt-1 text-sm leading-5 text-[#475569]">Creates an auditable operational checkpoint for {module.label.toLowerCase()}.</p>
+                          <p className="font-semibold text-foreground">{action}</p>
+                          <p className="mt-1 text-sm leading-5 text-muted-foreground">Creates an auditable operational checkpoint for {module.label.toLowerCase()}.</p>
                         </div>
                       </div>
                     </button>
@@ -1148,7 +1148,7 @@ export function AdminModuleOperations() {
                 <CardContent className="space-y-3">
                   {activityLog.length > 0 ? (
                     activityLog.map((item) => (
-                      <div key={item} className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3 text-sm text-[#475569]">
+                      <div key={item} className="rounded-lg border border-border/70 bg-accent p-3 text-sm text-muted-foreground">
                         {item}
                       </div>
                     ))
@@ -1169,7 +1169,7 @@ export function AdminModuleOperations() {
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <div className="relative min-w-[240px]">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search records" aria-label="Search operational records" />
                   </div>
                   <Select value={recordStatus} onValueChange={setRecordStatus}>
@@ -1221,9 +1221,9 @@ export function AdminModuleOperations() {
                 ) : (
                 <>
                 {importPreview ? (
-                  <div className="mb-4 rounded-2xl border border-[#e2e8f0] bg-white/70 p-4 text-sm">
+                  <div className="mb-4 rounded-2xl border border-border bg-white/70 p-4 text-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <Badge variant="outline" className={cn('border', importPreview.accepted ? 'border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[#4f46e5]' : 'border-[#e11d48]/25 bg-[#ffe4e6] text-[#9f1239]')}>
+                      <Badge variant="outline" className={cn('border', importPreview.accepted ? 'border-secondary/25 bg-secondary/10 text-primary' : 'border-destructive/25 bg-destructive/10 text-destructive-foreground')}>
                         {importApplyResult?.accepted
                           ? `${importApplyResult.createdCount} records applied`
                           : importPreview.accepted
@@ -1237,7 +1237,7 @@ export function AdminModuleOperations() {
                       ) : null}
                     </div>
                     {importPreview.errors.length > 0 ? (
-                      <div className="mt-3 space-y-1 text-[#9f1239]">
+                      <div className="mt-3 space-y-1 text-destructive-foreground">
                         {importPreview.errors.slice(0, 6).map((error) => (
                           <p key={`${error.row}-${error.field}-${error.message}`}>Row {error.row}: {error.field} - {error.message}</p>
                         ))}
@@ -1264,16 +1264,16 @@ export function AdminModuleOperations() {
                       return (
                         <TableRow key={record.id}>
                           <TableCell>
-                            <p className="font-semibold text-[#0f172a]">{record.object}</p>
+                            <p className="font-semibold text-foreground">{record.object}</p>
                             {record.source || record.nativeSource ? (
                               <div className="mt-2 flex flex-wrap gap-1">
                                 {record.source ? (
-                                  <Badge variant="outline" className="border-[#e2e8f0] bg-[#eef2ff] text-[10px] uppercase tracking-wider text-[#475569]">
+                                  <Badge variant="outline" className="border-border bg-accent text-[10px] uppercase tracking-wider text-muted-foreground">
                                     Source managed
                                   </Badge>
                                 ) : null}
                                 {record.nativeSource ? (
-                                  <Badge variant="outline" className="border-[#8b5cf6]/25 bg-[#8b5cf6]/10 text-[10px] uppercase tracking-wider text-[#4f46e5]">
+                                  <Badge variant="outline" className="border-secondary/25 bg-secondary/10 text-[10px] uppercase tracking-wider text-primary">
                                     Linked workspace
                                   </Badge>
                                 ) : null}
@@ -1281,14 +1281,14 @@ export function AdminModuleOperations() {
                             ) : null}
                           </TableCell>
                           <TableCell>{record.owner}</TableCell>
-                          <TableCell className="max-w-[320px] text-[#475569]">{record.workflow}</TableCell>
+                          <TableCell className="max-w-[320px] text-muted-foreground">{record.workflow}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn('border', statusTone(record.status))}>{record.status}</Badge>
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn('border', riskTone(record.risk))}>{record.risk}</Badge>
                           </TableCell>
-                          <TableCell className="text-[#475569]">{record.lastEvent}</TableCell>
+                          <TableCell className="text-muted-foreground">{record.lastEvent}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex flex-wrap justify-end gap-2">
                               {actions.length > 0 ? actions.map((action) => (
@@ -1336,7 +1336,7 @@ export function AdminModuleOperations() {
                 </Table>
                 </div>
                 {filteredRecords.length > 0 ? (
-                  <div className="mt-4 rounded-2xl border border-[#e2e8f0] bg-white/70 p-4">
+                  <div className="mt-4 rounded-2xl border border-border bg-white/70 p-4">
                     <Button
                       type="button"
                       variant="ghost"
@@ -1349,8 +1349,8 @@ export function AdminModuleOperations() {
                     {showRecordDiagnostics ? (
                       <div className="mt-3 grid gap-3 md:grid-cols-2">
                         {filteredRecords.map((record) => (
-                          <div key={`${record.id}-diagnostics`} className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3 text-xs text-[#475569]">
-                            <p className="font-semibold text-[#0f172a]">{record.object}</p>
+                          <div key={`${record.id}-diagnostics`} className="rounded-lg border border-border bg-muted p-3 text-xs text-muted-foreground">
+                            <p className="font-semibold text-foreground">{record.object}</p>
                             <p className="mt-2 font-mono">Record ID: <span>{record.id}</span></p>
                             {record.nativeId ? <p className="font-mono">Native ID: <span>{record.nativeId}</span></p> : null}
                             {record.nativeSource ? <p className="font-mono">Native source: {record.nativeSource}</p> : null}
@@ -1400,12 +1400,12 @@ export function AdminModuleOperations() {
                 {queue.map((item) => (
                   <div key={item.id} className="grid gap-3 fusion-glass rounded-2xl p-4 md:grid-cols-[1fr_auto_auto_auto] md:items-center">
                     <div>
-                      <p className="font-semibold text-[#0f172a]">{item.workflow}</p>
-                      <p className="mt-1 text-sm text-[#475569]">Owner: {item.owner}</p>
-                      <p className="mt-1 text-xs text-[#94a3b8]">{item.lastEvent}</p>
+                      <p className="font-semibold text-foreground">{item.workflow}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">Owner: {item.owner}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.lastEvent}</p>
                     </div>
                     <Badge variant="outline" className={cn('w-fit border', statusTone(item.state))}>{item.state}</Badge>
-                    <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#475569]">SLA {item.sla}</span>
+                    <span className="font-mono text-xs font-semibold uppercase tracking-wider text-muted-foreground">SLA {item.sla}</span>
                     <Button
                       size="sm"
                       variant="outline"
@@ -1437,9 +1437,9 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {eventTriggers.map((eventName) => (
-                  <div key={eventName} className="flex gap-3 rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-3">
-                    <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-[#4f46e5]" />
-                    <span className="text-sm font-medium text-[#0f172a]">{eventName}</span>
+                  <div key={eventName} className="flex gap-3 rounded-lg border border-border/70 bg-accent p-3">
+                    <BellRing className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span className="text-sm font-medium text-foreground">{eventName}</span>
                   </div>
                 ))}
               </CardContent>
@@ -1466,12 +1466,12 @@ export function AdminModuleOperations() {
                     {governanceControls.map((control) => {
                       const action = nextControlAction(control);
                       return (
-                        <div key={control.id} className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                        <div key={control.id} className="rounded-lg border border-border/70 bg-accent p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <LockKeyhole className="mb-3 h-5 w-5 text-[#4f46e5]" />
-                              <p className="font-semibold text-[#0f172a]">{control.name}</p>
-                              <p className="mt-1 text-sm leading-5 text-[#475569]">{control.type}</p>
+                              <LockKeyhole className="mb-3 h-5 w-5 text-primary" />
+                              <p className="font-semibold text-foreground">{control.name}</p>
+                              <p className="mt-1 text-sm leading-5 text-muted-foreground">{control.type}</p>
                             </div>
                             <Badge variant="outline" className={cn('border', controlTone(control.status))}>
                               {control.status}
@@ -1479,7 +1479,7 @@ export function AdminModuleOperations() {
                           </div>
                           <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                             <div>
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Owner</p>
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Owner</p>
                               <Select
                                 value={control.owner}
                                 onValueChange={(ownerRole) => updateControlOwner.mutate({ control, ownerRole })}
@@ -1505,7 +1505,7 @@ export function AdminModuleOperations() {
                               {action?.label ?? 'Applied'}
                             </Button>
                           </div>
-                          <p className="mt-3 text-xs text-[#64748b]">{control.lastEvent}</p>
+                          <p className="mt-3 text-xs text-muted-foreground">{control.lastEvent}</p>
                         </div>
                       );
                     })}
@@ -1521,9 +1521,9 @@ export function AdminModuleOperations() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <ChipList items={module.personas} />
-                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-                  <Users className="mb-3 h-5 w-5 text-[#4f46e5]" />
-                  <p className="text-sm leading-6 text-[#475569]">
+                <div className="rounded-lg border border-border/70 bg-accent p-4">
+                  <Users className="mb-3 h-5 w-5 text-primary" />
+                  <p className="text-sm leading-6 text-muted-foreground">
                     The page intentionally groups actions by persona so HR admin, manager, employee, legal, finance, and specialist work does not feel like separate systems.
                   </p>
                 </div>
@@ -1545,7 +1545,7 @@ export function AdminModuleOperations() {
                     </Badge>
                     <div className="text-right">
                       <p className="lumina-label">Readiness</p>
-                      <p className="font-headline text-2xl font-bold text-[#0f172a]">{moduleDepth.score}%</p>
+                      <p className="font-headline text-2xl font-bold text-foreground">{moduleDepth.score}%</p>
                     </div>
                   </div>
                 ) : null}
@@ -1563,37 +1563,37 @@ export function AdminModuleOperations() {
                   <>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                       {moduleDepth.capabilities.map((capability) => (
-                        <div key={capability.code} className="rounded-lg border border-[#e2e8f0]/70 bg-white/70 p-4">
+                        <div key={capability.code} className="rounded-lg border border-border/70 bg-white/70 p-4">
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold text-[#0f172a]">{capability.label}</p>
+                            <p className="font-semibold text-foreground">{capability.label}</p>
                             <Badge variant="outline" className={cn('border', readinessTone(capability.status))}>
                               {capability.status}
                             </Badge>
                           </div>
-                          <p className="mt-3 text-sm leading-5 text-[#475569]">{capability.evidence}</p>
+                          <p className="mt-3 text-sm leading-5 text-muted-foreground">{capability.evidence}</p>
                         </div>
                       ))}
                     </div>
                     {moduleDepth.blockers.length > 0 || moduleDepth.nextActions.length > 0 ? (
                       <div className="grid gap-3 lg:grid-cols-2">
-                        <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-                          <p className="font-semibold text-[#0f172a]">Blockers</p>
+                        <div className="rounded-lg border border-border/70 bg-accent p-4">
+                          <p className="font-semibold text-foreground">Blockers</p>
                           {moduleDepth.blockers.length > 0 ? (
-                            <ul className="mt-3 space-y-2 text-sm text-[#475569]">
+                            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                               {moduleDepth.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
                             </ul>
                           ) : (
-                            <p className="mt-3 text-sm text-[#475569]">No hard blockers are open.</p>
+                            <p className="mt-3 text-sm text-muted-foreground">No hard blockers are open.</p>
                           )}
                         </div>
-                        <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
-                          <p className="font-semibold text-[#0f172a]">Next Actions</p>
+                        <div className="rounded-lg border border-border/70 bg-accent p-4">
+                          <p className="font-semibold text-foreground">Next Actions</p>
                           {moduleDepth.nextActions.length > 0 ? (
-                            <ul className="mt-3 space-y-2 text-sm text-[#475569]">
+                            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
                               {moduleDepth.nextActions.map((action) => <li key={action}>{action}</li>)}
                             </ul>
                           ) : (
-                            <p className="mt-3 text-sm text-[#475569]">This module is ready for the next workflow smoke.</p>
+                            <p className="mt-3 text-sm text-muted-foreground">This module is ready for the next workflow smoke.</p>
                           )}
                         </div>
                       </div>
@@ -1613,10 +1613,10 @@ export function AdminModuleOperations() {
               <CardContent className="space-y-3">
                 {integrationPoints.map((point, index) => (
                   <div key={point} className="flex items-center gap-3 fusion-glass rounded-2xl p-3">
-                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#8b5cf6]/10 font-mono text-xs font-semibold text-[#4f46e5]">
+                    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-secondary/10 font-mono text-xs font-semibold text-primary">
                       {index + 1}
                     </div>
-                    <span className="text-sm font-medium text-[#0f172a]">{point}</span>
+                    <span className="text-sm font-medium text-foreground">{point}</span>
                   </div>
                 ))}
               </CardContent>
@@ -1628,30 +1628,30 @@ export function AdminModuleOperations() {
                 <CardDescription>Objects and events this module keeps synchronized across the HR operating model.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                <div className="rounded-lg border border-border/70 bg-accent p-4">
                   <div className="mb-3 flex items-center gap-2">
-                    <Route className="h-4 w-4 text-[#4f46e5]" />
-                    <p className="font-semibold text-[#0f172a]">Business objects</p>
+                    <Route className="h-4 w-4 text-primary" />
+                    <p className="font-semibold text-foreground">Business objects</p>
                   </div>
                   <ChipList items={module.dataObjects} />
                 </div>
-                <div className="rounded-lg border border-[#e2e8f0]/70 bg-[#eef2ff] p-4">
+                <div className="rounded-lg border border-border/70 bg-accent p-4">
                   <div className="mb-3 flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-[#4f46e5]" />
-                    <p className="font-semibold text-[#0f172a]">Nervous system events</p>
+                    <GitBranch className="h-4 w-4 text-primary" />
+                    <p className="font-semibold text-foreground">Nervous system events</p>
                   </div>
                   <ChipList items={eventTriggers} />
                 </div>
-                <details className="rounded-lg border border-[#e2e8f0]/70 bg-white/70 p-4">
-                  <summary className="cursor-pointer text-sm font-semibold text-[#0f172a]">Advanced Diagnostics</summary>
+                <details className="rounded-lg border border-border/70 bg-white/70 p-4">
+                  <summary className="cursor-pointer text-sm font-semibold text-foreground">Advanced Diagnostics</summary>
                   <div className="mt-3 space-y-3 text-sm">
                     <div>
                       <p className="lumina-label">Backend Root</p>
-                      <p className="mt-1 font-mono font-semibold text-[#0f172a]">{module.backendRoot}</p>
+                      <p className="mt-1 font-mono font-semibold text-foreground">{module.backendRoot}</p>
                     </div>
                     <div>
                       <p className="lumina-label">Admin Route</p>
-                      <p className="mt-1 font-mono font-semibold text-[#0f172a]">/admin/modules/{module.id}/operations</p>
+                      <p className="mt-1 font-mono font-semibold text-foreground">/admin/modules/{module.id}/operations</p>
                     </div>
                   </div>
                 </details>

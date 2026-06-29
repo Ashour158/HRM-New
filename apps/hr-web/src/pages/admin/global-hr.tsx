@@ -338,7 +338,7 @@ export function AdminGlobalHr() {
     <div className="space-y-6 p-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <Badge variant="secondary" className="mb-3 bg-[#ecfeff] text-[#0e7490]">Global Workforce</Badge>
+          <Badge variant="secondary" className="mb-3 bg-info/10 text-info">Global Workforce</Badge>
           <h1 className="font-headline text-3xl font-semibold text-slate-950">Global HR</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">Manage work permits and international assignments with expiry visibility for workforce compliance.</p>
         </div>
@@ -352,13 +352,13 @@ export function AdminGlobalHr() {
         {metricCards.map((metric) => {
           const Icon = metric.icon;
           return (
-            <Card key={metric.label} className="rounded-xl border-[#e2e8f0]">
+            <Card key={metric.label} className="rounded-xl border-border">
               <CardContent className="flex items-center justify-between p-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{metric.label}</p>
                   <p className="text-2xl font-bold text-slate-950">{metric.value}</p>
                 </div>
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#ecfeff] text-[#0e7490]">
+                <span className="grid h-10 w-10 place-items-center rounded-lg bg-info/10 text-info">
                   <Icon className="h-5 w-5" />
                 </span>
               </CardContent>
@@ -378,7 +378,7 @@ export function AdminGlobalHr() {
         </TabsList>
 
         <TabsContent value="permits">
-          <Card className="rounded-xl border-[#e2e8f0]">
+          <Card className="rounded-xl border-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <ShieldCheck className="h-5 w-5 text-cyan-700" />
@@ -399,7 +399,7 @@ export function AdminGlobalHr() {
         </TabsContent>
 
         <TabsContent value="assignments">
-          <Card className="rounded-xl border-[#e2e8f0]">
+          <Card className="rounded-xl border-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Plane className="h-5 w-5 text-cyan-700" />

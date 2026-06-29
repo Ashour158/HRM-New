@@ -897,7 +897,7 @@ export function EmployeeDashboard() {
             <div className="flex flex-col items-center text-center">
               <Avatar className="h-[100px] w-[100px] rounded-xl border-2 border-white shadow-md">
                 <AvatarImage src={activeWorker?.photoUrl} alt={activeWorkerName} />
-                <AvatarFallback className="rounded-xl bg-[#e0e7ff] text-2xl font-bold text-[#1e1b4b]">
+                <AvatarFallback className="rounded-xl bg-accent text-2xl font-bold text-foreground">
                   {activeWorkerName.split(' ').map((part) => part.charAt(0)).slice(0, 2).join('')}
                 </AvatarFallback>
               </Avatar>
@@ -947,7 +947,7 @@ export function EmployeeDashboard() {
                         Start with today&apos;s required actions, then continue into the right HR module.
                       </p>
                     </div>
-                    <Link className="text-sm font-medium text-[#6366f1]" to="/employee/time-off">Start a leave request</Link>
+                    <Link className="text-sm font-medium text-primary" to="/employee/time-off">Start a leave request</Link>
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                     {journeyItems.map((item) => (
@@ -960,7 +960,7 @@ export function EmployeeDashboard() {
                             </div>
                             <h3 className="mt-2 text-sm font-semibold text-slate-950">{item.label}</h3>
                           </div>
-                          <div className="mt-4 flex items-center justify-between text-sm font-semibold text-[#4f46e5]">
+                          <div className="mt-4 flex items-center justify-between text-sm font-semibold text-primary">
                             <span>{item.actionLabel}</span>
                             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
                           </div>
@@ -984,7 +984,7 @@ export function EmployeeDashboard() {
                               <div className="grid h-10 w-10 place-items-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-sm shadow-indigo-500/25">
                                 <Icon className="h-5 w-5" />
                               </div>
-                              <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-[#4338ca]" />
+                              <ArrowRight className="h-4 w-4 text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-primary" />
                             </div>
                             <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{module.group}</p>
                             <h3 className="mt-1 text-sm font-semibold text-slate-950">{module.label}</h3>
@@ -1021,7 +1021,7 @@ export function EmployeeDashboard() {
                           </div>
 
                           <div className="mt-5">
-                            <div className="ms-1 h-10 rounded bg-[#fde68a] px-3 py-1 text-xs">
+                            <div className="ms-1 h-10 rounded bg-warning/20 px-3 py-1 text-xs">
                               <p className="font-medium">Daily Shift</p>
                               <p>{setup.attendancePolicy.standardDailyMinutes / 60} working hours</p>
                             </div>
@@ -1030,9 +1030,9 @@ export function EmployeeDashboard() {
                                 const isToday = date.toDateString() === today.toDateString();
                                 return (
                                   <div key={date.toISOString()} className="relative min-w-0 px-1 pt-3 text-xs">
-                                    <span className={cn('absolute -top-1 start-0 h-2 w-2 rounded-full bg-slate-300', isToday && 'bg-[#6366f1]')} />
+                                    <span className={cn('absolute -top-1 start-0 h-2 w-2 rounded-full bg-slate-300', isToday && 'bg-primary')} />
                                     <p className="truncate text-slate-800">{formatDate(date)}</p>
-                                    <p className={cn('mt-2 truncate', isToday ? 'font-semibold text-[#6366f1]' : 'text-slate-500')}>
+                                    <p className={cn('mt-2 truncate', isToday ? 'font-semibold text-primary' : 'text-slate-500')}>
                                       {isToday ? 'Today' : date.getDay() === 5 || date.getDay() === 6 ? 'Weekend' : 'Scheduled'}
                                     </p>
                                   </div>
@@ -1114,7 +1114,7 @@ export function EmployeeDashboard() {
                               <h3 className="font-semibold">Upcoming Holidays</h3>
                               <p className="text-sm text-slate-600">Calendar items from your employee workspace.</p>
                             </div>
-                            <Link className="text-sm font-medium text-[#6366f1]" to="/employee/time-off">View all</Link>
+                            <Link className="text-sm font-medium text-primary" to="/employee/time-off">View all</Link>
                           </div>
                           <div className="mt-4 grid gap-3 md:grid-cols-3">
                             {(data?.upcomingEvents ?? []).slice(0, 3).map((event) => (
@@ -1154,27 +1154,27 @@ export function EmployeeDashboard() {
                         <div className="grid grid-cols-2 gap-2">
                           {todayState?.canCheckIn && clockPendingDirection === null && !checkInMutation.isPending ? (
                             <a
-                              className="inline-flex h-10 items-center justify-center rounded-lg bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(79,70,229,0.18)] transition-all duration-200 hover:bg-[#312e81] active:scale-[0.98]"
+                              className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_14px_rgba(79,70,229,0.18)] transition-all duration-200 hover:bg-primary active:scale-[0.98]"
                               data-attendance-clock-action="in"
                               href={buildClockActionPath('in', workplaceCode)}
                             >
                               Check-in
                             </a>
                           ) : (
-                            <span className="inline-flex h-10 items-center justify-center rounded-lg bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white opacity-50">
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white opacity-50">
                               {clockPendingDirection === 'in' || checkInMutation.isPending ? 'Recording...' : 'Check-in'}
                             </span>
                           )}
                           {todayState?.canCheckOut && clockPendingDirection === null && !checkOutMutation.isPending ? (
                             <a
-                              className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] transition-all duration-200 hover:bg-[#eef2ff] hover:text-[#4f46e5] active:scale-[0.98]"
+                              className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition-all duration-200 hover:bg-accent hover:text-primary active:scale-[0.98]"
                               data-attendance-clock-action="out"
                               href={buildClockActionPath('out', workplaceCode)}
                             >
                               Check-out
                             </a>
                           ) : (
-                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] opacity-50">
+                            <span className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground opacity-50">
                               {clockPendingDirection === 'out' || checkOutMutation.isPending ? 'Recording...' : 'Check-out'}
                             </span>
                           )}
@@ -1208,7 +1208,7 @@ export function EmployeeDashboard() {
 
                     <div className="fusion-glass rounded-2xl p-4">
                       <div className="flex items-center gap-2">
-                        <FileClock className="h-4 w-4 text-[#6366f1]" />
+                        <FileClock className="h-4 w-4 text-primary" />
                         <h3 className="font-semibold">Attendance Correction</h3>
                       </div>
                       <p className="mt-1 text-sm text-slate-600">Request a missing or corrected punch with manager approval.</p>
@@ -1437,11 +1437,11 @@ export function EmployeeAttendanceAction() {
   }, [action, actionLabel, activeWorker?.id, attempt, requiresGeolocation, workplaceCode, workerLoading]);
 
   return (
-    <div className="grid min-h-[calc(100vh-96px)] place-items-center bg-[#eef2ff] px-4 py-12">
+    <div className="grid min-h-[calc(100vh-96px)] place-items-center bg-accent px-4 py-12">
       <div className="w-full max-w-2xl fusion-glass rounded-2xl p-6">
         <div className="flex items-center gap-3">
-          <Clock3 className="h-5 w-5 text-[#4f46e5]" />
-          <h1 className="text-xl font-semibold text-[#0f172a]">{actionLabel}</h1>
+          <Clock3 className="h-5 w-5 text-primary" />
+          <h1 className="text-xl font-semibold text-foreground">{actionLabel}</h1>
         </div>
         <p className="mt-3 text-sm text-slate-600">
           Attendance is recorded with timestamp, workplace, device, and location details when required.
@@ -1497,7 +1497,7 @@ export function EmployeeAttendanceAction() {
             </Button>
           ) : null}
           <Link
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-[#e2e8f0] bg-white px-4 py-2 text-sm font-semibold text-[#0f172a] transition-colors hover:bg-[#eef2ff]"
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
             to="/employee#attendance"
           >
             Back to attendance

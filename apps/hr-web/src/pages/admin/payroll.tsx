@@ -774,7 +774,7 @@ export function AdminPayroll() {
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-[#6366f1] data-[state=active]:bg-transparent data-[state=active]:text-[#6366f1] data-[state=active]:shadow-none"
+                className="rounded-none border-b-2 border-transparent px-4 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
               >
                 {tab.label}
               </TabsTrigger>
@@ -1057,7 +1057,7 @@ export function AdminPayroll() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Net</p>
-                      <p className="font-semibold text-[#6366f1]">{selectedPayrollRow.netSalary === null ? 'Masked' : formatCurrency(selectedPayrollRow.netSalary, selectedPayrollRow.currency)}</p>
+                      <p className="font-semibold text-primary">{selectedPayrollRow.netSalary === null ? 'Masked' : formatCurrency(selectedPayrollRow.netSalary, selectedPayrollRow.currency)}</p>
                     </div>
                     <div className="md:col-span-4 xl:col-span-8">
                       {selectedPayrollRow.policyAssignmentWarnings?.length ? (

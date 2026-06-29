@@ -186,8 +186,8 @@ function RequestCard({ request }: { request: AbsenceRequest }) {
     <div className="fusion-glass rounded-2xl p-4 shadow-[0_4px_16px_rgba(0,0,0,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{request.type}</p>
-          <p className="mt-1 text-sm font-semibold text-[#0f172a]">{requestDateLabel(request)}</p>
+          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{request.type}</p>
+          <p className="mt-1 text-sm font-semibold text-foreground">{requestDateLabel(request)}</p>
         </div>
         <Badge variant={statusBadgeVariant(request.status)} className="shrink-0">
           {request.status}
@@ -195,16 +195,16 @@ function RequestCard({ request }: { request: AbsenceRequest }) {
       </div>
       <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-[#94a3b8]">Duration</p>
-          <p className="mt-1 text-[#0f172a]">{requestDuration(request)}</p>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Duration</p>
+          <p className="mt-1 text-foreground">{requestDuration(request)}</p>
         </div>
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-wider text-[#94a3b8]">Payroll</p>
-          <p className="mt-1 text-[#0f172a]">{formatEnum(request.payrollImpact ?? (request.paid === false ? 'UNPAID_LEAVE' : 'PAID_LEAVE'))}</p>
+          <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Payroll</p>
+          <p className="mt-1 text-foreground">{formatEnum(request.payrollImpact ?? (request.paid === false ? 'UNPAID_LEAVE' : 'PAID_LEAVE'))}</p>
         </div>
       </div>
-      <p className="mt-3 line-clamp-2 text-sm text-[#475569]">{request.reason || 'No reason provided'}</p>
-      <p className="mt-3 text-xs text-[#94a3b8]">Requested {formatDate(request.requestedAt)}</p>
+      <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{request.reason || 'No reason provided'}</p>
+      <p className="mt-3 text-xs text-muted-foreground">Requested {formatDate(request.requestedAt)}</p>
     </div>
   );
 }
@@ -409,7 +409,7 @@ export function EmployeeTimeOff() {
     {
       key: 'reason',
       header: 'Reason',
-      cell: (row: AbsenceRequest) => <span className="line-clamp-2 min-w-48 text-[#475569]">{row.reason || '-'}</span>,
+      cell: (row: AbsenceRequest) => <span className="line-clamp-2 min-w-48 text-muted-foreground">{row.reason || '-'}</span>,
     },
     {
       key: 'requested',
@@ -420,18 +420,18 @@ export function EmployeeTimeOff() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-      <section className="overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-[0_8px_28px_rgba(0,0,0,0.06)]">
-        <div className="grid gap-5 border-b border-[#e2e8f0]/70 bg-[#f6f7fb] p-5 lg:grid-cols-[1fr_auto] lg:items-center">
+      <section className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_8px_28px_rgba(0,0,0,0.06)]">
+        <div className="grid gap-5 border-b border-border/70 bg-muted p-5 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="outline" className="border-[#4f46e5]/30 bg-[#8b5cf6]/10 text-[#4f46e5]">Self-service</Badge>
-              <Badge variant="outline" className="border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]">Policy-driven</Badge>
+              <Badge variant="outline" className="border-primary/30 bg-secondary/10 text-primary">Self-service</Badge>
+              <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">Policy-driven</Badge>
             </div>
-            <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-[#0f172a] sm:text-3xl">
-              <Umbrella className="h-7 w-7 text-[#4f46e5]" />
+            <h2 className="mt-3 flex items-center gap-3 text-2xl font-bold text-foreground sm:text-3xl">
+              <Umbrella className="h-7 w-7 text-primary" />
               Time Off
             </h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#475569]">
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
               Review balances, plan around public holidays, and submit day-based leave or hourly permission requests with manager approval and payroll impact.
             </p>
           </div>
@@ -453,30 +453,30 @@ export function EmployeeTimeOff() {
 
         <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
           <div className="fusion-glass rounded-2xl p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Available balance</p>
-            <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{totalRemaining}</p>
-            <p className="mt-1 text-sm text-[#475569]">Across active balances</p>
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Available balance</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{totalRemaining}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Across active balances</p>
           </div>
           <div className="fusion-glass rounded-2xl p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Pending approval</p>
-            <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{pendingRequests}</p>
-            <p className="mt-1 text-sm text-[#475569]">Requests waiting for review</p>
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Pending approval</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{pendingRequests}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Requests waiting for review</p>
           </div>
           <div className="fusion-glass rounded-2xl p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Approved</p>
-            <p className="mt-2 text-2xl font-semibold text-[#0f172a]">{approvedRequests}</p>
-            <p className="mt-1 text-sm text-[#475569]">Confirmed requests in history</p>
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Approved</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{approvedRequests}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Confirmed requests in history</p>
           </div>
           <div className="fusion-glass rounded-2xl p-4">
-            <p className="font-mono text-xs uppercase tracking-wider text-[#94a3b8]">Next holiday</p>
-            <p className="mt-2 truncate text-lg font-semibold text-[#0f172a]">{upcomingHolidays[0]?.name ?? 'None configured'}</p>
-            <p className="mt-1 text-sm text-[#475569]">{upcomingHolidays[0] ? formatDate(upcomingHolidays[0].date) : 'Setup controls holiday calendars'}</p>
+            <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Next holiday</p>
+            <p className="mt-2 truncate text-lg font-semibold text-foreground">{upcomingHolidays[0]?.name ?? 'None configured'}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{upcomingHolidays[0] ? formatDate(upcomingHolidays[0].date) : 'Setup controls holiday calendars'}</p>
           </div>
         </div>
       </section>
 
       {serviceErrors.length > 0 ? (
-        <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-4 text-sm text-[#9f1239]">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive-foreground">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <div>
@@ -486,7 +486,7 @@ export function EmployeeTimeOff() {
           </div>
         </div>
       ) : isReady ? (
-        <div className="rounded-lg border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 p-3 text-sm text-[#4f46e5]">
+        <div className="rounded-lg border border-secondary/30 bg-secondary/10 p-3 text-sm text-primary">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4" />
             Balances, policy rules, holidays, and request history are connected.
@@ -505,22 +505,22 @@ export function EmployeeTimeOff() {
                 <CardContent className="p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[#0f172a]">{balance.label ?? balance.type}</p>
-                      <p className="mt-1 font-mono text-xs uppercase tracking-wider text-[#94a3b8]">{balance.type}</p>
+                      <p className="truncate text-sm font-semibold text-foreground">{balance.label ?? balance.type}</p>
+                      <p className="mt-1 font-mono text-xs uppercase tracking-wider text-muted-foreground">{balance.type}</p>
                     </div>
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary">
                       <CalendarDays className="h-5 w-5" />
                     </div>
                   </div>
                   <div className="mt-5 flex items-end justify-between gap-4">
                     <div>
-                      <p className="text-3xl font-semibold text-[#0f172a]">{balance.remaining}</p>
-                      <p className="text-sm text-[#475569]">{unitLabel(balance.unit, balance.remaining)} available</p>
+                      <p className="text-3xl font-semibold text-foreground">{balance.remaining}</p>
+                      <p className="text-sm text-muted-foreground">{unitLabel(balance.unit, balance.remaining)} available</p>
                     </div>
-                    <p className="text-right text-sm text-[#475569]">{balance.used} used<br />{balance.total} total</p>
+                    <p className="text-right text-sm text-muted-foreground">{balance.used} used<br />{balance.total} total</p>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#e0e7ff]">
-                    <div className="h-full rounded-full bg-[#4f46e5]" style={{ width: `${percent}%` }} />
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-accent">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${percent}%` }} />
                   </div>
                 </CardContent>
               </Card>
@@ -529,8 +529,8 @@ export function EmployeeTimeOff() {
         ) : (
           <Card className="sm:col-span-2 xl:col-span-4">
             <CardContent className="p-5">
-              <p className="font-semibold text-[#0f172a]">No leave balances found</p>
-              <p className="mt-1 text-sm text-[#475569]">Requestable policies can still be submitted. Balance deductions will appear after balances are configured.</p>
+              <p className="font-semibold text-foreground">No leave balances found</p>
+              <p className="mt-1 text-sm text-muted-foreground">Requestable policies can still be submitted. Balance deductions will appear after balances are configured.</p>
             </CardContent>
           </Card>
         )}
@@ -538,20 +538,20 @@ export function EmployeeTimeOff() {
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <Card className="overflow-hidden">
-          <CardHeader className="border-b border-[#e2e8f0]/70 bg-white p-5">
+          <CardHeader className="border-b border-border/70 bg-white p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <CardTitle className="text-xl">Request History</CardTitle>
                 <CardDescription>Approved leave feeds attendance ledgers and payroll readiness.</CardDescription>
               </div>
-              <Badge variant="outline" className="w-fit border-[#e2e8f0] bg-[#eef2ff] text-[#475569]">
+              <Badge variant="outline" className="w-fit border-border bg-accent text-muted-foreground">
                 {(requests ?? []).length} records
               </Badge>
             </div>
           </CardHeader>
           <CardContent className="p-5">
             {requestsError ? (
-              <div className="rounded-lg border border-[#e11d48]/30 bg-[#e11d48]/5 p-4 text-sm text-[#9f1239]">
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive-foreground">
                 Could not load leave requests: {errorMessage(requestsError)}
               </div>
             ) : (
@@ -571,7 +571,7 @@ export function EmployeeTimeOff() {
                   ) : requests && requests.length > 0 ? (
                     requests.map((request) => <RequestCard key={request.id} request={request} />)
                   ) : (
-                    <div className="rounded-lg border border-[#e2e8f0] bg-[#f6f7fb] p-4 text-sm text-[#475569]">
+                    <div className="rounded-lg border border-border bg-muted p-4 text-sm text-muted-foreground">
                       No leave requests yet. Submitted requests will appear here with policy, balance, and payroll impact.
                     </div>
                   )}
@@ -589,12 +589,12 @@ export function EmployeeTimeOff() {
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0">
               {(leavePolicyResponse?.policies ?? []).slice(0, 4).map((policy) => (
-                <div key={policy.code} className="rounded-lg border border-[#e2e8f0] p-3 text-sm">
+                <div key={policy.code} className="rounded-lg border border-border p-3 text-sm">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-[#0f172a]">{policy.label}</p>
+                    <p className="font-semibold text-foreground">{policy.label}</p>
                     <Badge variant="outline" className="shrink-0">{policy.unit}</Badge>
                   </div>
-                  <p className="mt-1 text-[#475569]">{formatEnum(policy.approvalWorkflow)} approval</p>
+                  <p className="mt-1 text-muted-foreground">{formatEnum(policy.approvalWorkflow)} approval</p>
                 </div>
               ))}
               {policiesLoading ? <Skeleton className="h-20 rounded-lg" /> : null}
@@ -608,15 +608,15 @@ export function EmployeeTimeOff() {
             </CardHeader>
             <CardContent className="space-y-3 p-5 pt-0">
               {upcomingHolidays.length > 0 ? upcomingHolidays.map((holiday) => (
-                <div key={`${holiday.date}-${holiday.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-[#e2e8f0] px-3 py-2 text-sm">
+                <div key={`${holiday.date}-${holiday.name}`} className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-sm">
                   <div className="min-w-0">
-                    <p className="truncate font-semibold text-[#0f172a]">{holiday.name}</p>
-                    <p className="text-xs text-[#94a3b8]">{formatDate(holiday.date)}</p>
+                    <p className="truncate font-semibold text-foreground">{holiday.name}</p>
+                    <p className="text-xs text-muted-foreground">{formatDate(holiday.date)}</p>
                   </div>
                   <Badge variant="outline" className="shrink-0">{holiday.countryCode ?? 'Global'}</Badge>
                 </div>
               )) : (
-                <p className="text-sm text-[#475569]">No upcoming holidays configured.</p>
+                <p className="text-sm text-muted-foreground">No upcoming holidays configured.</p>
               )}
             </CardContent>
           </Card>
@@ -624,10 +624,10 @@ export function EmployeeTimeOff() {
       </section>
 
       <Dialog open={showForm} onOpenChange={handleDialogChange}>
-        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-xl border-[#e2e8f0] bg-white p-0">
-          <DialogHeader className="border-b border-[#e2e8f0]/70 bg-[#f6f7fb] px-6 py-5 text-left">
-            <DialogTitle className="flex items-center gap-2 text-xl text-[#0f172a]">
-              <FileText className="h-5 w-5 text-[#4f46e5]" />
+        <DialogContent className="max-h-[92vh] max-w-4xl overflow-y-auto rounded-xl border-border bg-white p-0">
+          <DialogHeader className="border-b border-border/70 bg-muted px-6 py-5 text-left">
+            <DialogTitle className="flex items-center gap-2 text-xl text-foreground">
+              <FileText className="h-5 w-5 text-primary" />
               Submit Leave Request
             </DialogTitle>
             <DialogDescription>

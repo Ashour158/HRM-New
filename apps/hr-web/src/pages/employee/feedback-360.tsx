@@ -210,7 +210,7 @@ export function EmployeeFeedback360() {
                         id="feedback-comments"
                         value={comments}
                         onChange={(event) => setComments(event.target.value)}
-                        className="min-h-28 w-full rounded-2xl border border-transparent bg-[#f1f5f9] px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
+                        className="min-h-28 w-full rounded-2xl border border-transparent bg-muted px-3 py-2 text-sm text-slate-900 outline-none focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500/20"
                         placeholder="Share strengths, opportunities, or examples."
                       />
                     </div>

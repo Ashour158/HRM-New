@@ -53,7 +53,7 @@ export function OrganizationSummaryHeader({
             Live org graph
           </div>
           <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
-            <Building2 className="h-7 w-7 text-[#6366f1]" />
+            <Building2 className="h-7 w-7 text-primary" />
             <span className="fusion-gradient-text">Organization Admin</span>
           </h2>
           <p className="mt-2 text-sm text-slate-500">Create legal entities, departments, reporting lines, and employee assignments.</p>

@@ -1008,7 +1008,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                   <CardDescription>Real-time workforce view by department, entity, manager, grade, location, business unit, or cost center.</CardDescription>
                 </div>
                 <select
-                  className="h-10 rounded-lg bg-[#f1f5f9] px-3 text-sm"
+                  className="h-10 rounded-lg bg-muted px-3 text-sm"
                   value={chartGroupBy}
                   onChange={(event) => setChartGroupBy(event.target.value)}
                 >
@@ -1029,15 +1029,15 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                         <Badge variant={node.vacancies > 0 ? 'default' : 'outline'}>{node.vacancies} vacancies</Badge>
                       </div>
                       <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
-                        <div className="rounded-md bg-[#f1f5f9] p-2">
+                        <div className="rounded-md bg-muted p-2">
                           <p className="font-semibold">{node.headcount}</p>
                           <p className="text-xs text-muted-foreground">Headcount</p>
                         </div>
-                        <div className="rounded-md bg-[#f1f5f9] p-2">
+                        <div className="rounded-md bg-muted p-2">
                           <p className="font-semibold">{node.positionCount}</p>
                           <p className="text-xs text-muted-foreground">Positions</p>
                         </div>
-                        <div className="rounded-md bg-[#f1f5f9] p-2">
+                        <div className="rounded-md bg-muted p-2">
                           <p className="font-semibold">{formatMoney(node.annualCost)}</p>
                           <p className="text-xs text-muted-foreground">Cost</p>
                         </div>
@@ -1061,19 +1061,19 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-[#f1f5f9] p-3">
+                  <div className="rounded-lg bg-muted p-3">
                     <p className="text-xs text-muted-foreground">Vacancy Risk</p>
                     <p className="text-2xl font-bold">{planning?.strategicDashboard?.vacancyRiskPercent ?? 0}%</p>
                   </div>
-                  <div className="rounded-lg bg-[#f1f5f9] p-3">
+                  <div className="rounded-lg bg-muted p-3">
                     <p className="text-xs text-muted-foreground">Retirement Risk</p>
                     <p className="text-2xl font-bold">{planning?.strategicDashboard?.retirementRisk ?? 0}</p>
                   </div>
-                  <div className="rounded-lg bg-[#f1f5f9] p-3">
+                  <div className="rounded-lg bg-muted p-3">
                     <p className="text-xs text-muted-foreground">Succession Gaps</p>
                     <p className="text-2xl font-bold">{planning?.strategicDashboard?.successionGaps ?? 0}</p>
                   </div>
-                  <div className="rounded-lg bg-[#f1f5f9] p-3">
+                  <div className="rounded-lg bg-muted p-3">
                     <p className="text-xs text-muted-foreground">Critical Roles</p>
                     <p className="text-2xl font-bold">{planning?.strategicDashboard?.criticalRolesWithoutBackup ?? 0}</p>
                   </div>
@@ -1253,7 +1253,7 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                   <ErrorMessage error={simulateScenario.error} />
                 </form>
                 {scenarioResult ? (
-                  <div className="mt-4 rounded-lg border bg-[#f1f5f9] p-4">
+                  <div className="mt-4 rounded-lg border bg-muted p-4">
                     <p className="text-sm font-semibold">{scenarioResult.name}</p>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div>

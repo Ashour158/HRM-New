@@ -34,17 +34,17 @@ const categoryIcons: Record<CommercialModule['category'], React.ComponentType<{ 
 const maturityLabels: Record<CommercialModuleMaturity, { label: string; tone: string; description: string }> = {
   'native-ui': {
     label: 'Full Page',
-    tone: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
+    tone: 'border-secondary/30 bg-secondary/10 text-primary',
     description: 'Has a dedicated product page or employee/admin experience.',
   },
   workbench: {
     label: 'Operations',
-    tone: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
+    tone: 'border-primary/30 bg-primary/10 text-primary',
     description: 'Has a native operations workspace and shared module workbench.',
   },
   'api-ready': {
     label: 'Setup Needed',
-    tone: 'border-[#f59e0b]/30 bg-[#fde68a]/65 text-[#92400e]',
+    tone: 'border-warning/30 bg-warning/65 text-warning-foreground',
     description: 'The service is available through an operations workspace until a full page is configured.',
   },
 };
@@ -66,13 +66,13 @@ function moduleMatches(module: CommercialModule, search: string, category: strin
 
 function StatBlock({ label, value, icon: Icon }: { label: string; value: number | string; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="flex min-h-[88px] items-center gap-3 border-b border-[#e2e8f0]/50 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+    <div className="flex min-h-[88px] items-center gap-3 border-b border-border/50 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+      <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary/10 text-primary">
         <Icon className="h-5 w-5" />
       </div>
       <div>
         <p className="lumina-label">{label}</p>
-        <p className="mt-1 font-headline text-2xl font-bold text-[#0f172a]">{value}</p>
+        <p className="mt-1 font-headline text-2xl font-bold text-foreground">{value}</p>
       </div>
     </div>
   );
@@ -87,7 +87,7 @@ function ModuleCard({ module }: { module: CommercialModule }) {
       <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-400" />
       <CardHeader className="space-y-4 p-5">
         <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#4f46e5] text-white">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-primary text-white">
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -97,23 +97,23 @@ function ModuleCard({ module }: { module: CommercialModule }) {
                 {maturity.label}
               </Badge>
             </div>
-            <p className="mt-1 text-xs font-semibold text-[#4f46e5]">{module.category}</p>
+            <p className="mt-1 text-xs font-semibold text-primary">{module.category}</p>
           </div>
         </div>
-        <p className="min-h-[4.5rem] text-sm leading-6 text-[#475569]">{module.summary}</p>
+        <p className="min-h-[4.5rem] text-sm leading-6 text-muted-foreground">{module.summary}</p>
       </CardHeader>
       <CardContent className="space-y-4 p-5 pt-0">
         <div className="space-y-2">
           <p className="lumina-label">Built capabilities</p>
           <div className="flex flex-wrap gap-2">
             {module.builtCapabilities.slice(0, 4).map((capability) => (
-              <span key={capability} className="rounded-md border border-[#e2e8f0]/70 bg-[#eef2ff] px-2 py-1 text-xs font-medium text-[#475569]">
+              <span key={capability} className="rounded-md border border-border/70 bg-accent px-2 py-1 text-xs font-medium text-muted-foreground">
                 {capability}
               </span>
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 border-t border-[#e2e8f0]/40 pt-4">
+        <div className="flex flex-wrap items-center gap-2 border-t border-border/40 pt-4">
           <Button asChild size="sm">
               <Link to={`/admin/modules/${module.id}`}>Open Workbench</Link>
             </Button>
@@ -148,7 +148,7 @@ export function AdminModuleCatalog() {
           <div className="grid gap-5 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-500 p-6 text-white lg:grid-cols-[1fr_auto]">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#c7d2fe]">Module Catalog</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">Module Catalog</p>
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-semibold text-white">
                   <span className="h-2 w-2 rounded-full bg-emerald-300 fusion-pulse" />
                   Live
@@ -159,7 +159,7 @@ export function AdminModuleCatalog() {
                 Every HR service is reachable from the product UI with clear status, data objects, people roles, and an operations path where a full page is not configured yet.
               </p>
             </div>
-            <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
+            <Button asChild className="w-fit self-end bg-white text-primary hover:bg-accent">
               <Link to="/admin/system-console/settings">
                 <Gauge className="mr-2 h-4 w-4" />
                 Admin Setup
@@ -169,7 +169,7 @@ export function AdminModuleCatalog() {
 
           <div className="grid gap-4 border-b border-white/40 p-4 lg:grid-cols-[1fr_auto]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}

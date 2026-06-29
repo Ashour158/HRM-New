@@ -93,13 +93,13 @@ interface TaskForm {
 const ownerGroups: OwnerGroup[] = ['HR', 'IT', 'Finance', 'Admin', 'Manager', 'Security', 'Facilities'];
 
 const ownerStyles: Record<OwnerGroup, string> = {
-  HR: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
-  IT: 'border-[#6366f1]/30 bg-[#e0e7ff] text-[#1e1b4b]',
-  Finance: 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]',
-  Admin: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
-  Manager: 'border-[#7c3aed]/30 bg-[#ede9fe] text-[#5b21b6]',
-  Security: 'border-[#e11d48]/30 bg-[#ffe4e6] text-[#9f1239]',
-  Facilities: 'border-[#64748b]/30 bg-[#f1f5f9] text-[#334155]',
+  HR: 'border-secondary/30 bg-secondary/10 text-primary',
+  IT: 'border-primary/30 bg-accent text-foreground',
+  Finance: 'border-warning/30 bg-warning/70 text-warning-foreground',
+  Admin: 'border-primary/30 bg-primary/10 text-primary',
+  Manager: 'border-secondary/30 bg-secondary/10 text-secondary',
+  Security: 'border-destructive/30 bg-destructive/10 text-destructive-foreground',
+  Facilities: 'border-muted-foreground/30 bg-muted text-muted-foreground',
 };
 
 const taskTemplates: Array<{
@@ -414,7 +414,7 @@ export function AdminOnboarding() {
                 Launch preboarding, coordinate HR, IT, Finance, Admin, Manager, Security, and Facilities work, and keep new hires moving from offer acceptance to probation confirmation.
               </p>
             </div>
-            <Button asChild className="w-fit self-end bg-white text-[#4f46e5] hover:bg-[#eef2ff]">
+            <Button asChild className="w-fit self-end bg-white text-primary hover:bg-accent">
               <Link to="/employee/onboarding">
                 Employee Preboarding
                 <ArrowRight className="ml-2 h-4 w-4" />
@@ -435,7 +435,7 @@ export function AdminOnboarding() {
             <Card>
               <CardHeader className="p-5">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Briefcase className="h-5 w-5 text-[#4f46e5]" />
+                  <Briefcase className="h-5 w-5 text-primary" />
                   Launch Plan
                 </CardTitle>
               </CardHeader>
@@ -489,15 +489,15 @@ export function AdminOnboarding() {
                       key={plan.id}
                       type="button"
                       className={cn(
-                        'fusion-hover w-full rounded-2xl border p-3 text-left transition-colors hover:border-[#8b5cf6]/60',
-                        selectedPlan?.id === plan.id ? 'border-[#4f46e5] bg-[#8b5cf6]/10' : 'fusion-glass border-transparent',
+                        'fusion-hover w-full rounded-2xl border p-3 text-left transition-colors hover:border-secondary/60',
+                        selectedPlan?.id === plan.id ? 'border-primary bg-secondary/10' : 'fusion-glass border-transparent',
                       )}
                       onClick={() => setSelectedPlanId(plan.id)}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-[#0f172a]">{workerName(worker)}</p>
-                          <p className="mt-1 text-xs text-[#475569]">Starts {formatDate(plan.startDate)}</p>
+                          <p className="font-semibold text-foreground">{workerName(worker)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">Starts {formatDate(plan.startDate)}</p>
                         </div>
                         <StatusBadge status={plan.status} />
                       </div>
@@ -522,7 +522,7 @@ export function AdminOnboarding() {
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <CardTitle className="text-xl">{workerName(selectedWorker)}</CardTitle>
-                    <p className="mt-1 text-sm text-[#475569]">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       {selectedWorker?.jobTitle ?? 'Role track pending'} / {selectedWorker?.departmentName ?? 'Department pending'} / starts {formatDate(selectedPlan?.startDate)}
                     </p>
                   </div>
@@ -538,8 +538,8 @@ export function AdminOnboarding() {
                 </div>
               </CardHeader>
               <CardContent className="p-5 pt-0">
-                <div className="h-2 overflow-hidden rounded-full bg-[#e0e7ff]">
-                  <div className="h-full rounded-full bg-[#8b5cf6]" style={{ width: `${completed}%` }} />
+                <div className="h-2 overflow-hidden rounded-full bg-accent">
+                  <div className="h-full rounded-full bg-secondary" style={{ width: `${completed}%` }} />
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <Metric label="Checklist" value={`${selectedTasks.length} tasks`} />
@@ -569,15 +569,15 @@ export function AdminOnboarding() {
                         return (
                           <div key={template.title} className="fusion-glass rounded-2xl p-4">
                             <div className="flex items-start gap-3">
-                              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-[#4f46e5]">
+                              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-primary">
                                 <Icon className="h-5 w-5" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="text-sm font-semibold text-[#0f172a]">{template.title}</h3>
+                                  <h3 className="text-sm font-semibold text-foreground">{template.title}</h3>
                                   <OwnerBadge ownerGroup={template.ownerGroup} />
                                 </div>
-                                <p className="mt-1 text-xs leading-5 text-[#475569]">{template.description}</p>
+                                <p className="mt-1 text-xs leading-5 text-muted-foreground">{template.description}</p>
                               </div>
                               <Button size="sm" variant="outline" onClick={() => addTemplate(template, index)} disabled={!selectedPlan || createTaskMutation.isPending}>Add</Button>
                             </div>
@@ -623,12 +623,12 @@ export function AdminOnboarding() {
                           <div key={task.id} className="grid gap-3 fusion-glass rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="font-semibold text-[#0f172a]">{task.title}</h3>
+                                <h3 className="font-semibold text-foreground">{task.title}</h3>
                                 <OwnerBadge ownerGroup={ownerGroup} />
                                 <TaskStatusBadge status={task.status} />
                               </div>
-                              <p className="mt-2 text-sm leading-6 text-[#475569]">{task.description ?? 'No description provided.'}</p>
-                              <p className="mt-2 text-xs text-[#94a3b8]">Due {formatDate(task.dueDate)} / plan {taskPlanId(task).slice(0, 8)}</p>
+                              <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.description ?? 'No description provided.'}</p>
+                              <p className="mt-2 text-xs text-muted-foreground">Due {formatDate(task.dueDate)} / plan {taskPlanId(task).slice(0, 8)}</p>
                             </div>
                             <Button
                               size="sm"
@@ -661,9 +661,9 @@ export function AdminOnboarding() {
                       <CardContent className="p-5">
                         <div className="flex items-center justify-between gap-3">
                           <OwnerBadge ownerGroup={owner.ownerGroup} />
-                          <span className="font-headline text-3xl font-bold text-[#0f172a]">{owner.total}</span>
+                          <span className="font-headline text-3xl font-bold text-foreground">{owner.total}</span>
                         </div>
-                        <p className="mt-3 text-sm text-[#475569]">{owner.ownerGroup} tasks owned for the selected onboarding plan.</p>
+                        <p className="mt-3 text-sm text-muted-foreground">{owner.ownerGroup} tasks owned for the selected onboarding plan.</p>
                       </CardContent>
                     </Card>
                   ))}
@@ -687,13 +687,13 @@ export function AdminOnboarding() {
 
 function Kpi({ label, value, icon: Icon }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }> }) {
   return (
-    <div className="flex min-h-[88px] items-center gap-3 border-b border-[#e2e8f0]/50 px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+    <div className="flex min-h-[88px] items-center gap-3 border-b border-border/50 px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+      <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary/10 text-primary">
         <Icon className="h-5 w-5" />
       </div>
       <div>
         <p className="lumina-label">{label}</p>
-        <p className="mt-1 font-headline text-2xl font-bold text-[#0f172a]">{value}</p>
+        <p className="mt-1 font-headline text-2xl font-bold text-foreground">{value}</p>
       </div>
     </div>
   );
@@ -703,7 +703,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="fusion-glass rounded-2xl p-3">
       <p className="lumina-label">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-[#0f172a]">{value}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -734,11 +734,11 @@ function JourneyCard({
   return (
     <Card>
       <CardContent className="p-5">
-        <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+        <div className="grid h-11 w-11 place-items-center rounded-lg bg-secondary/10 text-primary">
           <Icon className="h-5 w-5" />
         </div>
-        <h3 className="mt-4 font-semibold text-[#0f172a]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>
+        <h3 className="mt-4 font-semibold text-foreground">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
       </CardContent>
     </Card>
   );

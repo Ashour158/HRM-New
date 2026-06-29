@@ -25,11 +25,11 @@ export function AttendanceLocationMap({
     <div className="overflow-hidden fusion-glass rounded-2xl">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <div>
-          <h4 className="font-semibold text-[#0f172a]">{title}</h4>
+          <h4 className="font-semibold text-foreground">{title}</h4>
           {subtitle ? <p className="mt-1 text-xs text-slate-600">{subtitle}</p> : null}
         </div>
         {searchUrl ? (
-          <a className="text-sm font-semibold text-[#4f46e5] underline" href={searchUrl} rel="noreferrer" target="_blank">
+          <a className="text-sm font-semibold text-primary underline" href={searchUrl} rel="noreferrer" target="_blank">
             Open in Google Maps
           </a>
         ) : null}
@@ -45,7 +45,7 @@ export function AttendanceLocationMap({
       ) : (
         <div className="grid h-64 place-items-center bg-slate-50 px-5 text-center text-sm text-slate-600">
           <div>
-            <MapPin className="mx-auto mb-3 h-6 w-6 text-[#4f46e5]" />
+            <MapPin className="mx-auto mb-3 h-6 w-6 text-primary" />
             <p className="font-medium text-slate-800">Map preview is not configured.</p>
             <p className="mt-1">Your location was captured and can still be reviewed by HR.</p>
           </div>
