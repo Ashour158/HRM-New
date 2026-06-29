@@ -4,6 +4,7 @@ import { FieldAccessPolicyEngine } from './field-access.engine.js';
 import { PayrollValidationEngine } from './payroll-validation.engine.js';
 import { SelfServiceAuthorityEngine } from './self-service.engine.js';
 import { CountryPolicyValidationEngine } from './country-policy-validation.engine.js';
+import { OfferCompensationEngine } from './offer-compensation.engine.js';
 
 /**
  * Singleton registry holding the declarative definitions for every
@@ -492,3 +493,7 @@ engineRegistry.register({
 });
 
 export const countryPolicyValidationEngine = new CountryPolicyValidationEngine();
+
+// offer-compensation is registered as a definition above; this binds the concrete
+// executable engine (compa-ratio / range-penetration / statutory + pay-equity checks).
+export const offerCompensationEngine = new OfferCompensationEngine();
