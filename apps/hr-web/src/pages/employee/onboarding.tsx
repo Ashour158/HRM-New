@@ -67,13 +67,13 @@ const preboardingSections = [
 ];
 
 const ownerStyles: Record<OwnerGroup, string> = {
-  HR: 'border-[#8b5cf6]/30 bg-[#8b5cf6]/10 text-[#4f46e5]',
-  IT: 'border-[#6366f1]/30 bg-[#e0e7ff] text-[#1e1b4b]',
-  Finance: 'border-[#f59e0b]/30 bg-[#fde68a]/70 text-[#92400e]',
-  Admin: 'border-[#6366f1]/30 bg-[#6366f1]/10 text-[#6366f1]',
-  Manager: 'border-[#7c3aed]/30 bg-[#ede9fe] text-[#5b21b6]',
-  Security: 'border-[#e11d48]/30 bg-[#ffe4e6] text-[#9f1239]',
-  Facilities: 'border-[#64748b]/30 bg-[#f1f5f9] text-[#334155]',
+  HR: 'border-secondary/30 bg-secondary/10 text-primary',
+  IT: 'border-primary/30 bg-accent text-foreground',
+  Finance: 'border-warning/30 bg-warning/70 text-warning-foreground',
+  Admin: 'border-primary/30 bg-primary/10 text-primary',
+  Manager: 'border-secondary/30 bg-secondary/10 text-secondary',
+  Security: 'border-destructive/30 bg-destructive/10 text-destructive-foreground',
+  Facilities: 'border-muted-foreground/30 bg-muted text-muted-foreground',
 };
 
 function unwrap<T>(payload: unknown): T {
@@ -223,7 +223,7 @@ export function EmployeeOnboarding() {
       <div className="mx-auto max-w-[1740px] px-4 pt-6 lg:px-5">
         <div className="fusion-glass grid gap-6 rounded-[2rem] p-6 lg:grid-cols-[1fr_auto]">
           <div>
-            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-[#6366f1]">Employee preboarding</p>
+            <p className="font-mono text-xs font-semibold uppercase tracking-wider text-primary">Employee preboarding</p>
             <h2 className="fusion-gradient-text mt-2 font-headline text-3xl font-bold">Welcome, {firstName}</h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
               Complete your preboarding checklist, sign documents, upload evidence, confirm IT provisioning, and follow your 30/60/90 plan before probation review.
@@ -245,12 +245,12 @@ export function EmployeeOnboarding() {
               <div className="flex flex-col items-center text-center">
                 <Avatar className="h-24 w-24 rounded-xl border-2 border-white shadow-md">
                   <AvatarImage src={worker?.photoUrl ?? user?.avatarUrl} alt={workerName(worker, user?.firstName)} />
-                  <AvatarFallback className="rounded-xl bg-[#e0e7ff] text-2xl font-bold text-[#1e1b4b]">
+                  <AvatarFallback className="rounded-xl bg-accent text-2xl font-bold text-foreground">
                     {(worker?.firstName ?? user?.firstName ?? 'N').charAt(0)}{(worker?.lastName ?? user?.lastName ?? 'H').charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <h3 className="mt-4 font-semibold text-[#0f172a]">{workerName(worker, `${user?.firstName ?? 'New'} ${user?.lastName ?? 'Hire'}`)}</h3>
-                <p className="mt-1 text-sm text-[#475569]">{worker?.jobTitle ?? 'Role pending'} / {worker?.departmentName ?? 'Department pending'}</p>
+                <h3 className="mt-4 font-semibold text-foreground">{workerName(worker, `${user?.firstName ?? 'New'} ${user?.lastName ?? 'Hire'}`)}</h3>
+                <p className="mt-1 text-sm text-muted-foreground">{worker?.jobTitle ?? 'Role pending'} / {worker?.departmentName ?? 'Department pending'}</p>
                 <Badge className="mt-3" variant={plan?.status === 'COMPLETED' ? 'default' : 'secondary'}>{plan?.status?.replace(/_/g, ' ') ?? 'PLAN PENDING'}</Badge>
               </div>
             </CardContent>
@@ -275,22 +275,22 @@ export function EmployeeOnboarding() {
               {planLoading ? <Skeleton className="h-24 w-full" /> : null}
               {!planLoading && (planError || !plan) ? (
                 <div className="fusion-glass rounded-2xl p-5">
-                  <h3 className="font-semibold text-[#0f172a]">No active preboarding plan yet</h3>
-                  <p className="mt-2 text-sm text-[#475569]">HR can launch an onboarding plan once your employee record and start date are ready.</p>
+                  <h3 className="font-semibold text-foreground">No active preboarding plan yet</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">HR can launch an onboarding plan once your employee record and start date are ready.</p>
                 </div>
               ) : (
                 <>
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
                       <p className="lumina-label">Overall progress</p>
-                      <p className="mt-1 font-headline text-3xl font-bold text-[#0f172a]">{completed}% complete</p>
+                      <p className="mt-1 font-headline text-3xl font-bold text-foreground">{completed}% complete</p>
                     </div>
-                    <Badge variant="outline" className="w-fit rounded-full border-[#8b5cf6]/30 bg-[#8b5cf6]/10 px-3 py-1 text-[#4f46e5]">
+                    <Badge variant="outline" className="w-fit rounded-full border-secondary/30 bg-secondary/10 px-3 py-1 text-primary">
                       Portal {plan?.preboardingPortalStatus?.replace(/_/g, ' ') ?? 'ACTIVE'}
                     </Badge>
                   </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-[#e0e7ff]">
-                    <div className="h-full rounded-full bg-[#8b5cf6]" style={{ width: `${completed}%` }} />
+                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-accent">
+                    <div className="h-full rounded-full bg-secondary" style={{ width: `${completed}%` }} />
                   </div>
                 </>
               )}
@@ -309,12 +309,12 @@ export function EmployeeOnboarding() {
                 <Card key={section.label} className="fusion-hover">
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+                      <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary/10 text-primary">
                         <Icon className="h-5 w-5" />
                       </div>
                       <Badge variant={done ? 'default' : 'secondary'}>{done ? 'Done' : `${sectionTasks.length} items`}</Badge>
                     </div>
-                    <h3 className="mt-3 text-sm font-semibold text-[#0f172a]">{section.label}</h3>
+                    <h3 className="mt-3 text-sm font-semibold text-foreground">{section.label}</h3>
                     <OwnerBadge ownerGroup={section.owner} />
                   </CardContent>
                 </Card>
@@ -346,7 +346,7 @@ export function EmployeeOnboarding() {
                     />
                   ))}
                   {!tasksLoading && tasks.length === 0 ? (
-                    <p className="fusion-glass rounded-2xl p-5 text-sm text-[#475569]">Your checklist will appear here after HR publishes onboarding tasks.</p>
+                    <p className="fusion-glass rounded-2xl p-5 text-sm text-muted-foreground">Your checklist will appear here after HR publishes onboarding tasks.</p>
                   ) : null}
                 </CardContent>
               </Card>
@@ -357,19 +357,19 @@ export function EmployeeOnboarding() {
                 <Card>
                   <CardHeader className="p-5">
                     <CardTitle className="flex items-center gap-2 text-lg">
-                      <FileSignature className="h-5 w-5 text-[#4f46e5]" />
+                      <FileSignature className="h-5 w-5 text-primary" />
                       Signing and Evidence
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 p-5 pt-0">
                     {documents.map((task) => <TaskRow key={task.id} task={task} onComplete={() => completeTaskMutation.mutate({ id: task.id })} isPending={completeTaskMutation.isPending} />)}
-                    {documents.length === 0 ? <p className="text-sm text-[#475569]">No document tasks assigned yet.</p> : null}
+                    {documents.length === 0 ? <p className="text-sm text-muted-foreground">No document tasks assigned yet.</p> : null}
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="p-5">
                     <CardTitle className="flex items-center gap-2 text-lg">
-                      <UploadCloud className="h-5 w-5 text-[#4f46e5]" />
+                      <UploadCloud className="h-5 w-5 text-primary" />
                       Evidence Note
                     </CardTitle>
                   </CardHeader>
@@ -401,12 +401,12 @@ export function EmployeeOnboarding() {
               <Card>
                 <CardContent className="p-5">
                   <div className="flex items-start gap-4">
-                    <div className="grid h-12 w-12 place-items-center rounded-lg bg-[#8b5cf6]/10 text-[#4f46e5]">
+                    <div className="grid h-12 w-12 place-items-center rounded-lg bg-secondary/10 text-primary">
                       <GraduationCap className="h-6 w-6" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-[#0f172a]">Probation Management</h3>
-                      <p className="mt-2 text-sm leading-6 text-[#475569]">
+                      <h3 className="font-semibold text-foreground">Probation Management</h3>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
                         Your manager and HR use onboarding evidence, 30/60/90 outcomes, compliance completion, and buddy feedback to prepare the probation decision.
                       </p>
                       <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -440,12 +440,12 @@ function TaskRow({
     <div className="fusion-glass grid gap-3 rounded-2xl p-4 lg:grid-cols-[1fr_auto]">
       <div>
         <div className="flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-[#0f172a]">{task.title}</h3>
+          <h3 className="font-semibold text-foreground">{task.title}</h3>
           <OwnerBadge ownerGroup={ownerGroup} />
           <Badge variant={task.status === 'COMPLETED' ? 'default' : task.status === 'OVERDUE' ? 'destructive' : 'secondary'}>{task.status.replace(/_/g, ' ')}</Badge>
         </div>
-        <p className="mt-2 text-sm leading-6 text-[#475569]">{task.description ?? 'No instructions provided yet.'}</p>
-        <p className="mt-2 text-xs text-[#94a3b8]">Due {formatDate(task.dueDate)}</p>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.description ?? 'No instructions provided yet.'}</p>
+        <p className="mt-2 text-xs text-muted-foreground">Due {formatDate(task.dueDate)}</p>
       </div>
       <Button size="sm" variant={task.status === 'COMPLETED' ? 'outline' : 'default'} onClick={onComplete} disabled={task.status === 'COMPLETED' || isPending}>
         <CheckCircle2 className="mr-2 h-4 w-4" />
@@ -463,7 +463,7 @@ function Snapshot({ label, value }: { label: string; value: string }) {
   return (
     <div className="fusion-glass rounded-2xl p-3">
       <p className="lumina-label">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-[#0f172a]">{value}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -472,9 +472,9 @@ function PlanCard({ title, body }: { title: string; body: string }) {
   return (
     <Card>
       <CardContent className="p-5">
-        <CalendarClock className="h-6 w-6 text-[#4f46e5]" />
-        <h3 className="mt-4 font-semibold text-[#0f172a]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#475569]">{body}</p>
+        <CalendarClock className="h-6 w-6 text-primary" />
+        <h3 className="mt-4 font-semibold text-foreground">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
       </CardContent>
     </Card>
   );

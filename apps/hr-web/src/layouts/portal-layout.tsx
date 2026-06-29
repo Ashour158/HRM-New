@@ -643,7 +643,7 @@ function WorkspaceShell({
         <div className="fixed bottom-5 right-5 z-40 flex flex-col gap-2">
           <Button
             aria-label="Scroll up"
-            className="h-10 w-10 rounded-full border border-[#e2e8f0] bg-white/95 p-0 text-[#4f46e5] shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:bg-[#eef2ff]"
+            className="h-10 w-10 rounded-full border border-border bg-white/95 p-0 text-primary shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:bg-accent"
             onClick={() => scrollWorkspace(-1)}
             title="Scroll up"
             type="button"
@@ -653,7 +653,7 @@ function WorkspaceShell({
           </Button>
           <Button
             aria-label="Scroll down"
-            className="h-10 w-10 rounded-full border border-[#e2e8f0] bg-white/95 p-0 text-[#4f46e5] shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:bg-[#eef2ff]"
+            className="h-10 w-10 rounded-full border border-border bg-white/95 p-0 text-primary shadow-[0_8px_24px_rgba(0,0,0,0.12)] hover:bg-accent"
             onClick={() => scrollWorkspace(1)}
             title="Scroll down"
             type="button"

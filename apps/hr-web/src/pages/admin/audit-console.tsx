@@ -97,20 +97,20 @@ export function AdminAuditConsole() {
   };
 
   return (
-    <main className="p-6 text-[#0f172a] md:p-8">
+    <main className="p-6 text-foreground md:p-8">
       <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-[#4f46e5] hover:underline" to="/admin/system-console">
+            <Link className="mb-3 inline-flex items-center gap-2 text-sm font-semibold text-primary hover:underline" to="/admin/system-console">
               <ArrowLeft className="h-4 w-4" />
               Admin Panel
             </Link>
             <h1 className="fusion-gradient-text font-['Hanken_Grotesk'] text-3xl font-bold md:text-4xl">Audit Trail</h1>
-            <p className="mt-2 max-w-3xl text-sm text-[#475569] md:text-base">
+            <p className="mt-2 max-w-3xl text-sm text-muted-foreground md:text-base">
               Search, filter, export, and inspect administrative and service evidence from the platform audit ledger.
             </p>
           </div>
-          <Button onClick={exportCsv} disabled={!records.length} className="gap-2 bg-[#4f46e5] text-white hover:bg-[#312e81]">
+          <Button onClick={exportCsv} disabled={!records.length} className="gap-2 bg-primary text-white hover:bg-primary">
             <Download className="h-4 w-4" />
             Export CSV
           </Button>
@@ -120,7 +120,7 @@ export function AdminAuditConsole() {
           <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Radar className="h-5 w-5 text-[#4f46e5]" />
+                <Radar className="h-5 w-5 text-primary" />
                 Records
               </CardTitle>
               <CardDescription>Filtered evidence rows</CardDescription>
@@ -130,19 +130,19 @@ export function AdminAuditConsole() {
           <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
-                <ShieldCheck className="h-5 w-5 text-[#6366f1]" />
+                <ShieldCheck className="h-5 w-5 text-primary" />
                 Scope
               </CardTitle>
               <CardDescription>Tenant-scoped and role-gated</CardDescription>
             </CardHeader>
-            <CardContent className="text-sm text-[#475569]">Audit, compliance, HR, payroll, and platform admins only</CardContent>
+            <CardContent className="text-sm text-muted-foreground">Audit, compliance, HR, payroll, and platform admins only</CardContent>
           </Card>
           <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Backend Source</CardTitle>
               <CardDescription>Live ledger endpoint</CardDescription>
             </CardHeader>
-            <CardContent className="font-mono text-sm text-[#475569]">GET /audit</CardContent>
+            <CardContent className="font-mono text-sm text-muted-foreground">GET /audit</CardContent>
           </Card>
         </section>
 
@@ -152,13 +152,13 @@ export function AdminAuditConsole() {
             <CardDescription>Use these controls for operator investigations, compliance evidence, and export packages.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-5">
-            <input aria-label="Filter by resource type" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Resource type" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
-            <input aria-label="Filter by action" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} />
-            <input aria-label="Filter from date" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
-            <input aria-label="Filter to date" className="rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
+            <input aria-label="Filter by resource type" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Resource type" value={resourceType} onChange={(event) => setResourceType(event.target.value)} />
+            <input aria-label="Filter by action" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" placeholder="Action" value={action} onChange={(event) => setAction(event.target.value)} />
+            <input aria-label="Filter from date" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} />
+            <input aria-label="Filter to date" className="rounded-lg border border-border bg-white px-3 py-2 text-sm" type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} />
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94a3b8]" />
-              <input aria-label="Search audit details" className="w-full rounded-lg border border-[#e2e8f0] bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search details" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input aria-label="Search audit details" className="w-full rounded-lg border border-border bg-white py-2 pl-9 pr-3 text-sm" placeholder="Search details" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
           </CardContent>
         </Card>
@@ -183,7 +183,7 @@ export function AdminAuditConsole() {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-[#eef2ff]">
+                    <TableRow className="bg-accent">
                       <TableHead>Time</TableHead>
                       <TableHead>Actor</TableHead>
                       <TableHead>Action</TableHead>
@@ -199,14 +199,14 @@ export function AdminAuditConsole() {
                         <TableCell className="font-semibold">{record.action}</TableCell>
                         <TableCell>
                           <div className="font-semibold">{record.resourceType}</div>
-                          <div className="font-mono text-xs text-[#94a3b8]">{record.resourceId}</div>
+                          <div className="font-mono text-xs text-muted-foreground">{record.resourceId}</div>
                         </TableCell>
-                        <TableCell className="max-w-md truncate font-mono text-xs text-[#475569]">{JSON.stringify(record.details ?? {})}</TableCell>
+                        <TableCell className="max-w-md truncate font-mono text-xs text-muted-foreground">{JSON.stringify(record.details ?? {})}</TableCell>
                       </TableRow>
                     ))}
                     {!records.length && (
                       <TableRow>
-                        <TableCell colSpan={5} className="py-10 text-center text-[#94a3b8]">No audit records match these filters.</TableCell>
+                        <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">No audit records match these filters.</TableCell>
                       </TableRow>
                     )}
                   </TableBody>

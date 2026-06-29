@@ -142,7 +142,7 @@ function RequireRoles({
 
 function RouteLoading() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#f8f9ff] text-sm font-semibold text-[#475569]">
+    <div className="flex min-h-screen items-center justify-center bg-muted text-sm font-semibold text-muted-foreground">
       Loading workspace...
     </div>
   );

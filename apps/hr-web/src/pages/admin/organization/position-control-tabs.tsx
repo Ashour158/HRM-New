@@ -113,7 +113,7 @@ export function PositionsTab({
             </div>
             <div className="space-y-2">
               <Label htmlFor="position-employment-type">Employment Type</Label>
-              <select id="position-employment-type" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.employmentType} onChange={(event) => onFormChange({ ...positionForm, employmentType: event.target.value })}>
+              <select id="position-employment-type" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={positionForm.employmentType} onChange={(event) => onFormChange({ ...positionForm, employmentType: event.target.value })}>
                 <option value="FULL_TIME">Full time</option>
                 <option value="PART_TIME">Part time</option>
                 <option value="CONTRACTOR">Contractor</option>
@@ -122,14 +122,14 @@ export function PositionsTab({
             </div>
             <div className="space-y-2">
               <Label htmlFor="position-entity">Legal Entity</Label>
-              <select id="position-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.legalEntityId} onChange={(event) => onFormChange({ ...positionForm, legalEntityId: event.target.value })}>
+              <select id="position-entity" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={positionForm.legalEntityId} onChange={(event) => onFormChange({ ...positionForm, legalEntityId: event.target.value })}>
                 <option value="">No entity</option>
                 {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
               </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="position-department">Department</Label>
-              <select id="position-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={positionForm.departmentId} onChange={(event) => onFormChange({ ...positionForm, departmentId: event.target.value })}>
+              <select id="position-department" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={positionForm.departmentId} onChange={(event) => onFormChange({ ...positionForm, departmentId: event.target.value })}>
                 <option value="">No department</option>
                 {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
               </select>
@@ -257,14 +257,14 @@ export function HeadcountTab({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="headcount-entity">Legal Entity</Label>
-                <select id="headcount-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={headcountForm.legalEntityId} onChange={(event) => onFormChange({ ...headcountForm, legalEntityId: event.target.value })}>
+                <select id="headcount-entity" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={headcountForm.legalEntityId} onChange={(event) => onFormChange({ ...headcountForm, legalEntityId: event.target.value })}>
                   <option value="">No entity</option>
                   {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
                 </select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="headcount-department">Department</Label>
-                <select id="headcount-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={headcountForm.departmentId} onChange={(event) => onFormChange({ ...headcountForm, departmentId: event.target.value })}>
+                <select id="headcount-department" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={headcountForm.departmentId} onChange={(event) => onFormChange({ ...headcountForm, departmentId: event.target.value })}>
                   <option value="">No department</option>
                   {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
                 </select>
@@ -288,11 +288,11 @@ export function HeadcountTab({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-[#f1f5f9] p-3">
+              <div className="rounded-lg bg-muted p-3">
                 <p className="text-xs text-muted-foreground">Approved Requests</p>
                 <p className="text-2xl font-bold">{approvedHeadcountRequests.length}</p>
               </div>
-              <div className="rounded-lg bg-[#f1f5f9] p-3">
+              <div className="rounded-lg bg-muted p-3">
                 <p className="text-xs text-muted-foreground">Saga Positions</p>
                 <p className="text-2xl font-bold">{approvedSagaPositionCount}</p>
               </div>

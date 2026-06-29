@@ -44,7 +44,7 @@ export type HrReportsDashboard = {
 export type ReportingTab = 'overview' | 'analytics' | 'builder' | 'relationships' | 'library' | 'activity';
 
 export function readinessTone(readiness: HrReportReadiness) {
-  if (readiness === 'Attention') return 'border-[#f59e0b]/35 bg-[#fef3c7] text-[#92400e]';
-  if (readiness === 'Live') return 'border-[#10b981]/25 bg-[#d1fae5] text-[#065f46]';
-  return 'border-[#cbd5e1] bg-white text-[#475569]';
+  if (readiness === 'Attention') return 'border-warning/35 bg-warning/10 text-warning-foreground';
+  if (readiness === 'Live') return 'border-success/25 bg-success/15 text-success-foreground';
+  return 'border-border bg-white text-muted-foreground';
 }

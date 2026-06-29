@@ -96,24 +96,24 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen fusion-bg px-5 py-10 text-[#0f172a]">
+    <main className="min-h-screen fusion-bg px-5 py-10 text-foreground">
       <div className="mx-auto flex min-h-[calc(100vh-80px)] w-full max-w-[920px] items-center justify-center">
-        <section className="w-full max-w-[500px] rounded-xl border border-[#e2e8f0]/70 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
-          <Link className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-[#4f46e5]" to="/login">
+        <section className="w-full max-w-[500px] rounded-xl border border-border/70 bg-white p-8 shadow-[0_24px_70px_rgba(15,23,42,0.08)]">
+          <Link className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-primary" to="/login">
             <ArrowLeft className="h-4 w-4" />
             Back to sign in
           </Link>
           <div className="mb-7 flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#4f46e5] text-white">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-primary text-white">
               <KeyRound className="h-6 w-6" />
             </div>
             <div>
               <h1 className="font-headline text-3xl font-semibold">Reset password</h1>
-              <p className="text-sm text-[#64748b]">Request a reset message, then enter the token and new password.</p>
+              <p className="text-sm text-muted-foreground">Request a reset message, then enter the token and new password.</p>
             </div>
           </div>
 
-          {message && <div className="mb-4 rounded-lg border border-[#cbd5e1] bg-[#f8fafc] p-3 text-sm text-[#334155]">{message}</div>}
+          {message && <div className="mb-4 rounded-lg border border-border bg-muted p-3 text-sm text-muted-foreground">{message}</div>}
 
           {step === 'request' ? (
             <form className="space-y-4" onSubmit={submitRequest}>

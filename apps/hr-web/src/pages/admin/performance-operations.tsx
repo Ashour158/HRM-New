@@ -1068,7 +1068,7 @@ export function AdminPerformanceOperations() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card className="rounded-2xl">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm"><UserCheck className="h-4 w-4 text-[#4f46e5]" /> Reviews</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-sm"><UserCheck className="h-4 w-4 text-primary" /> Reviews</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold">{analytics?.reviewCompletion.total ?? 0}</p>
@@ -1077,7 +1077,7 @@ export function AdminPerformanceOperations() {
             </Card>
             <Card className="rounded-2xl">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm"><Target className="h-4 w-4 text-[#4f46e5]" /> Goals</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-sm"><Target className="h-4 w-4 text-primary" /> Goals</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold">{analytics?.goalMetrics.averageProgress ?? 0}%</p>
@@ -1086,7 +1086,7 @@ export function AdminPerformanceOperations() {
             </Card>
             <Card className="rounded-2xl">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm"><MessageSquare className="h-4 w-4 text-[#4f46e5]" /> Peer Feedback</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-sm"><MessageSquare className="h-4 w-4 text-primary" /> Peer Feedback</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold">{analytics?.peerFeedback.submitted ?? 0}</p>
@@ -1095,7 +1095,7 @@ export function AdminPerformanceOperations() {
             </Card>
             <Card className="rounded-2xl">
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm"><Award className="h-4 w-4 text-[#4f46e5]" /> Recognition</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-sm"><Award className="h-4 w-4 text-primary" /> Recognition</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-2xl font-semibold">{analytics?.recognitions.length ?? 0}</p>
@@ -1107,7 +1107,7 @@ export function AdminPerformanceOperations() {
           <div className="grid gap-5 xl:grid-cols-[380px_minmax(0,1fr)]">
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-[#4f46e5]" /> Rating Distribution</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><BarChart3 className="h-5 w-5 text-primary" /> Rating Distribution</CardTitle>
                 <CardDescription>Final/calibrated ratings across the cycle.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1117,7 +1117,7 @@ export function AdminPerformanceOperations() {
                     <div key={bucket.rating} className="grid grid-cols-[44px_1fr_32px] items-center gap-2 text-sm">
                       <span>{bucket.rating} star</span>
                       <div className="h-2 rounded-full bg-slate-100">
-                        <div className="h-2 rounded-full bg-[#4f46e5]" style={{ width: `${(bucket.count / maxCount) * 100}%` }} />
+                        <div className="h-2 rounded-full bg-primary" style={{ width: `${(bucket.count / maxCount) * 100}%` }} />
                       </div>
                       <span className="text-right font-medium">{bucket.count}</span>
                     </div>
@@ -1128,7 +1128,7 @@ export function AdminPerformanceOperations() {
 
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Grid3X3 className="h-5 w-5 text-[#4f46e5]" /> Talent Grid / 9-Box</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Grid3X3 className="h-5 w-5 text-primary" /> Talent Grid / 9-Box</CardTitle>
                 <CardDescription>Performance and potential bands from ratings, goals, OKRs, and peer signal.</CardDescription>
               </CardHeader>
               <CardContent>
@@ -1162,7 +1162,7 @@ export function AdminPerformanceOperations() {
           <div className="grid gap-5 xl:grid-cols-3">
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-[#4f46e5]" /> Best Employee Recognition</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Star className="h-5 w-5 text-primary" /> Best Employee Recognition</CardTitle>
                 <CardDescription>Computed from ratings, goals, and feedback.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1177,7 +1177,7 @@ export function AdminPerformanceOperations() {
 
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><TrendingUp className="h-5 w-5 text-[#4f46e5]" /> Action Plans</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><TrendingUp className="h-5 w-5 text-primary" /> Action Plans</CardTitle>
                 <CardDescription>Employee-level next actions from review and goal signals.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1214,7 +1214,7 @@ export function AdminPerformanceOperations() {
 
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-[#4f46e5]" /> Feedback Synthesis</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Bell className="h-5 w-5 text-primary" /> Feedback Synthesis</CardTitle>
                 <CardDescription>Concise feedback summary, with anonymous reviewer masking.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1242,7 +1242,7 @@ export function AdminPerformanceOperations() {
           <div className="grid gap-5 xl:grid-cols-2">
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-[#4f46e5]" /> Bias Checks</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><ShieldCheck className="h-5 w-5 text-primary" /> Bias Checks</CardTitle>
                 <CardDescription>Department distributions use suppression when group counts are below the analytics threshold.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1259,7 +1259,7 @@ export function AdminPerformanceOperations() {
 
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg"><Activity className="h-5 w-5 text-[#4f46e5]" /> Score Explainability</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Activity className="h-5 w-5 text-primary" /> Score Explainability</CardTitle>
                 <CardDescription>Why the analytics engine placed employees in a risk, recognition, or 9-box segment.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1759,15 +1759,15 @@ export function AdminPerformanceOperations() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="h-4 w-4 text-[#4f46e5]" />Access</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ShieldCheck className="h-4 w-4 text-primary" />Access</div>
           Reads are scoped by tenant, employee, manager line, or HR performance role.
         </div>
         <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><BarChart3 className="h-4 w-4 text-[#4f46e5]" />Lifecycle</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><BarChart3 className="h-4 w-4 text-primary" />Lifecycle</div>
           Mutations use backend command handlers and FSM transitions instead of local-only UI state.
         </div>
         <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ClipboardCheck className="h-4 w-4 text-[#4f46e5]" />Audit</div>
+          <div className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><ClipboardCheck className="h-4 w-4 text-primary" />Audit</div>
           Command bus execution keeps idempotency, audit, transition ledger, and outbox behavior in the flow.
         </div>
       </div>

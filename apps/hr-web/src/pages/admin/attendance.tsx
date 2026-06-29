@@ -718,7 +718,7 @@ export function AdminAttendance() {
             Live attendance feed
           </div>
           <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
-            <Clock3 className="h-7 w-7 text-[#6366f1]" />
+            <Clock3 className="h-7 w-7 text-primary" />
             <span className="fusion-gradient-text">Attendance Control</span>
           </h2>
           <p className="mt-2 text-sm text-slate-500">Payroll-grade attendance closure, evidence, exceptions, and daily ledger control.</p>
@@ -804,7 +804,7 @@ export function AdminAttendance() {
             <TabsTrigger
               key={tab.value}
               value={tab.value}
-              className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-[#6366f1] data-[state=active]:bg-transparent data-[state=active]:text-[#6366f1]"
+              className="rounded-none border-b-2 border-transparent px-4 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary"
             >
               {tab.label}
             </TabsTrigger>

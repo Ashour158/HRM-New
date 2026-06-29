@@ -190,14 +190,14 @@ export function DepartmentsTab({
             </div>
             <div className="space-y-2">
               <Label htmlFor="unit-entity">Legal Entity</Label>
-              <select id="unit-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={form.legalEntityId} onChange={(event) => onFormChange({ ...form, legalEntityId: event.target.value })} required>
+              <select id="unit-entity" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={form.legalEntityId} onChange={(event) => onFormChange({ ...form, legalEntityId: event.target.value })} required>
                 <option value="">Select entity</option>
                 {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
               </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="parent-unit">Parent Unit</Label>
-              <select id="parent-unit" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={form.parentOrgUnitId} onChange={(event) => onFormChange({ ...form, parentOrgUnitId: event.target.value })}>
+              <select id="parent-unit" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={form.parentOrgUnitId} onChange={(event) => onFormChange({ ...form, parentOrgUnitId: event.target.value })}>
                 <option value="">Root department</option>
                 {orgUnits.filter((unit) => unit.id !== form.id).map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
               </select>
@@ -271,7 +271,7 @@ export function AssignmentsTab({
           >
             <div className="space-y-2">
               <Label htmlFor="assignment-worker">Employee</Label>
-              <select id="assignment-worker" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={form.workerId} onChange={(event) => onFormChange({ ...form, workerId: event.target.value })} required>
+              <select id="assignment-worker" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={form.workerId} onChange={(event) => onFormChange({ ...form, workerId: event.target.value })} required>
                 <option value="">Select employee</option>
                 {workers.map((worker) => <option key={worker.id} value={worker.id}>{workerLabel(worker)}</option>)}
               </select>
@@ -282,21 +282,21 @@ export function AssignmentsTab({
             </div>
             <div className="space-y-2">
               <Label htmlFor="assignment-entity">Legal Entity</Label>
-              <select id="assignment-entity" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={form.legalEntityId} onChange={(event) => onFormChange({ ...form, legalEntityId: event.target.value })}>
+              <select id="assignment-entity" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={form.legalEntityId} onChange={(event) => onFormChange({ ...form, legalEntityId: event.target.value })}>
                 <option value="">No entity</option>
                 {legalEntities.map((entity) => <option key={entity.id} value={entity.id}>{entity.name}</option>)}
               </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="assignment-department">Department / Team</Label>
-              <select id="assignment-department" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={form.departmentId} onChange={(event) => onFormChange({ ...form, departmentId: event.target.value })}>
+              <select id="assignment-department" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={form.departmentId} onChange={(event) => onFormChange({ ...form, departmentId: event.target.value })}>
                 <option value="">No department</option>
                 {orgUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.name}</option>)}
               </select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="assignment-manager">Manager</Label>
-              <select id="assignment-manager" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={form.managerId} onChange={(event) => onFormChange({ ...form, managerId: event.target.value })}>
+              <select id="assignment-manager" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={form.managerId} onChange={(event) => onFormChange({ ...form, managerId: event.target.value })}>
                 <option value="">No manager</option>
                 {workers.filter((worker) => worker.id !== form.workerId).map((worker) => <option key={worker.id} value={worker.id}>{workerLabel(worker)}</option>)}
               </select>

@@ -451,7 +451,7 @@ export function ManagerTeam() {
                             {formatLabel(goal.status)}
                           </Badge>
                         </div>
-                        <div className="mt-2 h-2 rounded-full bg-[#e0e7ff]">
+                        <div className="mt-2 h-2 rounded-full bg-accent">
                           <div
                             className="h-2 rounded-full bg-primary"
                             style={{ width: `${clampPercent(goal.progress)}%` }}

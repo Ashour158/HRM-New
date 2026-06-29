@@ -350,7 +350,7 @@ export function AdminLeaveManagement() {
             Leave service connected
           </div>
           <h2 className="flex items-center gap-2 font-headline text-3xl font-extrabold tracking-tight">
-            <Umbrella className="h-7 w-7 text-[#6366f1]" />
+            <Umbrella className="h-7 w-7 text-primary" />
             <span className="fusion-gradient-text">Leave Management</span>
           </h2>
           <p className="mt-2 text-sm text-slate-500">Admin leave requests, approvals, balances, policies, holidays, and payroll impact.</p>
@@ -403,14 +403,14 @@ export function AdminLeaveManagement() {
               }}>
                 <div className="space-y-2">
                   <Label htmlFor="leave-worker">Employee</Label>
-                  <select id="leave-worker" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={requestForm.workerId} onChange={(event) => setRequestForm({ ...requestForm, workerId: event.target.value })} required>
+                  <select id="leave-worker" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={requestForm.workerId} onChange={(event) => setRequestForm({ ...requestForm, workerId: event.target.value })} required>
                     <option value="">Select employee</option>
                     {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.employeeId} - {workerName(worker)}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="leave-type">Leave Policy</Label>
-                  <select id="leave-type" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={requestForm.absenceType} onChange={(event) => setRequestForm({ ...requestForm, absenceType: event.target.value })} required>
+                  <select id="leave-type" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={requestForm.absenceType} onChange={(event) => setRequestForm({ ...requestForm, absenceType: event.target.value })} required>
                     <option value="">Select policy</option>
                     {policies.map((policy) => <option key={policy.code} value={policy.code}>{policy.label} ({policy.unit.toLowerCase()})</option>)}
                   </select>
@@ -576,14 +576,14 @@ export function AdminLeaveManagement() {
               }}>
                 <div className="space-y-2">
                   <Label htmlFor="balance-worker">Employee</Label>
-                  <select id="balance-worker" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={balanceForm.workerId} onChange={(event) => setBalanceForm({ ...balanceForm, workerId: event.target.value })} required>
+                  <select id="balance-worker" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={balanceForm.workerId} onChange={(event) => setBalanceForm({ ...balanceForm, workerId: event.target.value })} required>
                     <option value="">Select employee</option>
                     {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.employeeId} - {workerName(worker)}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="balance-policy">Leave Type</Label>
-                  <select id="balance-policy" className="h-10 w-full rounded-lg bg-[#f1f5f9] px-3 text-sm" value={balanceForm.leaveType} onChange={(event) => setBalanceForm({ ...balanceForm, leaveType: event.target.value })} required>
+                  <select id="balance-policy" className="h-10 w-full rounded-lg bg-muted px-3 text-sm" value={balanceForm.leaveType} onChange={(event) => setBalanceForm({ ...balanceForm, leaveType: event.target.value })} required>
                     <option value="">Select policy</option>
                     {policies.map((policy) => <option key={policy.code} value={policy.code}>{policy.label}</option>)}
                   </select>

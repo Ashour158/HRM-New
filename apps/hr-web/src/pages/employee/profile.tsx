@@ -352,7 +352,7 @@ export function EmployeeProfile() {
                       id="profile-change-type"
                       value={profileChangeType}
                       onChange={(event) => setProfileChangeType(event.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                     >
                       {profileChangeOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -367,7 +367,7 @@ export function EmployeeProfile() {
                       onChange={(event) => setProfileChangeDetails(event.target.value)}
                       rows={3}
                       placeholder="Tell HR what should be corrected or updated"
-                      className="flex min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
                   </div>
                   <Button type="button" disabled={!canSubmitProfileChange} onClick={submitProfileChangeRequest}>
@@ -554,7 +554,7 @@ export function EmployeeProfile() {
                       id="document-request-type"
                       value={documentRequestType}
                       onChange={(event) => setDocumentRequestType(event.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                      className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                     >
                       {documentRequestOptions.map((option) => (
                         <option key={option.value} value={option.value}>{option.label}</option>
@@ -569,7 +569,7 @@ export function EmployeeProfile() {
                       onChange={(event) => setDocumentRequestDetails(event.target.value)}
                       rows={3}
                       placeholder="Tell HR what document should be added, renewed, or replaced"
-                      className="flex min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-[#4f46e5]/30"
+                      className="flex min-h-[80px] w-full rounded-md border border-input bg-white px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary/30"
                     />
                   </div>
                   <Button type="button" disabled={!canSubmitDocumentRequest} onClick={submitDocumentRequest}>

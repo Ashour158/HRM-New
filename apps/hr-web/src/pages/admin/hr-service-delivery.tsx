@@ -209,7 +209,7 @@ export function AdminHrServiceDelivery() {
     <div className="space-y-6 p-5">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <Badge variant="secondary" className="mb-3 bg-[#eef2ff] text-[#4f46e5]">Service Operations</Badge>
+          <Badge variant="secondary" className="mb-3 bg-accent text-primary">Service Operations</Badge>
           <h1 className="font-headline text-3xl font-semibold text-slate-950">HR Service Delivery</h1>
           <p className="mt-1 max-w-2xl text-sm text-slate-600">Triage employee HR cases, protect SLA commitments, and move requests through resolution.</p>
         </div>
@@ -229,13 +229,13 @@ export function AdminHrServiceDelivery() {
         ].map((metric) => {
           const Icon = metric.icon;
           return (
-            <Card key={metric.label} className="rounded-xl border-[#e2e8f0]">
+            <Card key={metric.label} className="rounded-xl border-border">
               <CardContent className="flex items-center justify-between p-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{metric.label}</p>
                   <p className="text-2xl font-bold text-slate-950">{metric.value}</p>
                 </div>
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-[#eef2ff] text-[#4f46e5]">
+                <span className="grid h-10 w-10 place-items-center rounded-lg bg-accent text-primary">
                   <Icon className="h-5 w-5" />
                 </span>
               </CardContent>
@@ -254,10 +254,10 @@ export function AdminHrServiceDelivery() {
         </TabsList>
 
         <TabsContent value="queue">
-          <Card className="rounded-xl border-[#e2e8f0]">
+          <Card className="rounded-xl border-border">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <LifeBuoy className="h-5 w-5 text-[#4f46e5]" />
+                <LifeBuoy className="h-5 w-5 text-primary" />
                 Case Queue
               </CardTitle>
               <CardDescription>All tenant service cases ordered by latest activity.</CardDescription>
@@ -274,7 +274,7 @@ export function AdminHrServiceDelivery() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-3">
               {(['OPEN', 'IN_PROGRESS', 'PENDING_CUSTOMER'] as const).map((status) => (
-                <Card key={status} className="rounded-xl border-[#e2e8f0]">
+                <Card key={status} className="rounded-xl border-border">
                   <CardHeader>
                     <CardTitle className="text-base">{status.replace(/_/g, ' ')}</CardTitle>
                     <CardDescription>{filteredCases.filter((serviceCase) => serviceCase.status === status).length} active cases</CardDescription>
@@ -309,7 +309,7 @@ export function AdminHrServiceDelivery() {
         </TabsContent>
 
         <TabsContent value="catalog">
-          <Card className="rounded-xl border-[#e2e8f0]">
+          <Card className="rounded-xl border-border">
             <CardHeader>
               <CardTitle className="text-lg">Service Catalog</CardTitle>
               <CardDescription>Services employees can request from self-service.</CardDescription>
@@ -323,7 +323,7 @@ export function AdminHrServiceDelivery() {
                     <div key={item.id} className="rounded-lg border border-slate-200 bg-white p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[#4f46e5]">{item.category}</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-primary">{item.category}</p>
                           <h3 className="mt-1 font-semibold text-slate-950">{item.serviceName}</h3>
                         </div>
                         <Badge variant={item.status === 'ACTIVE' ? 'default' : 'outline'}>{item.status}</Badge>
