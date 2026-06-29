@@ -685,25 +685,25 @@ function WorkspaceShell({
                 <div>
                   <p className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-400">Company</p>
                   <ul className="mt-3 space-y-2">
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">About</a></li>
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Careers</a></li>
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Contact</a></li>
+                    <li><span className="text-slate-400" aria-disabled="true">About</span></li>
+                    <li><span className="text-slate-400" aria-disabled="true">Careers</span></li>
+                    <li><Link className="transition-colors hover:text-indigo-600" to="/employee/services">Contact HR</Link></li>
                   </ul>
                 </div>
                 <div>
                   <p className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-400">Legal</p>
                   <ul className="mt-3 space-y-2">
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Privacy Policy</a></li>
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Terms of Service</a></li>
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Compliance</a></li>
+                    <li><span className="text-slate-400" aria-disabled="true">Privacy Policy</span></li>
+                    <li><span className="text-slate-400" aria-disabled="true">Terms of Service</span></li>
+                    <li><Link className="transition-colors hover:text-indigo-600" to="/admin/compliance">Compliance</Link></li>
                   </ul>
                 </div>
                 <div>
                   <p className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-400">Support</p>
                   <ul className="mt-3 space-y-2">
-                    <li><a className="transition-colors hover:text-indigo-600" href="/employee/services">Help Center</a></li>
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Security</a></li>
-                    <li><a className="transition-colors hover:text-indigo-600" href="#">Status</a></li>
+                    <li><Link className="transition-colors hover:text-indigo-600" to="/employee/services">Help Center</Link></li>
+                    <li><Link className="transition-colors hover:text-indigo-600" to="/admin/system-console/access-governance">Security</Link></li>
+                    <li><Link className="transition-colors hover:text-indigo-600" to="/admin/system-console/readiness">Status</Link></li>
                   </ul>
                 </div>
               </div>
@@ -712,10 +712,10 @@ function WorkspaceShell({
             <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-white/40 pt-6 text-xs text-slate-500 md:flex-row">
               <span className="font-mono font-semibold">&copy; {new Date().getFullYear()} Enterprise HR. All rights reserved.</span>
               <div className="flex flex-wrap items-center justify-center gap-4">
-                <a className="underline-offset-4 hover:text-indigo-600 hover:underline" href="#">Privacy</a>
-                <a className="underline-offset-4 hover:text-indigo-600 hover:underline" href="#">Terms</a>
-                <a className="underline-offset-4 hover:text-indigo-600 hover:underline" href="#">Cookies</a>
-                <a className="underline-offset-4 hover:text-indigo-600 hover:underline" href="#">Accessibility</a>
+                <span className="text-slate-400" aria-disabled="true">Privacy</span>
+                <span className="text-slate-400" aria-disabled="true">Terms</span>
+                <span className="text-slate-400" aria-disabled="true">Cookies</span>
+                <span className="text-slate-400" aria-disabled="true">Accessibility</span>
               </div>
             </div>
           </div>
