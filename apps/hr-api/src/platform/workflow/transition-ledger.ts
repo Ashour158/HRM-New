@@ -19,6 +19,29 @@ export interface TransitionLedgerEntry {
   commandId: Uuid;
 }
 
+/**
+ * Pure row -> entry mapper (exported for unit testing). commandId reads from the
+ * command_id column, NOT id — they are distinct (id is the ledger row's own PK).
+ */
+export function mapTransitionLedgerRow(r: Record<string, unknown>): TransitionLedgerEntry {
+  return {
+    id: (r.id as string) as unknown as Uuid,
+    tenantId: (r.tenant_id as string) as unknown as Uuid,
+    aggregateType: r.aggregate_type as string,
+    aggregateId: (r.aggregate_id as string) as unknown as Uuid,
+    fromState: r.from_state as string,
+    toState: r.to_state as string,
+    action: r.action as string,
+    triggeredBy: r.triggered_by as string,
+    occurredAt: r.occurred_at as Date,
+    correlationId: (r.correlation_id as string) as unknown as Uuid,
+    decisionRecordId: r.decision_record_id
+      ? ((r.decision_record_id as string) as unknown as Uuid)
+      : undefined,
+    commandId: (r.command_id as string) as unknown as Uuid,
+  };
+}
+
 @Injectable()
 export class TransitionLedgerService {
   private readonly db: Kysely<Database>;
@@ -83,21 +106,6 @@ export class TransitionLedgerService {
   }
 
   private toEntry(r: Record<string, unknown>): TransitionLedgerEntry {
-    return {
-      id: (r.id as string) as unknown as Uuid,
-      tenantId: (r.tenant_id as string) as unknown as Uuid,
-      aggregateType: r.aggregate_type as string,
-      aggregateId: (r.aggregate_id as string) as unknown as Uuid,
-      fromState: r.from_state as string,
-      toState: r.to_state as string,
-      action: r.action as string,
-      triggeredBy: r.triggered_by as string,
-      occurredAt: r.occurred_at as Date,
-      correlationId: (r.correlation_id as string) as unknown as Uuid,
-      decisionRecordId: r.decision_record_id
-        ? ((r.decision_record_id as string) as unknown as Uuid)
-        : undefined,
-      commandId: (r.id as string) as unknown as Uuid,
-    };
+    return mapTransitionLedgerRow(r);
   }
 }
