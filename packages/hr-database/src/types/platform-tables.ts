@@ -68,6 +68,7 @@ export interface OutboxEventsTable {
   created_at: ColumnType<Date, string | undefined, never>;
   published_at: Date | null;
   publish_attempt_count: number;
+  last_error: string | null;
 }
 
 export interface InboxEventsTable {
