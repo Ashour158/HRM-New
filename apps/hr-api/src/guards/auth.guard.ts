@@ -59,7 +59,15 @@ export class AuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     if (request.actor) return true;
 
-    const config = loadAppConfig();
+    // In production a missing/weak system credential makes loadAppConfig() throw
+    // (strong-secret guard). That must DENY the request (403), not surface as an
+    // unhandled 500 — a misconfigured or demo key never grants access.
+    let config: ReturnType<typeof loadAppConfig>;
+    try {
+      config = loadAppConfig();
+    } catch {
+      throw new ForbiddenException('Server authentication is not properly configured');
+    }
 
     // 1. Try API key first (for SYSTEM / INTEGRATION actors).
     const apiKey =

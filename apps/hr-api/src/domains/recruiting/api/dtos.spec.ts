@@ -19,7 +19,8 @@ describe('CreateOfferDtoSchema', () => {
   });
 
   it('rejects a payload missing applicationId', () => {
-    const { applicationId: _omit, ...withoutApplication } = valid;
+    const withoutApplication: Partial<typeof valid> = { ...valid };
+    delete withoutApplication.applicationId;
     expect(() => CreateOfferDtoSchema.parse(withoutApplication)).toThrow();
   });
 

@@ -31,7 +31,8 @@ describe('mapTransitionLedgerRow', () => {
     expect(entry.action).toBe('accept');
     expect(entry.decisionRecordId as unknown as string).toBe('dr-1');
 
-    const { decision_record_id: _omit, ...noDecision } = row;
+    const noDecision: Partial<typeof row> = { ...row };
+    delete noDecision.decision_record_id;
     expect(mapTransitionLedgerRow(noDecision).decisionRecordId).toBeUndefined();
   });
 });
