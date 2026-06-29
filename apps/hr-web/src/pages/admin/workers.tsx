@@ -205,7 +205,7 @@ export function AdminWorkers() {
       header: 'Name',
       cell: (row: Worker) => (
         <button
-          className="text-left text-sm font-medium text-primary hover:underline"
+          className="text-start text-sm font-medium text-primary hover:underline"
           onClick={() => navigate(`/admin/employees/${row.id}`)}
         >
           {row.firstName} {row.lastName}
@@ -288,20 +288,20 @@ export function AdminWorkers() {
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => downloadCsv('/hr/core/workers/export.csv', 'employees.csv')}>
-            <Download className="mr-2 h-4 w-4" />
+            <Download className="me-2 h-4 w-4" />
             Export
           </Button>
           <Button variant="outline" onClick={() => downloadCsv('/hr/core/workers/mass-update-template.csv', 'employee-template.csv')}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            <FileSpreadsheet className="me-2 h-4 w-4" />
             Template
           </Button>
           <label className="inline-flex cursor-pointer items-center rounded-md border px-4 py-2 text-sm font-medium">
-            <Upload className="mr-2 h-4 w-4" />
+            <Upload className="me-2 h-4 w-4" />
             Upload
             <Input className="hidden" type="file" accept=".csv,text/csv" aria-label="Upload employee CSV file" onChange={(event) => handleUpload(event.target.files?.[0])} />
           </label>
           <Button onClick={() => navigate('/admin/employees/new')}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus className="me-2 h-4 w-4" />
             Add Employee
           </Button>
         </div>
@@ -315,7 +315,7 @@ export function AdminWorkers() {
             aria-label="Search employees"
             value={search}
             onChange={handleSearch}
-            className="pl-9"
+            className="ps-9"
           />
         </div>
       </div>

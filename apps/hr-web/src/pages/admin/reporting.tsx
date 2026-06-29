@@ -872,7 +872,7 @@ export function AdminReporting() {
                                 type="button"
                                 onClick={() => applySmartCategory(category)}
                                 className={cn(
-                                  'w-full rounded-xl border p-3 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                                  'w-full rounded-xl border p-3 text-start transition hover:border-primary/50 hover:bg-primary/10',
                                   currentSmartCategory.code === category.code ? 'border-primary bg-primary/10' : 'border-border bg-card',
                                 )}
                               >
@@ -899,7 +899,7 @@ export function AdminReporting() {
                             disabled={runSmartCategoryMutation.isPending}
                             className="bg-primary text-primary-foreground hover:bg-primary/90"
                           >
-                            <BarChart3 className="mr-2 h-4 w-4" />
+                            <BarChart3 className="me-2 h-4 w-4" />
                             Run Category Analysis
                           </Button>
                         </div>
@@ -1153,7 +1153,7 @@ export function AdminReporting() {
                       disabled={runAnalyticsPackMutation.isPending || !currentPack}
                       className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
-                      <BarChart3 className="mr-2 h-4 w-4" />
+                      <BarChart3 className="me-2 h-4 w-4" />
                       Run Smart Analytics
                     </Button>
                   </div>
@@ -1166,7 +1166,7 @@ export function AdminReporting() {
                         type="button"
                         onClick={() => applyPack(pack)}
                         className={cn(
-                          'rounded-xl border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                          'rounded-xl border bg-card p-4 text-start transition hover:border-primary/50 hover:bg-primary/10',
                           currentPack?.code === pack.code ? 'border-primary bg-primary/10' : 'border-border',
                         )}
                       >
@@ -1232,7 +1232,7 @@ export function AdminReporting() {
                             type="button"
                             onClick={() => applyTemplate(template)}
                             className={cn(
-                              'rounded-xl border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                              'rounded-xl border bg-card p-4 text-start transition hover:border-primary/50 hover:bg-primary/10',
                               selectedReportCodes.includes(template.code) ? 'border-primary bg-primary/10' : 'border-border',
                             )}
                           >
@@ -1257,7 +1257,7 @@ export function AdminReporting() {
                                 type="button"
                                 onClick={() => applyDataSource(source.code)}
                                 className={cn(
-                                  'w-full rounded-lg border px-3 py-2 text-left text-sm transition hover:border-primary/50',
+                                  'w-full rounded-lg border px-3 py-2 text-start text-sm transition hover:border-primary/50',
                                   currentSource.code === source.code ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted text-foreground',
                                 )}
                               >
@@ -1333,7 +1333,7 @@ export function AdminReporting() {
                               type="button"
                               onClick={() => setVisualization(item.code)}
                               className={cn(
-                                'rounded-xl border px-3 py-2 text-left text-sm transition hover:border-primary/60 hover:bg-primary/10',
+                                'rounded-xl border px-3 py-2 text-start text-sm transition hover:border-primary/60 hover:bg-primary/10',
                                 visualizationForQuery === item.code ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-foreground',
                               )}
                             >
@@ -1648,7 +1648,7 @@ export function AdminReporting() {
                               onClick={() => previewMutation.mutate()}
                               disabled={previewMutation.isPending || !currentSource}
                             >
-                              <Eye className="mr-2 h-4 w-4" />
+                              <Eye className="me-2 h-4 w-4" />
                               Preview
                             </Button>
                             <Button
@@ -1656,7 +1656,7 @@ export function AdminReporting() {
                               onClick={() => semanticQueryMutation.mutate()}
                               disabled={semanticQueryMutation.isPending || !currentSource}
                             >
-                              <BarChart3 className="mr-2 h-4 w-4" />
+                              <BarChart3 className="me-2 h-4 w-4" />
                               Run Report
                             </Button>
                             <Button
@@ -1664,7 +1664,7 @@ export function AdminReporting() {
                               disabled={saveReportMutation.isPending || !currentSource}
                               className="bg-primary text-primary-foreground hover:bg-primary/90"
                             >
-                              <Save className="mr-2 h-4 w-4" />
+                              <Save className="me-2 h-4 w-4" />
                               Save Report
                             </Button>
                           </div>
@@ -1695,7 +1695,7 @@ export function AdminReporting() {
                               </ResponsiveContainer>
                             </div>
                             <div className="overflow-x-auto rounded-xl border border-border">
-                              <table className="w-full text-left text-sm">
+                              <table className="w-full text-start text-sm">
                                 <thead className="bg-muted text-muted-foreground">
                                   <tr>
                                     {Object.keys(previewMutation.data.sampleRows[0] ?? {}).map((column) => (
@@ -1873,7 +1873,7 @@ export function AdminReporting() {
                               </div>
                               <div className="overflow-x-auto rounded-xl border border-info/30 bg-card">
                                 <p className="border-b border-info/25 px-3 py-2 text-sm font-semibold text-foreground">Aggregate result</p>
-                                <table className="w-full text-left text-sm">
+                                <table className="w-full text-start text-sm">
                                   <thead className="bg-muted text-muted-foreground">
                                     <tr>
                                       {semanticQueryMutation.data.columns.map((column) => (
@@ -1895,7 +1895,7 @@ export function AdminReporting() {
                             </div>
                             <div className="overflow-x-auto rounded-xl border border-info/30 bg-card">
                               <p className="border-b border-info/25 px-3 py-2 text-sm font-semibold text-foreground">Underlying records</p>
-                              <table className="w-full text-left text-sm">
+                              <table className="w-full text-start text-sm">
                                 <thead className="bg-muted text-muted-foreground">
                                   <tr>
                                     {Object.keys(semanticQueryMutation.data.drillThroughRows[0] ?? {}).map((column) => (
@@ -2038,7 +2038,7 @@ export function AdminReporting() {
                             type="button"
                             onClick={() => applyDataSource(source.code)}
                             className={cn(
-                              'w-full rounded-xl border p-3 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                              'w-full rounded-xl border p-3 text-start transition hover:border-primary/50 hover:bg-primary/10',
                               currentSource.code === source.code ? 'border-primary bg-primary/10' : 'border-border bg-card',
                             )}
                           >
@@ -2187,7 +2187,7 @@ export function AdminReporting() {
                                   applyTemplate(template);
                                   setActiveTab('builder');
                                 }}
-                                className="w-full rounded-xl border border-border bg-card p-3 text-left transition hover:border-primary/50 hover:bg-primary/10"
+                                className="w-full rounded-xl border border-border bg-card p-3 text-start transition hover:border-primary/50 hover:bg-primary/10"
                               >
                                 <p className="font-semibold text-foreground">{template.title}</p>
                                 <p className="mt-1 text-xs text-muted-foreground">{template.metrics.length} measures · {template.groupBy.length} breakdowns · {template.visualization}</p>
@@ -2396,7 +2396,7 @@ export function AdminReporting() {
                           variant="outline"
                           onClick={() => downloadCsv(`/reporting/module-import-template.csv?module=${template.module}`, `${template.module}-import-template.csv`)}
                         >
-                          <Download className="mr-2 h-4 w-4" />
+                          <Download className="me-2 h-4 w-4" />
                           Template
                         </Button>
                       </div>
