@@ -86,7 +86,10 @@ export class OutboxPublisher {
           });
           await trx
             .updateTable('outbox_events')
-            .set({ publish_attempt_count: (row.publish_attempt_count ?? 0) + 1 })
+            .set({
+              publish_attempt_count: (row.publish_attempt_count ?? 0) + 1,
+              last_error: err instanceof Error ? err.message : String(err),
+            })
             .where('id', '=', row.id)
             .execute();
         }
@@ -124,7 +127,10 @@ export class OutboxPublisher {
       });
       await this.db
         .updateTable('outbox_events')
-        .set({ publish_attempt_count: Number(row.publish_attempt_count ?? 0) + 1 })
+        .set({
+          publish_attempt_count: Number(row.publish_attempt_count ?? 0) + 1,
+          last_error: err instanceof Error ? err.message : String(err),
+        })
         .where('id', '=', outboxEventId)
         .execute();
       return 0;

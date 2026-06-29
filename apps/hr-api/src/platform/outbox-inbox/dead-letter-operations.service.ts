@@ -84,6 +84,7 @@ export interface DeadLetterOutboxEventView {
   publishAttemptCount: number;
   publishedAt: string | null;
   createdAt: string;
+  errorSummary: string | null;
   metadata: unknown;
   payload: unknown;
   operatorAction: unknown | null;
@@ -139,6 +140,7 @@ type OutboxRow = Record<string, unknown> & {
   created_at: Date;
   published_at: Date | null;
   publish_attempt_count: number;
+  last_error: string | null;
 };
 
 @Injectable()
@@ -290,6 +292,7 @@ export class DeadLetterOperationsService {
       .set({
         published_at: null,
         publish_attempt_count: 0,
+        last_error: null,
         metadata: this.mergeOperatorMetadata(row.metadata, 'RETRY', actor, reason),
       })
       .where('id', '=', outboxEventId)
@@ -431,7 +434,7 @@ export class DeadLetterOperationsService {
           '',
           String(row.publishAttemptCount),
           row.createdAt,
-          JSON.stringify(row.operatorAction ?? {}),
+          row.errorSummary ?? '',
         ]),
     ];
 
@@ -518,6 +521,7 @@ export class DeadLetterOperationsService {
       publishAttemptCount: Number(row.publish_attempt_count ?? 0),
       publishedAt: dateIso(row.published_at),
       createdAt: dateIso(row.created_at) ?? new Date(0).toISOString(),
+      errorSummary: row.last_error ?? null,
       metadata: row.metadata,
       payload: row.payload,
       operatorAction,
