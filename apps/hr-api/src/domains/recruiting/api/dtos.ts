@@ -85,6 +85,7 @@ export class ScheduleInterviewDto {
 
 export const CreateOfferDtoSchema = z.object({
   offerId: z.string().uuid(),
+  applicationId: z.string().uuid(),
   proposedSalary: z.number().positive(),
   currency: z.string().length(3),
   startDate: z.coerce.date(),
@@ -93,6 +94,9 @@ export const CreateOfferDtoSchema = z.object({
 
 export class CreateOfferDto {
   @ApiProperty() offerId!: string;
+  // The candidate application this offer is for. CreateOfferHandler resolves the
+  // candidate (and its requisition) from this id, so it must be declared + sent.
+  @ApiProperty() applicationId!: string;
   @ApiProperty() proposedSalary!: number;
   @ApiProperty() currency!: string;
   @ApiProperty() startDate!: Date;
