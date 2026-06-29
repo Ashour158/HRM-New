@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { generateUUID } from '@/lib/utils';
 import { useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useTenant } from '@/hooks/use-tenant';
@@ -54,6 +55,9 @@ export interface DomainEntityConfig {
   listPath: (tenantId: string) => string;
   createPath: string;
   createLabel: string;
+  // When the backend create command requires a client-generated aggregate id, name the
+  // payload key here and a UUID is injected on submit (e.g. benefits programId).
+  generateIdField?: string;
   titleField: string;
   secondaryField?: string;
   fields: DomainFormField[];
@@ -208,7 +212,10 @@ function DomainEntityPanel({ entity }: { entity: DomainEntityConfig }) {
 
   const createMutation = useMutation({
     mutationFn: async (payload: DomainRecord) => {
-      const response = await apiClient.post<ApiResponse<unknown>>(entity.createPath, payload);
+      const body = entity.generateIdField && payload[entity.generateIdField] == null
+        ? { [entity.generateIdField]: generateUUID(), ...payload }
+        : payload;
+      const response = await apiClient.post<ApiResponse<unknown>>(entity.createPath, body);
       return response.data.data;
     },
     onSuccess: () => {
@@ -401,6 +408,9 @@ export function AdminDomainWorkspace({ config }: { config: DomainWorkspaceConfig
         title={config.title}
         subtitle={config.subtitle}
       />
+      {/* Establishes the h2 level between the page h1 and the entity card titles (h3),
+          so the heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">{config.title} entities</h2>
       <Tabs defaultValue={config.entities[0]?.key} className="space-y-4">
         <TabsList className="flex h-auto flex-wrap justify-start">
           {config.entities.map((entity) => (

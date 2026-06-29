@@ -38,6 +38,7 @@ const AdminLeaveManagement = lazy(() => import('@/pages/admin/leave-management')
 const AdminOnboarding = lazy(() => import('@/pages/admin/onboarding').then((module) => ({ default: module.AdminOnboarding })));
 const AdminPayroll = lazy(() => import('@/pages/admin/payroll').then((module) => ({ default: module.AdminPayroll })));
 const AdminCompensation = lazy(() => import('@/pages/admin/compensation').then((module) => ({ default: module.AdminCompensation })));
+const AdminBenefits = lazy(() => import('@/pages/admin/benefits').then((module) => ({ default: module.AdminBenefits })));
 const AdminPerformance = lazy(() => import('@/pages/admin/performance').then((module) => ({ default: module.AdminPerformance })));
 const AdminPerformanceOperations = lazy(() => import('@/pages/admin/performance-operations').then((module) => ({ default: module.AdminPerformanceOperations })));
 const AdminFeedback360 = lazy(() => import('@/pages/admin/feedback-360').then((module) => ({ default: module.AdminFeedback360 })));
@@ -45,6 +46,7 @@ const AdminRecruiting = lazy(() => import('@/pages/admin/recruiting').then((modu
 const AdminLearning = lazy(() => import('@/pages/admin/learning').then((module) => ({ default: module.AdminLearning })));
 const AdminSkillsTalent = lazy(() => import('@/pages/admin/skills-talent').then((module) => ({ default: module.AdminSkillsTalent })));
 const AdminEmployeeRelations = lazy(() => import('@/pages/admin/employee-relations').then((module) => ({ default: module.AdminEmployeeRelations })));
+const AdminEngagement = lazy(() => import('@/pages/admin/engagement').then((module) => ({ default: module.AdminEngagement })));
 const AdminHrServiceDelivery = lazy(() => import('@/pages/admin/hr-service-delivery').then((module) => ({ default: module.AdminHrServiceDelivery })));
 const AdminUnionLabor = lazy(() => import('@/pages/admin/union-labor').then((module) => ({ default: module.AdminUnionLabor })));
 const AdminWellbeingEap = lazy(() => import('@/pages/admin/wellbeing-eap').then((module) => ({ default: module.AdminWellbeingEap })));
@@ -358,6 +360,7 @@ export function AppRoutes() {
                     <Route path="onboarding" element={<AdminOnboarding />} />
                     <Route path="payroll" element={<AdminPayroll />} />
                     <Route path="compensation" element={<AdminCompensation />} />
+                    <Route path="benefits" element={<AdminBenefits />} />
                     <Route path="reports" element={<AdminReporting />} />
                     <Route path="reporting" element={<Navigate to="/admin/reports" replace />} />
                     <Route path="performance" element={<AdminPerformance />} />
@@ -367,6 +370,7 @@ export function AppRoutes() {
                     <Route path="learning" element={<AdminLearning />} />
                     <Route path="skills-talent" element={<AdminSkillsTalent />} />
                     <Route path="employee-relations" element={<AdminEmployeeRelations />} />
+                    <Route path="engagement" element={<AdminEngagement />} />
                     <Route path="hr-service-delivery" element={<AdminHrServiceDelivery />} />
                     <Route path="union-labor" element={<AdminUnionLabor />} />
                     <Route path="wellbeing-eap" element={<AdminWellbeingEap />} />
