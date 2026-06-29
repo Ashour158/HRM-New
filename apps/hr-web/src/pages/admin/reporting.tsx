@@ -386,9 +386,9 @@ function groupSourcesByCategory(sources: ReportingDataSourceCatalogItem[]) {
 }
 
 function highlightTone(tone: 'success' | 'warning' | 'default') {
-  if (tone === 'success') return 'border-[#10b981]/25 bg-[#d1fae5] text-[#065f46]';
-  if (tone === 'warning') return 'border-[#f59e0b]/35 bg-[#fef3c7] text-[#92400e]';
-  return 'border-[#cbd5e1] bg-[#f8fafc] text-[#475569]';
+  if (tone === 'success') return 'border-success/25 bg-success/15 text-success';
+  if (tone === 'warning') return 'border-warning/35 bg-warning/15 text-warning';
+  return 'border-border bg-muted text-muted-foreground';
 }
 
 function nextRunAtForFrequency(frequency: string, from = new Date()): string {
@@ -406,9 +406,9 @@ function nextRunAtForFrequency(frequency: string, from = new Date()): string {
 }
 
 function recordSeverityTone(severity: 'safe' | 'watch' | 'risk') {
-  if (severity === 'risk') return 'border-[#fecaca] bg-[#fef2f2] text-[#991b1b]';
-  if (severity === 'watch') return 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]';
-  return 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]';
+  if (severity === 'risk') return 'border-destructive/30 bg-destructive/10 text-destructive';
+  if (severity === 'watch') return 'border-warning/30 bg-warning/10 text-warning';
+  return 'border-success/30 bg-success/10 text-success';
 }
 
 function groupSmartCategories(categories: SmartAnalyticsCategory[]) {
@@ -857,14 +857,14 @@ export function AdminReporting() {
               <SectionHeading title="Smart HR Analytics Studio" />
               {catalog && currentSmartCategory ? (
                 <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
-                  <Card className="rounded-2xl border-[#e2e8f0]">
+                  <Card className="rounded-2xl border-border">
                     <CardHeader>
                       <CardTitle>Business Categories</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {Object.entries(smartCategoryGroups).map(([group, categories]) => (
                         <div key={group} className="space-y-2">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">{group}</p>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{group}</p>
                           <div className="space-y-2">
                             {categories.map((category) => (
                               <button
@@ -872,12 +872,12 @@ export function AdminReporting() {
                                 type="button"
                                 onClick={() => applySmartCategory(category)}
                                 className={cn(
-                                  'w-full rounded-xl border p-3 text-left transition hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]',
-                                  currentSmartCategory.code === category.code ? 'border-[#4f46e5] bg-[#eef2ff]' : 'border-[#e2e8f0] bg-white',
+                                  'w-full rounded-xl border p-3 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                                  currentSmartCategory.code === category.code ? 'border-primary bg-primary/10' : 'border-border bg-card',
                                 )}
                               >
-                                <p className="font-semibold text-[#0f172a]">{category.title}</p>
-                                <p className="mt-1 text-xs text-[#64748b]">{category.insights.length} insights · {category.dataSources.length} data domains</p>
+                                <p className="font-semibold text-foreground">{category.title}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{category.insights.length} insights · {category.dataSources.length} data domains</p>
                               </button>
                             ))}
                           </div>
@@ -887,17 +887,17 @@ export function AdminReporting() {
                   </Card>
 
                   <div className="space-y-4">
-                    <Card className="rounded-2xl border-[#e2e8f0]">
+                    <Card className="rounded-2xl border-border">
                       <CardHeader>
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                           <div>
                             <CardTitle>{currentSmartCategory.title}</CardTitle>
-                            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#475569]">{currentSmartCategory.description}</p>
+                            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{currentSmartCategory.description}</p>
                           </div>
                           <Button
                             onClick={() => runSmartCategoryMutation.mutate()}
                             disabled={runSmartCategoryMutation.isPending}
-                            className="bg-[#4f46e5] text-white hover:bg-[#4338ca]"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
                           >
                             <BarChart3 className="mr-2 h-4 w-4" />
                             Run Category Analysis
@@ -907,14 +907,14 @@ export function AdminReporting() {
                       <CardContent className="space-y-4">
                         <div className="grid gap-3 lg:grid-cols-3">
                           {currentSmartCategory.businessQuestions.map((question) => (
-                            <div key={question} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 text-sm text-[#475569]">
+                            <div key={question} className="rounded-xl border border-border bg-muted p-3 text-sm text-muted-foreground">
                               {question}
                             </div>
                           ))}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {currentSmartCategory.drilldowns.map((drilldown) => (
-                            <Badge key={drilldown} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
+                            <Badge key={drilldown} variant="outline" className="border-border bg-card text-muted-foreground">
                               {drilldown}
                             </Badge>
                           ))}
@@ -924,24 +924,24 @@ export function AdminReporting() {
 
                     <div className="grid gap-4 xl:grid-cols-2">
                       {currentSmartCategory.insights.map((insight) => (
-                        <Card key={insight.code} className="rounded-2xl border-[#e2e8f0]">
+                        <Card key={insight.code} className="rounded-2xl border-border">
                           <CardHeader className="pb-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <CardTitle className="text-lg">{insight.title}</CardTitle>
-                                <p className="mt-1 text-sm text-[#64748b]">{insight.question}</p>
+                                <p className="mt-1 text-sm text-muted-foreground">{insight.question}</p>
                               </div>
                               <Badge variant="outline" className={cn('border', highlightTone(insight.tone))}>{insight.metricLabel}</Badge>
                             </div>
                           </CardHeader>
                           <CardContent className="space-y-4">
                             <div className="grid gap-3 md:grid-cols-[12rem_1fr]">
-                              <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                <p className="text-xs font-medium text-[#64748b]">{insight.metricLabel}</p>
-                                <p className="mt-1 text-2xl font-bold text-[#0f172a]">{insight.metricValue}</p>
-                                <p className="mt-1 text-xs text-[#64748b]">{insight.trend}</p>
+                              <div className="rounded-xl border border-border bg-muted p-3">
+                                <p className="text-xs font-medium text-muted-foreground">{insight.metricLabel}</p>
+                                <p className="mt-1 text-2xl font-bold text-foreground">{insight.metricValue}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{insight.trend}</p>
                               </div>
-                              <div className="rounded-xl border border-[#e2e8f0] bg-white p-3 text-sm leading-6 text-[#475569]">
+                              <div className="rounded-xl border border-border bg-card p-3 text-sm leading-6 text-muted-foreground">
                                 {insight.explanation}
                               </div>
                             </div>
@@ -971,7 +971,7 @@ export function AdminReporting() {
                               {insight.relatedReports.length > 0 ? (
                                 <Button
                                   size="sm"
-                                  className="bg-[#0f172a] text-white hover:bg-[#1e293b]"
+                                  className="bg-foreground text-background hover:bg-foreground/90"
                                   onClick={() => {
                                     const template = catalog.templates.find((item) => item.code === insight.relatedReports[0]);
                                     if (template) {
@@ -990,17 +990,17 @@ export function AdminReporting() {
                     </div>
 
                     {runSmartCategoryMutation.data ? (
-                      <Card className="rounded-2xl border-[#e2e8f0]">
+                      <Card className="rounded-2xl border-border">
                         <CardHeader>
                           <CardTitle>Category Run Result</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <p className="text-sm leading-6 text-[#475569]">{runSmartCategoryMutation.data.summary}</p>
+                          <p className="text-sm leading-6 text-muted-foreground">{runSmartCategoryMutation.data.summary}</p>
                           <div className="grid gap-3 lg:grid-cols-3">
                             {runSmartCategoryMutation.data.relatedReports.map((report) => (
-                              <div key={report.code} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                <p className="font-semibold text-[#0f172a]">{report.title}</p>
-                                <p className="mt-1 text-xs text-[#64748b]">{report.dataSource}</p>
+                              <div key={report.code} className="rounded-xl border border-border bg-muted p-3">
+                                <p className="font-semibold text-foreground">{report.title}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{report.dataSource}</p>
                               </div>
                             ))}
                           </div>
@@ -1024,10 +1024,10 @@ export function AdminReporting() {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
-                <Card className="rounded-2xl border-[#e2e8f0]">
+                <Card className="rounded-2xl border-border">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5 text-[#4f46e5]" />
+                      <BarChart3 className="h-5 w-5 text-primary" />
                       Analytics Mix
                     </CardTitle>
                   </CardHeader>
@@ -1052,21 +1052,21 @@ export function AdminReporting() {
                   </CardContent>
                 </Card>
 
-                <Card className="rounded-2xl border-[#e2e8f0]">
+                <Card className="rounded-2xl border-border">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <ShieldAlert className="h-5 w-5 text-[#f59e0b]" />
+                      <ShieldAlert className="h-5 w-5 text-warning" />
                       Analytics Signals
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {analytics.riskSignals.length > 0 ? analytics.riskSignals.map((signal) => (
-                      <div key={signal.label} className="flex items-center justify-between rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3">
-                        <span className="text-sm font-medium text-[#0f172a]">{signal.label}</span>
-                        <Badge variant="outline" className="border-[#f59e0b]/35 bg-[#fef3c7] text-[#92400e]">{signal.value}</Badge>
+                      <div key={signal.label} className="flex items-center justify-between rounded-xl border border-warning/30 bg-warning/10 p-3">
+                        <span className="text-sm font-medium text-foreground">{signal.label}</span>
+                        <Badge variant="outline" className="border-warning/35 bg-warning/15 text-warning">{signal.value}</Badge>
                       </div>
                     )) : (
-                      <div className="rounded-xl border border-[#bbf7d0] bg-[#f0fdf4] p-4 text-sm text-[#166534]">
+                      <div className="rounded-xl border border-success/30 bg-success/10 p-4 text-sm text-success">
                         No analytics signals for the selected period.
                       </div>
                     )}
@@ -1076,14 +1076,14 @@ export function AdminReporting() {
 
               <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
                 {analytics.modules.map((module) => (
-                  <Card key={module.code} className="rounded-2xl border-[#e2e8f0]">
+                  <Card key={module.code} className="rounded-2xl border-border">
                     <CardHeader className="pb-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <CardTitle className="text-lg">{module.title}</CardTitle>
-                          <p className="mt-1 text-sm text-[#64748b]">{module.category}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{module.category}</p>
                         </div>
-                        <Badge variant="outline" className={module.risk.value > 0 ? 'border-[#f59e0b]/35 bg-[#fef3c7] text-[#92400e]' : 'border-[#10b981]/25 bg-[#d1fae5] text-[#065f46]'}>
+                        <Badge variant="outline" className={module.risk.value > 0 ? 'border-warning/35 bg-warning/15 text-warning' : 'border-success/25 bg-success/15 text-success'}>
                           {module.risk.value > 0 ? `${module.risk.value} signal(s)` : 'Clear'}
                         </Badge>
                       </div>
@@ -1091,16 +1091,16 @@ export function AdminReporting() {
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div>
-                          <p className="text-[#64748b]">{module.primary.label}</p>
-                          <p className="text-lg font-bold text-[#0f172a]">{formatMetricValue(module.primary)}</p>
+                          <p className="text-muted-foreground">{module.primary.label}</p>
+                          <p className="text-lg font-bold text-foreground">{formatMetricValue(module.primary)}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">{module.secondary.label}</p>
-                          <p className="text-lg font-bold text-[#0f172a]">{formatMetricValue(module.secondary)}</p>
+                          <p className="text-muted-foreground">{module.secondary.label}</p>
+                          <p className="text-lg font-bold text-foreground">{formatMetricValue(module.secondary)}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">{module.risk.label}</p>
-                          <p className={cn('text-lg font-bold', module.risk.value > 0 ? 'text-[#b45309]' : 'text-[#047857]')}>{formatMetricValue(module.risk)}</p>
+                          <p className="text-muted-foreground">{module.risk.label}</p>
+                          <p className={cn('text-lg font-bold', module.risk.value > 0 ? 'text-warning' : 'text-success')}>{formatMetricValue(module.risk)}</p>
                         </div>
                       </div>
                       <div className="h-40">
@@ -1115,13 +1115,13 @@ export function AdminReporting() {
                             </BarChart>
                           </ResponsiveContainer>
                         ) : (
-                          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-[#cbd5e1] text-sm text-[#64748b]">
+                          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border text-sm text-muted-foreground">
                             No analytics data yet.
                           </div>
                         )}
                       </div>
                       {module.lastActivityAt ? (
-                        <p className="text-xs text-[#64748b]">Last activity: {new Date(module.lastActivityAt).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">Last activity: {new Date(module.lastActivityAt).toLocaleString()}</p>
                       ) : null}
                     </CardContent>
                   </Card>
@@ -1144,14 +1144,14 @@ export function AdminReporting() {
               <ErrorState title="Unable to load report builder" error={builderCatalogQuery.error} onRetry={() => builderCatalogQuery.refetch()} />
             ) : catalog && currentSource ? (
               <>
-              <Card className="rounded-2xl border-[#e2e8f0]">
+              <Card className="rounded-2xl border-border">
                 <CardHeader>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <CardTitle>Choose What to Run</CardTitle>
                     <Button
                       onClick={() => runAnalyticsPackMutation.mutate()}
                       disabled={runAnalyticsPackMutation.isPending || !currentPack}
-                      className="bg-[#4f46e5] text-white hover:bg-[#4338ca]"
+                      className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       <BarChart3 className="mr-2 h-4 w-4" />
                       Run Smart Analytics
@@ -1166,28 +1166,28 @@ export function AdminReporting() {
                         type="button"
                         onClick={() => applyPack(pack)}
                         className={cn(
-                          'rounded-xl border bg-white p-4 text-left transition hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]',
-                          currentPack?.code === pack.code ? 'border-[#4f46e5] bg-[#eef2ff]' : 'border-[#e2e8f0]',
+                          'rounded-xl border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                          currentPack?.code === pack.code ? 'border-primary bg-primary/10' : 'border-border',
                         )}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <p className="font-semibold text-[#0f172a]">{pack.title}</p>
-                          <Badge variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">{pack.category}</Badge>
+                          <p className="font-semibold text-foreground">{pack.title}</p>
+                          <Badge variant="outline" className="border-border bg-card text-muted-foreground">{pack.category}</Badge>
                         </div>
-                        <p className="mt-2 text-sm text-[#64748b]">{pack.description}</p>
-                        <p className="mt-3 text-xs font-medium text-[#4f46e5]">{pack.outputs.slice(0, 2).join(' • ')}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">{pack.description}</p>
+                        <p className="mt-3 text-xs font-medium text-primary">{pack.outputs.slice(0, 2).join(' • ')}</p>
                       </button>
                     ))}
                   </div>
 
                   {runAnalyticsPackMutation.data ? (
-                    <div className="rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                    <div className="rounded-2xl border border-border bg-muted p-4">
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div>
-                          <p className="font-semibold text-[#0f172a]">{runAnalyticsPackMutation.data.title}</p>
-                          <p className="mt-1 text-sm text-[#64748b]">Scope: {runAnalyticsPackMutation.data.scopeLevel} · Period: {runAnalyticsPackMutation.data.period}</p>
+                          <p className="font-semibold text-foreground">{runAnalyticsPackMutation.data.title}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">Scope: {runAnalyticsPackMutation.data.scopeLevel} · Period: {runAnalyticsPackMutation.data.period}</p>
                         </div>
-                        <Badge variant="outline" className="border-[#10b981]/25 bg-[#d1fae5] text-[#065f46]">Analytics ready</Badge>
+                        <Badge variant="outline" className="border-success/25 bg-success/15 text-success">Analytics ready</Badge>
                       </div>
                       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                         {runAnalyticsPackMutation.data.highlights.map((item) => (
@@ -1199,8 +1199,8 @@ export function AdminReporting() {
                       </div>
                       <div className="mt-4 grid gap-3 lg:grid-cols-2">
                         {runAnalyticsPackMutation.data.charts.slice(0, 2).map((chart) => (
-                          <div key={chart.title} className="h-48 rounded-xl border border-[#e2e8f0] bg-white p-3">
-                            <p className="mb-2 text-sm font-semibold text-[#0f172a]">{chart.title}</p>
+                          <div key={chart.title} className="h-48 rounded-xl border border-border bg-card p-3">
+                            <p className="mb-2 text-sm font-semibold text-foreground">{chart.title}</p>
                             <ResponsiveContainer width="100%" height="85%">
                               <BarChart data={chart.data} margin={{ top: 4, right: 8, left: 0, bottom: 24 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -1215,14 +1215,14 @@ export function AdminReporting() {
                       </div>
                       <div className="mt-4 grid gap-2 lg:grid-cols-3">
                         {runAnalyticsPackMutation.data.suggestedNextActions.map((action) => (
-                          <div key={action} className="rounded-xl border border-[#e2e8f0] bg-white p-3 text-sm text-[#475569]">{action}</div>
+                          <div key={action} className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">{action}</div>
                         ))}
                       </div>
                     </div>
                   ) : null}
 
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold text-[#0f172a]">Recommended reports</p>
+                    <p className="text-sm font-semibold text-foreground">Recommended reports</p>
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       {catalog.templates
                         .filter((template) => !currentPack || currentPack.reportCodes.includes(template.code))
@@ -1232,24 +1232,24 @@ export function AdminReporting() {
                             type="button"
                             onClick={() => applyTemplate(template)}
                             className={cn(
-                              'rounded-xl border bg-white p-4 text-left transition hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]',
-                              selectedReportCodes.includes(template.code) ? 'border-[#4f46e5] bg-[#eef2ff]' : 'border-[#e2e8f0]',
+                              'rounded-xl border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                              selectedReportCodes.includes(template.code) ? 'border-primary bg-primary/10' : 'border-border',
                             )}
                           >
-                            <p className="font-semibold text-[#0f172a]">{template.title}</p>
-                            <p className="mt-1 text-sm text-[#64748b]">{catalog.dataSources.find((source) => source.code === template.dataSource)?.title ?? template.dataSource}</p>
-                            <Badge variant="outline" className="mt-3 border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">{template.visualization}</Badge>
+                            <p className="font-semibold text-foreground">{template.title}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">{catalog.dataSources.find((source) => source.code === template.dataSource)?.title ?? template.dataSource}</p>
+                            <Badge variant="outline" className="mt-3 border-border bg-muted text-muted-foreground">{template.visualization}</Badge>
                           </button>
                         ))}
                     </div>
                   </div>
 
                   <div className="space-y-3">
-                    <p className="text-sm font-semibold text-[#0f172a]">Underlying data catalog</p>
+                    <p className="text-sm font-semibold text-foreground">Underlying data catalog</p>
                     <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-4">
                       {Object.entries(sourceGroups).map(([category, sources]) => (
-                        <div key={category} className="rounded-xl border border-[#e2e8f0] bg-white p-3">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">{category}</p>
+                        <div key={category} className="rounded-xl border border-border bg-card p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</p>
                           <div className="mt-2 space-y-2">
                             {sources.map((source) => (
                               <button
@@ -1257,12 +1257,12 @@ export function AdminReporting() {
                                 type="button"
                                 onClick={() => applyDataSource(source.code)}
                                 className={cn(
-                                  'w-full rounded-lg border px-3 py-2 text-left text-sm transition hover:border-[#4f46e5]/50',
-                                  currentSource.code === source.code ? 'border-[#4f46e5] bg-[#eef2ff] text-[#3730a3]' : 'border-[#e2e8f0] bg-[#f8fafc] text-[#0f172a]',
+                                  'w-full rounded-lg border px-3 py-2 text-left text-sm transition hover:border-primary/50',
+                                  currentSource.code === source.code ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-muted text-foreground',
                                 )}
                               >
                                 <span className="font-medium">{source.title}</span>
-                                <span className="mt-1 block text-xs text-[#64748b]">{source.metrics.length} metrics · {source.fields.length} fields</span>
+                                <span className="mt-1 block text-xs text-muted-foreground">{source.metrics.length} metrics · {source.fields.length} fields</span>
                               </button>
                             ))}
                           </div>
@@ -1272,16 +1272,16 @@ export function AdminReporting() {
                   </div>
                 </CardContent>
               </Card>
-              <Card className="rounded-2xl border-[#dbeafe] bg-[#f8fbff]">
+              <Card className="rounded-2xl border-info/25 bg-muted">
                 <CardHeader>
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
                       <CardTitle>BI Designer</CardTitle>
-                      <p className="mt-1 text-sm text-[#475569]">
+                      <p className="mt-1 text-sm text-muted-foreground">
                         Build a report by choosing the business question, report type, dimensions, measures, filters, and connected HR data.
                       </p>
                     </div>
-                    <Badge variant="outline" className="w-fit border-[#bfdbfe] bg-white text-[#1d4ed8]">
+                    <Badge variant="outline" className="w-fit border-info/30 bg-card text-info">
                       Self-service builder
                     </Badge>
                   </div>
@@ -1295,37 +1295,37 @@ export function AdminReporting() {
                       ['4', 'Metrics', `${metricsForQuery.length} selected`],
                       ['5', 'Filters', `${Object.values(filterValues).filter((value) => value.trim()).length + 1} active`],
                     ].map(([step, label, value]) => (
-                      <div key={step} className="rounded-xl border border-[#dbeafe] bg-white p-3">
+                      <div key={step} className="rounded-xl border border-info/25 bg-card p-3">
                         <div className="flex items-center gap-2">
-                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#4f46e5] text-xs font-bold text-white">{step}</span>
-                          <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">{label}</p>
+                          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{step}</span>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
                         </div>
-                        <p className="mt-2 text-sm font-semibold text-[#0f172a]">{value}</p>
+                        <p className="mt-2 text-sm font-semibold text-foreground">{value}</p>
                       </div>
                     ))}
                   </div>
 
                   <div className="grid gap-4 xl:grid-cols-[1.05fr_1fr]">
                     <div className="space-y-4">
-                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
+                      <div className="rounded-2xl border border-info/25 bg-card p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="text-sm font-semibold text-[#0f172a]">Business question</p>
-                            <p className="mt-1 text-sm text-[#475569]">
+                            <p className="text-sm font-semibold text-foreground">Business question</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
                               {currentSmartCategory?.businessQuestions[0] ?? 'What HR decision should this report support?'}
                             </p>
                           </div>
-                          <Badge variant="outline" className="w-fit border-[#e2e8f0] bg-[#f8fafc] text-[#475569]">
+                          <Badge variant="outline" className="w-fit border-border bg-muted text-muted-foreground">
                             {currentSource.category}
                           </Badge>
                         </div>
                         {currentSource.description ? (
-                          <p className="mt-3 rounded-xl bg-[#f8fafc] p-3 text-sm text-[#475569]">{currentSource.description}</p>
+                          <p className="mt-3 rounded-xl bg-muted p-3 text-sm text-muted-foreground">{currentSource.description}</p>
                         ) : null}
                       </div>
 
-                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
-                        <p className="text-sm font-semibold text-[#0f172a]">Choose a report type</p>
+                      <div className="rounded-2xl border border-info/25 bg-card p-4">
+                        <p className="text-sm font-semibold text-foreground">Choose a report type</p>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                           {catalog.visualizationTypes.map((item) => (
                             <button
@@ -1333,12 +1333,12 @@ export function AdminReporting() {
                               type="button"
                               onClick={() => setVisualization(item.code)}
                               className={cn(
-                                'rounded-xl border px-3 py-2 text-left text-sm transition hover:border-[#4f46e5]/60 hover:bg-[#eef2ff]',
-                                visualizationForQuery === item.code ? 'border-[#4f46e5] bg-[#eef2ff] text-[#3730a3]' : 'border-[#e2e8f0] bg-white text-[#0f172a]',
+                                'rounded-xl border px-3 py-2 text-left text-sm transition hover:border-primary/60 hover:bg-primary/10',
+                                visualizationForQuery === item.code ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card text-foreground',
                               )}
                             >
                               <span className="font-semibold">{item.label}</span>
-                              <span className="mt-1 block text-xs text-[#64748b]">
+                              <span className="mt-1 block text-xs text-muted-foreground">
                                 {item.code === 'matrix' ? 'Compare dimensions against metrics.' : item.code === 'comparison' ? 'Compare two segments side by side.' : item.code === 'line' ? 'Track movement over time.' : 'Use for this report output.'}
                               </span>
                             </button>
@@ -1348,18 +1348,18 @@ export function AdminReporting() {
                     </div>
 
                     <div className="space-y-4">
-                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
-                        <p className="text-sm font-semibold text-[#0f172a]">Connected data model</p>
+                      <div className="rounded-2xl border border-info/25 bg-card p-4">
+                        <p className="text-sm font-semibold text-foreground">Connected data model</p>
                         <div className="mt-3 space-y-2">
                           {visibleRelationships.slice(0, 3).map((relationship) => {
                             const nextSource = relationship.from === currentSource.code ? relationship.to : relationship.from;
                             const relatedSource = catalog.dataSources.find((source) => source.code === nextSource);
                             return (
-                              <div key={relationship.code} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                              <div key={relationship.code} className="rounded-xl border border-border bg-muted p-3">
                                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                                   <div>
-                                    <p className="text-sm font-semibold text-[#0f172a]">{relationship.title}</p>
-                                    <p className="mt-1 text-xs text-[#64748b]">{relationship.businessUse}</p>
+                                    <p className="text-sm font-semibold text-foreground">{relationship.title}</p>
+                                    <p className="mt-1 text-xs text-muted-foreground">{relationship.businessUse}</p>
                                   </div>
                                   {relatedSource ? (
                                     <Button variant="outline" size="sm" onClick={() => applyDataSource(relatedSource.code)}>
@@ -1373,14 +1373,14 @@ export function AdminReporting() {
                         </div>
                       </div>
 
-                      <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
-                        <p className="text-sm font-semibold text-[#0f172a]">Filter options</p>
+                      <div className="rounded-2xl border border-info/25 bg-card p-4">
+                        <p className="text-sm font-semibold text-foreground">Filter options</p>
                         <div className="mt-3 flex flex-wrap gap-2">
-                          <Badge variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">
+                          <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
                             Period: {filterPeriod}
                           </Badge>
                           {availableFilters.flatMap((filter) => filterOptionsFor(filter).slice(0, 3).map((option) => (
-                            <Badge key={`${filter.code}-${option.code}`} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
+                            <Badge key={`${filter.code}-${option.code}`} variant="outline" className="border-border bg-card text-muted-foreground">
                               {filter.label}: {option.label}{option.count !== undefined ? ` (${option.count})` : ''}
                             </Badge>
                           )))}
@@ -1390,8 +1390,8 @@ export function AdminReporting() {
                   </div>
 
                   <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
-                      <p className="text-sm font-semibold text-[#0f172a]">Business dimensions</p>
+                    <div className="rounded-2xl border border-info/25 bg-card p-4">
+                      <p className="text-sm font-semibold text-foreground">Business dimensions</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {currentSource.groupBy.map((field) => (
                           <button
@@ -1399,8 +1399,8 @@ export function AdminReporting() {
                             type="button"
                             onClick={() => toggleCode(field.code, groupByForQuery, setSelectedGroupBy)}
                             className={cn(
-                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-[#f59e0b]/70',
-                              groupByForQuery.includes(field.code) ? 'border-[#f59e0b] bg-[#fffbeb] text-[#92400e]' : 'border-[#e2e8f0] bg-white text-[#475569]',
+                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-warning/70',
+                              groupByForQuery.includes(field.code) ? 'border-warning bg-warning/10 text-warning' : 'border-border bg-card text-muted-foreground',
                             )}
                           >
                             {field.label}
@@ -1408,8 +1408,8 @@ export function AdminReporting() {
                         ))}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-[#dbeafe] bg-white p-4">
-                      <p className="text-sm font-semibold text-[#0f172a]">Metric library</p>
+                    <div className="rounded-2xl border border-info/25 bg-card p-4">
+                      <p className="text-sm font-semibold text-foreground">Metric library</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {currentSource.metrics.map((metric) => (
                           <button
@@ -1417,8 +1417,8 @@ export function AdminReporting() {
                             type="button"
                             onClick={() => toggleCode(metric.code, metricsForQuery, setSelectedMetrics)}
                             className={cn(
-                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-[#10b981]/70',
-                              metricsForQuery.includes(metric.code) ? 'border-[#10b981] bg-[#ecfdf5] text-[#047857]' : 'border-[#e2e8f0] bg-white text-[#475569]',
+                              'rounded-full border px-3 py-1.5 text-sm transition hover:border-success/70',
+                              metricsForQuery.includes(metric.code) ? 'border-success bg-success/10 text-success' : 'border-border bg-card text-muted-foreground',
                             )}
                           >
                             {metric.label}
@@ -1430,16 +1430,16 @@ export function AdminReporting() {
                 </CardContent>
               </Card>
               <div className="grid gap-4 xl:grid-cols-[24rem_1fr]">
-                <Card className="rounded-2xl border-[#e2e8f0]">
+                <Card className="rounded-2xl border-border">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Database className="h-5 w-5 text-[#4f46e5]" />
+                      <Database className="h-5 w-5 text-primary" />
                       Report Setup
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-[#0f172a]" htmlFor="report-name">Report name</label>
+                      <label className="text-sm font-medium text-foreground" htmlFor="report-name">Report name</label>
                       <Input
                         id="report-name"
                         value={reportName}
@@ -1448,7 +1448,7 @@ export function AdminReporting() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-[#0f172a]">Underlying data</label>
+                      <label className="text-sm font-medium text-foreground">Underlying data</label>
                       <Select value={currentSource.code} onValueChange={applyDataSource}>
                         <SelectTrigger aria-label="Underlying data">
                           <SelectValue />
@@ -1463,7 +1463,7 @@ export function AdminReporting() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-[#0f172a]">Scope level</label>
+                      <label className="text-sm font-medium text-foreground">Scope level</label>
                       <Select value={scopeForQuery} onValueChange={applyScopeLevel}>
                         <SelectTrigger aria-label="Scope level">
                           <SelectValue />
@@ -1480,7 +1480,7 @@ export function AdminReporting() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-[#0f172a]">Report population</label>
+                      <label className="text-sm font-medium text-foreground">Report population</label>
                       <Select value={populationValueForQuery ?? 'ALL'} onValueChange={setPopulationValue}>
                         <SelectTrigger aria-label="Report population">
                           <SelectValue />
@@ -1494,11 +1494,11 @@ export function AdminReporting() {
                         </SelectContent>
                       </Select>
                       {populationOptionsForScope?.values.find((option) => option.code === populationValueForQuery)?.description ? (
-                        <p className="text-xs text-[#64748b]">{populationOptionsForScope.values.find((option) => option.code === populationValueForQuery)?.description}</p>
+                        <p className="text-xs text-muted-foreground">{populationOptionsForScope.values.find((option) => option.code === populationValueForQuery)?.description}</p>
                       ) : null}
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-[#0f172a]">Period</label>
+                      <label className="text-sm font-medium text-foreground">Period</label>
                       <Select value={filterPeriod} onValueChange={setFilterPeriod}>
                         <SelectTrigger aria-label="Period">
                           <SelectValue />
@@ -1512,7 +1512,7 @@ export function AdminReporting() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-sm font-medium text-[#0f172a]">Display</label>
+                      <label className="text-sm font-medium text-foreground">Display</label>
                       <Select value={visualizationForQuery} onValueChange={(value) => setVisualization(value as ReportingVisualizationType)}>
                         <SelectTrigger aria-label="Display">
                           <SelectValue />
@@ -1528,7 +1528,7 @@ export function AdminReporting() {
                     </div>
                     {availableFilters.length > 0 ? (
                       <div className="space-y-2">
-                        <p className="text-sm font-medium text-[#0f172a]">Report filters</p>
+                        <p className="text-sm font-medium text-foreground">Report filters</p>
                         <div className="space-y-2">
                           {availableFilters.map((filter) => {
                             const value = filterValues[filter.code] ?? '';
@@ -1568,29 +1568,29 @@ export function AdminReporting() {
                         </div>
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 text-sm text-[#64748b]">No additional filters for this report source.</div>
+                      <div className="rounded-xl border border-border bg-muted p-3 text-sm text-muted-foreground">No additional filters for this report source.</div>
                     )}
-                    <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3 text-sm text-[#475569]">
-                      <p className="font-semibold text-[#0f172a]">{currentSource.category}</p>
+                    <div className="rounded-xl border border-border bg-muted p-3 text-sm text-muted-foreground">
+                      <p className="font-semibold text-foreground">{currentSource.category}</p>
                       <p className="mt-1">{currentSource.title} supports {currentSource.scopeLevels.length} scope level(s) and {currentSource.metrics.length} metric(s).</p>
                     </div>
                   </CardContent>
                 </Card>
 
                 <div className="space-y-4">
-                  <Card className="rounded-2xl border-[#e2e8f0]">
+                  <Card className="rounded-2xl border-border">
                     <CardHeader>
                       <CardTitle>Columns, Metrics, and Grouping</CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-4 lg:grid-cols-3">
                       <div className="space-y-3">
-                        <p className="text-sm font-semibold text-[#0f172a]">Columns</p>
+                        <p className="text-sm font-semibold text-foreground">Columns</p>
                         <div className="space-y-2">
                           {currentSource.fields.map((field) => (
-                            <label key={field.code} className="flex items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#0f172a]">
+                            <label key={field.code} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-[#4f46e5]"
+                                className="h-4 w-4 accent-primary"
                                 checked={fieldsForQuery.includes(field.code)}
                                 onChange={() => toggleCode(field.code, fieldsForQuery, setSelectedFields)}
                               />
@@ -1600,13 +1600,13 @@ export function AdminReporting() {
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <p className="text-sm font-semibold text-[#0f172a]">Metrics</p>
+                        <p className="text-sm font-semibold text-foreground">Metrics</p>
                         <div className="space-y-2">
                           {currentSource.metrics.map((metric) => (
-                            <label key={metric.code} className="flex items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#0f172a]">
+                            <label key={metric.code} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-[#10b981]"
+                                className="h-4 w-4 accent-success"
                                 checked={metricsForQuery.includes(metric.code)}
                                 onChange={() => toggleCode(metric.code, metricsForQuery, setSelectedMetrics)}
                               />
@@ -1616,13 +1616,13 @@ export function AdminReporting() {
                         </div>
                       </div>
                       <div className="space-y-3">
-                        <p className="text-sm font-semibold text-[#0f172a]">Group by</p>
+                        <p className="text-sm font-semibold text-foreground">Group by</p>
                         <div className="space-y-2">
                           {currentSource.groupBy.map((field) => (
-                            <label key={field.code} className="flex items-center gap-2 rounded-lg border border-[#e2e8f0] bg-white px-3 py-2 text-sm text-[#0f172a]">
+                            <label key={field.code} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-[#f59e0b]"
+                                className="h-4 w-4 accent-warning"
                                 checked={groupByForQuery.includes(field.code)}
                                 onChange={() => toggleCode(field.code, groupByForQuery, setSelectedGroupBy)}
                               />
@@ -1635,11 +1635,11 @@ export function AdminReporting() {
                   </Card>
 
                   <div className="grid gap-4 xl:grid-cols-[1fr_22rem]">
-                    <Card className="rounded-2xl border-[#e2e8f0]">
+                    <Card className="rounded-2xl border-border">
                       <CardHeader>
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <CardTitle className="flex items-center gap-2">
-                            <Eye className="h-5 w-5 text-[#4f46e5]" />
+                            <Eye className="h-5 w-5 text-primary" />
                             Preview
                           </CardTitle>
                           <div className="flex flex-wrap gap-2">
@@ -1662,7 +1662,7 @@ export function AdminReporting() {
                             <Button
                               onClick={() => saveReportMutation.mutate()}
                               disabled={saveReportMutation.isPending || !currentSource}
-                              className="bg-[#4f46e5] text-white hover:bg-[#4338ca]"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90"
                             >
                               <Save className="mr-2 h-4 w-4" />
                               Save Report
@@ -1679,11 +1679,11 @@ export function AdminReporting() {
                               <BusinessMetric label="Metrics" value={previewMutation.data.metrics.length} />
                             </div>
                             {previewMutation.data.warnings.length > 0 ? (
-                              <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
+                              <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
                                 {previewMutation.data.warnings.join(' ')}
                               </div>
                             ) : null}
-                            <div className="h-56 rounded-xl border border-[#e2e8f0] bg-white p-3">
+                            <div className="h-56 rounded-xl border border-border bg-card p-3">
                               <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={previewMutation.data.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 28 }}>
                                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -1694,20 +1694,20 @@ export function AdminReporting() {
                                 </BarChart>
                               </ResponsiveContainer>
                             </div>
-                            <div className="overflow-x-auto rounded-xl border border-[#e2e8f0]">
+                            <div className="overflow-x-auto rounded-xl border border-border">
                               <table className="w-full text-left text-sm">
-                                <thead className="bg-[#f8fafc] text-[#475569]">
+                                <thead className="bg-muted text-muted-foreground">
                                   <tr>
                                     {Object.keys(previewMutation.data.sampleRows[0] ?? {}).map((column) => (
                                       <th key={column} className="px-3 py-2 font-semibold">{column}</th>
                                     ))}
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[#e2e8f0]">
+                                <tbody className="divide-y divide-border">
                                   {previewMutation.data.sampleRows.map((row, index) => (
                                     <tr key={index}>
                                       {Object.entries(row).map(([column, value]) => (
-                                        <td key={column} className="px-3 py-2 text-[#0f172a]">{value}</td>
+                                        <td key={column} className="px-3 py-2 text-foreground">{value}</td>
                                       ))}
                                     </tr>
                                   ))}
@@ -1716,20 +1716,20 @@ export function AdminReporting() {
                             </div>
                           </>
                         ) : (
-                          <div className="flex min-h-[18rem] items-center justify-center rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] text-center text-sm text-[#64748b]">
+                          <div className="flex min-h-[18rem] items-center justify-center rounded-xl border border-dashed border-border bg-muted text-center text-sm text-muted-foreground">
                             Choose the report data and click Preview to see sample rows and chart output.
                           </div>
                         )}
                         {semanticQueryMutation.data ? (
-                          <div className="space-y-4 rounded-2xl border border-[#dbeafe] bg-[#eff6ff] p-4">
+                          <div className="space-y-4 rounded-2xl border border-info/25 bg-info/10 p-4">
                             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                               <div>
-                                <p className="text-lg font-semibold text-[#0f172a]">Semantic Query Result</p>
-                                <p className="mt-1 text-sm text-[#475569]">
+                                <p className="text-lg font-semibold text-foreground">Semantic Query Result</p>
+                                <p className="mt-1 text-sm text-muted-foreground">
                                   {semanticQueryMutation.data.sourceTitle} · {semanticQueryMutation.data.scopeLevel}
                                 </p>
                               </div>
-                              <Badge variant="outline" className="border-[#bfdbfe] bg-white text-[#1d4ed8]">
+                              <Badge variant="outline" className="border-info/30 bg-card text-info">
                                 {semanticQueryMutation.data.executionPlan.privacyLevel}
                               </Badge>
                             </div>
@@ -1742,68 +1742,68 @@ export function AdminReporting() {
                               ))}
                             </div>
                             <div className="grid gap-3 text-sm lg:grid-cols-3">
-                              <div className="rounded-xl border border-[#bfdbfe] bg-white p-3">
-                                <p className="text-[#64748b]">Data grain</p>
-                                <p className="font-semibold text-[#0f172a]">{semanticQueryMutation.data.executionPlan.grain}</p>
+                              <div className="rounded-xl border border-info/30 bg-card p-3">
+                                <p className="text-muted-foreground">Data grain</p>
+                                <p className="font-semibold text-foreground">{semanticQueryMutation.data.executionPlan.grain}</p>
                               </div>
-                              <div className="rounded-xl border border-[#bfdbfe] bg-white p-3">
-                                <p className="text-[#64748b]">Drilldowns</p>
-                                <p className="font-semibold text-[#0f172a]">{semanticQueryMutation.data.executionPlan.availableDrilldowns.slice(0, 3).join(', ')}</p>
+                              <div className="rounded-xl border border-info/30 bg-card p-3">
+                                <p className="text-muted-foreground">Drilldowns</p>
+                                <p className="font-semibold text-foreground">{semanticQueryMutation.data.executionPlan.availableDrilldowns.slice(0, 3).join(', ')}</p>
                               </div>
-                              <div className="rounded-xl border border-[#bfdbfe] bg-white p-3">
-                                <p className="text-[#64748b]">Filters</p>
-                                <p className="font-semibold text-[#0f172a]">
+                              <div className="rounded-xl border border-info/30 bg-card p-3">
+                                <p className="text-muted-foreground">Filters</p>
+                                <p className="font-semibold text-foreground">
                                   {semanticQueryMutation.data.executionPlan.appliedFilters.length > 0
                                     ? semanticQueryMutation.data.executionPlan.appliedFilters.map((filter) => `${filter.code}: ${filter.value}`).join(', ')
                                     : 'No extra filters'}
                                 </p>
                               </div>
                             </div>
-                            <div className="rounded-2xl border border-[#bfdbfe] bg-white p-4">
+                            <div className="rounded-2xl border border-info/30 bg-card p-4">
                               <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                 <div>
-                                  <p className="text-base font-semibold text-[#0f172a]">Decision Support</p>
-                                  <p className="mt-1 text-sm leading-6 text-[#475569]">{semanticQueryMutation.data.decisionSupport.summary}</p>
+                                  <p className="text-base font-semibold text-foreground">Decision Support</p>
+                                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{semanticQueryMutation.data.decisionSupport.summary}</p>
                                 </div>
-                                <Badge variant="outline" className="w-fit border-[#c7d2fe] bg-[#eef2ff] text-[#3730a3]">
+                                <Badge variant="outline" className="w-fit border-primary/30 bg-primary/10 text-primary">
                                   BI guidance
                                 </Badge>
                               </div>
                               <div className="mt-4 grid gap-3 xl:grid-cols-3">
-                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                  <p className="text-sm font-semibold text-[#0f172a]">Top segments</p>
+                                <div className="rounded-xl border border-border bg-muted p-3">
+                                  <p className="text-sm font-semibold text-foreground">Top segments</p>
                                   <div className="mt-3 space-y-2">
                                     {semanticQueryMutation.data.decisionSupport.topSegments.map((segment) => (
-                                      <div key={`${segment.label}-${segment.metric}`} className="rounded-lg bg-white p-3 text-sm">
+                                      <div key={`${segment.label}-${segment.metric}`} className="rounded-lg bg-card p-3 text-sm">
                                         <div className="flex items-center justify-between gap-3">
-                                          <p className="font-semibold text-[#0f172a]">{segment.label}</p>
-                                          <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-[#fecaca] bg-[#fee2e2] text-[#991b1b]' : segment.severity === 'watch' ? 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]' : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]')}>
+                                          <p className="font-semibold text-foreground">{segment.label}</p>
+                                          <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-destructive/30 bg-destructive/15 text-destructive' : segment.severity === 'watch' ? 'border-warning/30 bg-warning/10 text-warning' : 'border-success/30 bg-success/10 text-success')}>
                                             {segment.severity}
                                           </Badge>
                                         </div>
-                                        <p className="mt-1 text-[#475569]">{segment.metric}: {segment.value} · {segment.shareOfTotal}%</p>
+                                        <p className="mt-1 text-muted-foreground">{segment.metric}: {segment.value} · {segment.shareOfTotal}%</p>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
-                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                  <p className="text-sm font-semibold text-[#0f172a]">Suggested drilldowns</p>
+                                <div className="rounded-xl border border-border bg-muted p-3">
+                                  <p className="text-sm font-semibold text-foreground">Suggested drilldowns</p>
                                   <div className="mt-3 space-y-2">
                                     {semanticQueryMutation.data.decisionSupport.recommendedDrilldowns.map((drilldown) => (
-                                      <div key={drilldown.field} className="rounded-lg bg-white p-3 text-sm">
-                                        <p className="font-semibold text-[#0f172a]">{drilldown.label}</p>
-                                        <p className="mt-1 text-[#64748b]">{drilldown.reason}</p>
+                                      <div key={drilldown.field} className="rounded-lg bg-card p-3 text-sm">
+                                        <p className="font-semibold text-foreground">{drilldown.label}</p>
+                                        <p className="mt-1 text-muted-foreground">{drilldown.reason}</p>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
-                                <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                  <p className="text-sm font-semibold text-[#0f172a]">Next actions</p>
+                                <div className="rounded-xl border border-border bg-muted p-3">
+                                  <p className="text-sm font-semibold text-foreground">Next actions</p>
                                   <div className="mt-3 space-y-2">
                                     {semanticQueryMutation.data.decisionSupport.nextActions.map((action) => (
-                                      <div key={`${action.actionType}-${action.label}`} className="rounded-lg bg-white p-3 text-sm">
-                                        <p className="font-semibold text-[#0f172a]">{action.label}</p>
-                                        <p className="mt-1 text-[#64748b]">{action.reason}</p>
+                                      <div key={`${action.actionType}-${action.label}`} className="rounded-lg bg-card p-3 text-sm">
+                                        <p className="font-semibold text-foreground">{action.label}</p>
+                                        <p className="mt-1 text-muted-foreground">{action.reason}</p>
                                       </div>
                                     ))}
                                   </div>
@@ -1811,40 +1811,40 @@ export function AdminReporting() {
                               </div>
                             </div>
                             {semanticQueryMutation.data.pivotBreakdowns.length > 0 ? (
-                              <div className="rounded-2xl border border-[#bfdbfe] bg-white p-4">
+                              <div className="rounded-2xl border border-info/30 bg-card p-4">
                                 <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                   <div>
-                                    <p className="text-base font-semibold text-[#0f172a]">Explore other cuts</p>
-                                    <p className="mt-1 text-sm leading-6 text-[#475569]">
+                                    <p className="text-base font-semibold text-foreground">Explore other cuts</p>
+                                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
                                       Compare the same result by other business dimensions without rebuilding the report.
                                     </p>
                                   </div>
-                                  <Badge variant="outline" className="w-fit border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]">
+                                  <Badge variant="outline" className="w-fit border-info/30 bg-info/10 text-info">
                                     Smart pivots
                                   </Badge>
                                 </div>
                                 <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                                   {semanticQueryMutation.data.pivotBreakdowns.slice(0, 6).map((breakdown) => (
-                                    <div key={breakdown.field} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                                    <div key={breakdown.field} className="rounded-xl border border-border bg-muted p-3">
                                       <div className="flex items-center justify-between gap-3">
                                         <div>
-                                          <p className="text-sm font-semibold text-[#0f172a]">{breakdown.label}</p>
-                                          <p className="mt-1 text-xs text-[#64748b]">{breakdown.metric}</p>
+                                          <p className="text-sm font-semibold text-foreground">{breakdown.label}</p>
+                                          <p className="mt-1 text-xs text-muted-foreground">{breakdown.metric}</p>
                                         </div>
-                                        <Badge variant="outline" className="border-[#e2e8f0] bg-white text-[#475569]">
+                                        <Badge variant="outline" className="border-border bg-card text-muted-foreground">
                                           {breakdown.totalSegments} segments
                                         </Badge>
                                       </div>
                                       <div className="mt-3 space-y-2">
                                         {breakdown.segments.slice(0, 3).map((segment) => (
-                                          <div key={`${breakdown.field}-${segment.label}`} className="rounded-lg bg-white p-3 text-sm">
+                                          <div key={`${breakdown.field}-${segment.label}`} className="rounded-lg bg-card p-3 text-sm">
                                             <div className="flex items-center justify-between gap-3">
-                                              <p className="font-semibold text-[#0f172a]">{segment.label}</p>
-                                              <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-[#fecaca] bg-[#fee2e2] text-[#991b1b]' : segment.severity === 'watch' ? 'border-[#fde68a] bg-[#fffbeb] text-[#92400e]' : 'border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]')}>
+                                              <p className="font-semibold text-foreground">{segment.label}</p>
+                                              <Badge variant="outline" className={cn('border', segment.severity === 'risk' ? 'border-destructive/30 bg-destructive/15 text-destructive' : segment.severity === 'watch' ? 'border-warning/30 bg-warning/10 text-warning' : 'border-success/30 bg-success/10 text-success')}>
                                                 {segment.severity}
                                               </Badge>
                                             </div>
-                                            <p className="mt-1 text-[#475569]">{segment.value} · {segment.shareOfTotal}%</p>
+                                            <p className="mt-1 text-muted-foreground">{segment.value} · {segment.shareOfTotal}%</p>
                                           </div>
                                         ))}
                                       </div>
@@ -1854,13 +1854,13 @@ export function AdminReporting() {
                               </div>
                             ) : null}
                             {semanticQueryMutation.data.warnings.length > 0 ? (
-                              <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3 text-sm text-[#92400e]">
+                              <div className="rounded-xl border border-warning/30 bg-warning/10 p-3 text-sm text-warning">
                                 {semanticQueryMutation.data.warnings.join(' ')}
                               </div>
                             ) : null}
                             <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-                              <div className="h-56 rounded-xl border border-[#bfdbfe] bg-white p-3">
-                                <p className="mb-2 text-sm font-semibold text-[#0f172a]">Dashboard preview</p>
+                              <div className="h-56 rounded-xl border border-info/30 bg-card p-3">
+                                <p className="mb-2 text-sm font-semibold text-foreground">Dashboard preview</p>
                                 <ResponsiveContainer width="100%" height="85%">
                                   <BarChart data={semanticQueryMutation.data.chartData} margin={{ top: 8, right: 8, left: 0, bottom: 28 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -1871,21 +1871,21 @@ export function AdminReporting() {
                                   </BarChart>
                                 </ResponsiveContainer>
                               </div>
-                              <div className="overflow-x-auto rounded-xl border border-[#bfdbfe] bg-white">
-                                <p className="border-b border-[#dbeafe] px-3 py-2 text-sm font-semibold text-[#0f172a]">Aggregate result</p>
+                              <div className="overflow-x-auto rounded-xl border border-info/30 bg-card">
+                                <p className="border-b border-info/25 px-3 py-2 text-sm font-semibold text-foreground">Aggregate result</p>
                                 <table className="w-full text-left text-sm">
-                                  <thead className="bg-[#f8fafc] text-[#475569]">
+                                  <thead className="bg-muted text-muted-foreground">
                                     <tr>
                                       {semanticQueryMutation.data.columns.map((column) => (
                                         <th key={column} className="px-3 py-2 font-semibold">{column}</th>
                                       ))}
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-[#e2e8f0]">
+                                  <tbody className="divide-y divide-border">
                                     {semanticQueryMutation.data.rows.map((row, index) => (
                                       <tr key={index}>
                                         {semanticQueryMutation.data.columns.map((column) => (
-                                          <td key={column} className="px-3 py-2 text-[#0f172a]">{row[column] ?? ''}</td>
+                                          <td key={column} className="px-3 py-2 text-foreground">{row[column] ?? ''}</td>
                                         ))}
                                       </tr>
                                     ))}
@@ -1893,21 +1893,21 @@ export function AdminReporting() {
                                 </table>
                               </div>
                             </div>
-                            <div className="overflow-x-auto rounded-xl border border-[#bfdbfe] bg-white">
-                              <p className="border-b border-[#dbeafe] px-3 py-2 text-sm font-semibold text-[#0f172a]">Underlying records</p>
+                            <div className="overflow-x-auto rounded-xl border border-info/30 bg-card">
+                              <p className="border-b border-info/25 px-3 py-2 text-sm font-semibold text-foreground">Underlying records</p>
                               <table className="w-full text-left text-sm">
-                                <thead className="bg-[#f8fafc] text-[#475569]">
+                                <thead className="bg-muted text-muted-foreground">
                                   <tr>
                                     {Object.keys(semanticQueryMutation.data.drillThroughRows[0] ?? {}).map((column) => (
                                       <th key={column} className="px-3 py-2 font-semibold">{column}</th>
                                     ))}
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[#e2e8f0]">
+                                <tbody className="divide-y divide-border">
                                   {semanticQueryMutation.data.drillThroughRows.map((row, index) => (
                                     <tr key={index}>
                                       {Object.entries(row).map(([column, value]) => (
-                                        <td key={column} className="px-3 py-2 text-[#0f172a]">{value}</td>
+                                        <td key={column} className="px-3 py-2 text-foreground">{value}</td>
                                       ))}
                                     </tr>
                                   ))}
@@ -1919,38 +1919,38 @@ export function AdminReporting() {
                       </CardContent>
                     </Card>
 
-                    <Card className="rounded-2xl border-[#e2e8f0]">
+                    <Card className="rounded-2xl border-border">
                       <CardHeader>
                         <CardTitle>Builder Summary</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3 text-sm">
                         <div>
-                          <p className="text-[#64748b]">Data</p>
-                          <p className="font-semibold text-[#0f172a]">{currentSource.title}</p>
+                          <p className="text-muted-foreground">Data</p>
+                          <p className="font-semibold text-foreground">{currentSource.title}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">Columns</p>
-                          <p className="text-[#0f172a]">{fieldLabels(currentSource, fieldsForQuery)}</p>
+                          <p className="text-muted-foreground">Columns</p>
+                          <p className="text-foreground">{fieldLabels(currentSource, fieldsForQuery)}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">Metrics</p>
-                          <p className="text-[#0f172a]">{fieldLabels(currentSource, metricsForQuery)}</p>
+                          <p className="text-muted-foreground">Metrics</p>
+                          <p className="text-foreground">{fieldLabels(currentSource, metricsForQuery)}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">Group by</p>
-                          <p className="text-[#0f172a]">{fieldLabels(currentSource, groupByForQuery)}</p>
+                          <p className="text-muted-foreground">Group by</p>
+                          <p className="text-foreground">{fieldLabels(currentSource, groupByForQuery)}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">Scope</p>
-                          <p className="font-semibold text-[#0f172a]">{catalog.scopeLevels.find((scope) => scope.code === scopeForQuery)?.label ?? scopeForQuery}</p>
+                          <p className="text-muted-foreground">Scope</p>
+                          <p className="font-semibold text-foreground">{catalog.scopeLevels.find((scope) => scope.code === scopeForQuery)?.label ?? scopeForQuery}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">Population</p>
-                          <p className="font-semibold text-[#0f172a]">{populationLabelForQuery}</p>
+                          <p className="text-muted-foreground">Population</p>
+                          <p className="font-semibold text-foreground">{populationLabelForQuery}</p>
                         </div>
                         <div>
-                          <p className="text-[#64748b]">Filters</p>
-                          <p className="text-[#0f172a]">
+                          <p className="text-muted-foreground">Filters</p>
+                          <p className="text-foreground">
                             {[`Period: ${filterPeriod}`, ...Object.entries(filterValues).filter(([, value]) => value.trim()).map(([code, value]) => `${code}: ${value}`)].join(', ')}
                           </p>
                         </div>
@@ -1958,17 +1958,17 @@ export function AdminReporting() {
                     </Card>
                   </div>
 
-                  <Card className="rounded-2xl border-[#e2e8f0]">
+                  <Card className="rounded-2xl border-border">
                     <CardHeader>
                       <CardTitle>Calculated Fields</CardTitle>
                     </CardHeader>
                     <CardContent className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-[#0f172a]" htmlFor="calculated-field-name">Metric name</label>
+                        <label className="text-sm font-medium text-foreground" htmlFor="calculated-field-name">Metric name</label>
                         <Input id="calculated-field-name" value={calculatedFieldName} onChange={(event) => setCalculatedFieldName(event.target.value)} />
                       </div>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-[#0f172a]" htmlFor="calculated-field-expression">Formula</label>
+                        <label className="text-sm font-medium text-foreground" htmlFor="calculated-field-expression">Formula</label>
                         <Input id="calculated-field-expression" value={calculatedFieldExpression} onChange={(event) => setCalculatedFieldExpression(event.target.value)} />
                       </div>
                       <div className="flex gap-2">
@@ -1994,13 +1994,13 @@ export function AdminReporting() {
                         {(calculatedFieldsQuery.data ?? []).length > 0 ? (
                           <div className="flex flex-wrap gap-2">
                             {(calculatedFieldsQuery.data ?? []).map((field, index) => (
-                              <Badge key={field.calculatedFieldId ?? field.id ?? index} variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">
+                              <Badge key={field.calculatedFieldId ?? field.id ?? index} variant="outline" className="border-border bg-muted text-muted-foreground">
                                 {field.fieldName ?? 'Calculated field'} · {field.status ?? 'DRAFT'}
                               </Badge>
                             ))}
                           </div>
                         ) : (
-                          <p className="text-sm text-[#64748b]">No calculated fields yet.</p>
+                          <p className="text-sm text-muted-foreground">No calculated fields yet.</p>
                         )}
                       </div>
                     </CardContent>
@@ -2024,26 +2024,26 @@ export function AdminReporting() {
               <ErrorState title="Unable to load data relationships" error={builderCatalogQuery.error} onRetry={() => builderCatalogQuery.refetch()} />
             ) : catalog && currentSource ? (
               <div className="grid gap-4 xl:grid-cols-[22rem_1fr]">
-                <Card className="rounded-2xl border-[#e2e8f0]">
+                <Card className="rounded-2xl border-border">
                   <CardHeader>
                     <CardTitle>Business Data Domains</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {Object.entries(sourceGroups).map(([category, sources]) => (
                       <div key={category} className="space-y-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">{category}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{category}</p>
                         {sources.map((source) => (
                           <button
                             key={source.code}
                             type="button"
                             onClick={() => applyDataSource(source.code)}
                             className={cn(
-                              'w-full rounded-xl border p-3 text-left transition hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]',
-                              currentSource.code === source.code ? 'border-[#4f46e5] bg-[#eef2ff]' : 'border-[#e2e8f0] bg-white',
+                              'w-full rounded-xl border p-3 text-left transition hover:border-primary/50 hover:bg-primary/10',
+                              currentSource.code === source.code ? 'border-primary bg-primary/10' : 'border-border bg-card',
                             )}
                           >
-                            <p className="font-semibold text-[#0f172a]">{source.title}</p>
-                            <p className="mt-1 text-xs text-[#64748b]">{source.metrics.length} measures · {source.fields.length} detail fields</p>
+                            <p className="font-semibold text-foreground">{source.title}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{source.metrics.length} measures · {source.fields.length} detail fields</p>
                           </button>
                         ))}
                       </div>
@@ -2052,12 +2052,12 @@ export function AdminReporting() {
                 </Card>
 
                 <div className="space-y-4">
-                  <Card className="rounded-2xl border-[#e2e8f0]">
+                  <Card className="rounded-2xl border-border">
                     <CardHeader>
                       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                         <div>
                           <CardTitle>{currentSource.title}</CardTitle>
-                          <p className="mt-2 text-sm text-[#64748b]">{currentSource.category}</p>
+                          <p className="mt-2 text-sm text-muted-foreground">{currentSource.category}</p>
                         </div>
                         <Button
                           variant="outline"
@@ -2071,27 +2071,27 @@ export function AdminReporting() {
                       </div>
                     </CardHeader>
                     <CardContent className="grid gap-4 lg:grid-cols-3">
-                      <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
-                        <p className="text-sm font-semibold text-[#0f172a]">Available fields</p>
+                      <div className="rounded-xl border border-border bg-muted p-4">
+                        <p className="text-sm font-semibold text-foreground">Available fields</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {currentSource.fields.map((field) => (
-                            <Badge key={field.code} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">{field.label}</Badge>
+                            <Badge key={field.code} variant="outline" className="border-border bg-card text-muted-foreground">{field.label}</Badge>
                           ))}
                         </div>
                       </div>
-                      <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
-                        <p className="text-sm font-semibold text-[#0f172a]">Available measures</p>
+                      <div className="rounded-xl border border-border bg-muted p-4">
+                        <p className="text-sm font-semibold text-foreground">Available measures</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {currentSource.metrics.map((metric) => (
-                            <Badge key={metric.code} variant="outline" className="border-[#bbf7d0] bg-white text-[#166534]">{metric.label}</Badge>
+                            <Badge key={metric.code} variant="outline" className="border-success/30 bg-card text-success">{metric.label}</Badge>
                           ))}
                         </div>
                       </div>
-                      <div className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
-                        <p className="text-sm font-semibold text-[#0f172a]">Break down by</p>
+                      <div className="rounded-xl border border-border bg-muted p-4">
+                        <p className="text-sm font-semibold text-foreground">Break down by</p>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {currentSource.groupBy.map((field) => (
-                            <Badge key={field.code} variant="outline" className="border-[#fde68a] bg-white text-[#92400e]">{field.label}</Badge>
+                            <Badge key={field.code} variant="outline" className="border-warning/30 bg-card text-warning">{field.label}</Badge>
                           ))}
                         </div>
                       </div>
@@ -2099,7 +2099,7 @@ export function AdminReporting() {
                   </Card>
 
                   <div className="grid gap-4 xl:grid-cols-2">
-                    <Card className="rounded-2xl border-[#e2e8f0]">
+                    <Card className="rounded-2xl border-border">
                       <CardHeader>
                         <CardTitle>How This Data Connects</CardTitle>
                       </CardHeader>
@@ -2108,55 +2108,55 @@ export function AdminReporting() {
                           const fromSource = catalog.dataSources.find((source) => source.code === relationship.from);
                           const toSource = catalog.dataSources.find((source) => source.code === relationship.to);
                           return (
-                            <div key={relationship.code} className="rounded-xl border border-[#e2e8f0] bg-white p-4">
-                              <p className="font-semibold text-[#0f172a]">{relationship.title}</p>
-                              <p className="mt-2 text-sm leading-6 text-[#475569]">{relationship.businessUse}</p>
+                            <div key={relationship.code} className="rounded-xl border border-border bg-card p-4">
+                              <p className="font-semibold text-foreground">{relationship.title}</p>
+                              <p className="mt-2 text-sm leading-6 text-muted-foreground">{relationship.businessUse}</p>
                               <div className="mt-3 grid gap-2 text-sm md:grid-cols-3">
                                 <div>
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Feeds from</p>
-                                  <p className="font-medium text-[#0f172a]">{fromSource?.title ?? relationship.from}</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feeds from</p>
+                                  <p className="font-medium text-foreground">{fromSource?.title ?? relationship.from}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Used by</p>
-                                  <p className="font-medium text-[#0f172a]">{toSource?.title ?? relationship.to}</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Used by</p>
+                                  <p className="font-medium text-foreground">{toSource?.title ?? relationship.to}</p>
                                 </div>
                                 <div>
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Produces</p>
-                                  <p className="font-medium text-[#0f172a]">{relationship.relationship}</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Produces</p>
+                                  <p className="font-medium text-foreground">{relationship.relationship}</p>
                                 </div>
                               </div>
                               <div className="mt-4 grid gap-3 text-sm lg:grid-cols-2">
-                                <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Data grain</p>
-                                  <p className="mt-1 text-[#0f172a]">{relationship.grain ?? 'Business process record'}</p>
+                                <div className="rounded-lg border border-border bg-muted p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Data grain</p>
+                                  <p className="mt-1 text-foreground">{relationship.grain ?? 'Business process record'}</p>
                                 </div>
-                                <div className="rounded-lg border border-[#e2e8f0] bg-[#f8fafc] p-3">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Privacy</p>
-                                  <p className="mt-1 text-[#0f172a]">{relationship.privacyLevel ?? 'standard'}</p>
+                                <div className="rounded-lg border border-border bg-muted p-3">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Privacy</p>
+                                  <p className="mt-1 text-foreground">{relationship.privacyLevel ?? 'standard'}</p>
                                 </div>
                               </div>
                               {relationship.joinKeys && relationship.joinKeys.length > 0 ? (
                                 <div className="mt-3">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Join keys</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Join keys</p>
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     {relationship.joinKeys.map((key) => (
-                                      <Badge key={key} variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">{key}</Badge>
+                                      <Badge key={key} variant="outline" className="border-border bg-muted text-muted-foreground">{key}</Badge>
                                     ))}
                                   </div>
                                 </div>
                               ) : null}
                               {relationship.lineage && relationship.lineage.length > 0 ? (
                                 <div className="mt-3">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Lineage</p>
-                                  <p className="mt-1 text-sm text-[#475569]">{relationship.lineage.join(' -> ')}</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Lineage</p>
+                                  <p className="mt-1 text-sm text-muted-foreground">{relationship.lineage.join(' -> ')}</p>
                                 </div>
                               ) : null}
                               {relationship.recommendedDrilldowns && relationship.recommendedDrilldowns.length > 0 ? (
                                 <div className="mt-3">
-                                  <p className="text-xs font-semibold uppercase tracking-wide text-[#64748b]">Recommended drilldowns</p>
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recommended drilldowns</p>
                                   <div className="mt-2 flex flex-wrap gap-2">
                                     {relationship.recommendedDrilldowns.map((drilldown) => (
-                                      <Badge key={drilldown} variant="outline" className="border-[#bbf7d0] bg-[#f0fdf4] text-[#166534]">{drilldown}</Badge>
+                                      <Badge key={drilldown} variant="outline" className="border-success/30 bg-success/10 text-success">{drilldown}</Badge>
                                     ))}
                                   </div>
                                 </div>
@@ -2164,20 +2164,20 @@ export function AdminReporting() {
                             </div>
                           );
                         }) : (
-                          <div className="rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-6 text-sm text-[#64748b]">
+                          <div className="rounded-xl border border-dashed border-border bg-muted p-6 text-sm text-muted-foreground">
                             No direct cross-module relationship is configured for this data domain yet.
                           </div>
                         )}
                       </CardContent>
                     </Card>
 
-                    <Card className="rounded-2xl border-[#e2e8f0]">
+                    <Card className="rounded-2xl border-border">
                       <CardHeader>
                         <CardTitle>Reports and Smart Analytics</CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div>
-                          <p className="text-sm font-semibold text-[#0f172a]">Recommended report templates</p>
+                          <p className="text-sm font-semibold text-foreground">Recommended report templates</p>
                           <div className="mt-3 space-y-2">
                             {templatesForCurrentSource.length > 0 ? templatesForCurrentSource.map((template) => (
                               <button
@@ -2187,18 +2187,18 @@ export function AdminReporting() {
                                   applyTemplate(template);
                                   setActiveTab('builder');
                                 }}
-                                className="w-full rounded-xl border border-[#e2e8f0] bg-white p-3 text-left transition hover:border-[#4f46e5]/50 hover:bg-[#eef2ff]"
+                                className="w-full rounded-xl border border-border bg-card p-3 text-left transition hover:border-primary/50 hover:bg-primary/10"
                               >
-                                <p className="font-semibold text-[#0f172a]">{template.title}</p>
-                                <p className="mt-1 text-xs text-[#64748b]">{template.metrics.length} measures · {template.groupBy.length} breakdowns · {template.visualization}</p>
+                                <p className="font-semibold text-foreground">{template.title}</p>
+                                <p className="mt-1 text-xs text-muted-foreground">{template.metrics.length} measures · {template.groupBy.length} breakdowns · {template.visualization}</p>
                               </button>
                             )) : (
-                              <p className="rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-4 text-sm text-[#64748b]">No templates yet for this data domain.</p>
+                              <p className="rounded-xl border border-dashed border-border bg-muted p-4 text-sm text-muted-foreground">No templates yet for this data domain.</p>
                             )}
                           </div>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-[#0f172a]">Smart categories using this data</p>
+                          <p className="text-sm font-semibold text-foreground">Smart categories using this data</p>
                           <div className="mt-3 flex flex-wrap gap-2">
                             {smartCategoriesForCurrentSource.length > 0 ? smartCategoriesForCurrentSource.map((category) => (
                               <button
@@ -2208,12 +2208,12 @@ export function AdminReporting() {
                                   applySmartCategory(category);
                                   setActiveTab('analytics');
                                 }}
-                                className="rounded-full border border-[#cbd5e1] bg-white px-3 py-1.5 text-sm font-medium text-[#475569] transition hover:border-[#4f46e5]/50 hover:bg-[#eef2ff] hover:text-[#3730a3]"
+                                className="rounded-full border border-border bg-card px-3 py-1.5 text-sm font-medium text-muted-foreground transition hover:border-primary/50 hover:bg-primary/10 hover:text-primary"
                               >
                                 {category.title}
                               </button>
                             )) : (
-                              <span className="rounded-full border border-[#cbd5e1] bg-[#f8fafc] px-3 py-1.5 text-sm text-[#64748b]">No smart category yet</span>
+                              <span className="rounded-full border border-border bg-muted px-3 py-1.5 text-sm text-muted-foreground">No smart category yet</span>
                             )}
                           </div>
                         </div>
@@ -2229,13 +2229,13 @@ export function AdminReporting() {
           {activeTab === 'library' ? (
           <div className="space-y-6">
             <SectionHeading title="Library & Delivery" />
-            <Card className="rounded-2xl border-[#e2e8f0]">
+            <Card className="rounded-2xl border-border">
               <CardHeader>
                 <CardTitle>Delivery Settings</CardTitle>
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-[14rem_1fr]">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#0f172a]">Frequency</label>
+                  <label className="text-sm font-medium text-foreground">Frequency</label>
                   <Select value={scheduleFrequency} onValueChange={setScheduleFrequency}>
                     <SelectTrigger aria-label="Schedule frequency">
                       <SelectValue />
@@ -2249,7 +2249,7 @@ export function AdminReporting() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-[#0f172a]" htmlFor="schedule-recipients">Recipients</label>
+                  <label className="text-sm font-medium text-foreground" htmlFor="schedule-recipients">Recipients</label>
                   <Input
                     id="schedule-recipients"
                     value={scheduleRecipients}
@@ -2259,10 +2259,10 @@ export function AdminReporting() {
                 </div>
               </CardContent>
             </Card>
-            <Card className="rounded-2xl border-[#e2e8f0]">
+            <Card className="rounded-2xl border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 text-[#4f46e5]" />
+                  <FileText className="h-5 w-5 text-primary" />
                   Saved Reports
                 </CardTitle>
               </CardHeader>
@@ -2281,15 +2281,15 @@ export function AdminReporting() {
                         .slice(0, 3);
                       const showHistory = expandedReportId === reportId || executions.length > 0;
                       return (
-                        <div key={report.reportDefinitionId ?? report.id ?? index} className="rounded-xl border border-[#e2e8f0] bg-white p-4">
+                        <div key={report.reportDefinitionId ?? report.id ?? index} className="rounded-xl border border-border bg-card p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="font-semibold text-[#0f172a]">{report.reportName ?? report.name ?? 'Saved report'}</p>
-                              <p className="mt-1 text-sm text-[#64748b]">{source?.title ?? report.dataSource ?? 'HR data'}</p>
+                              <p className="font-semibold text-foreground">{report.reportName ?? report.name ?? 'Saved report'}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">{source?.title ?? report.dataSource ?? 'HR data'}</p>
                             </div>
-                            <Badge variant="outline" className="border-[#cbd5e1] bg-[#f8fafc] text-[#475569]">{report.status ?? 'DRAFT'}</Badge>
+                            <Badge variant="outline" className="border-border bg-muted text-muted-foreground">{report.status ?? 'DRAFT'}</Badge>
                           </div>
-                          <div className="mt-3 space-y-1 text-xs text-[#64748b]">
+                          <div className="mt-3 space-y-1 text-xs text-muted-foreground">
                             <p>Scope: {report.queryDefinition?.scopeLevel ?? 'TENANT'}</p>
                             <p>Population: {report.queryDefinition?.populationValue ?? 'ALL'}</p>
                             <p>Fields: {fieldLabels(source, report.queryDefinition?.fields) || 'Default fields'}</p>
@@ -2329,38 +2329,38 @@ export function AdminReporting() {
                             </Button>
                           </div>
                           {showHistory ? (
-                            <div className="mt-4 rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-3">
+                            <div className="mt-4 rounded-xl border border-border bg-muted p-3">
                               <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-semibold text-[#0f172a]">Execution history</p>
+                                <p className="text-sm font-semibold text-foreground">Execution history</p>
                                 {reportExecutionsQuery.isFetching ? (
-                                  <span className="text-xs text-[#64748b]">Refreshing...</span>
+                                  <span className="text-xs text-muted-foreground">Refreshing...</span>
                                 ) : null}
                               </div>
                               {executions.length > 0 ? (
                                 <div className="mt-3 space-y-2">
                                   {executions.map((execution) => (
-                                    <div key={execution.reportExecutionId ?? execution.id ?? `${reportId}-${execution.status}`} className="rounded-lg border border-[#e2e8f0] bg-white p-3 text-sm">
+                                    <div key={execution.reportExecutionId ?? execution.id ?? `${reportId}-${execution.status}`} className="rounded-lg border border-border bg-card p-3 text-sm">
                                       <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex items-center gap-2">
-                                          <Badge variant="outline" className="border-[#bfdbfe] bg-[#eff6ff] text-[#1d4ed8]">
+                                          <Badge variant="outline" className="border-info/30 bg-info/10 text-info">
                                             {execution.status ?? 'RUN'}
                                           </Badge>
-                                          <span className="text-[#475569]">{formatExecutionTime(execution)}</span>
+                                          <span className="text-muted-foreground">{formatExecutionTime(execution)}</span>
                                         </div>
-                                        <span className="font-semibold text-[#0f172a]">{execution.rowCount ?? execution.resultPayload?.drillThroughCount ?? 0} rows</span>
+                                        <span className="font-semibold text-foreground">{execution.rowCount ?? execution.resultPayload?.drillThroughCount ?? 0} rows</span>
                                       </div>
                                       {execution.resultPayload ? (
-                                        <p className="mt-2 text-xs text-[#64748b]">
+                                        <p className="mt-2 text-xs text-muted-foreground">
                                           {execution.resultPayload.sourceTitle} result saved with {execution.resultPayload.drillThroughCount} underlying records.
                                         </p>
                                       ) : execution.resultUrl ? (
-                                        <p className="mt-2 text-xs text-[#64748b]">Result stored for download or delivery.</p>
+                                        <p className="mt-2 text-xs text-muted-foreground">Result stored for download or delivery.</p>
                                       ) : null}
                                     </div>
                                   ))}
                                 </div>
                               ) : (
-                                <p className="mt-3 text-sm text-[#64748b]">No execution history yet. Run the report to generate a saved result.</p>
+                                <p className="mt-3 text-sm text-muted-foreground">No execution history yet. Run the report to generate a saved result.</p>
                               )}
                             </div>
                           ) : null}
@@ -2369,27 +2369,27 @@ export function AdminReporting() {
                     })}
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] p-6 text-sm text-[#64748b]">
+                  <div className="rounded-xl border border-dashed border-border bg-muted p-6 text-sm text-muted-foreground">
                     No saved reports yet. Use Builder to create one from any HR data source.
                   </div>
                 )}
               </CardContent>
             </Card>
-            <Card className="rounded-2xl border-[#e2e8f0]">
+            <Card className="rounded-2xl border-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <FileSpreadsheet className="h-5 w-5 text-[#10b981]" />
+                  <FileSpreadsheet className="h-5 w-5 text-success" />
                   Migration Templates
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {migrationTemplates.map((template) => (
-                    <div key={template.module} className="rounded-xl border border-[#e2e8f0] bg-[#f8fafc] p-4">
+                    <div key={template.module} className="rounded-xl border border-border bg-muted p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-semibold text-[#0f172a]">{template.title}</p>
-                          <p className="mt-1 text-sm text-[#64748b]">{template.owner}</p>
+                          <p className="font-semibold text-foreground">{template.title}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">{template.owner}</p>
                         </div>
                         <Button
                           size="sm"
@@ -2412,12 +2412,12 @@ export function AdminReporting() {
           <div className="space-y-6">
             <div className="grid gap-4 lg:grid-cols-2">
               {dashboard.reports.map((report) => (
-              <Card key={report.code} className="rounded-2xl border-[#e2e8f0]">
+              <Card key={report.code} className="rounded-2xl border-border">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <CardTitle className="text-lg">{report.title}</CardTitle>
-                      <p className="mt-1 text-sm text-[#64748b]">{report.category}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{report.category}</p>
                     </div>
                     <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.readiness}</Badge>
                   </div>
@@ -2435,31 +2435,31 @@ export function AdminReporting() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-[#64748b]">Activity</p>
-                      <p className="text-xl font-bold text-[#0f172a]">{report.activity}</p>
+                      <p className="text-muted-foreground">Activity</p>
+                      <p className="text-xl font-bold text-foreground">{report.activity}</p>
                     </div>
                     <div>
-                      <p className="text-[#64748b]">Issues</p>
-                      <p className="text-xl font-bold text-[#0f172a]">{report.issues}</p>
+                      <p className="text-muted-foreground">Issues</p>
+                      <p className="text-xl font-bold text-foreground">{report.issues}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <BellRing className="h-4 w-4 text-[#4f46e5]" />
+                      <BellRing className="h-4 w-4 text-primary" />
                       <span>{report.notifications} notifications</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4 text-[#10b981]" />
+                      <Clock3 className="h-4 w-4 text-success" />
                       <span>{report.workflowTransitions} workflows</span>
                     </div>
-                    <div className="col-span-2 text-[#64748b]">
+                    <div className="col-span-2 text-muted-foreground">
                       Last activity: {report.lastActivityAt ? new Date(report.lastActivityAt).toLocaleString() : 'No activity yet'}
                     </div>
                     {report.services && report.services.length > 0 ? (
-                      <p className="col-span-2 text-xs font-medium text-[#475569]">Connected services: {report.services.slice(0, 3).join(', ')}</p>
+                      <p className="col-span-2 text-xs font-medium text-muted-foreground">Connected services: {report.services.slice(0, 3).join(', ')}</p>
                     ) : null}
                     {report.analyticsOutputs && report.analyticsOutputs.length > 0 ? (
                       <div className="col-span-2 flex flex-wrap gap-2">
                         {report.analyticsOutputs.slice(0, 4).map((output) => (
-                          <Badge key={output} variant="outline" className="border-[#cbd5e1] bg-white text-[#475569]">
+                          <Badge key={output} variant="outline" className="border-border bg-card text-muted-foreground">
                             {output}
                           </Badge>
                         ))}
@@ -2471,16 +2471,16 @@ export function AdminReporting() {
               ))}
             </div>
 
-            <Card className="rounded-2xl border-[#e2e8f0]">
+            <Card className="rounded-2xl border-border">
               <CardHeader>
                 <CardTitle>Top Report Activity</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
                 {topReports.map((report) => (
-                  <div key={report.code} className="grid gap-2 rounded-xl bg-[#f8fafc] p-3 md:grid-cols-[1fr_auto] md:items-center">
+                  <div key={report.code} className="grid gap-2 rounded-xl bg-muted p-3 md:grid-cols-[1fr_auto] md:items-center">
                     <div>
-                      <p className="font-semibold text-[#0f172a]">{report.title}</p>
-                      <p className="text-sm text-[#64748b]">{report.commands} commands, {report.events} events, {report.notifications} notifications</p>
+                      <p className="font-semibold text-foreground">{report.title}</p>
+                      <p className="text-sm text-muted-foreground">{report.commands} commands, {report.events} events, {report.notifications} notifications</p>
                     </div>
                     <Badge variant="outline" className={cn('border', readinessTone(report.readiness))}>{report.activity} activity</Badge>
                   </div>
