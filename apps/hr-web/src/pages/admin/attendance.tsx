@@ -710,7 +710,7 @@ export function AdminAttendance() {
     <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
       <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 pl-2 pr-3 text-xs font-bold text-slate-600 backdrop-blur-md">
+          <div className="mb-3 inline-flex w-fit items-center gap-2 rounded-full border border-white/60 bg-white/60 py-1 ps-2 pe-3 text-xs font-bold text-slate-600 backdrop-blur-md">
             <span className="relative flex h-2.5 w-2.5">
               <span className="fusion-pulse absolute inline-flex h-full w-full rounded-full bg-emerald-400" />
               <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
@@ -736,7 +736,7 @@ export function AdminAttendance() {
             void refetch();
             void refetchPeriodReadiness();
           }}>
-            <RefreshCw className="mr-2 h-4 w-4" />
+            <RefreshCw className="me-2 h-4 w-4" />
             Refresh
           </Button>
           <Button asChild variant="outline">
@@ -823,11 +823,11 @@ export function AdminAttendance() {
               onClick={() => finalizeMutation.mutate({ date, payrollCycleId: payrollCycleId.trim() || undefined })}
               disabled={isLocked || rows.length === 0 || finalizeMutation.isPending}
             >
-              <LockKeyhole className="mr-2 h-4 w-4" />
+              <LockKeyhole className="me-2 h-4 w-4" />
               Finalize Day
             </Button>
             <Button variant="outline" onClick={() => downloadLedgerCsv(rows, ledger?.workDate ?? date)}>
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="me-2 h-4 w-4" />
               Export Ledger CSV
             </Button>
           </div>
@@ -1201,7 +1201,7 @@ export function AdminAttendance() {
                   <p className="text-sm text-muted-foreground">{request.reason}</p>
                   {request.status === 'APPROVED' ? (
                     <Button size="sm" onClick={() => applyCorrectionMutation.mutate({ id: request.id })} disabled={applyCorrectionMutation.isPending || isLocked}>
-                      <PlayCircle className="mr-2 h-4 w-4" />
+                      <PlayCircle className="me-2 h-4 w-4" />
                       Apply to Ledger
                     </Button>
                   ) : request.status === 'APPLIED' ? (
@@ -1278,7 +1278,7 @@ export function AdminAttendance() {
                     .then((response) => downloadBlob(response.data, `attendance-summary-${periodLabel}.csv`));
                 }}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="me-2 h-4 w-4" />
                 Export Summary CSV
               </Button>
             </div>
@@ -1342,7 +1342,7 @@ export function AdminAttendance() {
                 </Select>
               </div>
               <Button className="self-end" onClick={addHoliday} disabled={setupMutation.isPending}>
-                <Plus className="mr-2 h-4 w-4" />
+                <Plus className="me-2 h-4 w-4" />
                 Add
               </Button>
             </div>
@@ -1387,7 +1387,7 @@ export function AdminAttendance() {
           <CardContent className="space-y-5">
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => downloadLedgerCsv(rows, ledger?.workDate ?? date)}>
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="me-2 h-4 w-4" />
                 Daily Ledger CSV
               </Button>
               <Button
@@ -1399,7 +1399,7 @@ export function AdminAttendance() {
                   });
                 }}
               >
-                <MapPin className="mr-2 h-4 w-4" />
+                <MapPin className="me-2 h-4 w-4" />
                 Daily Geo Evidence
               </Button>
               <Button
@@ -1411,7 +1411,7 @@ export function AdminAttendance() {
                   });
                 }}
               >
-                <Download className="mr-2 h-4 w-4" />
+                <Download className="me-2 h-4 w-4" />
                 Period Close Evidence
               </Button>
             </div>
@@ -1467,7 +1467,7 @@ export function AdminAttendance() {
                 </Select>
               </div>
               <Button onClick={() => void closePeriod()} disabled={periodCloseMutation.isPending}>
-                <LockKeyhole className="mr-2 h-4 w-4" />
+                <LockKeyhole className="me-2 h-4 w-4" />
                 {periodCloseMutation.isPending ? 'Closing...' : 'Close Period'}
               </Button>
             </div>

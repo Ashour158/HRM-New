@@ -1106,28 +1106,28 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
                 <CardDescription>Budgeted positions, vacancies, approved demand, pending requests, and forecast demand by department.</CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
-                <table className="w-full min-w-[720px] text-left text-sm">
+                <table className="w-full min-w-[720px] text-start text-sm">
                   <thead className="border-b text-xs uppercase text-muted-foreground">
                     <tr>
                       <th className="py-2">Department</th>
-                      <th className="py-2 text-right">Current</th>
-                      <th className="py-2 text-right">Positions</th>
-                      <th className="py-2 text-right">Vacancies</th>
-                      <th className="py-2 text-right">Pending</th>
-                      <th className="py-2 text-right">Approved</th>
-                      <th className="py-2 text-right">Forecast</th>
+                      <th className="py-2 text-end">Current</th>
+                      <th className="py-2 text-end">Positions</th>
+                      <th className="py-2 text-end">Vacancies</th>
+                      <th className="py-2 text-end">Pending</th>
+                      <th className="py-2 text-end">Approved</th>
+                      <th className="py-2 text-end">Forecast</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(planning?.headcountPlan ?? []).map((row) => (
                       <tr key={row.departmentId} className="border-b last:border-0">
                         <td className="py-3 font-medium">{row.departmentName}</td>
-                        <td className="py-3 text-right">{row.currentHeadcount}</td>
-                        <td className="py-3 text-right">{row.approvedPositions}</td>
-                        <td className="py-3 text-right">{row.vacancies}</td>
-                        <td className="py-3 text-right">{row.pendingRequests}</td>
-                        <td className="py-3 text-right">{row.approvedRequests}</td>
-                        <td className="py-3 text-right font-semibold">{row.forecastDemand}</td>
+                        <td className="py-3 text-end">{row.currentHeadcount}</td>
+                        <td className="py-3 text-end">{row.approvedPositions}</td>
+                        <td className="py-3 text-end">{row.vacancies}</td>
+                        <td className="py-3 text-end">{row.pendingRequests}</td>
+                        <td className="py-3 text-end">{row.approvedRequests}</td>
+                        <td className="py-3 text-end font-semibold">{row.forecastDemand}</td>
                       </tr>
                     ))}
                   </tbody>

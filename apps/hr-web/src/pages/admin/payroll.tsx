@@ -747,11 +747,11 @@ export function AdminPayroll() {
           actions={(
             <>
               <Button onClick={() => closeToPay()} disabled={closeToPayMutation.isPending || previewLoading || rows.length === 0}>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
+                <CheckCircle2 className="me-2 h-4 w-4" />
                 {closeToPayMutation.isPending ? 'Closing...' : 'Close to Pay'}
               </Button>
               <Button variant="outline" onClick={() => refetch()}>
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <RefreshCw className="me-2 h-4 w-4" />
                 Refresh
               </Button>
               {isRuleTab ? (
@@ -822,7 +822,7 @@ export function AdminPayroll() {
               className="flex-1"
               onClick={() => downloadCsv(`/payroll/export.csv?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${workLocationCode}` : ''}`, `payroll-${year}-${month}.csv`)}
             >
-              <Download className="mr-2 h-4 w-4" />
+              <Download className="me-2 h-4 w-4" />
               Export
             </Button>
             <Button
@@ -830,11 +830,11 @@ export function AdminPayroll() {
               className="flex-1"
               onClick={() => downloadCsv(`/payroll/bank-sheet.csv?year=${year}&month=${month}${workLocationCode !== 'ALL' ? `&workLocationCode=${workLocationCode}` : ''}`, `bank-sheet-${year}-${month}.csv`)}
             >
-              <Landmark className="mr-2 h-4 w-4" />
+              <Landmark className="me-2 h-4 w-4" />
               Bank
             </Button>
             <Button variant="outline" className="flex-1" onClick={() => downloadCsv('/payroll/mass-update-template.csv', 'payroll-template.csv')}>
-              <FileSpreadsheet className="mr-2 h-4 w-4" />
+              <FileSpreadsheet className="me-2 h-4 w-4" />
               Template
             </Button>
           </div>
@@ -1017,7 +1017,7 @@ export function AdminPayroll() {
                     disabled={!closeResult?.payrollCycleId || !selectedPayrollRow}
                     onClick={() => selectedPayrollRow && downloadPayslip(selectedPayrollRow.workerId, selectedPayrollRow.employeeId)}
                   >
-                    <FileText className="mr-2 h-4 w-4" />
+                    <FileText className="me-2 h-4 w-4" />
                     Payslip
                   </Button>
                 </div>
@@ -1089,7 +1089,7 @@ export function AdminPayroll() {
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Label className="inline-flex cursor-pointer items-center rounded-md border px-4 py-2 text-sm font-medium">
-                  <Upload className="mr-2 h-4 w-4" />
+                  <Upload className="me-2 h-4 w-4" />
                   Upload CSV
                   <Input className="hidden" type="file" accept=".csv,text/csv" onChange={(event) => handleUpload(event.target.files?.[0])} />
                 </Label>
@@ -1447,7 +1447,7 @@ export function AdminPayroll() {
                           variant="ghost"
                           onClick={() => updateSalaryCompositionPlan(planIndex, { components: plan.components.filter((_, rowIndex) => rowIndex !== componentIndex) })}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
+                          <Trash2 className="me-2 h-4 w-4" />
                           Remove
                         </Button>
                       </div>
@@ -1458,7 +1458,7 @@ export function AdminPayroll() {
                     variant="ghost"
                     onClick={() => setSetup((current) => ({ ...current, salaryCompositionPlans: current.salaryCompositionPlans.filter((_, rowIndex) => rowIndex !== planIndex) }))}
                   >
-                    <Trash2 className="mr-2 h-4 w-4" />
+                    <Trash2 className="me-2 h-4 w-4" />
                     Remove Plan
                   </Button>
                 </div>
@@ -1533,7 +1533,7 @@ export function AdminPayroll() {
                       <Input type="number" value={bracket.thresholdTo ?? ''} placeholder="No upper limit" onChange={(event) => updateTaxBracket(index, { thresholdTo: event.target.value ? Number(event.target.value) : undefined })} />
                       <Input type="number" value={bracket.ratePercent} onChange={(event) => updateTaxBracket(index, { ratePercent: Number(event.target.value || 0) })} />
                       <Button type="button" variant="ghost" onClick={() => updatePayrollPolicy({ taxBrackets: (setup.payrollCalculationPolicy.taxBrackets ?? []).filter((_, rowIndex) => rowIndex !== index) })}>
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="me-2 h-4 w-4" />
                         Remove
                       </Button>
                     </div>
@@ -1648,7 +1648,7 @@ export function AdminPayroll() {
                       Blocks close-to-pay
                     </label>
                     <Button type="button" variant="ghost" onClick={() => setSetup((current) => ({ ...current, payrollBlockingRules: current.payrollBlockingRules.filter((_, rowIndex) => rowIndex !== index) }))}>
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      <Trash2 className="me-2 h-4 w-4" />
                       Remove
                     </Button>
                   </div>
@@ -1834,7 +1834,7 @@ export function AdminPayroll() {
                       <Input value={(rule.departmentCodes ?? []).join(',')} placeholder="Department codes" onChange={(event) => updateShiftRotation(index, { departmentCodes: splitCsv(event.target.value) })} />
                       <Input value={(rule.workerIds ?? []).join(',')} placeholder="Specific people (optional)" onChange={(event) => updateShiftRotation(index, { workerIds: splitCsv(event.target.value) })} />
                       <Button type="button" variant="ghost" onClick={() => updateAttendancePolicy({ shiftRotations: (setup.attendancePolicy.shiftRotations ?? []).filter((_, rowIndex) => rowIndex !== index) })}>
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="me-2 h-4 w-4" />
                         Remove
                       </Button>
                     </div>
@@ -1876,7 +1876,7 @@ export function AdminPayroll() {
                       <Input type="number" value={profile.radiusMeters} onChange={(event) => updateGeofenceProfile(index, { radiusMeters: Number(event.target.value || 0) })} />
                       <Input type="number" value={profile.highAccuracyRequiredMeters ?? ''} placeholder="Accuracy meters" onChange={(event) => updateGeofenceProfile(index, { highAccuracyRequiredMeters: event.target.value ? Number(event.target.value) : undefined })} />
                       <Button type="button" variant="ghost" onClick={() => updateAttendancePolicy({ geofenceProfiles: (setup.attendancePolicy.geofenceProfiles ?? []).filter((_, rowIndex) => rowIndex !== index) })}>
-                        <Trash2 className="mr-2 h-4 w-4" />
+                        <Trash2 className="me-2 h-4 w-4" />
                         Remove
                       </Button>
                     </div>
@@ -1999,7 +1999,7 @@ export function AdminPayroll() {
                     <Input value={rule.coreEndTime ?? ''} placeholder="Core end" onChange={(event) => updateFlexibleRule(index, { coreEndTime: event.target.value })} />
                     <Input type="number" value={rule.minimumPayableDayMinutes ?? ''} placeholder="Minimum payable" onChange={(event) => updateFlexibleRule(index, { minimumPayableDayMinutes: event.target.value ? Number(event.target.value) : undefined })} />
                     <Button type="button" variant="ghost" onClick={() => updateAttendancePolicy({ flexibleHoursRules: (setup.attendancePolicy.flexibleHoursRules ?? []).filter((_, rowIndex) => rowIndex !== index) })}>
-                      <Trash2 className="mr-2 h-4 w-4" />
+                      <Trash2 className="me-2 h-4 w-4" />
                       Remove
                     </Button>
                   </div>
