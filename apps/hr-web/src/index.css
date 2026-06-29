@@ -26,6 +26,8 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 32 95% 18%;
+    --info: 217 91% 60%;
+    --info-foreground: 0 0% 100%;
     --accent-strong: 173 80% 40%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
@@ -54,6 +56,8 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 32 95% 18%;
+    --info: 217 91% 70%;
+    --info-foreground: 222.2 84% 4.9%;
     --accent-strong: 173 80% 40%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
