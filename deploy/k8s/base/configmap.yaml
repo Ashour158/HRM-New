@@ -5,6 +5,11 @@ metadata:
 data:
   NODE_ENV: production
   PORT: "3001"
+  # Defense-in-depth: enable DB-level Row-Level Security. Requires the runtime to connect
+  # as the restricted hcm_app role (DATABASE_URL) and cross-tenant workers as hcm_system
+  # (SYSTEM_DATABASE_URL); the boot guard refuses to start if RLS is on while connected as
+  # a superuser/BYPASSRLS role. Provision the roles once via infra/rls/provision-app-role.sql.
+  DB_RLS_ENABLED: "true"
   REDIS_URL: redis://redis:6379
   KAFKA_BROKERS: redpanda:9092
   JWT_EXPIRES_IN: 1h

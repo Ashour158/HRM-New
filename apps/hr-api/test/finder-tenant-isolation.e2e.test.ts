@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getPool, runWithTenant } from '@hcm/database';
+import { getPool, getSystemPool, runWithTenant } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { PerformanceReviewRepository } from '../src/domains/performance/repositories/performance-review.repository.js';
 import { LearningAssignmentRepository } from '../src/domains/learning/repositories/learning-assignment.repository.js';
@@ -43,7 +43,7 @@ const tenantIt = (name: string, fn: () => Promise<void>, timeout = 30_000): void
 
 async function insertPerformanceReview(workerId: string, reviewCycleId: string, managerId: string): Promise<string> {
   const id = randomUUID();
-  await getPool().query(
+  await getSystemPool().query(
     `insert into hr_performance.performance_reviews (
       id, tenant_id, worker_id, review_cycle_id, manager_id, status, aggregate_version, created_at, updated_at
     ) values ($1, $2, $3, $4, $5, 'DRAFT', 0, now(), now())`,
@@ -54,7 +54,7 @@ async function insertPerformanceReview(workerId: string, reviewCycleId: string, 
 }
 
 async function insertLearningCourse(courseId: string): Promise<void> {
-  await getPool().query(
+  await getSystemPool().query(
     `insert into hr_learning.learning_courses (
       id, tenant_id, title, content_type, status, aggregate_version, created_at, updated_at
     ) values ($1, $2, 'Finder Isolation Course', 'COURSE', 'PUBLISHED', 0, now(), now())`,
@@ -67,7 +67,7 @@ async function insertLearningAssignment(workerId: string, courseId: string, assi
   const id = randomUUID();
   // Satisfy the learning_assignments -> learning_courses FK before assigning.
   await insertLearningCourse(courseId);
-  await getPool().query(
+  await getSystemPool().query(
     `insert into hr_learning.learning_assignments (
       id, tenant_id, worker_id, course_id, assigned_by, assigned_at, status, aggregate_version, created_at, updated_at
     ) values ($1, $2, $3, $4, $5, now(), 'ASSIGNED', 0, now(), now())`,
@@ -79,7 +79,7 @@ async function insertLearningAssignment(workerId: string, courseId: string, assi
 
 async function insertTimeClockEvent(workerId: string): Promise<string> {
   const id = randomUUID();
-  await getPool().query(
+  await getSystemPool().query(
     `insert into hr_time.time_clock_events (
       id, tenant_id, worker_id, event_type, timestamp, status, aggregate_version, created_at, updated_at
     ) values ($1, $2, $3, 'CLOCK_IN', now(), 'RECORDED', 0, now(), now())`,
@@ -93,7 +93,7 @@ beforeAll(async () => {
   dbReady = await canReachDatabase();
   suffix = Date.now().toString(36);
   if (!dbReady) return;
-  await getPool().query(
+  await getSystemPool().query(
     `insert into hr_platform.tenants (id, name, slug, status)
      values ($1, 'Finder Tenant Isolation B', $2, 'ACTIVE')
      on conflict (id) do update set status = excluded.status`,
@@ -104,9 +104,9 @@ beforeAll(async () => {
 afterAll(async () => {
   if (dbReady) {
     for (const row of cleanup.reverse()) {
-      await getPool().query(`delete from ${row.table} where id = $1`, [row.id]).catch(() => undefined);
+      await getSystemPool().query(`delete from ${row.table} where id = $1`, [row.id]).catch(() => undefined);
     }
-    await getPool().query('delete from hr_platform.tenants where id = $1', [TENANT_B]).catch(() => undefined);
+    await getSystemPool().query('delete from hr_platform.tenants where id = $1', [TENANT_B]).catch(() => undefined);
   }
 });
 

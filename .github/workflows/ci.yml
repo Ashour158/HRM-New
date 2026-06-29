@@ -196,6 +196,66 @@ jobs:
           test/integration-dead-letter.e2e.test.ts
           --passWithNoTests
 
+  rls-enforcement-e2e:
+    name: RLS-enabled tenant isolation E2E
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: hcm_admin
+          POSTGRES_PASSWORD: hcm_ci_password
+          POSTGRES_DB: hcm_platform
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hcm_admin -d hcm_platform"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      # Run the request path as the RLS-SUBJECT role with RLS ON — the real production posture.
+      DB_RLS_ENABLED: "true"
+      DATABASE_URL: postgresql://hcm_app:rls_ci_password@localhost:5432/hcm_platform
+      SYSTEM_DATABASE_URL: postgresql://hcm_system:rls_ci_password@localhost:5432/hcm_platform
+      JWT_SECRET: ci-rls-enforcement-secret
+      KAFKA_BROKERS: ""
+      REDIS_URL: ""
+      MFA_REQUIRED: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build database package graph
+        run: pnpm --filter @hcm/database... build
+      - name: Run migrations as the admin owner (creates RLS policies)
+        run: pnpm --filter @hcm/database migrate
+        env:
+          DATABASE_URL: postgresql://hcm_admin:hcm_ci_password@localhost:5432/hcm_platform
+      - name: Provision restricted RLS roles (hcm_app / hcm_system)
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          PGPASSWORD=hcm_ci_password psql -h localhost -U hcm_admin -d hcm_platform \
+            -v app_password="'rls_ci_password'" -f infra/rls/provision-app-role.sql
+      - name: Build API package graph
+        run: pnpm --filter @hcm/hr-api... build
+      - name: Tenant isolation E2E with RLS ENABLED (as hcm_app)
+        run: >-
+          pnpm --filter @hcm/hr-api exec vitest run
+          test/tenant-isolation.e2e.test.ts
+          test/finder-tenant-isolation.e2e.test.ts
+
   security:
     name: Security scan
     runs-on: ubuntu-latest
