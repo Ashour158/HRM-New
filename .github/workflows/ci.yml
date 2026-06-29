@@ -190,6 +190,12 @@ jobs:
           test/outbox-drain.e2e.test.ts
           --passWithNoTests
 
+      - name: Run integration dead-letter persistence E2E
+        run: >-
+          pnpm --filter @hcm/hr-api exec vitest run
+          test/integration-dead-letter.e2e.test.ts
+          --passWithNoTests
+
   security:
     name: Security scan
     runs-on: ubuntu-latest

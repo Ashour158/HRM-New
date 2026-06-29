@@ -40,7 +40,15 @@ function failingAdapter(error: string): IntegrationAdapter {
   };
 }
 
-beforeAll(async () => { dbReady = await canReachDatabase(); });
+beforeAll(async () => {
+  dbReady = await canReachDatabase();
+  // When a database IS configured (CI), the durable-persistence path MUST run — a
+  // connection failure is a real failure, not a silent skip. Skipping is only allowed
+  // locally when DATABASE_URL is unset; otherwise this test gave false comfort in CI.
+  if (!dbReady && process.env.DATABASE_URL) {
+    throw new Error(`DLQ e2e requires a reachable database (DATABASE_URL is set): ${skipReason}`);
+  }
+});
 afterAll(async () => {
   if (dbReady) {
     await getSystemPool().query('delete from hr_platform.integration_dead_letters where error = $1', [marker]).catch(() => undefined);
