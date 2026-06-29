@@ -105,6 +105,17 @@ export {
   KNOWN_SECTION_TYPES,
 } from './engines/country-policy-validation.engine.js';
 
+export type {
+  OfferCompensationDecisionCode,
+  OfferCompensationInput,
+  OfferCompensationResult,
+  OfferCompensationViolation,
+  CompensationBandRange,
+  PayEquityBenchmark,
+} from './engines/offer-compensation.engine.js';
+
+export { OfferCompensationEngine, evaluateOfferCompensation } from './engines/offer-compensation.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -112,4 +123,5 @@ export {
   selfServiceAuthorityEngine,
   fieldAccessPolicyEngine,
   countryPolicyValidationEngine,
+  offerCompensationEngine,
 } from './engines/registered-engines.js';
