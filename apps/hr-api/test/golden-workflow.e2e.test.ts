@@ -404,20 +404,21 @@ describe.sequential('golden multi-domain workflow', () => {
     expect(outbox.rows.every((row) => row.event_name && row.aggregate_type && row.aggregate_id)).toBe(true);
   });
 
-  // PROD-2 root cause FIXED (migration 20260630000001000 + command-bus hardening): the
-  // bus version-locked the payroll artifact tables (payslip/payment-batch/gl-posting/
-  // export-job) which lacked an `aggregate_version` column, so its SELECT errored
-  // ("column aggregate_version does not exist") and — because the error was misclassified
-  // as a missing TABLE and swallowed — silently poisoned the command transaction, breaking
-  // the whole close→pay→export path. With both fixes, this fixture drives close-to-pay
-  // through the FULL pipeline with NO transaction abort (verified locally).
+  // This fixture surfaced THREE real production defects in the payroll payout path, now fixed:
+  //   PROD-2 (#54): the bus version-locks aggregates by SELECTing aggregate_version; the four
+  //     payroll artifact tables lacked the column, the SELECT errored, the error was
+  //     misclassified as a missing TABLE and swallowed, silently poisoning the transaction.
+  //   jsonb-array serialization: payroll_payment_batches.workflow_events and
+  //     payroll_gl_postings.lines are jsonb ARRAYS; node-postgres rendered the JS arrays as
+  //     Postgres array literals (invalid for jsonb) -> "invalid input syntax for type json".
+  //     The repos now JSON.stringify those columns.
+  // With these fixes close-to-pay drives the full pipeline (no tx abort, no json error).
   //
-  // Still kept it.skip: under the full-app e2e (background outbox/inbox workers polling the
-  // same pool while close-to-pay runs 20+ sequential commands), the now-fully-executing
-  // request exhausts the default connection pool ("timeout exceeded when trying to connect").
-  // That is a connection-pool sizing/contention concern (PROD-3), not the payroll defect.
-  // Unskip once the e2e job runs with adequate DB_POOL_MAX (and/or close-to-pay connection
-  // use is reviewed). The readiness fixture + payout flow here are complete and correct.
+  // Still it.skip pending PROD-3: close-to-pay's nested-command pipeline holds ~20-40 DB
+  // connections for ONE worker (each command opens its own bus transaction), so it exhausts
+  // the default pool ("timeout exceeded when trying to connect"). Mitigated operationally by
+  // sizing DB_POOL_MAX (verified locally at DB_POOL_MAX=40); a proper fix is to let nested
+  // commands reuse the parent connection. Unskip once the e2e job sets an adequate pool.
   it.skip('closes payroll, approves + exports the payment batch, and exports the cycle', async () => {
     // Period anchored to the isoDate() year (2037) so the worker's effective-dated
     // employment/assignment cover it. close-to-pay builds a fresh monthly cycle.

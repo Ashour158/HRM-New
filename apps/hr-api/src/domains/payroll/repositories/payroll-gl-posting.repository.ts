@@ -53,7 +53,10 @@ export class PayrollGlPostingRepository {
       total_debits: record.totalDebits,
       total_credits: record.totalCredits,
       currency: record.currency,
-      lines: record.lines,
+      // jsonb array column: serialize explicitly — node-postgres would render a JS array
+      // as a Postgres array literal (invalid for jsonb), so the GL journal lines must be
+      // JSON.stringify'd.
+      lines: JSON.stringify(record.lines ?? []),
       source_hash: record.sourceHash,
       created_by: record.createdBy ?? null,
       approved_by: record.approvedBy ?? null,

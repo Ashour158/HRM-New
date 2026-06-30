@@ -97,15 +97,19 @@ export class PayrollPaymentBatchRepository {
       blocked_count: record.blockedCount,
       total_net: record.totalNet,
       file_hash: record.fileHash,
-      payload: record.payload,
+      // jsonb columns: serialize explicitly. node-postgres renders a JS array as a
+      // Postgres array literal (not JSON), which is invalid for jsonb — so workflow_events
+      // (an array) must be JSON.stringify'd. Do the same for the object columns for
+      // consistency (pg casts the JSON text to jsonb).
+      payload: JSON.stringify(record.payload ?? {}),
       created_by: record.createdBy ?? null,
       approved_by: record.approvedBy ?? null,
       approved_at: record.approvedAt ?? null,
       exported_at: record.exportedAt ?? null,
       reconciled_at: record.reconciledAt ?? null,
       bank_file_format: record.bankFileFormat ?? null,
-      reconciliation_summary: record.reconciliationSummary ?? {},
-      workflow_events: record.workflowEvents ?? [],
+      reconciliation_summary: JSON.stringify(record.reconciliationSummary ?? {}),
+      workflow_events: JSON.stringify(record.workflowEvents ?? []),
       created_at: record.createdAt,
       updated_at: record.updatedAt,
     };
