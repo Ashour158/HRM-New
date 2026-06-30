@@ -404,16 +404,20 @@ describe.sequential('golden multi-domain workflow', () => {
     expect(outbox.rows.every((row) => row.event_name && row.aggregate_type && row.aggregate_id)).toBe(true);
   });
 
-  // PROD-2 (found while building this fixture): the fixture below now SATISFIES both
-  // readiness gates — COUNTRY_POLICY_STALE (via countryPolicyRuntime.blocksPayrollIfStale)
-  // and ATTENDANCE_LEDGER_NOT_LOCKED (via a seeded locked+ready daily ledger) — and the
-  // journey runs the FULL payroll calculation pipeline (cycle→inputs→validation→calculation
-  // →result lines→review). It then fails at GeneratePayrollPayslipArtifacts with
-  // "current transaction is aborted": the close-to-pay mega-endpoint leaves a pooled
-  // connection in an aborted-transaction state that the (pool-bound, non-transaction-aware)
-  // payslip repo then reuses. That is a real pipeline/connection-handling issue in
-  // close-to-pay, not a fixture gap — tracked as PROD-2 for dedicated remediation. Unskip
-  // once close-to-pay is transaction-correct (the readiness fixture here is complete).
+  // PROD-2 root cause FIXED (migration 20260630000001000 + command-bus hardening): the
+  // bus version-locked the payroll artifact tables (payslip/payment-batch/gl-posting/
+  // export-job) which lacked an `aggregate_version` column, so its SELECT errored
+  // ("column aggregate_version does not exist") and — because the error was misclassified
+  // as a missing TABLE and swallowed — silently poisoned the command transaction, breaking
+  // the whole close→pay→export path. With both fixes, this fixture drives close-to-pay
+  // through the FULL pipeline with NO transaction abort (verified locally).
+  //
+  // Still kept it.skip: under the full-app e2e (background outbox/inbox workers polling the
+  // same pool while close-to-pay runs 20+ sequential commands), the now-fully-executing
+  // request exhausts the default connection pool ("timeout exceeded when trying to connect").
+  // That is a connection-pool sizing/contention concern (PROD-3), not the payroll defect.
+  // Unskip once the e2e job runs with adequate DB_POOL_MAX (and/or close-to-pay connection
+  // use is reviewed). The readiness fixture + payout flow here are complete and correct.
   it.skip('closes payroll, approves + exports the payment batch, and exports the cycle', async () => {
     // Period anchored to the isoDate() year (2037) so the worker's effective-dated
     // employment/assignment cover it. close-to-pay builds a fresh monthly cycle.
