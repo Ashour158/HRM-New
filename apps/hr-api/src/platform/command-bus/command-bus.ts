@@ -1354,10 +1354,19 @@ export class CommandBus implements OnModuleInit {
   }
 
   private isMissingAggregateTableError(error: unknown): boolean {
+    // ONLY a genuinely missing relation (42P01 undefined_table) is tolerated — that is
+    // a legitimate "aggregate has no table yet" case. A missing COLUMN (42703) or any
+    // other error is a real misconfiguration that must surface, not be swallowed: the
+    // failed SELECT has already aborted the command transaction, so swallowing it would
+    // silently poison the rest of the pipeline (PROD-2). Match by error code, not the
+    // broad "does not exist" message (which also matches undefined_column).
     const maybeDbError = error as { code?: unknown; message?: unknown };
+    if (maybeDbError.code === '42P01') return true;
+    if (maybeDbError.code !== undefined) return false;
     return (
-      maybeDbError.code === '42P01' ||
-      (typeof maybeDbError.message === 'string' && maybeDbError.message.includes('does not exist'))
+      typeof maybeDbError.message === 'string' &&
+      maybeDbError.message.includes('does not exist') &&
+      !maybeDbError.message.includes('column')
     );
   }
 
