@@ -310,3 +310,70 @@ jobs:
           tags: hcm/${{ matrix.name }}:ci
           build-args: |
             VITE_API_BASE_URL=/api/v1
+
+  load-smoke:
+    name: App-under-load smoke (SLO gate)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: hcm_admin
+          POSTGRES_PASSWORD: hcm_ci_password
+          POSTGRES_DB: hcm_platform
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hcm_admin -d hcm_platform"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: development
+      PORT: "3001"
+      DATABASE_URL: postgresql://hcm_admin:hcm_ci_password@localhost:5432/hcm_platform
+      REDIS_URL: redis://localhost:6379
+      KAFKA_BROKERS: ""
+      JWT_SECRET: ci-load-smoke-secret
+      LOG_LEVEL: error
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build database + API graph
+        run: pnpm --filter @hcm/hr-api... build
+      - name: Run migrations
+        run: pnpm --filter @hcm/database migrate
+      - name: Boot API and load-test /health against SLO gates
+        run: |
+          node apps/hr-api/dist/main.js & API_PID=$!
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/api/v1/health >/dev/null 2>&1; then echo "API up"; break; fi
+            sleep 2
+          done
+          LOAD_URL=http://localhost:3001/api/v1/health \
+          LOAD_CONCURRENCY=25 LOAD_DURATION_MS=12000 LOAD_WARMUP_MS=1500 \
+          LOAD_P95_MAX_MS=250 LOAD_MIN_RPS=150 LOAD_MAX_ERROR_RATE=0.01 \
+          node scripts/load/smoke.mjs
+          STATUS=$?
+          kill $API_PID 2>/dev/null || true
+          exit $STATUS
