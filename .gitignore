@@ -12,6 +12,33 @@ out/
 # Turbo
 .turbo/
 
+# Stray in-place-compiled output: tsc/nest sometimes emits .js/.d.ts next to
+# .ts sources instead of into dist/. These shadow real source for tools that
+# resolve .js before .ts (e.g. Vitest's default test glob) and must never be
+# committed. Hand-written exceptions are explicitly un-ignored below --
+# gitignore only governs untracked files, so already-tracked files are safe
+# regardless.
+apps/hr-api/**/*.js
+apps/hr-api/**/*.js.map
+apps/hr-api/**/*.d.ts
+apps/hr-api/**/*.d.ts.map
+apps/hr-web/**/*.js
+apps/hr-web/**/*.js.map
+apps/hr-web/**/*.d.ts
+apps/hr-web/**/*.d.ts.map
+apps/hr-auditor-agent/**/*.js
+apps/hr-auditor-agent/**/*.js.map
+apps/hr-auditor-agent/**/*.d.ts
+apps/hr-auditor-agent/**/*.d.ts.map
+packages/*/**/*.js
+packages/*/**/*.js.map
+packages/*/**/*.d.ts
+packages/*/**/*.d.ts.map
+!apps/hr-web/postcss.config.js
+!apps/hr-web/tailwind.config.js
+!apps/hr-web/src/vite-env.d.ts
+!apps/hr-api/src/types/express.d.ts
+
 # Environment
 .env
 .env.local
