@@ -414,11 +414,19 @@ describe.sequential('golden multi-domain workflow', () => {
   //     The repos now JSON.stringify those columns.
   // With these fixes close-to-pay drives the full pipeline (no tx abort, no json error).
   //
-  // Still it.skip pending PROD-3: close-to-pay's nested-command pipeline holds ~20-40 DB
-  // connections for ONE worker (each command opens its own bus transaction), so it exhausts
-  // the default pool ("timeout exceeded when trying to connect"). Mitigated operationally by
-  // sizing DB_POOL_MAX (verified locally at DB_POOL_MAX=40); a proper fix is to let nested
-  // commands reuse the parent connection. Unskip once the e2e job sets an adequate pool.
+  // Still it.skip. An earlier theory (PROD-3) attributed the skip to close-to-pay exhausting
+  // the DB connection pool. That did NOT hold up under measurement: polling pg_stat_activity
+  // live during a full close-to-pay run showed peak usage of only 2-6 connections against the
+  // default pool of 20, with 0 idle-in-transaction at rest, and no command handler anywhere in
+  // this codebase nests commandBus.execute() inside another command's transaction (verified via
+  // repo-wide grep) - so there is nothing to "reuse a parent connection" for. Forcing this test
+  // on (it.only) with the DB reachable reproduces the real, current blocker every time: the
+  // pipeline runs end-to-end (cycle -> inputs -> calculation -> result lines -> lock -> payslip
+  // artifacts -> payment batch -> GL posting) and correctly rejects at the final readiness gate
+  // with HTTP 400 (MISSING_PAYROLL_COMPENSATION / ZERO_OR_NEGATIVE_NET_PAY /
+  // MISSING_TAX_IDENTIFIER) because the seeded worker fixture has no compensation or tax-id
+  // data. Unskip once the fixture seeds compensation + tax-id for the worker so it can clear
+  // ClosePayrollCycle's readiness check.
   it.skip('closes payroll, approves + exports the payment batch, and exports the cycle', async () => {
     // Period anchored to the isoDate() year (2037) so the worker's effective-dated
     // employment/assignment cover it. close-to-pay builds a fresh monthly cycle.
