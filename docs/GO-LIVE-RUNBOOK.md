@@ -1,10 +1,23 @@
 # Go-Live Runbook — HRM-New
 
-Status at 2026-06-30: **Conditionally Ready (~89/100)**. All code-level audit blockers are
-resolved and re-verified. The remaining items to reach **Ready** are operational actions
-that require the production environment — they cannot be executed or proven from the repo.
-Each is turnkey below with its acceptance evidence. Mark the audit checkpoint RESOLVED only
-after the acceptance evidence is captured in the release record.
+Status at 2026-07-01: **Conditionally Ready**. All code-level audit blockers are resolved
+and re-verified, including a second production-readiness audit pass on 2026-07-01 that
+found and fixed: a CI secret-scan false positive that had left `main` red for 10+ days
+(PR #56), two pre-existing test regressions that break had gone undetected behind that CI
+break (also #56), a 15-repository jsonb-array serialization defect class (#58, same root
+cause as PROD-2 below), a stale/inaccurate skip-reason comment on the payroll e2e (#57), a
+dev-DB migration-ledger drift (reconciled directly), a latent SEC-1-class bug in
+`OptionalAuthGuard` (#59), stale Kysely types for the payroll artifact tables (#60), missing
+structured logging on the command bus and auth guard (#61), and an undersized/undocumented
+DB connection-pool budget for production autoscale (this change). Branch protection on
+`main` is now active, requiring the 5 real CI jobs to pass before merge — previously nothing
+enforced this, and several PRs (including the payroll fixes below) had merged while CI was
+red without anyone noticing.
+
+The remaining items to reach **Ready** are operational actions that require the production
+environment — they cannot be executed or proven from the repo. Each is turnkey below with
+its acceptance evidence. Mark the audit checkpoint RESOLVED only after the acceptance
+evidence is captured in the release record.
 
 ---
 
@@ -49,19 +62,54 @@ business endpoints, and add soak + spike profiles (PERF-2).
 **Acceptance:** committed staging load report (p95/RPS/error-rate) within SLO; soak run shows no leak/latency creep.
 
 ## 5. Verify the payroll payout journey end-to-end (closes PROD-1)
-The payout **logic** is unit-verified (`payroll-cycle-governance` + `attendance-close-readiness`
-tests pass; `close`/`export` handlers exist), and the readiness gates correctly block on stale
-policy / unlocked attendance. The **e2e** terminal leg (`golden-workflow.e2e.test.ts` `it.skip`)
-remains unwritten because it requires seeding an activated country-policy pack + locked
-attendance ledgers for all workers in the period — a multi-domain fixture.
+The multi-domain fixture referenced by the previous version of this item was built
+(`golden-workflow.e2e.test.ts`, PR #53) and, in building it, surfaced two real production
+defects that are now fixed and re-verified: PROD-2 (the command bus's version-lock SELECT
+errored on the payroll artifact tables and the error was misclassified/swallowed, silently
+poisoning the transaction — PR #54) and a jsonb-array serialization bug (node-postgres
+renders a JS array as an invalid Postgres array literal for jsonb columns — PR #55, and the
+same defect class in 15 further repositories, PR #58). With those fixed, close-to-pay now
+runs the full pipeline end-to-end with no transaction abort and no serialization error.
 
-**Action:** build that fixture (publish an EG statutory pack via `/hr/payroll/policy-packs/publish`;
-lock the period's attendance ledgers), then unskip and assert close → payment-batch approve/export
-→ cycle export. **Acceptance:** golden suite green with 0 skips.
+A third theory (PROD-3, connection-pool exhaustion) was investigated and did **not**
+reproduce under measurement — see the corrected comment in `golden-workflow.e2e.test.ts`
+for the full account; it was a stale/incorrect skip reason, not a real defect.
+
+The e2e test (`it.skip`'d one case: "closes payroll, approves + exports the payment batch,
+and exports the cycle") remains skipped for one reason only: the seeded worker fixture has
+no compensation or tax-id data, so `ClosePayrollCycle`'s own readiness gate correctly
+rejects it (`MISSING_PAYROLL_COMPENSATION` / `ZERO_OR_NEGATIVE_NET_PAY` /
+`MISSING_TAX_IDENTIFIER`) before ever reaching payment-batch approval, export, or GL
+posting — this is correct business behavior, not a code defect, but it means the
+approve/export/GL-posting code paths still have zero positive end-to-end test evidence.
+
+**Action:** extend the fixture to seed compensation + tax-id data for the test worker, then
+unskip and assert close → payment-batch approve/export → GL posting → cycle export.
+**Acceptance:** golden suite green with 0 skips.
+
+## 6. Verify the production DB connection-pool budget before scaling (new, closes an audit P1)
+Every `hcm-api` pod opens up to two Postgres pools once `SYSTEM_DATABASE_URL` is set (item 1
+above) — the request pool (`DATABASE_URL`/`hcm_app`, sized by `DB_POOL_MAX`) and the
+background-job pool (`SYSTEM_DATABASE_URL`/`hcm_system`, sized independently by
+`DB_SYSTEM_POOL_MAX`). `deploy/k8s/base/configmap.yaml` now ships explicit, conservative
+defaults (`DB_POOL_MAX=6`, `DB_SYSTEM_POOL_MAX=2`) sized against `hpa.yaml`'s
+`maxReplicas: 10` for a worst-case budget of `10 × (6 + 2) = 80` connections, leaving
+headroom under Postgres's own out-of-the-box `max_connections=100` — but no PgBouncer or
+other connection pooler is deployed, and the repo doesn't commit to a specific managed-
+Postgres instance size or its actual `max_connections`.
+
+**Action:** before go-live, confirm the real `max_connections` on the provisioned production
+Postgres instance and verify `maxReplicas × (DB_POOL_MAX + DB_SYSTEM_POOL_MAX)` plus
+migration-job/admin headroom stays comfortably under it. If the instance is smaller than
+this budget assumes, either lower `maxReplicas`, lower the pool sizes, or deploy a connection
+pooler (PgBouncer) — this runbook doesn't prescribe which, since it depends on the actual
+provisioned Postgres tier. **Acceptance:** the computed worst-case connection count is
+recorded against the actual instance's `max_connections` in the release record, with margin.
 
 ---
 
 ## Definition of Ready
-All five acceptance blocks captured in the release record. At that point the verdict moves
+All six acceptance blocks captured in the release record. At that point the verdict moves
 from **Conditionally Ready** to **Ready** — no code-level blockers remain (all resolved +
-CI-gated); these are deployment/operations gates by design.
+CI-gated, and CI is now genuinely enforced via branch protection); these are deployment/
+operations gates by design.
