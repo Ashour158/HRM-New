@@ -24,7 +24,17 @@ interface JwtPayload {
 export class OptionalAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
-    const config = loadAppConfig();
+
+    // A production config error (e.g. a missing/weak SYSTEM_API_KEY tripping the
+    // strong-secret guard) must not surface as an unhandled 500 on a route that's
+    // supposed to work anonymously — proceed without an actor, same as an invalid
+    // token below. Strict endpoints use AuthGuard, which denies on this same failure.
+    let config: ReturnType<typeof loadAppConfig>;
+    try {
+      config = loadAppConfig();
+    } catch {
+      return true;
+    }
 
     const authHeader =
       (request.headers.authorization as string | undefined) ??
