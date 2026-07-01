@@ -4,6 +4,20 @@ import type { Request } from 'express';
 import { Uuid } from '@hcm/shared-kernel';
 import { AdminDashboardController } from './admin-dashboard.controller.js';
 
+// The controller's newHiresThisMonth/terminationsThisMonth/turnover metrics are computed
+// against the real wall-clock month (isSameUtcMonth(date, new Date())), so fixture dates must
+// be relative to "now" rather than a fixed calendar string — a hardcoded month rolls stale (and
+// silently breaks this test) the moment the real month changes.
+function firstOfCurrentUtcMonth(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+}
+
+function yearsBeforeNowUtc(years: number): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear() - years, now.getUTCMonth(), 1));
+}
+
 describe('AdminDashboardController', () => {
   it('builds dashboard metrics from worker records', async () => {
     const controller = new AdminDashboardController({
@@ -13,15 +27,15 @@ describe('AdminDashboardController', () => {
           firstName: 'A',
           lastName: 'Worker',
           status: 'ACTIVE',
-          hireDate: new Date('2026-06-01T00:00:00.000Z'),
+          hireDate: firstOfCurrentUtcMonth(),
         },
         {
           id: new Uuid('00000000-0000-0000-0000-000000000102'),
           firstName: 'B',
           lastName: 'Worker',
           status: 'TERMINATED',
-          hireDate: new Date('2025-01-01T00:00:00.000Z'),
-          terminationDate: new Date('2026-06-01T00:00:00.000Z'),
+          hireDate: yearsBeforeNowUtc(1),
+          terminationDate: firstOfCurrentUtcMonth(),
         },
       ]),
       search: vi.fn().mockResolvedValue({
@@ -31,15 +45,15 @@ describe('AdminDashboardController', () => {
             firstName: 'A',
             lastName: 'Worker',
             status: 'ACTIVE',
-            hireDate: new Date('2026-06-01T00:00:00.000Z'),
+            hireDate: firstOfCurrentUtcMonth(),
           },
           {
             id: new Uuid('00000000-0000-0000-0000-000000000102'),
             firstName: 'B',
             lastName: 'Worker',
             status: 'TERMINATED',
-            hireDate: new Date('2025-01-01T00:00:00.000Z'),
-            terminationDate: new Date('2026-06-01T00:00:00.000Z'),
+            hireDate: yearsBeforeNowUtc(1),
+            terminationDate: firstOfCurrentUtcMonth(),
           },
         ],
       }),

@@ -30,10 +30,10 @@ describe('AttendanceLedgerBuilderService', () => {
       findByStatusForTenant: vi.fn(async () => [activeWorker()]),
     };
     const personalDataRepo = {
-      findByWorker: vi.fn(async () => []),
+      findByWorkers: vi.fn(async () => []),
     };
     const workScheduleRepo = {
-      findByWorker: vi.fn(async () => []),
+      findByWorkers: vi.fn(async () => []),
     };
     const timeClockEventRepo = {
       findByWorkerForTenant: vi.fn(async () => []),

@@ -17,7 +17,11 @@ const secretPatterns = [
 ];
 const excludedPathPattern = /(^|[/\\])(?:\.git|node_modules)([/\\]|$)/;
 const allowedExamplePathPattern = /(^|[/\\])(?:\.env\.example|secret\.example\.yaml|infra[/\\]docker-compose\.yml)$/;
-const allowedTestSecretPattern = /(?:change-me-in-production|production-secret-with-enough-entropy|test-secret|dummy-secret|example-secret)/i;
+const allowedTestSecretPattern = /(?:change-me-in-production|dev-secret-change-me|production-secret-with-enough-entropy|test-secret|dummy-secret|example-secret)/i;
+// CI job env blocks use a `<name>_ci_password` convention for ephemeral, service-container-only
+// Postgres credentials (e.g. hcm_ci_password, rls_ci_password). Any such suffix is allowed here;
+// a real-looking secret without this naming convention is still flagged.
+const ciFixturePasswordPattern = /:[a-z0-9_]+_ci_password@/i;
 
 function isAllowedFinding(file, line, findingName) {
   const normalized = file.replaceAll('\\', '/');
@@ -27,7 +31,7 @@ function isAllowedFinding(file, line, findingName) {
   if (
     findingName === 'Database URL with embedded credentials'
     && normalized.startsWith('.github/workflows/')
-    && line.includes('hcm_ci_password')
+    && ciFixturePasswordPattern.test(line)
   ) {
     return true;
   }
@@ -35,6 +39,16 @@ function isAllowedFinding(file, line, findingName) {
     findingName === 'Database URL with embedded credentials'
     && normalized === 'deploy/docker-compose.production.yml'
     && line.includes('${POSTGRES_PASSWORD}')
+  ) {
+    return true;
+  }
+  // Unit-test fixtures that only exercise env-var parsing / pool-key derivation logic (never a
+  // real network connection — the DB client is either mocked or the connection is never opened
+  // in the test). Host must be exactly localhost to keep this narrow.
+  if (
+    findingName === 'Database URL with embedded credentials'
+    && /\.(?:spec|test)\.ts$/.test(normalized)
+    && /@localhost(?::\d+)?\//i.test(line)
   ) {
     return true;
   }
