@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleInit, Optional } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { DiscoveryService, Reflector } from '@nestjs/core';
 import { Kysely, Transaction } from 'kysely';
 import { Uuid, AggregateRoot } from '@hcm/shared-kernel';
@@ -359,6 +359,7 @@ export class CommandBus implements OnModuleInit {
   private readonly handlers = new Map<string, CommandHandler>();
   private readonly db: Kysely<Database>;
   private readonly tenantValidator: TenantValidator;
+  private readonly logger = new Logger(CommandBus.name);
 
   constructor(
     @Inject(DiscoveryService) private readonly discovery: DiscoveryService,
@@ -395,6 +396,7 @@ export class CommandBus implements OnModuleInit {
   async execute<TPayload, TResult>(
     command: HrCommandEnvelope<TPayload>,
   ): Promise<CommandOutcome<TResult>> {
+    const startedAt = Date.now();
     const trx = await this.db.transaction().execute(async (_tx) => {
       let step = CommandPipelineStep.AUTHENTICATE_ACTOR;
       let policyDecisionEvidence: CommandPolicyDecisionEvidence | undefined;
@@ -515,15 +517,43 @@ export class CommandBus implements OnModuleInit {
         step = CommandPipelineStep.COMMIT_TRANSACTION;
 
         step = CommandPipelineStep.RETURN_COMMAND_RESULT_WITH_ALLOWED_NEXT_ACTIONS_AND_FIELD_FILTERED_DATA;
+        this.logger.log({
+          eventType: 'COMMAND_SUCCEEDED',
+          commandName: command.commandName,
+          aggregateType: command.aggregateType,
+          aggregateId: command.aggregateId?.value,
+          tenantId: command.tenantId.value,
+          actorId: command.actor.actorId.value,
+          actorType: command.actor.actorType,
+          correlationId: command.correlationId,
+          durationMs: Date.now() - startedAt,
+        });
         return enriched as CommandOutcome<TResult>;
       } catch (err) {
         const originalError = err instanceof Error ? err.message : String(err);
-        console.error(`[CommandBus] Command ${command.commandName} failed at step ${step}: ${originalError}`);
+        this.logger.error({
+          eventType: 'COMMAND_FAILED',
+          commandName: command.commandName,
+          aggregateType: command.aggregateType,
+          aggregateId: command.aggregateId?.value,
+          tenantId: command.tenantId.value,
+          actorId: command.actor.actorId.value,
+          actorType: command.actor.actorType,
+          correlationId: command.correlationId,
+          stepFailed: step,
+          durationMs: Date.now() - startedAt,
+          message: originalError,
+        });
         if (this.isCommandError(err)) {
           try {
             await this.stepStoreIdempotencyError(_tx, command, err);
           } catch (storeErr) {
-            console.error(`[CommandBus] Failed to store idempotency error: ${storeErr instanceof Error ? storeErr.message : String(storeErr)}`);
+            this.logger.error({
+              eventType: 'COMMAND_IDEMPOTENCY_ERROR_STORE_FAILED',
+              commandName: command.commandName,
+              correlationId: command.correlationId,
+              message: storeErr instanceof Error ? storeErr.message : String(storeErr),
+            });
           }
           return err as CommandOutcome<TResult>;
         }
@@ -537,7 +567,12 @@ export class CommandBus implements OnModuleInit {
         try {
           await this.stepStoreIdempotencyError(_tx, command, cmdError);
         } catch (storeErr) {
-          console.error(`[CommandBus] Failed to store idempotency error: ${storeErr instanceof Error ? storeErr.message : String(storeErr)}`);
+          this.logger.error({
+            eventType: 'COMMAND_IDEMPOTENCY_ERROR_STORE_FAILED',
+            commandName: command.commandName,
+            correlationId: command.correlationId,
+            message: storeErr instanceof Error ? storeErr.message : String(storeErr),
+          });
         }
         return cmdError as CommandOutcome<TResult>;
       }
