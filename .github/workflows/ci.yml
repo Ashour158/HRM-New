@@ -116,6 +116,9 @@ jobs:
       - name: Run migrations against PostgreSQL
         run: pnpm --filter @hcm/database migrate
 
+      - name: Check migration ledger drift
+        run: node scripts/check-migration-ledger-drift.mjs
+
       - name: Run database tests against PostgreSQL (incl. migration roundtrip)
         run: pnpm --filter @hcm/database test
 
