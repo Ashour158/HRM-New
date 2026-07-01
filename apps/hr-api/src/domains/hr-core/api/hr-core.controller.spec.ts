@@ -54,6 +54,22 @@ describe('HrCoreController smoke test', () => {
     findByEmailForTenant: vi.fn(),
     findByEmployeeNumber: vi.fn(),
     findByEmployeeNumberForTenant: vi.fn(),
+    findByEmployeeNumbersForTenant: vi.fn(async (employeeNumbers: string[]) => {
+      const map = new Map();
+      for (const employeeNumber of employeeNumbers) {
+        const worker = await (workerRepo as unknown as { findByEmployeeNumberForTenant: (n: string) => Promise<unknown> }).findByEmployeeNumberForTenant(employeeNumber);
+        if (worker) map.set(employeeNumber, worker);
+      }
+      return map;
+    }),
+    findByEmailsForTenant: vi.fn(async (emails: string[]) => {
+      const map = new Map();
+      for (const email of emails) {
+        const worker = await (workerRepo as unknown as { findByEmailForTenant: (e: string) => Promise<unknown> }).findByEmailForTenant(email);
+        if (worker) map.set(email, worker);
+      }
+      return map;
+    }),
   } as unknown as WorkerRepository;
   const employmentRelationshipRepo = {
     findById: vi.fn(),

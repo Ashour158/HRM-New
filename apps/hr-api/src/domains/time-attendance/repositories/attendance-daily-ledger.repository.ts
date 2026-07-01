@@ -49,6 +49,32 @@ export class AttendanceDailyLedgerRepository {
     return rows.map((row: any) => this.toRecord(row as Database['attendance_daily_ledgers']));
   }
 
+  async findByWorkers(tenantId: Uuid, workerIds: Uuid[], options?: { dateFrom?: string; dateTo?: string }): Promise<Map<string, AttendanceDailyLedgerStoredRecord[]>> {
+    const byWorkerId = new Map<string, AttendanceDailyLedgerStoredRecord[]>();
+    if (workerIds.length === 0) return byWorkerId;
+
+    let query = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('worker_id', 'in', workerIds.map((id) => id.value));
+
+    if (options?.dateFrom) query = query.where('work_date', '>=', workDateToDb(options.dateFrom));
+    if (options?.dateTo) query = query.where('work_date', '<=', workDateToDb(options.dateTo));
+
+    const rows = await query.orderBy('work_date', 'desc').execute();
+    for (const row of rows) {
+      const record = this.toRecord(row as Database['attendance_daily_ledgers']);
+      const existing = byWorkerId.get(record.workerId);
+      if (existing) {
+        existing.push(record);
+      } else {
+        byWorkerId.set(record.workerId, [record]);
+      }
+    }
+    return byWorkerId;
+  }
+
   async saveMany(records: AttendanceLedgerSnapshotRecord[]): Promise<AttendanceDailyLedgerStoredRecord[]> {
     if (records.length === 0) return [];
     const now = new Date();

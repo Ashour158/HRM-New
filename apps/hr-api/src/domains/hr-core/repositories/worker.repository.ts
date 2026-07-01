@@ -59,6 +59,22 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
   }
 
+  async findByEmployeeNumbersForTenant(employeeNumbers: string[], tenantId: Uuid): Promise<Map<string, WorkerProfile>> {
+    if (employeeNumbers.length === 0) return new Map();
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('employee_number', 'in', employeeNumbers)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    const byEmployeeNumber = new Map<string, WorkerProfile>();
+    for (const row of rows) {
+      const worker = this.toAggregate(row as unknown as Database['workers']);
+      byEmployeeNumber.set((row as unknown as Database['workers']).employee_number, worker);
+    }
+    return byEmployeeNumber;
+  }
+
   async findByEmail(email: string): Promise<WorkerProfile | undefined> {
     const row = await this.db
       .selectFrom(this.tableName)
@@ -76,6 +92,22 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .where('tenant_id', '=', tenantId.value)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['workers']) : undefined;
+  }
+
+  async findByEmailsForTenant(emails: string[], tenantId: Uuid): Promise<Map<string, WorkerProfile>> {
+    if (emails.length === 0) return new Map();
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('email', 'in', emails)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    const byEmail = new Map<string, WorkerProfile>();
+    for (const row of rows) {
+      const worker = this.toAggregate(row as unknown as Database['workers']);
+      byEmail.set((row as unknown as Database['workers']).email, worker);
+    }
+    return byEmail;
   }
 
   async findByManager(managerId: Uuid): Promise<WorkerProfile[]> {

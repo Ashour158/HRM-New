@@ -784,6 +784,19 @@ export class HrCoreController {
     const createEmployeeIds = new Set<string>();
     const updateEmployeeIds = new Set<string>();
 
+    const employeeNumbersToLookup = new Set<string>();
+    const emailsToLookup = new Set<string>();
+    for (const row of rows) {
+      if (row.employeeId) employeeNumbersToLookup.add(row.employeeId);
+      if (row.managerEmployeeId) employeeNumbersToLookup.add(row.managerEmployeeId);
+      if (row.workEmail) emailsToLookup.add(row.workEmail);
+      if (row.personalEmail) emailsToLookup.add(row.personalEmail);
+    }
+    const [workersByEmployeeNumber, workersByEmail] = await Promise.all([
+      this.workerRepo.findByEmployeeNumbersForTenant([...employeeNumbersToLookup], tenantId),
+      this.workerRepo.findByEmailsForTenant([...emailsToLookup], tenantId),
+    ]);
+
     for (const [index, row] of rows.entries()) {
       if (!row.employeeId) errors.push({ row: index + 1, field: 'employeeId', message: 'Employee ID is required' });
       if (this.massUpdateEditableFields(row).length === 0) {
@@ -792,7 +805,7 @@ export class HrCoreController {
       if (row.employeeId && seenEmployeeIds.has(row.employeeId)) errors.push({ row: index + 1, field: 'employeeId', message: 'Duplicate employee ID in upload' });
       if (row.employeeId) {
         seenEmployeeIds.add(row.employeeId);
-        const existing = await this.workerRepo.findByEmployeeNumberForTenant(row.employeeId, tenantId);
+        const existing = workersByEmployeeNumber.get(row.employeeId);
         if (existing) {
           workersByEmployeeId.set(row.employeeId, existing);
           updateEmployeeIds.add(row.employeeId);
@@ -816,7 +829,7 @@ export class HrCoreController {
         if (row.managerEmployeeId === row.employeeId) {
           errors.push({ row: index + 1, field: 'managerEmployeeId', message: 'Manager cannot be the same employee' });
         } else {
-          const manager = await this.workerRepo.findByEmployeeNumberForTenant(row.managerEmployeeId, tenantId);
+          const manager = workersByEmployeeNumber.get(row.managerEmployeeId);
           if (!manager) {
             errors.push({ row: index + 1, field: 'managerEmployeeId', message: 'Manager employee ID was not found' });
           } else if (row.employeeId) {
@@ -834,7 +847,7 @@ export class HrCoreController {
           errors.push({ row: index + 1, field, message: 'Duplicate email in upload' });
         }
         seenEmails.add(normalizedEmail);
-        const existingEmailOwner = await this.workerRepo.findByEmailForTenant(email, tenantId);
+        const existingEmailOwner = workersByEmail.get(email);
         if (existingEmailOwner && existingEmailOwner.employeeNumber !== row.employeeId) {
           errors.push({ row: index + 1, field, message: 'Email already belongs to another employee' });
         }
