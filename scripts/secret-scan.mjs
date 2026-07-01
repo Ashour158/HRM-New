@@ -44,11 +44,13 @@ function isAllowedFinding(file, line, findingName) {
   }
   // Unit-test fixtures that only exercise env-var parsing / pool-key derivation logic (never a
   // real network connection — the DB client is either mocked or the connection is never opened
-  // in the test). Host must be exactly localhost to keep this narrow.
+  // in the test). Narrowed to localhost AND a short (<=8 char), plain-alphanumeric password —
+  // real leaked credentials are essentially never this short/low-entropy, so this can't be used
+  // to smuggle a real secret past the scanner just by pointing it at localhost.
   if (
     findingName === 'Database URL with embedded credentials'
     && /\.(?:spec|test)\.ts$/.test(normalized)
-    && /@localhost(?::\d+)?\//i.test(line)
+    && /:[A-Za-z0-9]{1,8}@localhost(?::\d+)?\//i.test(line)
   ) {
     return true;
   }

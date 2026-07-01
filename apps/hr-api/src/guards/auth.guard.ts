@@ -13,6 +13,7 @@ import { loadAppConfig } from '../config/app.config.js';
 import type { HrActor } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
+import { loadAppConfigOrUndefined } from './load-app-config-safely.js';
 
 interface JwtPayload {
   sub: string;
@@ -65,11 +66,8 @@ export class AuthGuard implements CanActivate {
     // In production a missing/weak system credential makes loadAppConfig() throw
     // (strong-secret guard). That must DENY the request (403), not surface as an
     // unhandled 500 — a misconfigured or demo key never grants access.
-    let config: ReturnType<typeof loadAppConfig>;
-    try {
-      config = loadAppConfig();
-    } catch {
-      this.logger.error({ eventType: 'AUTH_DENIED', reason: 'SERVER_CONFIG_ERROR', route: request.originalUrl ?? request.url, method: request.method });
+    const config = loadAppConfigOrUndefined(this.logger, request.originalUrl ?? request.url, request.method);
+    if (!config) {
       throw new ForbiddenException('Server authentication is not properly configured');
     }
 
