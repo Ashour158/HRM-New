@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { CreateWorkerPayload } from '@hcm/command-contracts';
-import { Uuid, Email, ValidationError } from '@hcm/shared-kernel';
+import { Uuid, Email, ValidationError, roundMoney } from '@hcm/shared-kernel';
 import { FieldAccessDecision, FieldPolicyEngine, type AbacContext } from '@hcm/access-control';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { WorkerProfile } from '../aggregates/worker-profile.aggregate.js';
@@ -36,9 +36,6 @@ function hasValue(value: unknown): boolean {
   return true;
 }
 
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
-}
 
 export function buildFieldAccessDecisions(
   fieldPolicy: FieldPolicyEngine,

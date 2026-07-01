@@ -7,7 +7,7 @@ import { AuthGuard } from '../../../guards/auth.guard.js';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { clampLimit } from '../../../platform/http/pagination.js';
 
-import { Uuid } from '@hcm/shared-kernel';
+import { Uuid, roundMoney } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
@@ -131,10 +131,6 @@ function readString(value: unknown): string | undefined {
 function requirePayrollCurrency(currency: string | undefined, context: string): string {
   if (!currency) throw new BadRequestException(`${context} currency is required`);
   return currency;
-}
-
-function roundMoney(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 @ApiTags('Payroll')
