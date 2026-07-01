@@ -52,7 +52,7 @@ export class ReportScheduleRepository {
       tenant_id: entity.tenantId.value,
       report_definition_id: entity.reportDefinitionId.value,
       frequency: entity.frequency,
-      recipients: entity.recipients,
+      recipients: JSON.stringify(entity.recipients ?? []),
       next_run_at: entity.nextRunAt ?? null,
       last_run_at: entity.lastRunAt ?? null,
       status: entity.status,

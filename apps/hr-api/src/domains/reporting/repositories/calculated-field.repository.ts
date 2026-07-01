@@ -53,7 +53,7 @@ export class CalculatedFieldRepository {
       field_name: entity.fieldName,
       expression: entity.expression,
       data_type: entity.dataType,
-      source_fields: entity.sourceFields,
+      source_fields: JSON.stringify(entity.sourceFields ?? []),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       updated_at: new Date().toISOString(),

@@ -82,7 +82,7 @@ export class CoverageGapRepository extends BaseRepository<'coverage_gaps', Cover
       shift_date: entity.shiftDate,
       gap_start: entity.startTime,
       gap_end: entity.endTime,
-      required_skills: entity.requiredSkills ?? [],
+      required_skills: JSON.stringify(entity.requiredSkills ?? []),
       unfilled_positions: entity.status === 'FILLED' ? 0 : 1,
       filled_by_worker_id: entity.filledByWorkerId?.value ?? null,
       status: entity.status,

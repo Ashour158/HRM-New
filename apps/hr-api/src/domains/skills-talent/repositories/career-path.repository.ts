@@ -61,13 +61,13 @@ export class CareerPathRepository extends BaseRepository<'career_paths', CareerP
       title: entity.title,
       current_role: entity.currentRole,
       target_role: entity.targetRole,
-      required_skills: entity.requiredSkills,
-      milestones: entity.milestones.map((m) => ({
+      required_skills: JSON.stringify(entity.requiredSkills ?? []),
+      milestones: JSON.stringify(entity.milestones.map((m) => ({
         milestoneId: m.milestoneId,
         title: m.title,
         requiredSkills: m.requiredSkills,
         achievedAt: m.achievedAt?.toISOString(),
-      })),
+      }))),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

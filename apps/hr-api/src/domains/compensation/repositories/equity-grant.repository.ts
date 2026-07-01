@@ -74,7 +74,7 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
       worker_id: entity.workerId.value,
       grant_type: entity.grantType,
       grant_date: entity.grantDate,
-      vesting_schedule: JSON.parse(JSON.stringify(entity.vestingSchedule)),
+      vesting_schedule: JSON.stringify(entity.vestingSchedule ?? []),
       total_units: entity.totalUnits,
       vested_units: entity.vestedUnits,
       exercised_units: entity.exercisedUnits,
