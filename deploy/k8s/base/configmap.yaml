@@ -10,6 +10,19 @@ data:
   # (SYSTEM_DATABASE_URL); the boot guard refuses to start if RLS is on while connected as
   # a superuser/BYPASSRLS role. Provision the roles once via infra/rls/provision-app-role.sql.
   DB_RLS_ENABLED: "true"
+  # Connection-pool budget: every hcm-api pod opens up to TWO pg pools once
+  # SYSTEM_DATABASE_URL is set (DATABASE_URL/hcm_app for requests, SYSTEM_DATABASE_URL/
+  # hcm_system for background jobs — see packages/hr-database/src/connection/pool.ts).
+  # Worst-case total connections = hpa maxReplicas x (DB_POOL_MAX + DB_SYSTEM_POOL_MAX).
+  # deploy/k8s/base/hpa.yaml currently sets maxReplicas: 10 for hcm-api, so
+  # 10 x (6 + 2) = 80, leaving headroom under Postgres's own out-of-the-box
+  # max_connections=100 for admin/migration-job/PgBouncer-less operation. If you
+  # provision a managed Postgres with a higher max_connections, raise these
+  # proportionally; if you raise hpa maxReplicas, recompute this budget first —
+  # exceeding max_connections fails the whole fleet with "too many clients already",
+  # not just the pod that tips over.
+  DB_POOL_MAX: "6"
+  DB_SYSTEM_POOL_MAX: "2"
   REDIS_URL: redis://redis:6379
   KAFKA_BROKERS: redpanda:9092
   JWT_EXPIRES_IN: 1h

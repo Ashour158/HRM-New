@@ -3,10 +3,10 @@ import { Pool } from 'pg';
 let pool: Pool | null = null;
 let systemPool: Pool | null = null;
 
-function buildPool(connectionString: string | undefined, appName: string): Pool {
+function buildPool(connectionString: string | undefined, appName: string, max: number): Pool {
   const p = new Pool({
     connectionString,
-    max: Number(process.env.DB_POOL_MAX ?? 20),
+    max,
     idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_TIMEOUT_MS ?? 30000),
     connectionTimeoutMillis: Number(process.env.DB_POOL_CONNECTION_TIMEOUT_MS ?? 5000),
     // Cap any single statement and abort transactions left idle, so a runaway
@@ -24,7 +24,11 @@ function buildPool(connectionString: string | undefined, appName: string): Pool 
 
 export function getPool(): Pool {
   if (!pool) {
-    pool = buildPool(process.env.DATABASE_URL, process.env.DB_APPLICATION_NAME ?? 'hcm-database');
+    pool = buildPool(
+      process.env.DATABASE_URL,
+      process.env.DB_APPLICATION_NAME ?? 'hcm-database',
+      Number(process.env.DB_POOL_MAX ?? 20),
+    );
   }
   return pool;
 }
@@ -35,12 +39,19 @@ export function getPool(): Pool {
  * the dedicated `hcm_system` (BYPASSRLS) role so those jobs can operate across all
  * tenants once RLS is enforced on the request pool. When it is NOT set (dev / RLS
  * off) it transparently returns the regular pool, so behavior is unchanged.
+ *
+ * Sized independently from the main request pool (DB_SYSTEM_POOL_MAX, falling back
+ * to DB_POOL_MAX if unset for backward compatibility): background jobs run at much
+ * lower concurrency than the request path, and every pod opens BOTH pools once RLS
+ * is on, so treating them as the same size silently doubles the real per-pod
+ * connection budget used for capacity planning (see deploy/k8s/base/configmap.yaml).
  */
 export function getSystemPool(): Pool {
   const systemUrl = process.env.SYSTEM_DATABASE_URL;
   if (!systemUrl) return getPool();
   if (!systemPool) {
-    systemPool = buildPool(systemUrl, `${process.env.DB_APPLICATION_NAME ?? 'hcm-database'}-system`);
+    const max = Number(process.env.DB_SYSTEM_POOL_MAX ?? process.env.DB_POOL_MAX ?? 20);
+    systemPool = buildPool(systemUrl, `${process.env.DB_APPLICATION_NAME ?? 'hcm-database'}-system`, max);
   }
   return systemPool;
 }
