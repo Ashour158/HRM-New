@@ -50,6 +50,7 @@ export class PayrollExportJobRepository {
       file_name: record.fileName,
       file_hash: record.fileHash,
       data_classification: record.dataClassification,
+      aggregate_version: 0,
       created_at: record.createdAt,
       completed_at: record.completedAt,
     };

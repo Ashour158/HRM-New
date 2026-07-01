@@ -1679,6 +1679,7 @@ export interface PayrollPaymentBatchesTable {
   bank_file_format: string | null;
   reconciliation_summary: unknown;
   workflow_events: unknown;
+  aggregate_version: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -1700,6 +1701,7 @@ export interface PayrollPayslipArtifactsTable {
   data_classification: string;
   published_by: string | null;
   published_at: Date | null;
+  aggregate_version: number;
   created_at: Date;
   updated_at: Date;
 }
@@ -1717,6 +1719,7 @@ export interface PayrollExportJobsTable {
   file_name: string;
   file_hash: string;
   data_classification: string;
+  aggregate_version: number;
   created_at: Date;
   completed_at: Date;
 }
@@ -1735,6 +1738,7 @@ export interface PayrollGlPostingsTable {
   created_by: string | null;
   approved_by: string | null;
   posted_at: Date | null;
+  aggregate_version: number;
   created_at: Date;
   updated_at: Date;
 }

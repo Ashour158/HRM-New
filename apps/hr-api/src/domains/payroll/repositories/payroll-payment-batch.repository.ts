@@ -110,6 +110,7 @@ export class PayrollPaymentBatchRepository {
       bank_file_format: record.bankFileFormat ?? null,
       reconciliation_summary: JSON.stringify(record.reconciliationSummary ?? {}),
       workflow_events: JSON.stringify(record.workflowEvents ?? []),
+      aggregate_version: 0,
       created_at: record.createdAt,
       updated_at: record.updatedAt,
     };
