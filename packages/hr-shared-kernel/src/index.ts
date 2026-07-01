@@ -10,4 +10,5 @@ export * from './domain/domain-event.js';
 export * from './domain/value-object.js';
 export * from './guards/guard.js';
 export * from './primitives/enum.js';
+export * from './primitives/money-math.js';
 export * from './errors/domain-error.js';

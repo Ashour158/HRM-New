@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
+import { roundMoney } from '@hcm/shared-kernel';
 import type { PayrollCyclePreview } from './payroll-cycle-calculation.service.js';
 
 export interface PayrollGlPostingLine {
@@ -26,10 +27,6 @@ export interface PayrollGlPostingRecord {
   postedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
-}
-
-function roundMoney(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function hash(value: unknown): string {

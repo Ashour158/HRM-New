@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'crypto';
+import { roundMoney } from '@hcm/shared-kernel';
 import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import type { HcmPolicyScope, HcmSetupConfig, PayrollCalculationPolicy, PayrollPolicyLogicLedgerRule, SalaryCompositionPlan } from '../../hcm-setup/hcm-setup.types.js';
 import type { AttendanceMonthlySummary } from '../../time-attendance/services/attendance-calculation.service.js';
@@ -182,10 +183,6 @@ export interface LockedAttendanceSnapshotSummaryInput {
   lateMinutes: number;
   undertimeMinutes: number;
   locationStatus: string;
-}
-
-function roundMoney(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function datePart(date: Date): string {

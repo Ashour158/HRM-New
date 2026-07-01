@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { roundMoney } from '@hcm/shared-kernel';
 import type { PayrollCyclePreview, PayrollCycleRow, PayrollExplainabilityLine } from './payroll-cycle-calculation.service.js';
 
 export interface PayrollApprovedInputRecord {
@@ -8,10 +9,6 @@ export interface PayrollApprovedInputRecord {
   currency: string;
   status: string;
   description?: string;
-}
-
-function roundMoney(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 function workerIdOf(input: PayrollApprovedInputRecord): string {
