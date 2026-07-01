@@ -61,6 +61,7 @@ export class PayrollGlPostingRepository {
       created_by: record.createdBy ?? null,
       approved_by: record.approvedBy ?? null,
       posted_at: record.postedAt ?? null,
+      aggregate_version: 0,
       created_at: record.createdAt,
       updated_at: record.updatedAt,
     };

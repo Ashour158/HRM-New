@@ -126,6 +126,7 @@ export class PayrollPayslipArtifactRepository {
       data_classification: record.dataClassification,
       published_by: record.publishedBy ?? null,
       published_at: record.publishedAt ?? null,
+      aggregate_version: 0,
       created_at: record.createdAt,
       updated_at: record.updatedAt,
     };
