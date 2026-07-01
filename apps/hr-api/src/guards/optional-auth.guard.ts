@@ -4,11 +4,11 @@
  * Populates req.actor for downstream use when a valid token is provided.
  */
 
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, Logger } from '@nestjs/common';
 import { Request } from 'express';
 import jwt from 'jsonwebtoken';
-import { loadAppConfig } from '../config/app.config.js';
 import type { HrActor } from '@hcm/command-contracts';
+import { loadAppConfigOrUndefined } from './load-app-config-safely.js';
 
 interface JwtPayload {
   sub: string;
@@ -22,6 +22,8 @@ interface JwtPayload {
 
 @Injectable()
 export class OptionalAuthGuard implements CanActivate {
+  private readonly logger = new Logger(OptionalAuthGuard.name);
+
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
 
@@ -29,10 +31,9 @@ export class OptionalAuthGuard implements CanActivate {
     // strong-secret guard) must not surface as an unhandled 500 on a route that's
     // supposed to work anonymously — proceed without an actor, same as an invalid
     // token below. Strict endpoints use AuthGuard, which denies on this same failure.
-    let config: ReturnType<typeof loadAppConfig>;
-    try {
-      config = loadAppConfig();
-    } catch {
+    // loadAppConfigOrUndefined logs the failure, so this fail-open path is still visible.
+    const config = loadAppConfigOrUndefined(this.logger, request.originalUrl ?? request.url, request.method);
+    if (!config) {
       return true;
     }
 
