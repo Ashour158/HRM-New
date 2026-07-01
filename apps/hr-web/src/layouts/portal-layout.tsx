@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { resolvePortalSearchPath } from '@/lib/portal-search';
 import { buildCommandActions } from '@/lib/command-actions';
+import { commercialModules, moduleCategories } from '@/lib/commercial-modules';
 import type { MeInbox } from '@/lib/me-inbox';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
@@ -59,6 +60,11 @@ interface PortalRailItem extends PortalNavItem {
   icon: React.ElementType;
 }
 
+interface PortalRailGroup {
+  label: string;
+  items: PortalRailItem[];
+}
+
 type PortalType = 'employee' | 'manager' | 'admin' | 'recruiter' | 'payroll';
 
 interface PortalConfig {
@@ -77,7 +83,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'Home', path: '/employee' },
       { label: 'Dashboard', path: '/employee/dashboard' },
       { label: 'Profile', path: '/employee/profile' },
-      { label: 'Payroll', path: '/employee/payslip' },
+      { label: 'My Payslips', path: '/employee/payslip' },
       { label: 'Benefits', path: '/employee/benefits' },
       { label: 'Onboarding', path: '/employee/onboarding' },
       { label: 'Leave', path: '/employee/time-off' },
@@ -161,24 +167,6 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
   },
 };
 
-const employeeRailItems: PortalRailItem[] = [
-  { label: 'Home', path: '/employee', icon: Home },
-  { label: 'Dashboard', path: '/employee/dashboard', icon: BarChart3 },
-  { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
-  { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
-  { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
-  { label: 'Payslips', path: '/employee/payslip', icon: FileText },
-  { label: 'Benefits', path: '/employee/benefits', icon: Heart },
-  { label: 'Onboarding', path: '/employee/onboarding', icon: UserRoundCheck },
-  { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
-  { label: 'Feedback 360', path: '/employee/feedback-360', icon: MessageSquare },
-  { label: 'Surveys', path: '/employee/surveys', icon: MessageSquare },
-  { label: 'Recognition', path: '/employee/recognition', icon: Heart },
-  { label: 'Pulse', path: '/employee/pulse', icon: Sparkles },
-  { label: 'Learning', path: '/employee/learning', icon: GraduationCap },
-  { label: 'Services', path: '/employee/services', icon: LifeBuoy },
-];
-
 const managerRailItems: PortalRailItem[] = [
   { label: 'Home', path: '/manager', icon: Home },
   { label: 'Dashboard', path: '/manager/dashboard', icon: BarChart3 },
@@ -186,39 +174,118 @@ const managerRailItems: PortalRailItem[] = [
   { label: 'Approvals', path: '/manager/approvals', icon: BarChart3 },
 ];
 
-const adminRailItems: PortalRailItem[] = [
+const employeeRailGroups: PortalRailGroup[] = [
+  {
+    label: 'Daily Work',
+    items: [
+      { label: 'Home', path: '/employee', icon: Home },
+      { label: 'Dashboard', path: '/employee/dashboard', icon: BarChart3 },
+      { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
+      { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
+      { label: 'Services', path: '/employee/services', icon: LifeBuoy },
+    ],
+  },
+  {
+    label: 'Personal & Pay',
+    items: [
+      { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
+      { label: 'My Payslips', path: '/employee/payslip', icon: FileText },
+      { label: 'Benefits', path: '/employee/benefits', icon: Heart },
+    ],
+  },
+  {
+    label: 'Growth & Engagement',
+    items: [
+      { label: 'Onboarding', path: '/employee/onboarding', icon: UserRoundCheck },
+      { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
+      { label: 'Feedback 360', path: '/employee/feedback-360', icon: MessageSquare },
+      { label: 'Surveys', path: '/employee/surveys', icon: MessageSquare },
+      { label: 'Recognition', path: '/employee/recognition', icon: Heart },
+      { label: 'Pulse', path: '/employee/pulse', icon: Sparkles },
+      { label: 'Learning', path: '/employee/learning', icon: GraduationCap },
+    ],
+  },
+];
+
+const managerRailGroups: PortalRailGroup[] = [
+  { label: 'Manager Hub', items: managerRailItems },
+];
+
+const adminFoundationRailItems: PortalRailItem[] = [
   { label: 'Home', path: '/admin', icon: Home },
   { label: 'Get started', path: '/admin/get-started', icon: Sparkles },
   { label: 'Dashboard', path: '/admin/dashboard', icon: BarChart3 },
-  { label: 'Employees', path: '/admin/employees', icon: Users },
-  { label: 'Organization', path: '/admin/organization', icon: Network },
-  { label: 'Attendance', path: '/admin/attendance', icon: Clock3 },
-  { label: 'Workforce Management', path: '/admin/workforce-management', icon: Clock3 },
-  { label: 'Leave', path: '/admin/leave', icon: Umbrella },
-  { label: 'Payroll', path: '/admin/payroll', icon: FileText },
-  { label: 'Compensation', path: '/admin/compensation', icon: BadgeDollarSign },
-  { label: 'Benefits', path: '/admin/benefits', icon: Umbrella },
-  { label: 'Performance', path: '/admin/performance/operations', icon: TrendingUp },
-  { label: 'Feedback 360', path: '/admin/feedback-360', icon: MessageSquare },
-  { label: 'Recruiting', path: '/admin/recruiting', icon: Briefcase },
-  { label: 'Learning', path: '/admin/learning', icon: GraduationCap },
-  { label: 'Skills & Talent', path: '/admin/skills-talent', icon: Sparkles },
-  { label: 'Employee Relations', path: '/admin/employee-relations', icon: ShieldCheck },
-  { label: 'Engagement', path: '/admin/engagement', icon: MessageSquare },
-  { label: 'HR Service Delivery', path: '/admin/hr-service-delivery', icon: LifeBuoy },
-  { label: 'Labor', path: '/admin/union-labor', icon: Scale },
-  { label: 'Wellbeing', path: '/admin/wellbeing-eap', icon: Heart },
-  { label: 'Contingent Workforce', path: '/admin/contingent-workforce', icon: Briefcase },
-  { label: 'AI Governance', path: '/admin/hr-ai-governance', icon: BrainCircuit },
-  { label: 'Global HR', path: '/admin/global-hr', icon: Globe2 },
-  { label: 'DEI Analytics', path: '/admin/dei-analytics', icon: Users },
   { label: 'Workforce Insights', path: '/admin/insights', icon: BrainCircuit },
   { label: 'Modules', path: '/admin/modules', icon: UserRoundCheck },
-  { label: 'Reports', path: '/admin/reports', icon: BarChart3 },
+];
+
+const adminSystemRailItems: PortalRailItem[] = [
   { label: 'System Console', path: '/admin/system-console', icon: Settings, systemOnly: true },
   { label: 'Policy Builder', path: '/admin/system-console/policies', icon: ShieldCheck, systemOnly: true },
   { label: 'SoD Rules', path: '/admin/system-console/sod-rules', icon: ShieldAlert, systemOnly: true },
   { label: 'Field Access', path: '/admin/system-console/field-access', icon: EyeOff, systemOnly: true },
+];
+
+const adminModuleIconById: Record<string, React.ElementType> = {
+  employees: Users,
+  organization: Network,
+  'position-control': Network,
+  attendance: Clock3,
+  leave: Umbrella,
+  'workforce-management': Clock3,
+  payroll: FileText,
+  compensation: BadgeDollarSign,
+  benefits: Umbrella,
+  recruiting: Briefcase,
+  onboarding: UserRoundCheck,
+  performance: TrendingUp,
+  learning: GraduationCap,
+  'skills-talent': Sparkles,
+  engagement: MessageSquare,
+  'employee-relations': ShieldCheck,
+  compliance: ShieldCheck,
+  'global-hr': Globe2,
+  'country-policy': Globe2,
+  'dei-analytics': Users,
+  'hr-ai-governance': BrainCircuit,
+  reporting: BarChart3,
+  'service-delivery': LifeBuoy,
+  scheduler: Settings,
+  'contingent-workforce': Briefcase,
+  'wellbeing-eap': Heart,
+  'union-labor': Scale,
+};
+
+const adminModulePathOverrides: Record<string, string> = {
+  benefits: '/admin/benefits',
+  engagement: '/admin/engagement',
+  performance: '/admin/performance/operations',
+};
+
+const adminCategoryRailSupplements: Partial<Record<(typeof moduleCategories)[number], PortalRailItem[]>> = {
+  Talent: [
+    { label: 'Feedback 360', path: '/admin/feedback-360', icon: MessageSquare },
+  ],
+};
+
+const adminModuleRailGroups: PortalRailGroup[] = moduleCategories.map((category) => ({
+  label: category,
+  items: [
+    ...commercialModules
+      .filter((module) => module.category === category)
+      .map((module) => ({
+        label: module.label,
+        path: adminModulePathOverrides[module.id] ?? module.nativePath ?? `/admin/modules/${module.id}`,
+        icon: adminModuleIconById[module.id] ?? UserRoundCheck,
+      })),
+    ...(adminCategoryRailSupplements[category] ?? []),
+  ],
+}));
+
+const adminRailGroups: PortalRailGroup[] = [
+  { label: 'Admin Panel', items: adminFoundationRailItems },
+  ...adminModuleRailGroups,
+  { label: 'System Console', items: adminSystemRailItems },
 ];
 
 const recruiterRailItems: PortalRailItem[] = [
@@ -235,12 +302,16 @@ const payrollRailItems: PortalRailItem[] = [
   { label: 'Exports', path: '/payroll#exports', icon: BarChart3 },
 ];
 
-function portalRailItems(portalType: PortalType) {
-  if (portalType === 'manager') return managerRailItems;
-  if (portalType === 'admin') return adminRailItems;
-  if (portalType === 'recruiter') return recruiterRailItems;
-  if (portalType === 'payroll') return payrollRailItems;
-  return employeeRailItems;
+function singleRailGroup(label: string, items: PortalRailItem[]): PortalRailGroup[] {
+  return [{ label, items }];
+}
+
+function portalRailGroups(portalType: PortalType): PortalRailGroup[] {
+  if (portalType === 'manager') return managerRailGroups;
+  if (portalType === 'admin') return adminRailGroups;
+  if (portalType === 'recruiter') return singleRailGroup('Recruiting', recruiterRailItems);
+  if (portalType === 'payroll') return singleRailGroup('Payroll', payrollRailItems);
+  return employeeRailGroups;
 }
 
 function hasSystemAdminRole(roleNames: Set<string>) {
@@ -268,10 +339,16 @@ function WorkspaceShell({
   const roleNames = React.useMemo(() => new Set((user?.roles ?? []).map((role) => role.name)), [user?.roles]);
   const canSeeAdminSettings = roleNames.has('HR_ADMIN') || roleNames.has('SUPER_ADMIN');
   const canSeeSystemConsole = hasSystemAdminRole(roleNames);
-  const railItems = React.useMemo(
-    () => portalRailItems(portalType).filter((item) => !item.systemOnly || canSeeSystemConsole),
+  const railGroups = React.useMemo(
+    () => portalRailGroups(portalType)
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => !item.systemOnly || canSeeSystemConsole),
+      }))
+      .filter((group) => group.items.length > 0),
     [canSeeSystemConsole, portalType],
   );
+  const railItems = React.useMemo(() => railGroups.flatMap((group) => group.items), [railGroups]);
   const navLabel = React.useCallback(
     (item: PortalNavItem) => {
       if (item.path === '/admin/get-started') return t('adminGetStarted.title');
@@ -327,6 +404,31 @@ function WorkspaceShell({
       },
     });
   }, [canSeeSystemConsole, config.navItems, config.title, hasPermission, meInbox, navLabel, portalType, railItems, t]);
+  const renderRailItem = React.useCallback(
+    (item: PortalRailItem) => {
+      const Icon = item.icon;
+      const [path, hash] = item.path.split('#');
+      const isRoot = path === `/${portalType}`;
+      const isActive = (isRoot ? location.pathname === path : location.pathname.startsWith(path))
+        && (!hash || location.hash === `#${hash}`);
+      return (
+        <Link
+          key={item.path}
+          to={item.path}
+          className={cn(
+            'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
+            isActive
+              ? 'bg-white/80 text-indigo-700 shadow-sm'
+              : 'text-slate-600 hover:bg-white/50 hover:text-slate-900',
+          )}
+        >
+          <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
+          <span>{navLabel(item)}</span>
+        </Link>
+      );
+    },
+    [location.hash, location.pathname, navLabel, portalType],
+  );
   const primaryActionPath = portalType === 'admin'
     ? '/admin/system-console'
     : portalType === 'recruiter'
@@ -385,33 +487,14 @@ function WorkspaceShell({
             </Link>
           </Button>
 
-          <div>
-            <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">Core HCM</p>
-            <nav className="space-y-1">
-              {railItems.map((item) => {
-                const Icon = item.icon;
-                const [path, hash] = item.path.split('#');
-                const isRoot = path === `/${portalType}`;
-                const isActive = (isRoot ? location.pathname === path : location.pathname.startsWith(path))
-                  && (!hash || location.hash === `#${hash}`);
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={cn(
-                      'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
-                      isActive
-                        ? 'bg-white/80 text-indigo-700 shadow-sm'
-                        : 'text-slate-600 hover:bg-white/50 hover:text-slate-900',
-                    )}
-                  >
-                    <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
-                    <span>{navLabel(item)}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+          {railGroups.map((group) => (
+            <div key={group.label}>
+              <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">{group.label}</p>
+              <nav className="space-y-1">
+                {group.items.map(renderRailItem)}
+              </nav>
+            </div>
+          ))}
 
           <div>
             <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">System</p>
@@ -500,33 +583,14 @@ function WorkspaceShell({
                 </Link>
               </Button>
 
-              <div>
-                <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">Core HCM</p>
-                <nav className="space-y-1">
-                  {railItems.map((item) => {
-                    const Icon = item.icon;
-                    const [path, hash] = item.path.split('#');
-                    const isRoot = path === `/${portalType}`;
-                    const isActive = (isRoot ? location.pathname === path : location.pathname.startsWith(path))
-                      && (!hash || location.hash === `#${hash}`);
-                    return (
-                      <Link
-                        key={item.path}
-                        to={item.path}
-                        className={cn(
-                          'flex items-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors',
-                          isActive
-                            ? 'bg-white/80 text-indigo-700 shadow-sm'
-                            : 'text-slate-600 hover:bg-white/50 hover:text-slate-900',
-                        )}
-                      >
-                        <Icon className={cn('mr-3 h-[18px] w-[18px]', isActive ? 'text-indigo-600' : 'text-slate-400')} />
-                        <span>{navLabel(item)}</span>
-                      </Link>
-                    );
-                  })}
-                </nav>
-              </div>
+              {railGroups.map((group) => (
+                <div key={group.label}>
+                  <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">{group.label}</p>
+                  <nav className="space-y-1">
+                    {group.items.map(renderRailItem)}
+                  </nav>
+                </div>
+              ))}
 
               <div>
                 <p className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">System</p>
