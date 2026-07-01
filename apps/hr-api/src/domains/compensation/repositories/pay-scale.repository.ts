@@ -61,7 +61,7 @@ export class PayScaleRepository extends BaseRepository<'pay_scales', PayScale> {
       tenant_id: entity.tenantId.value,
       scale_code: entity.scaleCode,
       grade: entity.grade,
-      steps: JSON.parse(JSON.stringify(entity.steps)),
+      steps: JSON.stringify(entity.steps ?? []),
       currency: entity.currency,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,

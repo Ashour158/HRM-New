@@ -80,7 +80,7 @@ export class BenefitsEnrollmentRepository extends BaseRepository<'benefits_enrol
       worker_id: entity.workerId.value,
       program_id: entity.programId.value,
       coverage_level: entity.coverageLevel,
-      dependents: JSON.parse(JSON.stringify(entity.dependents)),
+      dependents: JSON.stringify(entity.dependents ?? []),
       effective_date: entity.effectiveDate,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,

@@ -76,7 +76,7 @@ export class LegalHoldRepository {
       hold_name: entity.holdName,
       description: entity.description || null,
       reason: entity.reason,
-      affected_worker_ids: entity.affectedWorkerIds.map((id) => id.value),
+      affected_worker_ids: JSON.stringify(entity.affectedWorkerIds.map((id) => id.value)),
       placed_by: entity.placedBy.value,
       placed_at: entity.placedAt,
       released_by: entity.releasedBy?.value ?? null,

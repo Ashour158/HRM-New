@@ -70,7 +70,7 @@ export class CountryPolicyPackRepository {
       effective_until: entity.effectiveUntil ?? null,
       status: entity.status,
       sections: entity.sections,
-      required_approvals: entity.requiredApprovals,
+      required_approvals: JSON.stringify(entity.requiredApprovals ?? []),
       source_evidence: entity.sourceEvidence,
       recalculation_required: entity.recalculationRequired,
       uploaded_by: entity.uploadedBy?.value ?? null,

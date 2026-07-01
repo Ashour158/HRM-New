@@ -57,7 +57,7 @@ export class EngagementSurveyRepository extends BaseRepository<'engagement_surve
       tenant_id: entity.tenantId.value,
       title: entity.title,
       survey_type: entity.surveyType,
-      questions: entity.questions,
+      questions: JSON.stringify(entity.questions ?? []),
       anonymous: entity.anonymous,
       start_date: entity.startDate ?? null,
       end_date: entity.endDate ?? null,

@@ -72,7 +72,7 @@ export class InterviewPlanRepository {
       tenant_id: entity.tenantId.value,
       candidate_id: entity.candidateId.value,
       requisition_id: entity.requisitionId.value,
-      interviewers: entity.interviewers.map((i) => i.value) as unknown as string[],
+      interviewers: JSON.stringify(entity.interviewers.map((i) => i.value)),
       scheduled_at: entity.scheduledAt ? entity.scheduledAt.toISOString() : null,
       format: entity.format ?? null,
       status: entity.status,

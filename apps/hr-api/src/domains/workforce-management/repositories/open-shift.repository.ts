@@ -83,7 +83,7 @@ export class OpenShiftRepository extends BaseRepository<'open_shifts', OpenShift
       shift_date: entity.shiftDate,
       start_time: entity.startTime,
       end_time: entity.endTime,
-      required_skills: entity.requiredSkills ?? [],
+      required_skills: JSON.stringify(entity.requiredSkills ?? []),
       bid_deadline: entity.bidDeadline ?? null,
       filled_by_worker_id: entity.filledByWorkerId?.value ?? null,
       status: entity.status,

@@ -69,12 +69,12 @@ export class SkillProfileRepository extends BaseRepository<'skill_profiles', Ski
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
       worker_id: entity.workerId.value,
-      skills: entity.skills.map((s) => ({
+      skills: JSON.stringify(entity.skills.map((s) => ({
         skillId: s.skillId,
         proficiency: s.proficiency,
         validatedBy: s.validatedBy?.value,
         validatedAt: s.validatedAt?.toISOString(),
-      })),
+      }))),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,
