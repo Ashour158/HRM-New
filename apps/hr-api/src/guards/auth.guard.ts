@@ -66,7 +66,7 @@ export class AuthGuard implements CanActivate {
     // In production a missing/weak system credential makes loadAppConfig() throw
     // (strong-secret guard). That must DENY the request (403), not surface as an
     // unhandled 500 — a misconfigured or demo key never grants access.
-    const config = loadAppConfigOrUndefined(this.logger, request.originalUrl ?? request.url, request.method);
+    const config = loadAppConfigOrUndefined(this.logger, request.path, request.method);
     if (!config) {
       throw new ForbiddenException('Server authentication is not properly configured');
     }
@@ -79,7 +79,7 @@ export class AuthGuard implements CanActivate {
     if (apiKey) {
       const actorStub = this.resolveApiKeyActor(apiKey, config);
       if (!actorStub) {
-        this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_API_KEY', route: request.originalUrl ?? request.url, method: request.method });
+        this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_API_KEY', route: request.path, method: request.method });
         throw new ForbiddenException('Invalid API key');
       }
       request.actor = this.buildActor(actorStub, apiKey);
@@ -92,13 +92,13 @@ export class AuthGuard implements CanActivate {
       (request.headers.Authorization as string | undefined);
 
     if (!authHeader) {
-      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'MISSING_AUTH_HEADER', route: request.originalUrl ?? request.url, method: request.method });
+      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'MISSING_AUTH_HEADER', route: request.path, method: request.method });
       throw new UnauthorizedException('Missing Authorization header');
     }
 
     const token = authHeader.replace(/^Bearer\s+/i, '');
     if (!token) {
-      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'EMPTY_BEARER_TOKEN', route: request.originalUrl ?? request.url, method: request.method });
+      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'EMPTY_BEARER_TOKEN', route: request.path, method: request.method });
       throw new UnauthorizedException('Empty Bearer token');
     }
 
@@ -112,7 +112,7 @@ export class AuthGuard implements CanActivate {
       (request.actor as HrActor & { email?: string; tenantId?: string }).tenantId = payload.tenant_id;
       return true;
     } catch {
-      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_OR_EXPIRED_TOKEN', route: request.originalUrl ?? request.url, method: request.method });
+      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_OR_EXPIRED_TOKEN', route: request.path, method: request.method });
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

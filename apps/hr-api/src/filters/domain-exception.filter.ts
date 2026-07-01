@@ -52,7 +52,7 @@ export class DomainExceptionFilter implements ExceptionFilter {
 
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        { correlationId, errorCode, path: request.url, method: request.method },
+        { correlationId, errorCode, path: request.path, method: request.method },
         error instanceof Error ? error.stack : String(error),
       );
     }
