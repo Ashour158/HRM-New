@@ -32,7 +32,7 @@ export class OptionalAuthGuard implements CanActivate {
     // supposed to work anonymously — proceed without an actor, same as an invalid
     // token below. Strict endpoints use AuthGuard, which denies on this same failure.
     // loadAppConfigOrUndefined logs the failure, so this fail-open path is still visible.
-    const config = loadAppConfigOrUndefined(this.logger, request.originalUrl ?? request.url, request.method);
+    const config = loadAppConfigOrUndefined(this.logger, request.path, request.method);
     if (!config) {
       return true;
     }

@@ -36,7 +36,10 @@ export class ObservabilityMiddleware implements NestMiddleware {
         eventType: 'HTTP_REQUEST',
         method: request.method,
         route,
-        path: request.originalUrl ?? request.url,
+        // Concrete path (no query string) — route above is the parameterized template
+        // (e.g. /users/:id); this fills in the actual value without leaking query params,
+        // which can carry tokens or other sensitive data.
+        path: request.path,
         statusCode: response.statusCode,
         durationMs: Math.round(durationMs * 100) / 100,
         correlationId,

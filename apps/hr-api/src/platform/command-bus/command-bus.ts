@@ -537,8 +537,12 @@ export class CommandBus implements OnModuleInit {
           aggregateType: command.aggregateType,
           aggregateId: command.aggregateId?.value,
           tenantId: command.tenantId.value,
-          actorId: command.actor.actorId.value,
-          actorType: command.actor.actorType,
+          // Optional chaining: if the failure originated in stepAuthenticateActor (the
+          // pipeline's first step), command.actor may be malformed/undefined - an
+          // unguarded dereference here would throw a second error while trying to log
+          // the first one, masking the real failure entirely.
+          actorId: command.actor?.actorId?.value,
+          actorType: command.actor?.actorType,
           correlationId: command.correlationId,
           stepFailed: step,
           durationMs: Date.now() - startedAt,
