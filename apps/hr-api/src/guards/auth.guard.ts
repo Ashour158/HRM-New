@@ -2,6 +2,7 @@ import {
   Injectable,
   CanActivate,
   ExecutionContext,
+  Logger,
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -50,6 +51,8 @@ const API_KEY_ACTORS: Record<
  */
 @Injectable()
 export class AuthGuard implements CanActivate {
+  private readonly logger = new Logger(AuthGuard.name);
+
   constructor(private readonly reflector: Reflector = new Reflector()) {}
 
   canActivate(context: ExecutionContext): boolean {
@@ -66,6 +69,7 @@ export class AuthGuard implements CanActivate {
     try {
       config = loadAppConfig();
     } catch {
+      this.logger.error({ eventType: 'AUTH_DENIED', reason: 'SERVER_CONFIG_ERROR', route: request.originalUrl ?? request.url, method: request.method });
       throw new ForbiddenException('Server authentication is not properly configured');
     }
 
@@ -77,6 +81,7 @@ export class AuthGuard implements CanActivate {
     if (apiKey) {
       const actorStub = this.resolveApiKeyActor(apiKey, config);
       if (!actorStub) {
+        this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_API_KEY', route: request.originalUrl ?? request.url, method: request.method });
         throw new ForbiddenException('Invalid API key');
       }
       request.actor = this.buildActor(actorStub, apiKey);
@@ -89,11 +94,13 @@ export class AuthGuard implements CanActivate {
       (request.headers.Authorization as string | undefined);
 
     if (!authHeader) {
+      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'MISSING_AUTH_HEADER', route: request.originalUrl ?? request.url, method: request.method });
       throw new UnauthorizedException('Missing Authorization header');
     }
 
     const token = authHeader.replace(/^Bearer\s+/i, '');
     if (!token) {
+      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'EMPTY_BEARER_TOKEN', route: request.originalUrl ?? request.url, method: request.method });
       throw new UnauthorizedException('Empty Bearer token');
     }
 
@@ -107,6 +114,7 @@ export class AuthGuard implements CanActivate {
       (request.actor as HrActor & { email?: string; tenantId?: string }).tenantId = payload.tenant_id;
       return true;
     } catch {
+      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_OR_EXPIRED_TOKEN', route: request.originalUrl ?? request.url, method: request.method });
       throw new UnauthorizedException('Invalid or expired token');
     }
   }
