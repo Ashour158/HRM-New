@@ -43,6 +43,9 @@ jobs:
       - name: Locale scan
         run: pnpm locale:scan
 
+      - name: Compiled output hygiene check
+        run: pnpm check:no-compiled-output-in-src
+
       - name: Deployment envelope check
         run: pnpm ci:verify-deployment-envelope
 
