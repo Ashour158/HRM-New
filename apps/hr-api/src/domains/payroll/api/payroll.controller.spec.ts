@@ -162,7 +162,7 @@ describe('PayrollController salary governance', () => {
       } as never,
       { findByWorker: async () => [] } as never,
       { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
       { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
       payrollCalculation as never,
       payrollGovernance as never,
@@ -290,7 +290,7 @@ describe('PayrollController salary governance', () => {
         ],
       } as never,
       { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
       { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
       payrollCalculation as never,
       { evaluateCloseToPayReadiness: vi.fn(() => ({ canClose: true, blockingIssueCount: 0, warningIssueCount: 0, issues: [] })) } as never,
@@ -434,7 +434,7 @@ describe('PayrollController salary governance', () => {
         ],
       } as never,
       { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
       { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
       payrollCalculation as never,
       { evaluateCloseToPayReadiness: vi.fn(() => ({ canClose: true, blockingIssueCount: 0, warningIssueCount: 0, issues: [] })) } as never,
@@ -513,7 +513,7 @@ describe('PayrollController salary governance', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      { findByWorkers: async () => new Map() } as never,
       { buildBankTransferRows: vi.fn(() => []) } as never,
       new PayrollCycleGovernanceService() as never,
       {
@@ -625,6 +625,11 @@ describe('PayrollController salary governance', () => {
           locked: true,
           readyForPayroll: true,
         }]),
+        findByWorkers: vi.fn(async (_tenantId, workerIds) => {
+          const map = new Map();
+          for (const id of workerIds) map.set(id.value, [{ workDate: '2026-05-01', locked: true, readyForPayroll: true }]);
+          return map;
+        }),
       } as never,
       {} as never,
       {
@@ -801,6 +806,11 @@ describe('PayrollController salary governance', () => {
           locked: true,
           readyForPayroll: true,
         }]),
+        findByWorkers: vi.fn(async (_tenantId, workerIds) => {
+          const map = new Map();
+          for (const id of workerIds) map.set(id.value, [{ workDate: '2026-05-01', locked: true, readyForPayroll: true }]);
+          return map;
+        }),
       } as never,
       {} as never,
       {
@@ -964,7 +974,7 @@ describe('PayrollController salary governance', () => {
       {} as never,
       {} as never,
       {} as never,
-      {} as never,
+      { findByWorkers: async () => new Map() } as never,
       { buildBankTransferRows: vi.fn(() => []) } as never,
       new PayrollCycleGovernanceService() as never,
       {

@@ -25,6 +25,22 @@ function buildController() {
   const workerRepo = {
     findByEmployeeNumberForTenant: vi.fn().mockResolvedValue(undefined),
     findByEmailForTenant: vi.fn().mockResolvedValue(undefined),
+    findByEmployeeNumbersForTenant: vi.fn(async (employeeNumbers: string[]) => {
+      const map = new Map();
+      for (const employeeNumber of employeeNumbers) {
+        const worker = await workerRepo.findByEmployeeNumberForTenant(employeeNumber);
+        if (worker) map.set(employeeNumber, worker);
+      }
+      return map;
+    }),
+    findByEmailsForTenant: vi.fn(async (emails: string[]) => {
+      const map = new Map();
+      for (const email of emails) {
+        const worker = await workerRepo.findByEmailForTenant(email);
+        if (worker) map.set(email, worker);
+      }
+      return map;
+    }),
   };
   const controller = new HrCoreController(
     commandBus as never,

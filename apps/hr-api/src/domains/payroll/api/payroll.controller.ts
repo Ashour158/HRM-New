@@ -903,11 +903,13 @@ export class PayrollController {
   private async buildAttendanceLockIssues(preview: PayrollCyclePreview, req: Request): Promise<PayrollReadinessIssue[]> {
     const tenantId = this.getTenantId(req);
     const issues: PayrollReadinessIssue[] = [];
+    const ledgersByWorker = await this.attendanceDailyLedgerRepo.findByWorkers(
+      tenantId,
+      preview.rows.map((row) => new Uuid(row.workerId)),
+      { dateFrom: preview.periodStart, dateTo: preview.periodEnd },
+    );
     for (const row of preview.rows) {
-      const ledgers = await this.attendanceDailyLedgerRepo.findByWorker(tenantId, new Uuid(row.workerId), {
-        dateFrom: preview.periodStart,
-        dateTo: preview.periodEnd,
-      });
+      const ledgers = ledgersByWorker.get(row.workerId) ?? [];
       const readyLocked = ledgers.filter((ledger) => ledger.locked && ledger.readyForPayroll);
       if (readyLocked.length === 0) {
         issues.push({
