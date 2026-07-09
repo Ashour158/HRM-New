@@ -36,6 +36,8 @@ export {
 } from './audit/audit-ledger.js';
 export type { AuditRecord, AuditOptions } from './audit/audit-ledger.js';
 
+export { redactSensitiveFields } from './audit/redaction.js';
+
 export {
   AuditOnAccess,
   AUDIT_ON_ACCESS_KEY,
