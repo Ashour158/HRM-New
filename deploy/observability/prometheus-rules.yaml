@@ -46,3 +46,61 @@ groups:
         annotations:
           summary: "Transactional inbox processing is failing"
           runbook_url: "docs/observability-runbook.md#outbox-or-inbox-failures"
+
+  # Infrastructure-level rules -- these fire on cluster/node/database
+  # conditions, not application behavior, and are the counterpart to the
+  # per-service degradation rules above. They require kube-state-metrics
+  # (node/pod rules) and postgres_exporter (connection-pool rule) to be
+  # deployed and scraped by the same Prometheus instance -- adding a rule
+  # here does not make it live on its own; see docs/full-outage-runbook.md.
+  - name: hcm-infrastructure
+    rules:
+      - alert: HcmNodeNotReady
+        expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: hcm-infrastructure
+        annotations:
+          summary: "A Kubernetes node is not Ready"
+          runbook_url: "docs/full-outage-runbook.md"
+
+      - alert: HcmNodeDiskPressure
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: hcm-infrastructure
+        annotations:
+          summary: "A node filesystem has less than 10% free space"
+          runbook_url: "docs/full-outage-runbook.md"
+
+      - alert: HcmPodCrashLooping
+        expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace="hcm-production"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          service: hcm-infrastructure
+        annotations:
+          summary: "A pod in hcm-production is crash-looping"
+          runbook_url: "docs/observability-runbook.md#high-api-error-rate"
+
+      - alert: HcmMigrationJobFailed
+        expr: kube_job_status_failed{namespace="hcm-production", job_name=~"hcm-database-migrate.*"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: hcm-infrastructure
+        annotations:
+          summary: "The database migration Job failed"
+          runbook_url: "docs/GO-LIVE-RUNBOOK.md"
+
+      - alert: HcmDbConnectionPoolNearExhaustion
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: hcm-infrastructure
+        annotations:
+          summary: "Postgres connections are above 85% of max_connections"
+          runbook_url: "docs/GO-LIVE-RUNBOOK.md#connection-pool-budget"
