@@ -17,6 +17,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { Public } from '../decorators/public.decorator.js';
 import { Permissions } from '../decorators/permissions.decorator.js';
+import { loadAppConfig } from '../config/app.config.js';
 import { AuthService, type AuthUser } from './auth.service.js';
 import { LoginRateLimitGuard } from './login-rate-limit.guard.js';
 import { SsoConfigService, type SsoConfigInput } from './sso-config.service.js';
@@ -65,6 +66,8 @@ interface PasswordResetConfirmDto {
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
+  private readonly config = loadAppConfig();
+
   constructor(
     private readonly authService: AuthService,
     private readonly ssoConfigService: SsoConfigService,
@@ -237,7 +240,7 @@ export class AuthController {
   @Public()
   async oidcCallback(@Req() req: Request, @Param('tenantId') tenantId: string, @Res() res: Response) {
     const credentials = await this.ssoOidcService.callback(tenantId, absoluteRequestUrl(req));
-    res.redirect(302, webSsoCallbackUrl(req, credentials.token, credentials.refreshToken));
+    res.redirect(302, webSsoCallbackUrl(this.config.webAppUrl, credentials.token, credentials.refreshToken));
   }
 
   @Get('sso/saml/:tenantId/start')
@@ -249,9 +252,9 @@ export class AuthController {
 
   @Post('sso/saml/:tenantId/acs')
   @Public()
-  async samlAcs(@Req() req: Request, @Param('tenantId') tenantId: string, @Body() body: { SAMLResponse?: string; RelayState?: string }, @Res() res: Response) {
+  async samlAcs(@Param('tenantId') tenantId: string, @Body() body: { SAMLResponse?: string; RelayState?: string }, @Res() res: Response) {
     const credentials = await this.ssoSamlService.acs(tenantId, body);
-    res.redirect(302, webSsoCallbackUrl(req, credentials.token, credentials.refreshToken));
+    res.redirect(302, webSsoCallbackUrl(this.config.webAppUrl, credentials.token, credentials.refreshToken));
   }
 
   @Get('sso/saml/:tenantId/metadata')
@@ -302,9 +305,8 @@ function absoluteRequestUrl(req: Request): URL {
   return new URL(`${req.protocol}://${req.get('host')}${req.originalUrl || req.url}`);
 }
 
-function webSsoCallbackUrl(req: Request, token: string, refreshToken: string): string {
-  const origin = req.get('x-web-callback-origin') || 'http://localhost:4173';
-  const url = new URL('/auth/sso/callback', origin);
+function webSsoCallbackUrl(webAppOrigin: string, token: string, refreshToken: string): string {
+  const url = new URL('/auth/sso/callback', webAppOrigin);
   url.searchParams.set('token', token);
   url.searchParams.set('refreshToken', refreshToken);
   return url.toString();
