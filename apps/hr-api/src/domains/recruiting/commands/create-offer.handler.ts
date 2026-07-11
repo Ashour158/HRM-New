@@ -46,6 +46,15 @@ export class CreateOfferHandler implements ICommandHandler {
       throw new BadRequestException('Candidate must be in INTERVIEWING state to create an offer');
     }
 
+    // Moving the candidate to OFFER_PENDING here (rather than in
+    // AcceptOfferHandler) is what makes candidate.hire() reachable later --
+    // hire() requires OFFER_PENDING, and without this call it always threw
+    // ConflictError since nothing ever left the candidate in INTERVIEWING
+    // (HCM-P0-7).
+    candidate.makeOfferPending(command.correlationId);
+    await this.candidateRepo.save(candidate);
+    await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
+
     const offer = Offer.create(
       {
         id: payload.offerId,
@@ -73,7 +82,7 @@ export class CreateOfferHandler implements ICommandHandler {
       newVersion: offer.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
-      eventsEmitted: ['OfferCreated'],
+      eventsEmitted: ['CandidateOfferPending', 'OfferCreated'],
       auditRecordId: Uuid.generate(),
     };
   }

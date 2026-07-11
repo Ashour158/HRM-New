@@ -15,7 +15,7 @@ export class JobRequisitionFsmRegistrar implements OnModuleInit {
       aggregateType: 'JobRequisition',
       states: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PUBLISHED', 'OPEN', 'FILLED', 'CLOSED', 'REJECTED'],
       actions: [
-        'SubmitForApproval',
+        'SubmitJobRequisitionForApproval',
         'ApproveJobRequisition',
         'RejectJobRequisition',
         'PublishJobRequisition',
@@ -25,7 +25,7 @@ export class JobRequisitionFsmRegistrar implements OnModuleInit {
         'UpdateJobRequisition',
       ],
       transitions: [
-        { action: 'SubmitForApproval', from: 'DRAFT', to: 'PENDING_APPROVAL', eventName: 'JobRequisitionSubmitted' },
+        { action: 'SubmitJobRequisitionForApproval', from: 'DRAFT', to: 'PENDING_APPROVAL', eventName: 'JobRequisitionSubmitted' },
         { action: 'ApproveJobRequisition', from: 'PENDING_APPROVAL', to: 'APPROVED', eventName: 'JobRequisitionApproved' },
         { action: 'RejectJobRequisition', from: 'PENDING_APPROVAL', to: 'REJECTED', eventName: 'JobRequisitionRejected' },
         { action: 'PublishJobRequisition', from: 'APPROVED', to: 'PUBLISHED', eventName: 'JobRequisitionPublished' },

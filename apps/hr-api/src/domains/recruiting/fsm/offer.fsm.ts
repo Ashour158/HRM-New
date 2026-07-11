@@ -15,7 +15,7 @@ export class OfferFsmRegistrar implements OnModuleInit {
       aggregateType: 'Offer',
       states: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'],
       actions: [
-        'SubmitForApproval',
+        'SubmitOfferForApproval',
         'ApproveOffer',
         'SendOffer',
         'AcceptOffer',
@@ -25,7 +25,7 @@ export class OfferFsmRegistrar implements OnModuleInit {
         'UpdateOffer',
       ],
       transitions: [
-        { action: 'SubmitForApproval', from: 'DRAFT', to: 'PENDING_APPROVAL', eventName: 'OfferSubmitted' },
+        { action: 'SubmitOfferForApproval', from: 'DRAFT', to: 'PENDING_APPROVAL', eventName: 'OfferSubmitted' },
         { action: 'ApproveOffer', from: 'PENDING_APPROVAL', to: 'APPROVED', eventName: 'OfferApproved' },
         { action: 'SendOffer', from: 'APPROVED', to: 'SENT', eventName: 'OfferSent' },
         { action: 'AcceptOffer', from: 'SENT', to: 'ACCEPTED', eventName: 'OfferAccepted' },
