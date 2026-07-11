@@ -249,6 +249,7 @@ export class AccessControlService {
     }
 
     if (prefix === 'LEARNING') {
+      if (commandName === 'START_LEARNING_ASSIGNMENT' || commandName === 'COMPLETE_LEARNING_ASSIGNMENT') return ['LEARNING_READ'];
       if (commandName.includes('APPROVE')) return ['LEARNING_APPROVE'];
       if (commandName.includes('GET') || commandName.includes('READ') || commandName.includes('FIND') || commandName.includes('LIST')) return ['LEARNING_READ'];
       return ['LEARNING_ASSIGN'];

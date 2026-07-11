@@ -115,6 +115,34 @@ describe('AccessControlService time and attendance self-service commands', () =>
     expect(decision.allowed).toBe(true);
   });
 
+  it('allows employees and managers to start and complete learning assignments through self service (HCM-P0-11)', () => {
+    for (const commandName of ['StartLearningAssignment', 'CompleteLearningAssignment']) {
+      const employeeDecision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'UPDATE',
+        aggregateType: 'LearningAssignment',
+        payload: {},
+      }, {
+        actorType: 'EMPLOYEE',
+        roles: ['EMPLOYEE'],
+        employmentStatus: 'ACTIVE',
+      });
+      expect(employeeDecision.allowed, `EMPLOYEE ${commandName}: ${employeeDecision.reason}`).toBe(true);
+
+      const managerDecision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'UPDATE',
+        aggregateType: 'LearningAssignment',
+        payload: {},
+      }, {
+        actorType: 'MANAGER',
+        roles: ['MANAGER'],
+        employmentStatus: 'ACTIVE',
+      });
+      expect(managerDecision.allowed, `MANAGER ${commandName}: ${managerDecision.reason}`).toBe(true);
+    }
+  });
+
   it('allows employees to submit their assigned 360 feedback through self service', () => {
     const decision = service.evaluateCommandAccess({
       commandName: 'SubmitPerformanceFeedback360Response',
