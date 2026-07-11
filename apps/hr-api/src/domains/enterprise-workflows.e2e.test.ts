@@ -462,12 +462,18 @@ describe('enterprise E2E workflow confidence gates', () => {
 
   it('blocks access review SoD conflicts and produces revocation evidence requirements', () => {
     const sod = new SodMatrix();
-    const payrollApproval = sod.checkSoD(['PAYROLL_ADMIN'], 'PAYROLL_APPROVE', {
-      actionPermission: 'PAYROLL_CREATE',
+    // The actor's full effective permission set holds BOTH halves of the
+    // incompatible pair (e.g. PAYROLL_ADMIN's default permissions include
+    // both PAYROLL_CREATE and PAYROLL_APPROVE) -- checkSoD must evaluate
+    // against that full set, not the single permission the current command
+    // happens to require (HCM-P0-5: passing a narrower/unrepresentative set
+    // here previously masked checkSoD never actually detecting the conflict).
+    const payrollApproval = sod.checkSoD(['PAYROLL_ADMIN'], ['PAYROLL_CREATE', 'PAYROLL_APPROVE'], {
+      actionPermission: 'PAYROLL_APPROVE',
       actionName: 'ClosePayrollCycle',
     });
-    const performanceApproval = sod.checkSoD(['MANAGER'], 'PERFORMANCE_APPROVE', {
-      actionPermission: 'PERFORMANCE_CREATE',
+    const performanceApproval = sod.checkSoD(['MANAGER'], ['PERFORMANCE_CREATE', 'PERFORMANCE_APPROVE'], {
+      actionPermission: 'PERFORMANCE_APPROVE',
       actionName: 'FinalizeCalibrationSession',
     });
 

@@ -1607,8 +1607,14 @@ export class CommandBus implements OnModuleInit {
   }
 
   private async stepEvaluateSoD(command: HrCommandEnvelope<unknown>): Promise<void> {
-    const action = this.inferActionFromCommand(command.commandName);
-    const result = this.accessControl.checkSoD(action, command.actor.roles);
+    const acCommand = {
+      commandName: command.commandName,
+      commandType: this.inferCommandType(command.commandName),
+      aggregateType: command.aggregateType,
+      aggregateId: command.aggregateId,
+      payload: command.payload as Record<string, unknown>,
+    };
+    const result = this.accessControl.checkSoD(acCommand, command.actor.roles);
     if (result.violated) {
       throw this.makeError(
         command,
