@@ -10,14 +10,22 @@ explicit about which numbers are proven vs. aspirational.
 
 ## Status of every number in this document
 
-Every target below is marked:
-- **[TARGET]** -- an engineering goal, not yet measured against production-shaped
-  load (multi-tenant, realistic data volumes, authenticated business traffic).
-- **[PROVEN]** -- measured and recorded with dated evidence.
+Every row below is marked:
+- **[TARGET]** -- an engineering goal, not yet measured at all.
+- **[PROVEN]** -- measured and recorded with dated evidence, *at the scale
+  and environment stated in that row*. A row marked [PROVEN] against a local
+  smoke test is proven for that smoke test only -- it is explicitly not the
+  same claim as "proven at production scale," which requires the
+  authenticated, multi-tenant, production-shaped load test described under
+  "Validation cadence" below.
+- **[NOT COVERED]** -- no defensible target exists yet; the underlying
+  capability has a known correctness/scale gap that must close first.
 
 None of the SLOs in this document should be quoted to a customer or in a
-contract as **[PROVEN]** until the corresponding load test exists and is
-re-run on a cadence (see "Validation cadence" below).
+contract until the row is [PROVEN] against production-shaped load
+specifically (see "Validation cadence" below) -- a [PROVEN] local/CI smoke
+result is evidence the measurement methodology works, not a production
+capacity claim.
 
 ## Availability
 
@@ -52,7 +60,7 @@ have engineering instrumentation behind them:
 | Payroll cycle closes and posts to GL within | Not yet defined | **[NOT COVERED]** -- needs the payroll-cycle-creation redesign first. |
 | Employee self-service page load | < 2 seconds p95 | **[TARGET]**, unmeasured. |
 | Bulk employee import (mass-update) for 5,000 rows | Not yet defined | **[NOT COVERED]** -- the CTO audit found this path does up to ~20,000 sequential DB round trips before batching was added; re-baseline after that fix lands. |
-| Support ticket first response | Not yet defined -- requires a support process to exist first | **[NOT COVERED]**, see docs/GO-LIVE-RUNBOOK.md commercial-readiness items. |
+| Support ticket first response | Not yet defined -- requires a support process to exist first | **[NOT COVERED]**, see [GO-LIVE-RUNBOOK.md](GO-LIVE-RUNBOOK.md) commercial-readiness items. |
 
 ## Validation cadence
 
