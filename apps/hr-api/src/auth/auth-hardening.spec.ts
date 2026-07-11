@@ -66,10 +66,10 @@ describe('auth hardening', () => {
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.setupMfa)).toBeUndefined();
   });
 
-  it('auth guard skips explicit public endpoints', () => {
+  it('auth guard skips explicit public endpoints', async () => {
     const guard = new AuthGuard(new Reflector());
 
-    expect(guard.canActivate(contextFor(TestController.prototype.publicRoute))).toBe(true);
+    await expect(guard.canActivate(contextFor(TestController.prototype.publicRoute))).resolves.toBe(true);
   });
 
   it('permission guard rejects authenticated actors without required permission', () => {

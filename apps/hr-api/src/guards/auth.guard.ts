@@ -1,19 +1,25 @@
+import { createHash } from 'node:crypto';
 import {
   Injectable,
   CanActivate,
   ExecutionContext,
   Logger,
+  Optional,
   UnauthorizedException,
   ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import jwt from 'jsonwebtoken';
+import { createKyselyInstance, getPool, type Database } from '@hcm/database';
+import type { Kysely } from 'kysely';
 import { loadAppConfig } from '../config/app.config.js';
 import type { HrActor } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
 import { loadAppConfigOrUndefined } from './load-app-config-safely.js';
+
+const ACTIVE_SERVICE_ACCOUNT_STATUSES = new Set(['ACTIVE', 'ROTATION_DUE']);
 
 interface JwtPayload {
   sub: string;
@@ -53,10 +59,16 @@ const API_KEY_ACTORS: Record<
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly logger = new Logger(AuthGuard.name);
+  private readonly db: Kysely<Database>;
 
-  constructor(private readonly reflector: Reflector = new Reflector()) {}
+  constructor(
+    private readonly reflector: Reflector = new Reflector(),
+    @Optional() db?: Kysely<Database>,
+  ) {
+    this.db = db ?? createKyselyInstance(getPool());
+  }
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.isPublicRoute(context);
     if (isPublic) return true;
 
@@ -71,12 +83,23 @@ export class AuthGuard implements CanActivate {
       throw new ForbiddenException('Server authentication is not properly configured');
     }
 
-    // 1. Try API key first (for SYSTEM / INTEGRATION actors).
+    // 1. Try API key first (for SERVICE_ACCOUNT / SYSTEM / INTEGRATION actors).
     const apiKey =
       (request.headers[config.apiKeyHeader.toLowerCase()] as string | undefined) ??
       (request.headers[config.apiKeyHeader] as string | undefined);
 
     if (apiKey) {
+      // Tenant-bound service-account credentials (HCM-P0-4) take priority: they
+      // carry their own tenantId, unlike the legacy static SYSTEM/INTEGRATION
+      // keys below, which are a single secret shared across every tenant.
+      const serviceAccountActor = await this.resolveServiceAccountActor(apiKey);
+      if (serviceAccountActor) {
+        const actor = this.buildActor(serviceAccountActor, apiKey);
+        (actor as HrActor & { tenantId?: string }).tenantId = serviceAccountActor.tenantId;
+        request.actor = actor;
+        return true;
+      }
+
       const actorStub = this.resolveApiKeyActor(apiKey, config);
       if (!actorStub) {
         this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_API_KEY', route: request.path, method: request.method });
@@ -125,6 +148,48 @@ export class AuthGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]) === true;
+  }
+
+  /**
+   * Looks up the presented API key against tenant-bound service-account
+   * credentials (issued via the Access Governance console) rather than the
+   * single, tenant-unbound static SYSTEM_API_KEY/INTEGRATION_API_KEY secret.
+   * Returns the tenant the credential is actually authorized for, so the
+   * caller can never assert a different tenant via X-Tenant-ID (HCM-P0-4).
+   */
+  private async resolveServiceAccountActor(
+    apiKey: string,
+  ): Promise<(Pick<HrActor, 'actorType' | 'actorId' | 'roles' | 'permissions'> & { tenantId: string }) | undefined> {
+    const secretHash = createHash('sha256').update(apiKey).digest('hex');
+    const row = await this.db
+      .selectFrom('service_account_credentials as cred')
+      .innerJoin('service_accounts as account', 'account.id', 'cred.service_account_id')
+      .select([
+        'account.id as serviceAccountId',
+        'account.tenant_id as tenantId',
+        'account.status as accountStatus',
+        'cred.scopes as scopes',
+        'cred.expires_at as expiresAt',
+      ])
+      .where('cred.secret_hash', '=', secretHash)
+      .where('cred.status', '=', 'ACTIVE')
+      .executeTakeFirst();
+
+    if (!row) return undefined;
+    if (!ACTIVE_SERVICE_ACCOUNT_STATUSES.has(row.accountStatus)) return undefined;
+    if (row.expiresAt && new Date(row.expiresAt).getTime() <= Date.now()) return undefined;
+
+    const scopes = Array.isArray(row.scopes)
+      ? row.scopes.filter((scope): scope is string => typeof scope === 'string')
+      : [];
+
+    return {
+      actorType: 'SERVICE_ACCOUNT',
+      actorId: new Uuid(row.serviceAccountId),
+      roles: ['SERVICE_ACCOUNT'],
+      permissions: scopes,
+      tenantId: row.tenantId,
+    };
   }
 
   private resolveApiKeyActor(
