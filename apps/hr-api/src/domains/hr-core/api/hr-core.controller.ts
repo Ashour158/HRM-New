@@ -42,6 +42,7 @@ import {
   TerminateWorkerDtoSchema,
   CreateJobAssignmentDtoSchema,
   CreateEmploymentRelationshipDtoSchema,
+  StartProbationEmploymentRelationshipDtoSchema,
   CreateEmploymentContractDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
@@ -1282,6 +1283,46 @@ export class HrCoreController {
     if (!relationship) throw new BadRequestException('Employment relationship not found');
     const command = this.buildCommand(
       'ActivateEmploymentRelationship',
+      'EmploymentRelationship',
+      { relationshipId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: relationship.state,
+        expectedVersion: relationship.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-relationships/:id/commands/start-probation')
+  async startProbationEmploymentRelationship(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(StartProbationEmploymentRelationshipDtoSchema)) dto: dtos.StartProbationEmploymentRelationshipDto,
+    @Req() req: Request,
+  ) {
+    const relationship = await this.employmentRelationshipRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!relationship) throw new BadRequestException('Employment relationship not found');
+    const command = this.buildCommand(
+      'StartProbationEmploymentRelationship',
+      'EmploymentRelationship',
+      { relationshipId: new Uuid(id), probationEndDate: dto.probationEndDate },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: relationship.state,
+        expectedVersion: relationship.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-relationships/:id/commands/confirm')
+  async completeProbationEmploymentRelationship(@Param('id') id: string, @Req() req: Request) {
+    const relationship = await this.employmentRelationshipRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!relationship) throw new BadRequestException('Employment relationship not found');
+    const command = this.buildCommand(
+      'CompleteProbationEmploymentRelationship',
       'EmploymentRelationship',
       { relationshipId: new Uuid(id) },
       req,

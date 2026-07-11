@@ -185,6 +185,47 @@ describe('HrCoreController smoke test', () => {
     expect(result.success).toBe(true);
   });
 
+  it('startProbationEmploymentRelationship and completeProbationEmploymentRelationship delegate to commandBus (HCM-P0-8)', async () => {
+    const relationshipId = '550e8400-e29b-41d4-a716-446655440020';
+    const req = {
+      headers: {},
+      tenantId: relationshipId,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440010'),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_UPDATE'],
+        mfaAuthenticated: true,
+      },
+    } as unknown as Request;
+
+    (employmentRelationshipRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: { value: relationshipId },
+      state: 'ACTIVE',
+      aggregateVersion: 1,
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, data: { relationshipId, state: 'PROBATION' } });
+
+    const started = await controller.startProbationEmploymentRelationship(
+      relationshipId,
+      { probationEndDate: new Date('2026-10-01') },
+      req,
+    );
+    expect((commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0].commandName).toBe('StartProbationEmploymentRelationship');
+    expect(started.success).toBe(true);
+
+    (employmentRelationshipRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: { value: relationshipId },
+      state: 'PROBATION',
+      aggregateVersion: 2,
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, data: { relationshipId, state: 'CONFIRMED' } });
+
+    const confirmed = await controller.completeProbationEmploymentRelationship(relationshipId, req);
+    expect((commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[1][0].commandName).toBe('CompleteProbationEmploymentRelationship');
+    expect(confirmed.success).toBe(true);
+  });
+
   it('rehireWorker delegates to commandBus with worker state guards', async () => {
     const workerId = '550e8400-e29b-41d4-a716-446655440001';
     const req = {
