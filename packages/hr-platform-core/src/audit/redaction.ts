@@ -14,7 +14,16 @@ const SENSITIVE_KEYS = new Set([
   'biometric',
   // Auth secrets
   'password',
+  'currentPassword',
+  'newPassword',
+  'oldPassword',
+  'confirmPassword',
+  'passwordHash',
   'token',
+  'accessToken',
+  'idToken',
+  'authToken',
+  'sessionToken',
   'refreshToken',
   // Financial (HIGH_SENSITIVITY)
   'bankAccount',
