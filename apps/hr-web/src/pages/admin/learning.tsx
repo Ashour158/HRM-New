@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, FileUp, GraduationCap, Plus, Send } from 'lucide-react';
+import { Award, BookOpen, Download, FileUp, GraduationCap, Plus, Send, Upload } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useTenant } from '@/hooks/use-tenant';
@@ -10,6 +10,7 @@ import { DataTable, type DataTableColumn } from '@/components/common/data-table'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import {
   Dialog,
   DialogContent,
@@ -22,6 +23,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 type ApiEnvelope<T> = { success?: boolean; data?: T };
 type IdValue = string | { value?: string } | undefined | null;
@@ -61,6 +71,8 @@ interface LearningContentPackage {
   packageType?: string;
   version?: string;
   fileUrl?: string;
+  originalFileName?: string;
+  sizeBytes?: number;
   status?: string;
 }
 
@@ -76,7 +88,6 @@ interface CreatePackageForm {
   title: string;
   packageType: 'SCORM_1_2' | 'SCORM_2004' | 'XAPI';
   version: string;
-  fileUrl: string;
 }
 
 interface CreateAssignmentForm {
@@ -141,8 +152,11 @@ function defaultPackageForm(): CreatePackageForm {
     title: 'New content package',
     packageType: 'SCORM_2004',
     version: '1.0',
-    fileUrl: '',
   };
+}
+
+function acceptForPackageType(packageType: CreatePackageForm['packageType']): string {
+  return packageType === 'XAPI' ? '.zip,.json,.html,.htm,.xml' : '.zip';
 }
 
 function defaultAssignmentForm(courseId: string, assignedBy: string): CreateAssignmentForm {
@@ -167,7 +181,10 @@ export function AdminLearning() {
   const [selectedCourseId, setSelectedCourseId] = React.useState('');
   const [courseForm, setCourseForm] = React.useState<CreateCourseForm>(() => defaultCourseForm());
   const [packageForm, setPackageForm] = React.useState<CreatePackageForm>(() => defaultPackageForm());
+  const [packageFile, setPackageFile] = React.useState<File | null>(null);
   const [assignmentForm, setAssignmentForm] = React.useState<CreateAssignmentForm>(() => defaultAssignmentForm('', actorId));
+  const [uploadDialogPackageId, setUploadDialogPackageId] = React.useState<string | null>(null);
+  const [rowUploadFile, setRowUploadFile] = React.useState<File | null>(null);
 
   const coursesQuery = useQuery({
     queryKey: ['learning-courses', tenantId],
@@ -195,6 +212,12 @@ export function AdminLearning() {
 
   const courses = coursesQuery.data ?? [];
   const firstCourseId = recordId(courses[0]?.id);
+  const courseOptions = React.useMemo(
+    () => courses
+      .map((course) => ({ value: recordId(course.id), label: course.title ?? (recordId(course.id) || 'Untitled course'), description: course.status }))
+      .filter((option) => option.value),
+    [courses],
+  );
 
   React.useEffect(() => {
     if (!selectedCourseId && firstCourseId) {
@@ -235,19 +258,69 @@ export function AdminLearning() {
   });
 
   const createPackageMutation = useMutation({
-    mutationFn: async (payload: CreatePackageForm) => apiClient.post('/learning/content-packages', {
-      title: payload.title,
-      packageType: payload.packageType,
-      version: payload.version,
-      fileUrl: payload.fileUrl || undefined,
-    }),
+    mutationFn: async (payload: CreatePackageForm) => {
+      const createResponse = await apiClient.post('/learning/content-packages', {
+        title: payload.title,
+        packageType: payload.packageType,
+        version: payload.version,
+      });
+      if (packageFile) {
+        const created = unwrap<{ data?: { learningContentPackageId?: string }; aggregateId?: IdValue }>(createResponse);
+        const newPackageId = created?.data?.learningContentPackageId ?? recordId(created?.aggregateId);
+        if (newPackageId) {
+          const formData = new FormData();
+          formData.append('file', packageFile);
+          await apiClient.post(`/learning/content-packages/${newPackageId}/upload`, formData);
+        }
+      }
+      return createResponse;
+    },
     onSuccess: () => {
       setPackageDialogOpen(false);
       setPackageForm(defaultPackageForm());
-      addNotification({ title: 'Content package created', message: 'The package is ready for catalog processing.', type: 'success', read: false });
+      setPackageFile(null);
+      addNotification({
+        title: 'Content package created',
+        message: packageFile ? 'The package was created and its file uploaded.' : 'The package is ready for catalog processing.',
+        type: 'success',
+        read: false,
+      });
       invalidateLearning();
     },
     onError: (error) => addNotification({ title: 'Could not create package', message: mutationError(error), type: 'error', read: false }),
+  });
+
+  const uploadPackageFileMutation = useMutation({
+    mutationFn: async ({ id, file }: { id: string; file: File }) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      return apiClient.post(`/learning/content-packages/${id}/upload`, formData);
+    },
+    onSuccess: () => {
+      setUploadDialogPackageId(null);
+      setRowUploadFile(null);
+      addNotification({ title: 'File uploaded', message: 'The content package file was uploaded successfully.', type: 'success', read: false });
+      invalidateLearning();
+    },
+    onError: (error) => addNotification({ title: 'Could not upload file', message: mutationError(error), type: 'error', read: false }),
+  });
+
+  const downloadPackageFileMutation = useMutation({
+    mutationFn: async (item: LearningContentPackage) => {
+      const id = recordId(item.id);
+      const response = await apiClient.get(`/learning/content-packages/${id}/download`, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, item.originalFileName || item.title || 'content-package');
+    },
+    onError: (error) => addNotification({ title: 'Could not download file', message: mutationError(error), type: 'error', read: false }),
+  });
+
+  const downloadCertificateMutation = useMutation({
+    mutationFn: async (cert: Certification) => {
+      const id = recordId(cert.id);
+      const response = await apiClient.get(`/learning/certifications/${id}/certificate.pdf`, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, `certificate-${cert.certificationName || id}.pdf`);
+    },
+    onError: (error) => addNotification({ title: 'Could not download certificate', message: mutationError(error), type: 'error', read: false }),
   });
 
   const createAssignmentMutation = useMutation({
@@ -341,6 +414,11 @@ export function AdminLearning() {
         <div>
           <p className="font-semibold text-foreground">{item.title ?? 'Untitled package'}</p>
           <p className="text-xs text-muted-foreground">{item.packageType ?? 'Package'} {item.version ? `v${item.version}` : ''}</p>
+          {item.originalFileName ? (
+            <p className="text-xs text-muted-foreground">{item.originalFileName}{item.sizeBytes ? ` · ${Math.ceil(item.sizeBytes / 1024)} KB` : ''}</p>
+          ) : (
+            <p className="text-xs text-amber-600">No file uploaded yet</p>
+          )}
         </div>
       ),
     },
@@ -353,6 +431,28 @@ export function AdminLearning() {
         const title = item.title ?? 'package';
         return (
           <div className="flex flex-wrap gap-2">
+            <Button
+              aria-label={`Upload file for ${title}`}
+              disabled={!id || (item.status ?? '').toUpperCase() !== 'UPLOADED'}
+              onClick={() => setUploadDialogPackageId(id)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              Upload
+            </Button>
+            <Button
+              aria-label={`Download file for ${title}`}
+              disabled={!id || !item.fileUrl || downloadPackageFileMutation.isPending}
+              onClick={() => downloadPackageFileMutation.mutate(item)}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <Download className="mr-1 h-3.5 w-3.5" />
+              Download
+            </Button>
             {['parse', 'validate', 'publish', 'deprecate'].map((command) => (
               <Button
                 aria-label={`${command} ${title}`}
@@ -370,7 +470,7 @@ export function AdminLearning() {
         );
       },
     },
-  ], [commandMutation]);
+  ], [commandMutation, downloadPackageFileMutation]);
 
   const assignmentColumns = React.useMemo<DataTableColumn<LearningAssignment>[]>(() => [
     {
@@ -478,7 +578,7 @@ export function AdminLearning() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <Dialog open={packageDialogOpen} onOpenChange={setPackageDialogOpen}>
+            <Dialog open={packageDialogOpen} onOpenChange={(open) => { setPackageDialogOpen(open); if (!open) setPackageFile(null); }}>
               <DialogTrigger asChild>
                 <Button type="button" variant="outline">
                   <FileUp className="mr-2 h-4 w-4" />
@@ -495,7 +595,7 @@ export function AdminLearning() {
                     <Label htmlFor="package-title">Package title</Label>
                     <Input id="package-title" value={packageForm.title} onChange={(event) => setPackageForm((current) => ({ ...current, title: event.target.value }))} />
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="package-type">Package type</Label>
                       <select
@@ -513,16 +613,60 @@ export function AdminLearning() {
                       <Label htmlFor="package-version">Version</Label>
                       <Input id="package-version" value={packageForm.version} onChange={(event) => setPackageForm((current) => ({ ...current, version: event.target.value }))} />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="package-url">File URL</Label>
-                      <Input id="package-url" value={packageForm.fileUrl} onChange={(event) => setPackageForm((current) => ({ ...current, fileUrl: event.target.value }))} />
-                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="package-file">Content file (optional)</Label>
+                    <input
+                      accept={acceptForPackageType(packageForm.packageType)}
+                      className="flex h-10 w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-xs file:font-semibold file:text-primary-foreground"
+                      id="package-file"
+                      onChange={(event) => setPackageFile(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {packageFile
+                        ? `${packageFile.name} (${Math.ceil(packageFile.size / 1024)} KB) will upload right after the package is created.`
+                        : 'You can also upload the file later from the content catalog.'}
+                    </p>
                   </div>
                 </div>
                 <DialogFooter>
                   <Button type="button" variant="outline" onClick={() => setPackageDialogOpen(false)}>Cancel</Button>
                   <Button disabled={createPackageMutation.isPending || !packageForm.title.trim()} type="button" onClick={() => createPackageMutation.mutate(packageForm)}>
                     Save Package
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={Boolean(uploadDialogPackageId)} onOpenChange={(open) => { if (!open) { setUploadDialogPackageId(null); setRowUploadFile(null); } }}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Upload Content File</DialogTitle>
+                  <DialogDescription>Upload the SCORM or xAPI package file for this content package.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="row-upload-file">Content file</Label>
+                    <input
+                      className="flex h-10 w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm text-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1 file:text-xs file:font-semibold file:text-primary-foreground"
+                      id="row-upload-file"
+                      onChange={(event) => setRowUploadFile(event.target.files?.[0] ?? null)}
+                      type="file"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button type="button" variant="outline" onClick={() => { setUploadDialogPackageId(null); setRowUploadFile(null); }}>Cancel</Button>
+                  <Button
+                    disabled={!rowUploadFile || !uploadDialogPackageId || uploadPackageFileMutation.isPending}
+                    type="button"
+                    onClick={() => {
+                      if (uploadDialogPackageId && rowUploadFile) {
+                        uploadPackageFileMutation.mutate({ id: uploadDialogPackageId, file: rowUploadFile });
+                      }
+                    }}
+                  >
+                    Upload
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -625,10 +769,13 @@ export function AdminLearning() {
                         <Label htmlFor="assignment-worker">Worker ID</Label>
                         <Input id="assignment-worker" value={assignmentForm.workerId} onChange={(event) => setAssignmentForm((current) => ({ ...current, workerId: event.target.value }))} />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="assignment-course-id">Course ID</Label>
-                        <Input id="assignment-course-id" value={assignmentForm.courseId} onChange={(event) => setAssignmentForm((current) => ({ ...current, courseId: event.target.value }))} />
-                      </div>
+                      <Combobox
+                        label="Course"
+                        options={courseOptions}
+                        value={assignmentForm.courseId}
+                        onChange={(value) => setAssignmentForm((current) => ({ ...current, courseId: value }))}
+                        placeholder="Search courses by title..."
+                      />
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="assignment-assigned-by">Assigned by</Label>
@@ -681,6 +828,23 @@ export function AdminLearning() {
               { key: 'worker', header: 'Worker', cell: (cert) => cert.workerId ?? 'Unassigned' },
               { key: 'expiry', header: 'Expires', cell: (cert) => formatDate(cert.expiryDate) },
               { key: 'status', header: 'Status', cell: (cert) => learningStatus(cert.status) },
+              {
+                key: 'actions',
+                header: 'Actions',
+                cell: (cert) => (
+                  <Button
+                    aria-label={`Download certificate for ${cert.certificationName ?? 'certification'}`}
+                    disabled={!recordId(cert.id) || downloadCertificateMutation.isPending}
+                    onClick={() => downloadCertificateMutation.mutate(cert)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    <Award className="mr-1 h-3.5 w-3.5" />
+                    Download certificate
+                  </Button>
+                ),
+              },
             ]}
             data={certifications}
             emptyMessage="No certifications have been recorded."
