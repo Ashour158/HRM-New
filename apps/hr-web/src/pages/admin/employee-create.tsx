@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useUIStore } from '@/stores/ui-store';
@@ -1287,22 +1288,20 @@ export function AdminEmployeeCreate() {
                   ['Dotted-Line Manager', 'dottedLineManagerId'],
                   ['HR Business Partner', 'hrbpId'],
                   ['Mentor / Buddy', 'mentorId'],
-                ].map(([label, key]) => (
-                  <div key={key} className="grid gap-2">
-                    <Label>{label}</Label>
-                    <Select value={String(form[key as keyof EmployeeCreateForm])} onValueChange={(value) => update(key as keyof EmployeeCreateForm, value as never)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {workers.map((worker) => (
-                          <SelectItem key={worker.id} value={worker.id}>{workerName(worker)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
+                ].map(([label, key]) => {
+                  const fieldKey = key as keyof EmployeeCreateForm;
+                  const rawValue = String(form[fieldKey]);
+                  return (
+                    <div key={key} className="grid gap-2">
+                      <Label htmlFor={`${key}-picker`}>{label}</Label>
+                      <WorkerPicker
+                        id={`${key}-picker`}
+                        value={rawValue === 'none' ? '' : rawValue}
+                        onChange={(workerId) => update(fieldKey, (workerId || 'none') as never)}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <div className="mt-5">
                 <div className="mb-2 flex items-center gap-2">
