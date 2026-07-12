@@ -46,3 +46,21 @@ groups:
         annotations:
           summary: "Transactional inbox processing is failing"
           runbook_url: "docs/observability-runbook.md#outbox-or-inbox-failures"
+
+  # Cost-guardrail alerts, same caveat as the infra-level alerts above: these rules
+  # are inert until a real Prometheus/ServiceMonitor is deployed against the cluster
+  # and scraping kube-state-metrics.
+  - name: hcm-cost-guardrails
+    rules:
+      - alert: HcmHpaAtMaxReplicasSustained
+        expr: |
+          kube_horizontalpodautoscaler_status_current_replicas{namespace="hcm-production"}
+            >= kube_horizontalpodautoscaler_spec_max_replicas{namespace="hcm-production"}
+        for: 30m
+        labels:
+          severity: warning
+          service: hcm-api
+        annotations:
+          summary: "{{ $labels.horizontalpodautoscaler }} has been pinned at its maxReplicas ceiling for 30+ minutes"
+          description: "Autoscaler {{ $labels.horizontalpodautoscaler }} in {{ $labels.namespace }} has been running at its configured maxReplicas ceiling for a sustained period. This is a cost/capacity signal, not necessarily an outage: either real demand has outgrown the ceiling (raise maxReplicas in deploy/k8s/base/hpa.yaml) or a runaway workload is masking a bug. Raising maxReplicas for hcm-api also raises the worst-case DB connection count -- recompute the pool budget in deploy/k8s/base/configmap.yaml first."
+          runbook_url: "docs/observability-runbook.md#hpa-at-max-replicas"
