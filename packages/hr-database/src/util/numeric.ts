@@ -8,7 +8,9 @@
  */
 export function parseNumeric(value: string): number {
   const parsed = Number(value);
-  if (Number.isNaN(parsed)) {
+  // Number.isFinite (not isNaN) so out-of-range values that parse to
+  // Infinity/-Infinity (e.g. "1e+400") are rejected too, not just NaN.
+  if (!Number.isFinite(parsed)) {
     throw new Error(`Expected a numeric column value, got non-numeric string: ${JSON.stringify(value)}`);
   }
   return parsed;
