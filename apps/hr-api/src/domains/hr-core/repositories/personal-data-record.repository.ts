@@ -134,6 +134,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     fieldName: string,
     value: string,
   ): Promise<PersonalDataRecord | undefined> {
+    this.rejectEncryptedAtRestCategory(dataCategory);
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
@@ -143,12 +144,18 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
   }
 
+  /**
+   * Exact-match lookup against a plaintext JSONB field, tenant-scoped
+   * explicitly. Not usable against {@link ENCRYPTED_AT_REST_CATEGORIES} --
+   * see {@link findByPayloadField}.
+   */
   async findByPayloadFieldForTenant(
     dataCategory: DataCategory,
     fieldName: string,
     value: string,
     tenantId: Uuid,
   ): Promise<PersonalDataRecord | undefined> {
+    this.rejectEncryptedAtRestCategory(dataCategory);
     const row = await this.db
       .selectFrom(this.tableName)
       .selectAll()
@@ -157,6 +164,12 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       .where(sql<string>`payload ->> ${fieldName}`, '=', value)
       .executeTakeFirst();
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
+  }
+
+  private rejectEncryptedAtRestCategory(dataCategory: DataCategory): void {
+    if (isEncryptedAtRestCategory(dataCategory)) {
+      throw new Error(`findByPayloadField cannot be used for encrypted-at-rest category: ${dataCategory}`);
+    }
   }
 
   async findExpiringWithin(days: number): Promise<PersonalDataExpiryAlertRow[]> {
