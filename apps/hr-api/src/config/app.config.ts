@@ -1,6 +1,7 @@
 /**
  * Application configuration loader.
  */
+import { resolveKeyFromEnv } from '@hcm/platform-core';
 
 export interface AppConfig {
   /** HTTP port to listen on. */
@@ -105,6 +106,10 @@ export function loadAppConfig(): AppConfig {
     assertStrongProductionSecret('JWT_SECRET', jwtSecret, 32);
     assertStrongProductionSecret('SYSTEM_API_KEY', systemApiKey, 16);
     assertStrongProductionSecret('INTEGRATION_API_KEY', integrationApiKey, 16);
+    // Fails fast at boot rather than lazily on the first BANKING/TAX/COMPENSATION
+    // or SPECIAL_CATEGORY personal-data write/read; resolveKeyFromEnv already
+    // validates presence and exact 32-byte length.
+    resolveKeyFromEnv('PII_DATA_ENCRYPTION_KEY', 'development-pii-data-key-32bytes!');
     // A "*" origin forces credentials off (see main.ts) — in production that is a
     // misconfiguration, not a silent degrade. Require an explicit allow-list.
     if (corsOrigins.length === 0 || corsOrigins.includes('*')) {

@@ -3,11 +3,24 @@ import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } fro
 import type { Database } from '@hcm/database';
 import { sql, type Insertable, type Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiObject, decryptPiiObject } from '@hcm/platform-core';
 import {
   PersonalDataRecord,
   type PersonalDataRecordState,
   type DataCategory,
 } from '../aggregates/personal-data-record.aggregate.js';
+
+/**
+ * Categories whose `payload` is encrypted at rest (leaf-string encryption via
+ * {@link encryptPiiObject}, structure-preserving). Applied at the repository
+ * boundary so the in-memory aggregate always holds plaintext -- every existing
+ * consumer of `PersonalDataRecord.payload` keeps working unchanged.
+ */
+const ENCRYPTED_AT_REST_CATEGORIES: readonly DataCategory[] = ['BANKING', 'TAX', 'COMPENSATION'];
+
+function isEncryptedAtRestCategory(category: string): boolean {
+  return (ENCRYPTED_AT_REST_CATEGORIES as readonly string[]).includes(category);
+}
 
 export interface PersonalDataExpiryAlertRow {
   workerId: string;
@@ -110,6 +123,12 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     return row ? this.toAggregate(row as unknown as Database['personal_data_records']) : undefined;
   }
 
+  /**
+   * Exact-match lookup against a plaintext JSONB field. Not usable against
+   * {@link ENCRYPTED_AT_REST_CATEGORIES} -- the payload is ciphertext at the
+   * SQL level for those categories, so an equality match against `value` can
+   * never succeed. All current call sites use BASIC only.
+   */
   async findByPayloadField(
     dataCategory: DataCategory,
     fieldName: string,
@@ -153,9 +172,12 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     const alerts: PersonalDataExpiryAlertRow[] = [];
 
     for (const row of rows) {
-      const payload = row.data_category === 'SPECIAL_CATEGORY'
+      const rawPayload = row.data_category === 'SPECIAL_CATEGORY'
         ? null
         : ((row.payload as Record<string, unknown> | null) ?? null);
+      const payload = rawPayload && isEncryptedAtRestCategory(row.data_category)
+        ? decryptPiiObject(rawPayload)
+        : rawPayload;
       for (const candidate of this.findExpiryCandidates(payload ?? {}, row.data_category)) {
         const daysUntilExpiry = this.daysUntil(candidate.expiryDate);
         if (daysUntilExpiry <= days) {
@@ -187,6 +209,10 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
 
   private toAggregate(row: Database['personal_data_records']): PersonalDataRecord {
     const isSpecial = row.data_category === 'SPECIAL_CATEGORY';
+    const rawPayload = (row.payload as Record<string, unknown> | null) ?? undefined;
+    const payload = !isSpecial && rawPayload && isEncryptedAtRestCategory(row.data_category)
+      ? decryptPiiObject(rawPayload)
+      : rawPayload;
     return new PersonalDataRecord({
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
@@ -194,7 +220,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       dataCategory: row.data_category as DataCategory,
       dataClassification: row.data_classification as 'LOW' | 'CONFIDENTIAL' | 'HIGH_SENSITIVITY' | 'SPECIAL_CATEGORY' | 'LEGAL_HOLD',
       encryptedPayloadRef: row.encrypted_payload_ref ?? undefined,
-      payload: isSpecial ? null : ((row.payload as Record<string, unknown> | null) ?? undefined),
+      payload: isSpecial ? null : payload,
       consentStatus: row.consent_status,
       state: row.state as PersonalDataRecordState,
       aggregateVersion: row.aggregate_version,
@@ -204,6 +230,11 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   }
 
   private toRow(entity: PersonalDataRecord): Record<string, unknown> {
+    const payload = entity.dataCategory === 'SPECIAL_CATEGORY'
+      ? null
+      : entity.payload && isEncryptedAtRestCategory(entity.dataCategory)
+        ? encryptPiiObject(entity.payload)
+        : (entity.payload ?? null);
     return {
       id: entity.id.value,
       tenant_id: entity.tenantId.value,
@@ -211,7 +242,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
       data_category: entity.dataCategory,
       data_classification: entity.dataClassification,
       encrypted_payload_ref: entity.encryptedPayloadRef ?? null,
-      payload: entity.dataCategory === 'SPECIAL_CATEGORY' ? null : (entity.payload ?? null),
+      payload,
       consent_status: entity.consentStatus,
       state: entity.state,
       aggregate_version: entity.aggregateVersion,
