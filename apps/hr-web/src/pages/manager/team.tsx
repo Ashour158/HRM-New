@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useApiQuery } from '@/hooks/use-api';
+import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,18 @@ import { BarChartPanel, type ChartDatum } from '@/components/ui/charts';
 import { DataTable } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useUIStore } from '@/stores/ui-store';
 
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { formatDate } from '@/lib/utils';
@@ -23,6 +35,7 @@ import {
   Target,
   TrendingUp,
   BrainCircuit,
+  ShieldAlert,
 } from 'lucide-react';
 import type { Worker } from '@/types';
 
@@ -155,6 +168,284 @@ function attritionRiskRowsFromResponse(
   if (Array.isArray(response)) return response;
   if (Array.isArray(response?.data)) return response.data;
   return [];
+}
+
+function readApiError(error: unknown): string {
+  const responseData = (error as { response?: { data?: { message?: unknown; error?: unknown } } }).response?.data;
+  if (typeof responseData?.message === 'string') return responseData.message;
+  if (Array.isArray(responseData?.message)) return responseData.message.join(', ');
+  if (typeof responseData?.error === 'string') return responseData.error;
+  return error instanceof Error ? error.message : 'Request failed';
+}
+
+const SMART_CRITERIA_FIELDS = [
+  ['specific', 'Specific'],
+  ['measurable', 'Measurable'],
+  ['achievable', 'Achievable'],
+  ['relevant', 'Relevant'],
+  ['timeBound', 'Time-bound'],
+] as const;
+
+type SmartCriteriaKey = (typeof SMART_CRITERIA_FIELDS)[number][0];
+
+interface AssignGoalFormState {
+  title: string;
+  metricName: string;
+  targetValue: string;
+  startDate: string;
+  dueDate: string;
+  specific: string;
+  measurable: string;
+  achievable: string;
+  relevant: string;
+  timeBound: string;
+}
+
+const EMPTY_GOAL_FORM: AssignGoalFormState = {
+  title: '',
+  metricName: '',
+  targetValue: '',
+  startDate: '',
+  dueDate: '',
+  specific: '',
+  measurable: '',
+  achievable: '',
+  relevant: '',
+  timeBound: '',
+};
+
+/**
+ * Assigns a new SMART goal to a direct report.
+ * Backed by POST /performance/goals (CreateGoal), which the RBAC + manager
+ * self-service allowlist genuinely permits for the MANAGER role.
+ */
+function AssignGoalDialog({ workerId, workerName, onCreated }: { workerId: string; workerName: string; onCreated: () => void }) {
+  const addNotification = useUIStore((s) => s.addNotification);
+  const [open, setOpen] = React.useState(false);
+  const [form, setForm] = React.useState<AssignGoalFormState>(EMPTY_GOAL_FORM);
+
+  const createGoal = useApiMutation<unknown, Record<string, unknown>>(
+    '/performance/goals',
+    'post',
+    undefined,
+    {
+      onSuccess: () => {
+        addNotification({
+          title: 'Goal assigned',
+          message: `A new goal was assigned to ${workerName}.`,
+          type: 'success',
+          read: false,
+        });
+        setForm(EMPTY_GOAL_FORM);
+        setOpen(false);
+        onCreated();
+      },
+      onError: (err) => addNotification({
+        title: 'Could not assign goal',
+        message: readApiError(err) || 'Unable to create the goal.',
+        type: 'error',
+        read: false,
+      }),
+    },
+  );
+
+  const isComplete = Object.values(form).every((value) => value.trim().length > 0);
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!isComplete) return;
+    createGoal.mutate({
+      workerId,
+      title: form.title,
+      metricName: form.metricName,
+      targetValue: Number(form.targetValue),
+      startDate: form.startDate,
+      dueDate: form.dueDate,
+      smartCriteria: {
+        specific: form.specific,
+        measurable: form.measurable,
+        achievable: form.achievable,
+        relevant: form.relevant,
+        timeBound: form.timeBound,
+      },
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="default">
+          <Target className="mr-2 h-4 w-4" />
+          Assign Goal
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Assign a goal to {workerName}</DialogTitle>
+          <DialogDescription>Goals must meet SMART criteria before they can be created.</DialogDescription>
+        </DialogHeader>
+        <form className="space-y-3" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="goal-title">Title</Label>
+            <Input id="goal-title" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} required />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="goal-metric">Metric name</Label>
+              <Input id="goal-metric" value={form.metricName} onChange={(event) => setForm((current) => ({ ...current, metricName: event.target.value }))} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal-target">Target value</Label>
+              <Input id="goal-target" type="number" value={form.targetValue} onChange={(event) => setForm((current) => ({ ...current, targetValue: event.target.value }))} required />
+            </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="goal-start">Start date</Label>
+              <Input id="goal-start" type="date" value={form.startDate} onChange={(event) => setForm((current) => ({ ...current, startDate: event.target.value }))} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="goal-due">Due date</Label>
+              <Input id="goal-due" type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} required />
+            </div>
+          </div>
+          {SMART_CRITERIA_FIELDS.map(([key, label]) => (
+            <div className="space-y-2" key={key}>
+              <Label htmlFor={`goal-${key}`}>{label}</Label>
+              <Input
+                id={`goal-${key}`}
+                value={form[key as SmartCriteriaKey]}
+                onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.value }))}
+                required
+              />
+            </div>
+          ))}
+          <DialogFooter>
+            <Button type="submit" disabled={!isComplete || createGoal.isPending}>
+              {createGoal.isPending ? 'Assigning...' : 'Assign goal'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Starts a draft Performance Improvement Plan for a direct report.
+ * Backed by POST /performance/improvement-plans (CreatePerformanceImprovementPlan),
+ * which the RBAC + manager self-service allowlist genuinely permits for the MANAGER role.
+ *
+ * PIP lifecycle transitions beyond the initial draft (activate, enter-review, record a
+ * checkpoint, extend, complete, close, terminate) are NOT wired here: RBAC denies every one
+ * of those commands for a bare MANAGER role today (ActivatePerformanceImprovementPlan,
+ * EnterReviewPerformanceImprovementPlan, CompletePerformanceImprovementPlan,
+ * ClosePerformanceImprovementPlan, ExtendPerformanceImprovementPlan,
+ * TerminatePerformanceImprovementPlan are all RBAC- and allowlist-denied; even
+ * RecordPerformanceImprovementPlanCheckpoint, which IS on the manager self-service
+ * allowlist, is still RBAC-denied because the MANAGER role has no PERFORMANCE_WRITE
+ * permission). Wiring those buttons would just 403, so they stay deferred to HR
+ * performance admin scope.
+ */
+function StartImprovementPlanDialog({
+  workerId,
+  managerId,
+  workerName,
+  onCreated,
+}: {
+  workerId: string;
+  managerId?: string;
+  workerName: string;
+  onCreated: () => void;
+}) {
+  const addNotification = useUIStore((s) => s.addNotification);
+  const [open, setOpen] = React.useState(false);
+  const [checkInCadence, setCheckInCadence] = React.useState('');
+  const [objectivesText, setObjectivesText] = React.useState('');
+
+  const createPip = useApiMutation<unknown, Record<string, unknown>>(
+    '/performance/improvement-plans',
+    'post',
+    undefined,
+    {
+      onSuccess: () => {
+        addNotification({
+          title: 'Improvement plan started',
+          message: `A draft performance improvement plan was started for ${workerName}.`,
+          type: 'success',
+          read: false,
+        });
+        setCheckInCadence('');
+        setObjectivesText('');
+        setOpen(false);
+        onCreated();
+      },
+      onError: (err) => addNotification({
+        title: 'Could not start improvement plan',
+        message: readApiError(err) || 'Unable to create the improvement plan.',
+        type: 'error',
+        read: false,
+      }),
+    },
+  );
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!managerId) return;
+    const objectives = objectivesText.split('\n').map((line) => line.trim()).filter(Boolean);
+    createPip.mutate({
+      workerId,
+      managerId,
+      checkInCadence: checkInCadence.trim() || undefined,
+      objectives: objectives.length > 0 ? objectives : undefined,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" disabled={!managerId}>
+          <ShieldAlert className="mr-2 h-4 w-4" />
+          Start Improvement Plan
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Start a performance improvement plan for {workerName}</DialogTitle>
+          <DialogDescription>
+            This creates the draft plan. Activation, checkpoints, and closure require HR performance
+            admin scope and happen outside this manager view.
+          </DialogDescription>
+        </DialogHeader>
+        <form className="space-y-3" onSubmit={handleSubmit}>
+          <div className="space-y-2">
+            <Label htmlFor="pip-cadence">Check-in cadence</Label>
+            <Input
+              id="pip-cadence"
+              placeholder="e.g. Weekly"
+              value={checkInCadence}
+              onChange={(event) => setCheckInCadence(event.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="pip-objectives">Objectives (one per line)</Label>
+            <textarea
+              id="pip-objectives"
+              rows={3}
+              value={objectivesText}
+              onChange={(event) => setObjectivesText(event.target.value)}
+              className="min-h-[76px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={createPip.isPending || !managerId}>
+              {createPip.isPending ? 'Starting...' : 'Start plan'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 /**
@@ -471,11 +762,26 @@ export function ManagerTeam() {
                   />
                 )}
 
-                <AllowedActions
-                  aggregateType="PERFORMANCE"
-                  aggregateId={member.id}
-                  readOnlyReason="Performance actions will appear when the review workflow is ready for this team member."
-                />
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <AssignGoalDialog
+                      workerId={member.id}
+                      workerName={`${member.firstName} ${member.lastName}`}
+                      onCreated={() => refetch()}
+                    />
+                    <StartImprovementPlanDialog
+                      workerId={member.id}
+                      managerId={member.managerId}
+                      workerName={`${member.firstName} ${member.lastName}`}
+                      onCreated={() => refetch()}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    Rating calibration, manager-review submission, and PIP lifecycle transitions
+                    (activation, checkpoints, closure) require HR performance admin scope and are
+                    not available from this manager view.
+                  </p>
+                </div>
               </div>
             </div>
           </TabsContent>
@@ -496,11 +802,12 @@ export function ManagerTeam() {
                     {member.compensationBand || 'Not assigned yet'}
                   </p>
                 </div>
-                <AllowedActions
-                  aggregateType="COMPENSATION"
-                  aggregateId={member.id}
-                  readOnlyReason="Compensation actions will appear when a review flow is available for this team member."
-                />
+                <div className="fusion-glass rounded-2xl p-4 text-sm text-slate-600">
+                  Compensation actions - recommending or approving pay changes, and viewing
+                  compensation change history - require HR, HRBP, Payroll, or Compensation Admin
+                  access. The MANAGER role does not hold any compensation command permission
+                  today, so no compensation actions are available from this manager view.
+                </div>
               </div>
             </div>
           </TabsContent>
