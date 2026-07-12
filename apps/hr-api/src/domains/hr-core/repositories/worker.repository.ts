@@ -181,7 +181,10 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
-      .where('status', '=', status);
+      .where('status', '=', status)
+      // Deterministic order is required for limit/offset paging to be stable
+      // across pages (unordered LIMIT/OFFSET results are not guaranteed).
+      .orderBy('id', 'asc');
 
     if (options?.limit !== undefined) {
       dbQuery = dbQuery.limit(options.limit);
@@ -263,6 +266,10 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
         ])
       );
     }
+
+    // Deterministic order is required for limit/offset paging to be stable
+    // across pages (unordered LIMIT/OFFSET results are not guaranteed).
+    dbQuery = dbQuery.orderBy('id', 'asc');
 
     if (options?.limit !== undefined) {
       dbQuery = dbQuery.limit(options.limit);
