@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, parseNullableNumeric } from '@hcm/database';
 import { HrAiBiasTest } from '../aggregates/hr-ai-bias-test.aggregate.js';
 
 @Injectable()
@@ -34,7 +34,7 @@ export class HrAiBiasTestRepository {
       test_type: entity.testType,
       test_data: entity.testData,
       metrics: entity.metrics,
-      threshold: entity.threshold,
+      threshold: String(entity.threshold),
       passed: entity.passed,
       executed_at: entity.executedAt ?? null,
       status: entity.status,
@@ -56,7 +56,7 @@ export class HrAiBiasTestRepository {
       testType: row.test_type as string,
       testData: (row.test_data as Record<string, unknown>) ?? {},
       metrics: (row.metrics as Record<string, unknown>) ?? {},
-      threshold: (row.threshold as number) ?? 0.05,
+      threshold: parseNullableNumeric(row.threshold as string | null | undefined) ?? 0.05,
       passed: (row.passed as boolean) ?? false,
       executedAt: row.executed_at ? new Date(row.executed_at as string) : undefined,
       status: row.status as HrAiBiasTest['status'],
