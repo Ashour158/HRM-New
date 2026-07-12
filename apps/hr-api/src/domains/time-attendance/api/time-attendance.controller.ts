@@ -1399,10 +1399,18 @@ export class TimeAttendanceController {
     }));
   }
 
+  private async assertCanActOnAttendanceException(req: Request, ex: { workerId: Uuid }): Promise<void> {
+    if (!this.hasAttendanceAdminScope(req)) {
+      await this.assertCanAccessWorker(req, ex.workerId.value, { managerAllowed: true });
+      if (!this.hasManagerScope(req)) throw new ForbiddenException('Only managers or HR can act on attendance exceptions');
+    }
+  }
+
   @Post('attendance-exceptions/:id/commands/review')
   async reviewAttendanceException(@Param('id') id: string, @Req() req: Request) {
     const ex = await this.attendanceExceptionRepo.findById(new Uuid(id));
     if (!ex) throw new BadRequestException('Attendance exception not found');
+    await this.assertCanActOnAttendanceException(req, ex);
     return this.commandBus.execute(this.buildCommand('ReviewAttendanceException', 'AttendanceException', { attendanceExceptionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ex.status, expectedVersion: ex.aggregateVersion }));
   }
 
@@ -1410,6 +1418,7 @@ export class TimeAttendanceController {
   async resolveAttendanceException(@Param('id') id: string, @Req() req: Request) {
     const ex = await this.attendanceExceptionRepo.findById(new Uuid(id));
     if (!ex) throw new BadRequestException('Attendance exception not found');
+    await this.assertCanActOnAttendanceException(req, ex);
     return this.commandBus.execute(this.buildCommand('ResolveAttendanceException', 'AttendanceException', { attendanceExceptionId: new Uuid(id), resolvedBy: Uuid.generate() }, req, { aggregateId: new Uuid(id), expectedState: ex.status, expectedVersion: ex.aggregateVersion }));
   }
 
@@ -1417,6 +1426,7 @@ export class TimeAttendanceController {
   async escalateAttendanceException(@Param('id') id: string, @Req() req: Request) {
     const ex = await this.attendanceExceptionRepo.findById(new Uuid(id));
     if (!ex) throw new BadRequestException('Attendance exception not found');
+    await this.assertCanActOnAttendanceException(req, ex);
     return this.commandBus.execute(this.buildCommand('EscalateAttendanceException', 'AttendanceException', { attendanceExceptionId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ex.status, expectedVersion: ex.aggregateVersion }));
   }
 

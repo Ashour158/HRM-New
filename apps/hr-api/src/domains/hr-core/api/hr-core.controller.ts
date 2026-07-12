@@ -233,6 +233,18 @@ export class HrCoreController {
     throw new ForbiddenException('Only HR administrators can access employee master data administration');
   }
 
+  /**
+   * Directory-level worker search (name/email/employeeId only, no compensation or
+   * personal data) also needs to be reachable by managers so they can look up a
+   * real worker to act on (e.g. delegating a workflow approval step) instead of
+   * typing a raw UUID. Every other hr/core endpoint stays HR-admin-only.
+   */
+  private assertHrCoreAdminOrManagerScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => HR_CORE_ADMIN_ROLES.has(role)) || roles.includes('MANAGER')) return;
+    throw new ForbiddenException('Only HR administrators or managers can search the employee directory');
+  }
+
   private async getTenantWorker(id: string, req: Request): Promise<WorkerProfile> {
     const worker = await this.workerRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
     if (!worker) throw new BadRequestException('Worker not found');
@@ -535,7 +547,7 @@ export class HrCoreController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    this.assertHrCoreAdminScope(req);
+    this.assertHrCoreAdminOrManagerScope(req);
     const tenantId = this.getTenantId(req);
     const limit = clampLimit(pageSize, { def: 50, max: 200 });
     const offset = page ? Math.max(0, (parseInt(page, 10) - 1) * limit) : 0;

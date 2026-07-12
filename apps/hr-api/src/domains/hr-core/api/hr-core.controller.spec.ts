@@ -42,6 +42,20 @@ function employeeRequestForTenant(tenantId = testTenantId): Request {
   } as unknown as Request;
 }
 
+function managerRequestForTenant(tenantId = testTenantId): Request {
+  return {
+    headers: {},
+    tenantId,
+    actor: {
+      actorType: 'USER',
+      actorId: new Uuid('550e8400-e29b-41d4-a716-446655440013'),
+      roles: ['MANAGER'],
+      permissions: [],
+      mfaAuthenticated: true,
+    },
+  } as unknown as Request;
+}
+
 describe('HrCoreController smoke test', () => {
   const commandBus = { execute: vi.fn() } as unknown as CommandBus;
   const workerRepo = {
@@ -400,6 +414,26 @@ describe('HrCoreController smoke test', () => {
   it('rejects employee users from the tenant worker directory', async () => {
     await expect(controller.listWorkers(employeeRequestForTenant(), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
     expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+  });
+
+  it('allows manager users to search the tenant worker directory for delegate/lookup pickers', async () => {
+    const worker = new WorkerProfile({
+      id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
+      tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+      employeeNumber: 'EMP-001',
+      status: 'ACTIVE',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: new Email('alice@example.com'),
+      hireDate: new Date('2023-01-15'),
+      jobTitle: 'Engineer',
+    });
+    (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+    const result = await controller.listWorkers(managerRequestForTenant(), 'alice');
+    expect(Array.isArray(result)).toBe(true);
+    expect(result[0]).toMatchObject({ id: '550e8400-e29b-41d4-a716-446655440001', employeeId: 'EMP-001' });
+    expect(workerRepo.searchForTenant).toHaveBeenCalled();
   });
 
   it('getWorker returns mapped DTO', async () => {
