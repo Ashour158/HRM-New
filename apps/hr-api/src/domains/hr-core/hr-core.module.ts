@@ -9,6 +9,7 @@ import { EmploymentRelationshipRepository } from './repositories/employment-rela
 import { JobAssignmentRepository } from './repositories/job-assignment.repository.js';
 import { EmploymentContractRepository } from './repositories/employment-contract.repository.js';
 import { PersonalDataRecordRepository } from './repositories/personal-data-record.repository.js';
+import { HrCoreDirectoryQueryService } from './hr-core-directory.query-service.js';
 import { CreateWorkerHandler } from './commands/create-worker.handler.js';
 import { ActivateWorkerHandler } from './commands/activate-worker.handler.js';
 import { TerminateWorkerHandler } from './commands/terminate-worker.handler.js';
@@ -43,6 +44,7 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     JobAssignmentRepository,
     EmploymentContractRepository,
     PersonalDataRecordRepository,
+    HrCoreDirectoryQueryService,
     CreateWorkerHandler,
     ActivateWorkerHandler,
     TerminateWorkerHandler,
@@ -64,7 +66,7 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     WorkerEventsPublisher,
     WorkerViewProjectionBuilder,
   ],
-  exports: [WorkerRepository, EmploymentRelationshipRepository, JobAssignmentRepository, PersonalDataRecordRepository],
+  exports: [WorkerRepository, EmploymentRelationshipRepository, JobAssignmentRepository, PersonalDataRecordRepository, HrCoreDirectoryQueryService],
 })
 export class HrCoreModule implements OnModuleInit {
   constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}

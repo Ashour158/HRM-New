@@ -189,14 +189,21 @@ function makeController(options?: {
   const headcountRepo = options?.headcountRepo ?? {
     findAll: vi.fn(async () => []),
   };
+  // HrCoreDirectoryQueryService facade: forwards to the same worker/personal-data mock
+  // functions above (by reference) so existing assertions on `workerRepo.*` /
+  // `personalDataRepo.*` keep working unchanged.
+  const hrCoreDirectory = {
+    findWorkerById: workerRepo.findById,
+    searchWorkersForTenant: workerRepo.searchForTenant,
+    findPersonalDataRecordsForWorkerForTenant: personalDataRepo.findByWorkerForTenant,
+  };
 
   const controller = new OrganizationController(
     commandBus as never,
     legalEntityRepo as never,
     orgUnitRepo as never,
     managerRelationshipRepo as never,
-    workerRepo as never,
-    personalDataRepo as never,
+    hrCoreDirectory as never,
     positionRepo as never,
     headcountRepo as never,
     { getAllowedActions: vi.fn(() => ['activate']) } as never,

@@ -32,10 +32,7 @@ function buildController(overrides: { payrollCycleRepo?: unknown } = {}) {
   return new PayrollController(
     {} as never,
     { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }] }) } as never,
-    { findActive: async () => [], search: async () => [], findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
-    { findByWorker: async () => [] } as never,
-    {} as never,
-    {} as never,
+    { findWorkersByStatusForTenant: async () => [], searchWorkersForTenant: async () => [], findPersonalDataRecordsForWorker: async () => [] } as never,
     {} as never,
     payrollCalculation as never,
     {} as never,
@@ -148,9 +145,7 @@ describe('PayrollController salary governance', () => {
       {} as never,
       { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }], payrollBlockingRules: [] }) } as never,
       {
-        findActive: async () => [],
-        search: async () => [],
-        findByStatusForTenant: async () => [{
+        findWorkersByStatusForTenant: async () => [{
           id: workerId,
           employeeNumber: 'EMP-READY-001',
           firstName: 'Missing',
@@ -158,12 +153,16 @@ describe('PayrollController salary governance', () => {
           email: { toString: () => 'missing.comp@example.com' },
           employmentType: 'FULL_TIME',
         }],
-        searchForTenant: async () => [],
+        searchWorkersForTenant: async () => [],
+        findPersonalDataRecordsForWorker: async () => [],
       } as never,
-      { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
-      { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
+      {
+        findTimeClockEventsForWorker: async () => [],
+        findDailyLedgerSnapshotsForWorker: async () => [],
+        findDailyLedgerSnapshotsForWorkers: async () => new Map(),
+        calculateAttendanceDay: vi.fn(),
+        summarizeAttendanceMonth: vi.fn(() => ({ payableMinutes: 0 })),
+      } as never,
       payrollCalculation as never,
       payrollGovernance as never,
       { findByTenant: async () => [] } as never,
@@ -254,9 +253,7 @@ describe('PayrollController salary governance', () => {
         }),
       } as never,
       {
-        findActive: async () => [],
-        search: async () => [],
-        findByStatusForTenant: async () => [{
+        findWorkersByStatusForTenant: async () => [{
           id: workerId,
           tenantId: new Uuid('00000000-0000-0000-0000-000000000001'),
           employeeNumber: 'EMP-SCOPE-001',
@@ -267,10 +264,8 @@ describe('PayrollController salary governance', () => {
           departmentId,
           legalEntityId,
         }],
-        searchForTenant: async () => [],
-      } as never,
-      {
-        findByWorker: async () => [
+        searchWorkersForTenant: async () => [],
+        findPersonalDataRecordsForWorker: async () => [
           {
             dataCategory: 'CONTACT',
             payload: {
@@ -289,9 +284,13 @@ describe('PayrollController salary governance', () => {
           },
         ],
       } as never,
-      { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
-      { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
+      {
+        findTimeClockEventsForWorker: async () => [],
+        findDailyLedgerSnapshotsForWorker: async () => [],
+        findDailyLedgerSnapshotsForWorkers: async () => new Map(),
+        calculateAttendanceDay: vi.fn(),
+        summarizeAttendanceMonth: vi.fn(() => ({ payableMinutes: 0 })),
+      } as never,
       payrollCalculation as never,
       { evaluateCloseToPayReadiness: vi.fn(() => ({ canClose: true, blockingIssueCount: 0, warningIssueCount: 0, issues: [] })) } as never,
       { findByTenant: async () => [] } as never,
@@ -401,9 +400,7 @@ describe('PayrollController salary governance', () => {
       {} as never,
       { getSetup: async () => setup } as never,
       {
-        findActive: async () => [],
-        search: async () => [],
-        findByStatusForTenant: async () => [{
+        findWorkersByStatusForTenant: async () => [{
           id: workerId,
           tenantId: new Uuid('00000000-0000-0000-0000-000000000001'),
           employeeNumber: 'EMP-GL-001',
@@ -412,10 +409,8 @@ describe('PayrollController salary governance', () => {
           email: { toString: () => 'ledger.worker@example.com' },
           employmentType: 'FULL_TIME',
         }],
-        searchForTenant: async () => [],
-      } as never,
-      {
-        findByWorker: async () => [
+        searchWorkersForTenant: async () => [],
+        findPersonalDataRecordsForWorker: async () => [
           {
             dataCategory: 'CONTACT',
             payload: {
@@ -433,9 +428,13 @@ describe('PayrollController salary governance', () => {
           },
         ],
       } as never,
-      { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
-      { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
+      {
+        findTimeClockEventsForWorker: async () => [],
+        findDailyLedgerSnapshotsForWorker: async () => [],
+        findDailyLedgerSnapshotsForWorkers: async () => new Map(),
+        calculateAttendanceDay: vi.fn(),
+        summarizeAttendanceMonth: vi.fn(() => ({ payableMinutes: 0 })),
+      } as never,
       payrollCalculation as never,
       { evaluateCloseToPayReadiness: vi.fn(() => ({ canClose: true, blockingIssueCount: 0, warningIssueCount: 0, issues: [] })) } as never,
       { findByTenant: async () => [] } as never,
@@ -510,10 +509,7 @@ describe('PayrollController salary governance', () => {
         }),
       } as never,
       {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      { findByWorkers: async () => new Map() } as never,
+      { findDailyLedgerSnapshotsForWorkers: async () => new Map() } as never,
       { buildBankTransferRows: vi.fn(() => []) } as never,
       new PayrollCycleGovernanceService() as never,
       {
@@ -616,22 +612,19 @@ describe('PayrollController salary governance', () => {
     const controller = new PayrollController(
       commandBus as never,
       { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }] }) } as never,
-      { findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
-      {} as never,
-      {} as never,
+      { findWorkersByStatusForTenant: async () => [], searchWorkersForTenant: async () => [] } as never,
       {
-        findByWorker: vi.fn(async () => [{
+        findDailyLedgerSnapshotsForWorker: vi.fn(async () => [{
           workDate: '2026-05-01',
           locked: true,
           readyForPayroll: true,
         }]),
-        findByWorkers: vi.fn(async (_tenantId, workerIds) => {
+        findDailyLedgerSnapshotsForWorkers: vi.fn(async (_tenantId, workerIds) => {
           const map = new Map();
           for (const id of workerIds) map.set(id.value, [{ workDate: '2026-05-01', locked: true, readyForPayroll: true }]);
           return map;
         }),
       } as never,
-      {} as never,
       {
         buildMonthlyCycle: vi.fn(() => preview),
         buildBankTransferRows: vi.fn(() => [{
@@ -797,22 +790,19 @@ describe('PayrollController salary governance', () => {
           }],
         }),
       } as never,
-      { findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
-      {} as never,
-      {} as never,
+      { findWorkersByStatusForTenant: async () => [], searchWorkersForTenant: async () => [] } as never,
       {
-        findByWorker: vi.fn(async () => [{
+        findDailyLedgerSnapshotsForWorker: vi.fn(async () => [{
           workDate: '2026-05-01',
           locked: true,
           readyForPayroll: true,
         }]),
-        findByWorkers: vi.fn(async (_tenantId, workerIds) => {
+        findDailyLedgerSnapshotsForWorkers: vi.fn(async (_tenantId, workerIds) => {
           const map = new Map();
           for (const id of workerIds) map.set(id.value, [{ workDate: '2026-05-01', locked: true, readyForPayroll: true }]);
           return map;
         }),
       } as never,
-      {} as never,
       {
         buildMonthlyCycle: vi.fn(() => preview),
         buildBankTransferRows: vi.fn(() => [{
@@ -971,10 +961,7 @@ describe('PayrollController salary governance', () => {
         }),
       } as never,
       {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      { findByWorkers: async () => new Map() } as never,
+      { findDailyLedgerSnapshotsForWorkers: async () => new Map() } as never,
       { buildBankTransferRows: vi.fn(() => []) } as never,
       new PayrollCycleGovernanceService() as never,
       {
