@@ -14,6 +14,10 @@ describe('nextReportRunAfter', () => {
     expect(nextReportRunAfter(new Date('2026-06-20T09:00:00.000Z'), 'MONTHLY')).toEqual(new Date('2026-07-20T09:00:00.000Z'));
   });
 
+  it('clamps MONTHLY to the last day of a shorter target month instead of overflowing', () => {
+    expect(nextReportRunAfter(new Date('2027-01-31T09:00:00.000Z'), 'MONTHLY')).toEqual(new Date('2027-02-28T09:00:00.000Z'));
+  });
+
   it('rejects unsupported frequency values instead of silently returning a wrong date', () => {
     expect(() => nextReportRunAfter(new Date(), 'HOURLY')).toThrow(/Unsupported report schedule frequency/);
   });
