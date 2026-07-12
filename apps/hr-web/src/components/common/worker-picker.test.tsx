@@ -17,14 +17,13 @@ function apiResponse(data: unknown) {
   return Promise.resolve({ data: { success: true, data } });
 }
 
+// Matches the minimal shape returned by GET /hr/core/workers/directory-search
+// (no email/status/hireDate — those stay on the full HR-core admin payload).
 const alice = {
   id: '00000000-0000-4000-8000-000000000101',
   employeeId: 'EMP-1001',
   firstName: 'Alice',
   lastName: 'Nguyen',
-  email: 'alice@example.com',
-  hireDate: '2024-01-01T00:00:00.000Z',
-  status: 'ACTIVE',
   jobTitle: 'Senior Engineer',
 };
 
@@ -33,9 +32,6 @@ const alan = {
   employeeId: 'EMP-1002',
   firstName: 'Alan',
   lastName: 'Ortiz',
-  email: 'alan@example.com',
-  hireDate: '2024-02-01T00:00:00.000Z',
-  status: 'ACTIVE',
   jobTitle: 'Product Manager',
 };
 
@@ -54,10 +50,10 @@ describe('WorkerPicker', () => {
   beforeEach(() => {
     apiClientGetMock.mockReset();
     apiClientGetMock.mockImplementation((url: string) => {
-      if (url.startsWith('/hr/core/workers?search=ali')) {
+      if (url.startsWith('/hr/core/workers/directory-search?search=ali')) {
         return apiResponse([alice, alan]);
       }
-      if (url.startsWith('/hr/core/workers?search=')) {
+      if (url.startsWith('/hr/core/workers/directory-search?search=')) {
         return apiResponse([]);
       }
       return apiResponse([]);
@@ -77,7 +73,7 @@ describe('WorkerPicker', () => {
     expect(apiClientGetMock).not.toHaveBeenCalled();
 
     await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledTimes(1));
-    expect(apiClientGetMock).toHaveBeenCalledWith('/hr/core/workers?search=ali&pageSize=10');
+    expect(apiClientGetMock).toHaveBeenCalledWith('/hr/core/workers/directory-search?search=ali&pageSize=10');
   });
 
   it('renders matching workers with name, employee id, and job title', async () => {

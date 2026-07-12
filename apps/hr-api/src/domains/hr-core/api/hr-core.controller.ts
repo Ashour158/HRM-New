@@ -151,6 +151,11 @@ function toCsv(rows: Array<Record<string, string | number | null | undefined>>):
   ].join('\n');
 }
 
+// Full worker master-data admin scope (create/update/terminate/mass-update/export, full
+// payload reads). PAYROLL_ADMIN/COMPENSATION_ADMIN/BENEFITS_ADMIN/COMPLIANCE_OFFICER/
+// ER_SPECIALIST are deliberately excluded: per the RBAC role catalog (packages/hr-access-control)
+// those roles only carry WORKER_READ, not WORKER_CREATE/UPDATE/TERMINATE. They get
+// HR_CORE_DIRECTORY_SEARCH_ROLES below for name/ID lookups instead.
 const HR_CORE_ADMIN_ROLES = new Set([
   'APP_ADMIN',
   'PLATFORM_ADMIN',
@@ -160,6 +165,21 @@ const HR_CORE_ADMIN_ROLES = new Set([
   'PEOPLE_ADMIN',
   'WORKFORCE_PLANNING_ADMIN',
   'SYSTEM_ACTOR',
+]);
+
+// Broader than HR_CORE_ADMIN_ROLES: covers the worker-directory "who is this person"
+// lookup (recognition recipient pickers, compensation worker filters, etc.) where any
+// authenticated employee/manager or people-adjacent admin needs to disambiguate a
+// worker by name, but must never receive the full admin worker payload.
+const HR_CORE_DIRECTORY_SEARCH_ROLES = new Set([
+  ...HR_CORE_ADMIN_ROLES,
+  'EMPLOYEE',
+  'MANAGER',
+  'PAYROLL_ADMIN',
+  'COMPENSATION_ADMIN',
+  'BENEFITS_ADMIN',
+  'COMPLIANCE_OFFICER',
+  'ER_SPECIALIST',
 ]);
 
 @ApiTags('HR Core')
@@ -231,6 +251,12 @@ export class HrCoreController {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => HR_CORE_ADMIN_ROLES.has(role))) return;
     throw new ForbiddenException('Only HR administrators can access employee master data administration');
+  }
+
+  private assertHrCoreDirectorySearchScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => HR_CORE_DIRECTORY_SEARCH_ROLES.has(role))) return;
+    throw new ForbiddenException('Only authenticated workforce roles can search the worker directory');
   }
 
   private async getTenantWorker(id: string, req: Request): Promise<WorkerProfile> {
@@ -550,6 +576,28 @@ export class HrCoreController {
     });
 
     return workers.map((w) => this.toWorkerDto(w));
+  }
+
+  // Narrow-scope companion to listWorkers(): open to any authenticated workforce
+  // role (not just HR_CORE_ADMIN_ROLES) but returns only the minimal fields needed
+  // to disambiguate a worker by name/employee ID, never the full admin payload.
+  @Get('workers/directory-search')
+  async searchWorkerDirectory(
+    @Req() req: Request,
+    @Query('search') search?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    this.assertHrCoreDirectorySearchScope(req);
+    const term = (search ?? '').trim();
+    if (!term) {
+      throw new BadRequestException('A search term is required');
+    }
+    const tenantId = this.getTenantId(req);
+    const limit = clampLimit(pageSize, { def: 10, max: 50 });
+
+    const workers = await this.workerRepo.searchForTenant(term, tenantId, { limit, offset: 0 });
+
+    return workers.map((w) => this.toWorkerDirectoryDto(w));
   }
 
   @Get('workers/export.csv')
@@ -1197,6 +1245,16 @@ export class HrCoreController {
       managerName: undefined,
       legalEntityId: worker.legalEntityId?.value,
       legalEntityName: undefined,
+    };
+  }
+
+  private toWorkerDirectoryDto(worker: WorkerProfile) {
+    return {
+      id: worker.id.value,
+      employeeId: worker.employeeNumber,
+      firstName: worker.firstName,
+      lastName: worker.lastName,
+      jobTitle: worker.jobTitle ?? undefined,
     };
   }
 

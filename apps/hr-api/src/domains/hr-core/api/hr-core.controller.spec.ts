@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request } from 'express';
 import { HrCoreController } from './hr-core.controller.js';
@@ -36,6 +36,20 @@ function employeeRequestForTenant(tenantId = testTenantId): Request {
       actorType: 'USER',
       actorId: new Uuid('550e8400-e29b-41d4-a716-446655440012'),
       roles: ['EMPLOYEE'],
+      permissions: [],
+      mfaAuthenticated: true,
+    },
+  } as unknown as Request;
+}
+
+function requestWithRoles(roles: string[], tenantId = testTenantId): Request {
+  return {
+    headers: {},
+    tenantId,
+    actor: {
+      actorType: 'USER',
+      actorId: new Uuid('550e8400-e29b-41d4-a716-446655440013'),
+      roles,
       permissions: [],
       mfaAuthenticated: true,
     },
@@ -400,6 +414,124 @@ describe('HrCoreController smoke test', () => {
   it('rejects employee users from the tenant worker directory', async () => {
     await expect(controller.listWorkers(employeeRequestForTenant(), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
     expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+  });
+
+  describe('HR_CORE_ADMIN_ROLES scope (full worker master-data admin)', () => {
+    it.each([
+      ['APP_ADMIN', ['APP_ADMIN']],
+      ['PLATFORM_ADMIN', ['PLATFORM_ADMIN']],
+      ['SUPER_ADMIN', ['SUPER_ADMIN']],
+      ['HR_ADMIN', ['HR_ADMIN']],
+      ['HRBP', ['HRBP']],
+    ])('allows %s to list and read the full worker admin payload', async (_label, roles) => {
+      const worker = new WorkerProfile({
+        id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
+        tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+        employeeNumber: 'EMP-001',
+        status: 'ACTIVE',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        email: new Email('alice@example.com'),
+        hireDate: new Date('2023-01-15'),
+        jobTitle: 'Engineer',
+      });
+      (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+      (workerRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(worker);
+
+      await expect(controller.listWorkers(requestWithRoles(roles), 'alice')).resolves.toHaveLength(1);
+      await expect(controller.getWorker(worker.id.value, requestWithRoles(roles))).resolves.toMatchObject({ employeeId: 'EMP-001' });
+    });
+
+    // These roles only carry WORKER_READ in the RBAC policy (packages/hr-access-control), not
+    // WORKER_CREATE/UPDATE/TERMINATE, so they must not reach the full admin worker endpoints
+    // that apps/hr-web's AdminWorkers and AdminEmployeeCreate pages call. They get
+    // HR_CORE_DIRECTORY_SEARCH_ROLES (searchWorkerDirectory) for name/ID lookups instead.
+    it.each([
+      ['PAYROLL_ADMIN', ['PAYROLL_ADMIN']],
+      ['COMPENSATION_ADMIN', ['COMPENSATION_ADMIN']],
+      ['BENEFITS_ADMIN', ['BENEFITS_ADMIN']],
+      ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
+      ['ER_SPECIALIST', ['ER_SPECIALIST']],
+    ])('rejects %s from the full worker admin list and read endpoints', async (_label, roles) => {
+      await expect(controller.listWorkers(requestWithRoles(roles), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
+      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+
+      await expect(controller.getWorker('550e8400-e29b-41d4-a716-446655440001', requestWithRoles(roles))).rejects.toBeInstanceOf(ForbiddenException);
+      expect(workerRepo.findByIdForTenant).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['PAYROLL_ADMIN', ['PAYROLL_ADMIN']],
+      ['COMPENSATION_ADMIN', ['COMPENSATION_ADMIN']],
+      ['BENEFITS_ADMIN', ['BENEFITS_ADMIN']],
+      ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
+      ['ER_SPECIALIST', ['ER_SPECIALIST']],
+    ])('rejects %s from creating a worker', async (_label, roles) => {
+      await expect(
+        controller.createWorker(
+          { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com' } as never,
+          requestWithRoles(roles),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(commandBus.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('searchWorkerDirectory', () => {
+    const worker = new WorkerProfile({
+      id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
+      tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+      employeeNumber: 'EMP-001',
+      status: 'ACTIVE',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: new Email('alice@example.com'),
+      hireDate: new Date('2023-01-15'),
+      jobTitle: 'Engineer',
+    });
+
+    it('returns only the minimal disambiguation fields, not the full admin payload', async () => {
+      (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+      const result = await controller.searchWorkerDirectory(requestForTenant(), 'alice');
+
+      expect(result).toEqual([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440001',
+          employeeId: 'EMP-001',
+          firstName: 'Alice',
+          lastName: 'Smith',
+          jobTitle: 'Engineer',
+        },
+      ]);
+    });
+
+    it.each([
+      ['HR_ADMIN (existing admin caller)', ['HR_ADMIN']],
+      ['EMPLOYEE (recognition-recipient picker)', ['EMPLOYEE']],
+      ['MANAGER', ['MANAGER']],
+      ['COMPENSATION_ADMIN (admin compensation worker filter)', ['COMPENSATION_ADMIN']],
+      ['PAYROLL_ADMIN', ['PAYROLL_ADMIN']],
+      ['BENEFITS_ADMIN', ['BENEFITS_ADMIN']],
+      ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
+      ['ER_SPECIALIST', ['ER_SPECIALIST']],
+    ])('allows %s to search the worker directory', async (_label, roles) => {
+      (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+      await expect(controller.searchWorkerDirectory(requestWithRoles(roles), 'alice')).resolves.toHaveLength(1);
+      expect(workerRepo.searchForTenant).toHaveBeenCalled();
+    });
+
+    it('rejects roles with no directory-search grant', async () => {
+      await expect(controller.searchWorkerDirectory(requestWithRoles([]), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
+      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing or blank search term even for privileged callers', async () => {
+      await expect(controller.searchWorkerDirectory(requestForTenant())).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.searchWorkerDirectory(requestForTenant(), '   ')).rejects.toBeInstanceOf(BadRequestException);
+      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+    });
   });
 
   it('getWorker returns mapped DTO', async () => {
