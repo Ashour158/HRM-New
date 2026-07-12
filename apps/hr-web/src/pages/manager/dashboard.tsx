@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { DonutChartPanel } from '@/components/ui/charts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { StatTile } from '@/components/ui/stat-tile';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { DataTable } from '@/components/common/data-table';
@@ -438,9 +439,30 @@ export function ManagerDashboard() {
               </Select>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <AttendanceMiniMetric label="Payable" value={formatHours(ownAttendance?.totals.payableHours)} />
-              <AttendanceMiniMetric label="Late" value={`${ownAttendance?.totals.lateMinutes ?? 0}m`} />
-              <AttendanceMiniMetric label="Exceptions" value={`${ownAttendance?.totals.exceptions ?? 0}`} />
+              <StatTile
+                variant="plain"
+                className="rounded-2xl border-white/60 bg-white/55 px-4 py-3"
+                label="Payable"
+                value={formatHours(ownAttendance?.totals.payableHours)}
+                labelClassName="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                valueClassName="text-lg font-extrabold text-slate-900"
+              />
+              <StatTile
+                variant="plain"
+                className="rounded-2xl border-white/60 bg-white/55 px-4 py-3"
+                label="Late"
+                value={`${ownAttendance?.totals.lateMinutes ?? 0}m`}
+                labelClassName="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                valueClassName="text-lg font-extrabold text-slate-900"
+              />
+              <StatTile
+                variant="plain"
+                className="rounded-2xl border-white/60 bg-white/55 px-4 py-3"
+                label="Exceptions"
+                value={`${ownAttendance?.totals.exceptions ?? 0}`}
+                labelClassName="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                valueClassName="text-lg font-extrabold text-slate-900"
+              />
             </div>
             <div className="mt-5 h-48">
               <ResponsiveContainer width="100%" height="100%">
@@ -471,9 +493,30 @@ export function ManagerDashboard() {
               </span>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <AttendanceMiniMetric label="Payable" value={formatHours(teamAttendance?.totals.payableHours)} />
-              <AttendanceMiniMetric label="Absences" value={`${teamAttendance?.totals.absent ?? 0}`} />
-              <AttendanceMiniMetric label="Exceptions" value={`${teamAttendance?.totals.exceptions ?? 0}`} />
+              <StatTile
+                variant="plain"
+                className="rounded-2xl border-white/60 bg-white/55 px-4 py-3"
+                label="Payable"
+                value={formatHours(teamAttendance?.totals.payableHours)}
+                labelClassName="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                valueClassName="text-lg font-extrabold text-slate-900"
+              />
+              <StatTile
+                variant="plain"
+                className="rounded-2xl border-white/60 bg-white/55 px-4 py-3"
+                label="Absences"
+                value={`${teamAttendance?.totals.absent ?? 0}`}
+                labelClassName="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                valueClassName="text-lg font-extrabold text-slate-900"
+              />
+              <StatTile
+                variant="plain"
+                className="rounded-2xl border-white/60 bg-white/55 px-4 py-3"
+                label="Exceptions"
+                value={`${teamAttendance?.totals.exceptions ?? 0}`}
+                labelClassName="text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                valueClassName="text-lg font-extrabold text-slate-900"
+              />
             </div>
             <div className="mt-5 h-48">
               <ResponsiveContainer width="100%" height="100%">
@@ -726,11 +769,3 @@ export function ManagerDashboard() {
   );
 }
 
-function AttendanceMiniMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-white/60 bg-white/55 px-4 py-3">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
-      <p className="mt-1 text-lg font-extrabold text-slate-900">{value}</p>
-    </div>
-  );
-}

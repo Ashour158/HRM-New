@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
+import { StatTile } from '@/components/ui/stat-tile';
 import { formatDate } from '@/lib/utils';
 import { AdminPerformanceOperations } from '@/pages/admin/performance-operations';
 import {
@@ -294,29 +295,9 @@ function goalProgress(goal: PerformanceGoal): string {
   return `${Math.round((goal.currentValue / goal.targetValue) * 100)}%`;
 }
 
-function StatTile({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: React.ReactNode;
-}) {
-  return (
-    <div className="fusion-glass fusion-hover rounded-2xl p-4">
-      <div className="flex items-center gap-3">
-        <div className="grid h-9 w-9 place-items-center rounded-2xl bg-accent text-primary">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-xs font-medium text-slate-500">{label}</p>
-          <p className="mt-1 text-xl font-semibold text-slate-950">{value}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+const PERFORMANCE_STAT_ICON_BOX_CLASSES = 'grid h-9 w-9 place-items-center rounded-2xl bg-accent text-primary';
+const PERFORMANCE_STAT_LABEL_CLASSES = 'text-xs font-medium text-slate-500';
+const PERFORMANCE_STAT_VALUE_CLASSES = 'text-xl font-semibold text-slate-950';
 
 function FieldTextarea({
   id,
@@ -888,10 +869,46 @@ export function AdminPerformance() {
         </div>
 
         <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatTile icon={BarChart3} label="Review Cycles" value={cycles.length} />
-          <StatTile icon={Gauge} label="Active Cycles" value={activeCycleCount} />
-          <StatTile icon={ClipboardCheck} label="Published Templates" value={publishedTemplateCount} />
-          <StatTile icon={Sparkles} label="Active Competencies" value={activeCompetencyCount} />
+          <StatTile
+            icon={BarChart3}
+            iconPosition="leading"
+            variant="glass"
+            label="Review Cycles"
+            value={cycles.length}
+            iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+            labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+            valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+          />
+          <StatTile
+            icon={Gauge}
+            iconPosition="leading"
+            variant="glass"
+            label="Active Cycles"
+            value={activeCycleCount}
+            iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+            labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+            valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+          />
+          <StatTile
+            icon={ClipboardCheck}
+            iconPosition="leading"
+            variant="glass"
+            label="Published Templates"
+            value={publishedTemplateCount}
+            iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+            labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+            valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+          />
+          <StatTile
+            icon={Sparkles}
+            iconPosition="leading"
+            variant="glass"
+            label="Active Competencies"
+            value={activeCompetencyCount}
+            iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+            labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+            valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+          />
         </div>
       </section>
 
@@ -1305,10 +1322,46 @@ export function AdminPerformance() {
 
           <div className="space-y-5">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <StatTile icon={Users} label="Direct Reports" value={managerDashboardLoading ? '-' : managerDashboard?.reportCount ?? 0} />
-              <StatTile icon={Goal} label="Avg Goal Progress" value={`${Math.round(managerDashboard?.analytics.goalMetrics?.averageProgress ?? 0)}%`} />
-              <StatTile icon={Sparkles} label="Recognitions" value={managerDashboard?.analytics.recognitions?.length ?? 0} />
-              <StatTile icon={Gauge} label="At Risk Goals" value={managerDashboard?.analytics.goalMetrics?.atRisk ?? 0} />
+              <StatTile
+                icon={Users}
+                iconPosition="leading"
+                variant="glass"
+                label="Direct Reports"
+                value={managerDashboardLoading ? '-' : managerDashboard?.reportCount ?? 0}
+                iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+                labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+                valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+              />
+              <StatTile
+                icon={Goal}
+                iconPosition="leading"
+                variant="glass"
+                label="Avg Goal Progress"
+                value={`${Math.round(managerDashboard?.analytics.goalMetrics?.averageProgress ?? 0)}%`}
+                iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+                labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+                valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+              />
+              <StatTile
+                icon={Sparkles}
+                iconPosition="leading"
+                variant="glass"
+                label="Recognitions"
+                value={managerDashboard?.analytics.recognitions?.length ?? 0}
+                iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+                labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+                valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+              />
+              <StatTile
+                icon={Gauge}
+                iconPosition="leading"
+                variant="glass"
+                label="At Risk Goals"
+                value={managerDashboard?.analytics.goalMetrics?.atRisk ?? 0}
+                iconBoxClassName={PERFORMANCE_STAT_ICON_BOX_CLASSES}
+                labelClassName={PERFORMANCE_STAT_LABEL_CLASSES}
+                valueClassName={PERFORMANCE_STAT_VALUE_CLASSES}
+              />
             </div>
 
             <Card className="rounded-2xl">

@@ -11,7 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LanguageSwitcher } from '@/i18n/language-switcher';
-import { AlertCircle, ArrowRight, Building2, KeyRound, Loader2, Lock, Mail, ShieldCheck, FlaskConical } from 'lucide-react';
+import { Spinner } from '@/components/ui/loading-state';
+import { AlertCircle, ArrowRight, Building2, KeyRound, Lock, Mail, ShieldCheck, FlaskConical } from 'lucide-react';
 
 const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
 const DEMO_PASSWORD = 'Password123!';
@@ -279,7 +280,7 @@ export function LoginPage() {
                         </div>
                       </div>
                       {demoLoading === account.email ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-secondary" />
+                        <Spinner className="text-secondary" />
                       ) : (
                         <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       )}
@@ -388,7 +389,7 @@ export function LoginPage() {
                 <Button type="submit" className="h-11 w-full gap-2" disabled={isSubmitting}>
                   {isSubmitting ? (
                     <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Spinner />
                       {t('login.signingIn')}
                     </>
                   ) : (

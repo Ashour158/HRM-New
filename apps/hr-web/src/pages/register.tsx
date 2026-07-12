@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { ArrowLeft, Building2, Loader2, UserPlus } from 'lucide-react';
+import { ArrowLeft, Building2, UserPlus } from 'lucide-react';
 import { registerAuthUser } from '@/lib/api-client';
 import { useTenant } from '@/hooks/use-tenant';
 import { useAuthStore } from '@/stores/auth-store';
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/loading-state';
 
 const registerSchema = z.object({
   tenantId: z.string().uuid('Choose a valid organization'),
@@ -121,7 +122,7 @@ export function RegisterPage() {
             <Field label="Password" type="password" value={form.password} error={errors.password} onChange={(password) => setForm({ ...form, password })} />
 
             <Button type="submit" className="h-11 w-full gap-2" disabled={submitting}>
-              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+              {submitting ? <Spinner /> : <UserPlus className="h-4 w-4" />}
               Create account
             </Button>
           </form>
