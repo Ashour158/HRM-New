@@ -51,7 +51,8 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['compensation_bands']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['compensation_bands']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['compensation_bands']>);
     }

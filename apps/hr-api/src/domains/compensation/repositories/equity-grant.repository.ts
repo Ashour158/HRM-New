@@ -42,7 +42,8 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['equity_grants']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['equity_grants']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['equity_grants']>);
     }

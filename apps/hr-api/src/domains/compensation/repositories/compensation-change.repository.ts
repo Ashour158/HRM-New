@@ -51,7 +51,8 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['compensation_changes']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['compensation_changes']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['compensation_changes']>);
     }

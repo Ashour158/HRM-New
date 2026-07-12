@@ -37,7 +37,8 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_result_lines']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_result_lines']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_result_lines']>);
     }

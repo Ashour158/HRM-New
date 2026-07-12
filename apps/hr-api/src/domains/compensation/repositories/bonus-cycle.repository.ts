@@ -51,7 +51,8 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['bonus_cycles']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['bonus_cycles']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['bonus_cycles']>);
     }
