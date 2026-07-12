@@ -68,6 +68,34 @@ export class PublishCountryPolicyPackDto {
   @ApiProperty() publishedBy!: string;
 }
 
+export const PackIdOnlyDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class PackIdOnlyDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SupersedeCountryPolicyPackDtoSchema = z.object({
+  packId: z.string().uuid(),
+  supersededBy: z.string().uuid(),
+});
+
+export class SupersedeCountryPolicyPackDto {
+  @ApiProperty() packId!: string;
+  @ApiProperty() supersededBy!: string;
+}
+
+export const RollbackCountryPolicyPackDtoSchema = z.object({
+  packId: z.string().uuid(),
+  rollbackReason: z.string().min(1),
+});
+
+export class RollbackCountryPolicyPackDto {
+  @ApiProperty() packId!: string;
+  @ApiProperty() rollbackReason!: string;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Zod Validation Pipe                                                */
 /* ------------------------------------------------------------------ */
