@@ -1208,6 +1208,7 @@ export class HrCoreController {
 
   @Get('workers/:id/personal-data')
   async getPersonalData(@Param('id') id: string, @Req() req: Request) {
+    this.assertHrCoreAdminScope(req);
     const tenantId = this.getTenantId(req);
     await this.getTenantWorker(id, req);
     const records = await this.personalDataRepo.findByWorkerForTenant(new Uuid(id), tenantId);
