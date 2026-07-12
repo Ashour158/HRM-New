@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { buildOrganizationSetupJourney, type OrganizationSetupTab } from '@/lib/organization-setup-journey';
 import { BarChart3, Brain, Calculator, GitBranch, Network, Sparkles } from 'lucide-react';
 import { OrgTree } from './organization/organization-trees';
@@ -967,6 +968,12 @@ export function AdminOrganization({ initialTab = 'structure' }: { initialTab?: s
         ?? headcountRequestsQuery.error
         ?? actionError
       } />
+
+      <ModuleConfigureLauncher
+        moduleName="Organization"
+        approvalCommandKeyword="Organization"
+        fieldAccessEntity="organization"
+      />
 
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as OrganizationSetupTab)} className="space-y-4">
         <TabsList>

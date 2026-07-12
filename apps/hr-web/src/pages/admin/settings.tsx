@@ -15,7 +15,6 @@ import type {
   DocumentRequirement,
   FieldRule,
   HcmSetupConfig,
-  LeavePolicy,
   SetupOption,
   WorkLocationOption,
 } from '@/types';
@@ -144,10 +143,6 @@ export function AdminSettings() {
     updateSetup('fieldRules', setup.fieldRules.map((rule, rowIndex) => rowIndex === index ? { ...rule, ...patch } : rule));
   };
 
-  const updateLeavePolicy = (index: number, patch: Partial<LeavePolicy>) => {
-    updateSetup('leavePolicies', setup.leavePolicies.map((policy, rowIndex) => rowIndex === index ? { ...policy, ...patch } : policy));
-  };
-
   const updateHolidayCalendar = (index: number, patch: Partial<NonNullable<HcmSetupConfig['attendancePolicy']['holidayCalendars']>[number]>) => {
     updateSetup('attendancePolicy', {
       ...setup.attendancePolicy,
@@ -163,6 +158,12 @@ export function AdminSettings() {
         <div>
           <h2 className="fusion-gradient-text text-2xl font-bold">Admin Settings</h2>
           <p className="text-slate-500">Company setup values, employee ID policy, locations, required fields, and hiring document rules.</p>
+          <p className="mt-1 text-xs text-slate-400">
+            Looking for leave policies or payroll tax/insurance rates? Those moved to{' '}
+            <Link to="/admin/leave" className="font-semibold text-primary hover:underline">Leave Management</Link>
+            {' '}and{' '}
+            <Link to="/admin/payroll" className="font-semibold text-primary hover:underline">Payroll</Link> respectively.
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {savedAt ? <Badge variant="secondary">Saved {savedAt}</Badge> : null}
@@ -229,57 +230,6 @@ export function AdminSettings() {
         </div>
       </section>
 
-      <section className="fusion-glass grid gap-6 rounded-[2rem] p-6 lg:grid-cols-[20rem_1fr]">
-        <div>
-          <h3 className="fusion-gradient-text text-base font-semibold">Payroll Calculation Policy</h3>
-          <p className="text-sm text-muted-foreground">Percentages used to calculate employee tax and insurance deductions from gross salary.</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="grid gap-2">
-            <Label>Tax %</Label>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={setup.payrollCalculationPolicy.taxRatePercent}
-              onChange={(event) => updateSetup('payrollCalculationPolicy', {
-                ...setup.payrollCalculationPolicy,
-                taxRatePercent: Number(event.target.value || 0),
-              })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Employee Insurance %</Label>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={setup.payrollCalculationPolicy.employeeInsuranceRatePercent}
-              onChange={(event) => updateSetup('payrollCalculationPolicy', {
-                ...setup.payrollCalculationPolicy,
-                employeeInsuranceRatePercent: Number(event.target.value || 0),
-              })}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>Employer Insurance %</Label>
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              step="0.01"
-              value={setup.payrollCalculationPolicy.employerInsuranceRatePercent ?? ''}
-              onChange={(event) => updateSetup('payrollCalculationPolicy', {
-                ...setup.payrollCalculationPolicy,
-                employerInsuranceRatePercent: event.target.value ? Number(event.target.value) : undefined,
-              })}
-            />
-          </div>
-        </div>
-      </section>
-
       <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
@@ -327,96 +277,6 @@ export function AdminSettings() {
                 </SelectContent>
               </Select>
               <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('fieldRules', setup.fieldRules.filter((_, rowIndex) => rowIndex !== index))}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="fusion-glass space-y-4 rounded-[2rem] p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h3 className="fusion-gradient-text text-base font-semibold">Leave Policies</h3>
-            <p className="text-sm text-muted-foreground">Controls whether a leave type is day-based or hour-based, paid or unpaid, requestable, and payroll-impacting.</p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => updateSetup('leavePolicies', [...setup.leavePolicies, {
-              code: `LEAVE_${Date.now().toString().slice(-5)}`,
-              label: '',
-              active: true,
-              unit: 'DAYS',
-              paid: true,
-              deductFromBalance: true,
-              requestableByEmployee: true,
-              payrollImpact: 'PAID_LEAVE',
-              approvalWorkflow: 'MANAGER',
-            }])}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Add
-          </Button>
-        </div>
-        <div className="divide-y border-y">
-          {setup.leavePolicies.map((policy, index) => (
-            <div key={`${policy.code}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.4fr_.75fr_.75fr_.75fr_.75fr_.9fr_.8fr_3rem]">
-              <Input value={policy.code} onChange={(event) => updateLeavePolicy(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
-              <Input value={policy.label} placeholder="Policy name" onChange={(event) => updateLeavePolicy(index, { label: event.target.value })} />
-              <Select value={policy.unit} onValueChange={(value) => updateLeavePolicy(index, { unit: value as LeavePolicy['unit'] })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DAYS">Days</SelectItem>
-                  <SelectItem value="HOURS">Hours</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                type="number"
-                value={policy.annualEntitlement ?? ''}
-                placeholder="Entitlement"
-                onChange={(event) => updateLeavePolicy(index, { annualEntitlement: event.target.value ? Number(event.target.value) : undefined })}
-              />
-              <Input
-                type="number"
-                value={policy.maxPerRequest ?? ''}
-                placeholder="Max/request"
-                onChange={(event) => updateLeavePolicy(index, { maxPerRequest: event.target.value ? Number(event.target.value) : undefined })}
-              />
-              <Select value={policy.paid ? 'PAID' : 'UNPAID'} onValueChange={(value) => updateLeavePolicy(index, {
-                paid: value === 'PAID',
-                payrollImpact: value === 'PAID' ? policy.payrollImpact === 'UNPAID_LEAVE' ? 'PAID_LEAVE' : policy.payrollImpact : 'UNPAID_LEAVE',
-              })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PAID">Paid</SelectItem>
-                  <SelectItem value="UNPAID">Unpaid</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={policy.requestableByEmployee ? 'REQUESTABLE' : 'SYSTEM'} onValueChange={(value) => updateLeavePolicy(index, { requestableByEmployee: value === 'REQUESTABLE', systemManaged: value === 'SYSTEM' })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="REQUESTABLE">Requestable</SelectItem>
-                  <SelectItem value="SYSTEM">System</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={policy.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updateLeavePolicy(index, { active: value === 'ACTIVE' })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('leavePolicies', setup.leavePolicies.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>

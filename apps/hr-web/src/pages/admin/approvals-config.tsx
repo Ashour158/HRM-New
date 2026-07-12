@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useTenant } from '@/hooks/use-tenant';
 import { useUIStore } from '@/stores/ui-store';
@@ -11,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { PreviewPanel, WorkflowStepBuilder } from '@/components/builder';
-import { Workflow, Plus, Save, ShieldCheck, Trash2, Eye } from 'lucide-react';
+import { Workflow, Plus, Save, ShieldCheck, Trash2, Eye, X } from 'lucide-react';
 
 type ApprovalWorkflowStepRule = {
   code: string;
@@ -98,10 +99,46 @@ export function AdminApprovalsConfig() {
   const [rules, setRules] = React.useState<ApprovalWorkflowRule[]>([]);
   const [previewRuleIndex, setPreviewRuleIndex] = React.useState<number | null>(null);
   const [draggedStep, setDraggedStep] = React.useState<{ ruleIndex: number; stepIndex: number } | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const commandFilter = searchParams.get('command') ?? '';
 
   React.useEffect(() => {
     setRules(data?.rules ?? []);
   }, [data?.rules]);
+
+  const filteredRuleEntries = React.useMemo(() => {
+    const entries = rules.map((rule, ruleIndex) => ({ rule, ruleIndex }));
+    if (!commandFilter.trim()) return entries;
+    const needle = commandFilter.trim().toLowerCase();
+    return entries.filter(({ rule }) => rule.commandName.toLowerCase().includes(needle) || rule.label.toLowerCase().includes(needle));
+  }, [rules, commandFilter]);
+
+  const clearCommandFilter = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('command');
+      return next;
+    });
+  };
+
+  const addPathForFilter = () => {
+    const trimmed = commandFilter.trim();
+    if (!trimmed) return;
+    setRules((current) => {
+      const existingCodes = new Set(current.map((rule) => rule.code));
+      const baseCode = `${trimmed.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_APPROVAL`;
+      const code = existingCodes.has(baseCode) ? `${baseCode}_${current.length + 1}` : baseCode;
+      return [...current, {
+        code,
+        label: `${trimmed} approval`,
+        active: true,
+        commandName: trimmed,
+        steps: [
+          { code: 'HR_REVIEW', label: 'HR review', active: true, order: 1, mode: 'SEQUENTIAL', approverType: 'ROLE', approverRole: 'HR_ADMIN', slaHours: 24 },
+        ],
+      }];
+    });
+  };
 
   const saveMutation = useApiMutation<ApprovalConfigResponse, { rules: ApprovalWorkflowRule[] }>(
     '/platform/workflow/approval-config',
@@ -246,6 +283,16 @@ export function AdminApprovalsConfig() {
         ))}
       </section>
 
+      {commandFilter.trim() ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary">Filtered to paths matching &quot;{commandFilter}&quot;</Badge>
+          <Button type="button" variant="ghost" size="sm" onClick={clearCommandFilter}>
+            <X className="mr-1 h-4 w-4" />
+            Clear filter
+          </Button>
+        </div>
+      ) : null}
+
       {isLoading ? (
         <div className="space-y-3">
           <Skeleton className="h-32 w-full rounded-2xl" />
@@ -253,15 +300,18 @@ export function AdminApprovalsConfig() {
         </div>
       ) : isError ? (
         <ErrorState error={error} onRetry={() => refetch()} />
-      ) : rules.length === 0 ? (
+      ) : filteredRuleEntries.length === 0 ? (
         <EmptyState
           icon={Workflow}
-          title="No approval paths configured"
-          description="Add a template to start routing compensation, leave, disciplinary, and other governed commands."
+          title={commandFilter.trim() ? `No approval paths match "${commandFilter}"` : 'No approval paths configured'}
+          description={commandFilter.trim()
+            ? 'Add a new approval path for this command, or add a template above to start routing it.'
+            : 'Add a template to start routing compensation, leave, disciplinary, and other governed commands.'}
+          action={commandFilter.trim() ? { label: `Add path for "${commandFilter}"`, onClick: addPathForFilter } : undefined}
         />
       ) : (
         <div className="space-y-4">
-          {rules.map((rule, ruleIndex) => (
+          {filteredRuleEntries.map(({ rule, ruleIndex }) => (
             <Card key={`${rule.code}-${ruleIndex}`} className="border-slate-200">
               <CardHeader>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">

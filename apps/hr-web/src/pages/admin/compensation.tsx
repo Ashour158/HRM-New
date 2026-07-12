@@ -13,6 +13,7 @@ import { BusinessMetric, BusinessPageHeader } from '@/components/common/business
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency, formatDate, generateUUID } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -548,6 +549,13 @@ export function AdminCompensation() {
         <BusinessMetric label="Bonus cycles" value={bonusCycles.length} />
         <BusinessMetric label="Equity grants" value={equityWorkerId ? equityGrants.length : 'Filter'} tone={equityWorkerId ? 'default' : 'warning'} />
       </div>
+
+      <ModuleConfigureLauncher
+        moduleName="Compensation"
+        policyArea="PAYROLL"
+        approvalCommandKeyword="Compensation"
+        fieldAccessEntity="compensation"
+      />
 
       <h2 className="sr-only">Compensation workspaces</h2>
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as CompensationTab)} className="space-y-4">

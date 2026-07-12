@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { useUIStore } from '@/stores/ui-store';
 import { AlertTriangle, BellRing, CalendarDays, CheckCircle2, Clock3, Download, FileWarning, LockKeyhole, MapPin, PlayCircle, Plus, RefreshCw, ShieldCheck, Trash2, XCircle } from 'lucide-react';
 
@@ -783,6 +784,14 @@ export function AdminAttendance() {
           <p className={scheduling?.summary.fatigueRiskCount ? 'text-2xl font-semibold text-amber-600' : 'text-2xl font-semibold'}>{scheduling?.summary.fatigueRiskCount ?? 0}</p>
         </div>
       </section>
+
+      <ModuleConfigureLauncher
+        moduleName="Attendance"
+        policyArea="ATTENDANCE"
+        approvalCommandKeyword="Attendance"
+        fieldAccessEntity="attendance"
+        className="mb-4"
+      />
 
       {finalizeMessage ? (
         <div className="mt-4 flex items-center gap-2 rounded-md border bg-muted/30 px-4 py-3 text-sm">

@@ -7,6 +7,7 @@ import { useTenant } from '@/hooks/use-tenant';
 import { useUIStore } from '@/stores/ui-store';
 import { BusinessMetric, BusinessPageHeader, SectionHeading } from '@/components/common/business-page';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -537,6 +538,12 @@ export function AdminLearning() {
         <BusinessMetric label="Open Assignments" value={openAssignmentCount} tone={openAssignmentCount > 0 ? 'warning' : 'default'} />
         <BusinessMetric label="Active Certifications" value={activeCertificationCount} />
       </div>
+
+      <ModuleConfigureLauncher
+        moduleName="Learning"
+        approvalCommandKeyword="Learning"
+        fieldAccessEntity="learning"
+      />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="w-full justify-start overflow-x-auto">
