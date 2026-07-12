@@ -1,11 +1,12 @@
 import * as React from 'react';
-import { Briefcase, CalendarClock, CheckCircle2, Send, Users } from 'lucide-react';
+import { Briefcase, CalendarClock, CheckCircle2, Search, Send, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
@@ -13,6 +14,7 @@ import { formatDate, generateUUID } from '@/lib/utils';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useTenant } from '@/hooks/use-tenant';
 import { useUIStore } from '@/stores/ui-store';
+import type { Worker } from '@/types';
 
 type RequisitionStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'PUBLISHED' | 'OPEN' | 'FILLED' | 'CLOSED' | 'REJECTED';
 type CandidateStatus = 'NEW' | 'SCREENING' | 'INTERVIEWING' | 'INTERVIEW' | 'OFFER_PENDING' | 'HIRED' | 'REJECTED' | 'WITHDRAWN';
@@ -98,6 +100,38 @@ function commandSummary(result: CommandResultView | null) {
   return `${result.newState ? `Now ${result.newState}. ` : ''}Next: ${nextActions}`;
 }
 
+const OFFER_CURRENCY_OPTIONS = ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'INR', 'CAD', 'AUD'];
+
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function toDateTimeLocalValue(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toDateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function defaultScheduledAt() {
+  return toDateTimeLocalValue(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
+}
+
+function defaultOfferStartDate() {
+  return toDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+}
+
+function normalizeWorkerList(data: Worker[] | { items?: Worker[] } | undefined): Worker[] {
+  if (!data) return [];
+  return Array.isArray(data) ? data : data.items ?? [];
+}
+
+function workerDisplayName(worker: Worker): string {
+  const joined = [worker.firstName, worker.lastName].filter(Boolean).join(' ').trim();
+  return joined || worker.email || worker.id;
+}
+
 export function RecruiterWorkspace() {
   const addNotification = useUIStore((state) => state.addNotification);
   const { tenantConfig } = useTenant();
@@ -107,6 +141,21 @@ export function RecruiterWorkspace() {
   const [lastCommand, setLastCommand] = React.useState<CommandResultView | null>(null);
   const [offerDialogOpen, setOfferDialogOpen] = React.useState(false);
   const [offerAmount, setOfferAmount] = React.useState('120000');
+  const [offerStartDate, setOfferStartDate] = React.useState(defaultOfferStartDate);
+  const [offerCurrency, setOfferCurrency] = React.useState(tenantCurrency);
+  const [offerBenefits, setOfferBenefits] = React.useState('');
+  const [interviewDialogOpen, setInterviewDialogOpen] = React.useState(false);
+  const [interviewCandidateId, setInterviewCandidateId] = React.useState<string | undefined>();
+  const [interviewerSearch, setInterviewerSearch] = React.useState('');
+  const [selectedInterviewers, setSelectedInterviewers] = React.useState<{ id: string; name: string }[]>([]);
+  const [scheduledAtLocal, setScheduledAtLocal] = React.useState(defaultScheduledAt);
+
+  const currencyOptions = React.useMemo(
+    () => Array.from(new Set([tenantCurrency, ...OFFER_CURRENCY_OPTIONS])),
+    [tenantCurrency],
+  );
+  const minScheduledAt = toDateTimeLocalValue(new Date());
+  const minOfferStartDate = toDateInputValue(new Date());
 
   const requisitionsQuery = useApiQuery<JobRequisition[]>(
     ['recruiter-requisitions'],
@@ -141,6 +190,19 @@ export function RecruiterWorkspace() {
     { enabled: Boolean(activeRequisitionId), retry: false },
   );
 
+  const trimmedInterviewerSearch = interviewerSearch.trim();
+  const interviewerSearchQuery = useApiQuery<Worker[] | { items?: Worker[] }>(
+    ['recruiter-interviewer-search', trimmedInterviewerSearch],
+    `/hr/core/workers?search=${encodeURIComponent(trimmedInterviewerSearch)}&pageSize=10`,
+    { enabled: trimmedInterviewerSearch.length > 1, retry: false },
+  );
+  const interviewerResults = React.useMemo(
+    () => normalizeWorkerList(interviewerSearchQuery.data).filter(
+      (worker) => !selectedInterviewers.some((selected) => selected.id === worker.id),
+    ),
+    [interviewerSearchQuery.data, selectedInterviewers],
+  );
+
   const invalidateKeys = React.useMemo(
     () => [
       ['recruiter-requisitions'],
@@ -151,6 +213,19 @@ export function RecruiterWorkspace() {
     [activeRequisitionId],
   );
 
+  const resetInterviewForm = React.useCallback(() => {
+    setInterviewerSearch('');
+    setSelectedInterviewers([]);
+    setScheduledAtLocal(defaultScheduledAt());
+  }, []);
+
+  const resetOfferForm = React.useCallback(() => {
+    setOfferAmount('120000');
+    setOfferStartDate(defaultOfferStartDate());
+    setOfferCurrency(tenantCurrency);
+    setOfferBenefits('');
+  }, [tenantCurrency]);
+
   const candidateCommandMutation = useApiMutation<CommandResultView, CandidateCommand>(
     (variables) => `/hr/recruiting/candidates/${variables.candidateId}/commands/${variables.command}`,
     'post',
@@ -158,6 +233,8 @@ export function RecruiterWorkspace() {
     {
       onSuccess: (result) => {
         setLastCommand(result);
+        setInterviewDialogOpen(false);
+        resetInterviewForm();
         addNotification({ title: 'Candidate updated', message: commandSummary(result) ?? 'Pipeline state changed.', type: 'success', read: false });
       },
       onError: (error) => addNotification({ title: 'Candidate action failed', message: error.message, type: 'error', read: false }),
@@ -185,6 +262,7 @@ export function RecruiterWorkspace() {
       onSuccess: (result) => {
         setLastCommand(result);
         setOfferDialogOpen(false);
+        resetOfferForm();
         addNotification({ title: 'Offer created', message: commandSummary(result) ?? 'Offer is ready for approval.', type: 'success', read: false });
       },
       onError: (error) => addNotification({ title: 'Offer creation failed', message: error.message, type: 'error', read: false }),
@@ -224,13 +302,14 @@ export function RecruiterWorkspace() {
     });
   };
 
-  const scheduleInterview = (candidate: Candidate) => {
+  const submitScheduleInterview = () => {
+    if (!interviewCandidateId || !scheduledAtLocal || selectedInterviewers.length === 0) return;
     candidateCommandMutation.mutateAsync({
       command: 'schedule-interview',
-      candidateId: candidate.id,
+      candidateId: interviewCandidateId,
       interviewId: generateUUID(),
-      scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      interviewerWorkerIds: ['00000000-0000-0000-0000-000000000001'],
+      scheduledAt: new Date(scheduledAtLocal).toISOString(),
+      interviewerWorkerIds: selectedInterviewers.map((interviewer) => interviewer.id),
       format: 'VIDEO',
     });
   };
@@ -247,14 +326,23 @@ export function RecruiterWorkspace() {
       });
       return;
     }
+    if (!offerStartDate) {
+      addNotification({
+        title: 'Start date required',
+        message: 'Choose a start date before creating the offer.',
+        type: 'error',
+        read: false,
+      });
+      return;
+    }
     createOfferMutation.mutateAsync({
       offerId: generateUUID(),
-      candidateId: selectedCandidate.id,
+      applicationId: selectedCandidate.id,
       requisitionId: activeRequisitionId,
       proposedSalary: parsedSalary,
-      currency: tenantCurrency,
-      startDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-      benefitsPackage: 'Standard employment benefits',
+      currency: offerCurrency,
+      startDate: offerStartDate,
+      benefitsPackage: offerBenefits.trim() ? { summary: offerBenefits.trim() } : undefined,
     });
   };
 
@@ -301,16 +389,152 @@ export function RecruiterWorkspace() {
       cell: (row) => {
         const status = normalizedCandidateStatus(row.status);
         if (status === 'NEW') return <Button size="sm" onClick={() => screenCandidate(row)}>Screen candidate</Button>;
-        if (status === 'SCREENING') return <Button size="sm" variant="outline" onClick={() => scheduleInterview(row)}>Schedule interview</Button>;
+        if (status === 'SCREENING') {
+          return (
+            <Dialog
+              open={interviewDialogOpen && interviewCandidateId === row.id}
+              onOpenChange={(open) => {
+                setInterviewCandidateId(row.id);
+                setInterviewDialogOpen(open);
+                if (!open) resetInterviewForm();
+              }}
+            >
+              <DialogTrigger asChild><Button size="sm" variant="outline">Schedule interview</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Schedule interview with {candidateName(row)}</DialogTitle>
+                  <DialogDescription className="sr-only">Search for interviewers and choose a date and time before scheduling.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="interview-datetime">Date &amp; time</Label>
+                    <Input
+                      id="interview-datetime"
+                      type="datetime-local"
+                      min={minScheduledAt}
+                      value={scheduledAtLocal}
+                      onChange={(event) => setScheduledAtLocal(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="interviewer-search">Interviewers</Label>
+                    <div className="relative">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="interviewer-search"
+                        className="pl-9"
+                        value={interviewerSearch}
+                        onChange={(event) => setInterviewerSearch(event.target.value)}
+                        placeholder="Search by name or email"
+                      />
+                    </div>
+                    {interviewerSearch.trim().length > 1 ? (
+                      <div className="max-h-40 overflow-auto rounded-lg border border-slate-200">
+                        {interviewerSearchQuery.isLoading ? (
+                          <p className="px-3 py-2 text-sm text-slate-500">Searching…</p>
+                        ) : interviewerResults.length ? (
+                          interviewerResults.map((worker) => (
+                            <button
+                              key={worker.id}
+                              type="button"
+                              className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-slate-50"
+                              onClick={() => {
+                                setSelectedInterviewers((current) => [...current, { id: worker.id, name: workerDisplayName(worker) }]);
+                                setInterviewerSearch('');
+                              }}
+                            >
+                              <span>{workerDisplayName(worker)}</span>
+                              <span className="text-xs text-slate-500">{worker.email}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-3 py-2 text-sm text-slate-500">No matching workers</p>
+                        )}
+                      </div>
+                    ) : null}
+                    {selectedInterviewers.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedInterviewers.map((interviewer) => (
+                          <Badge key={interviewer.id} className="flex items-center gap-1.5 border-slate-200 bg-slate-100 text-slate-700">
+                            {interviewer.name}
+                            <button
+                              type="button"
+                              aria-label={`Remove ${interviewer.name}`}
+                              onClick={() => setSelectedInterviewers((current) => current.filter((item) => item.id !== interviewer.id))}
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-500">Search and select at least one interviewer.</p>
+                    )}
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={submitScheduleInterview}
+                    disabled={candidateCommandMutation.isPending || !scheduledAtLocal || selectedInterviewers.length === 0}
+                  >
+                    Schedule interview
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          );
+        }
         if (status === 'INTERVIEWING') {
           return (
-            <Dialog open={offerDialogOpen && selectedCandidate?.id === row.id} onOpenChange={(open) => { setSelectedCandidateId(row.id); setOfferDialogOpen(open); }}>
+            <Dialog
+              open={offerDialogOpen && selectedCandidate?.id === row.id}
+              onOpenChange={(open) => {
+                setSelectedCandidateId(row.id);
+                setOfferDialogOpen(open);
+                if (!open) resetOfferForm();
+              }}
+            >
               <DialogTrigger asChild><Button size="sm" variant="outline">Create offer</Button></DialogTrigger>
               <DialogContent>
-                <DialogHeader><DialogTitle>Create offer for {candidateName(row)}</DialogTitle></DialogHeader>
-                <div className="space-y-2">
-                  <Label htmlFor="offer-amount">Proposed salary</Label>
-                  <Input id="offer-amount" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} inputMode="numeric" />
+                <DialogHeader>
+                  <DialogTitle>Create offer for {candidateName(row)}</DialogTitle>
+                  <DialogDescription className="sr-only">Set the proposed salary, start date, currency, and benefits before creating the offer.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="offer-amount">Proposed salary</Label>
+                    <Input id="offer-amount" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} inputMode="numeric" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="offer-start-date">Start date</Label>
+                      <Input
+                        id="offer-start-date"
+                        type="date"
+                        min={minOfferStartDate}
+                        value={offerStartDate}
+                        onChange={(event) => setOfferStartDate(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="offer-currency">Currency</Label>
+                      <Select value={offerCurrency} onValueChange={setOfferCurrency}>
+                        <SelectTrigger id="offer-currency" aria-label="Currency"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {currencyOptions.map((code) => <SelectItem key={code} value={code}>{code}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="offer-benefits">Benefits summary</Label>
+                    <Input
+                      id="offer-benefits"
+                      value={offerBenefits}
+                      onChange={(event) => setOfferBenefits(event.target.value)}
+                      placeholder="e.g. Health, dental, 20 PTO days"
+                    />
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button onClick={createOffer} disabled={createOfferMutation.isPending}>Create offer</Button>
