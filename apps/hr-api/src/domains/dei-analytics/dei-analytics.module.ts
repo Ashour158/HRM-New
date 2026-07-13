@@ -9,6 +9,11 @@ import { DeiReportRepository } from './repositories/dei-report.repository.js';
 import { PayGapReportRepository } from './repositories/pay-gap-report.repository.js';
 import { PayEquityReviewRepository } from './repositories/pay-equity-review.repository.js';
 import { AttritionSegmentReportRepository } from './repositories/attrition-segment-report.repository.js';
+import { WorkforceDataService } from './services/workforce-data.service.js';
+import { WorkerRepository } from '../hr-core/repositories/worker.repository.js';
+import { PersonalDataRecordRepository } from '../hr-core/repositories/personal-data-record.repository.js';
+import { CompensationChangeRepository } from '../compensation/repositories/compensation-change.repository.js';
+import { LegalEntityRepository } from '../organization/repositories/legal-entity.repository.js';
 import { CreateDeiReportHandler } from './commands/create-dei-report.handler.js';
 import { GenerateDeiReportHandler } from './commands/generate-dei-report.handler.js';
 import { ReviewDeiReportHandler } from './commands/review-dei-report.handler.js';
@@ -38,6 +43,7 @@ import { DeiAnalyticsEventsPublisher } from './events/dei-analytics-events.publi
     CreatePayEquityReviewHandler, StartPayEquityReviewHandler, RecordPayEquityFindingsHandler, StartPayEquityRemediationHandler, ClosePayEquityReviewHandler,
     CreateAttritionSegmentReportHandler, GenerateAttritionSegmentReportHandler, PublishAttritionSegmentReportHandler,
     DeiAnalyticsEventsPublisher,
+    WorkforceDataService, WorkerRepository, PersonalDataRecordRepository, CompensationChangeRepository, LegalEntityRepository,
   ],
   exports: [DeiReportRepository, PayGapReportRepository, PayEquityReviewRepository, AttritionSegmentReportRepository],
 })

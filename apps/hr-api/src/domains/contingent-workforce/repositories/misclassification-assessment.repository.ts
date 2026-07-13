@@ -4,6 +4,7 @@ import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { MisclassificationAssessment, type MisclassificationAssessmentStatus } from '../aggregates/misclassification-assessment.aggregate.js';
+import type { MisclassificationFactorInputs } from '../services/misclassification-scoring.js';
 
 function stringArrayFromJsonb(value: unknown): string[] {
   if (Array.isArray(value)) return value.map(String);
@@ -16,6 +17,20 @@ function stringArrayFromJsonb(value: unknown): string[] {
     }
   }
   return [];
+}
+
+function factorInputsFromJsonb(value: unknown): MisclassificationFactorInputs | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as MisclassificationFactorInputs;
+  }
+  if (typeof value === 'string' && value.length > 0) {
+    try {
+      return JSON.parse(value) as MisclassificationFactorInputs;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
 }
 
 @Injectable()
@@ -54,6 +69,7 @@ export class MisclassificationAssessmentRepository extends BaseRepository<'miscl
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       assessmentDate: row.assessment_date,
+      factorInputs: factorInputsFromJsonb((row as unknown as { factor_inputs?: unknown }).factor_inputs),
       riskScore: row.risk_score ?? undefined,
       riskFactors: stringArrayFromJsonb(row.risk_factors),
       status: row.status as MisclassificationAssessmentStatus,
@@ -69,6 +85,7 @@ export class MisclassificationAssessmentRepository extends BaseRepository<'miscl
       tenant_id: entity.tenantId.value,
       worker_id: entity.workerId.value,
       assessment_date: entity.assessmentDate,
+      factor_inputs: entity.factorInputs ? JSON.stringify(entity.factorInputs) : null,
       risk_score: entity.riskScore ?? null,
       risk_factors: JSON.stringify(entity.riskFactors ?? []),
       status: entity.status,

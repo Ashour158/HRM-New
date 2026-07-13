@@ -81,8 +81,14 @@ const contingentConfig: DomainWorkspaceConfig = {
       fields: [
         { key: 'workerId', label: 'Worker ID', required: true },
         { key: 'assessmentDate', label: 'Assessment date', type: 'date', required: true },
-        { key: 'riskScore', label: 'Risk score', type: 'number' },
-        { key: 'riskFactors', label: 'Risk factors', type: 'csv' },
+        {
+          key: 'factorInputs',
+          label: 'IRS common-law factor inputs (JSON: behavioral/financial/relationship booleans — riskScore is computed server-side from these, not entered directly)',
+          type: 'textarea',
+          required: true,
+          placeholder: '{"instructionsControl": true, "trainingProvided": false, "workScheduleSetByCompany": true, "worksExclusivelyForCompany": false, "toolsProvidedByCompany": false, "expensesReimbursed": false, "paidFixedRegularWage": true, "opportunityForProfitOrLoss": false, "significantInvestment": false, "writtenContractIndicatesEmployee": false, "employeeBenefitsProvided": false, "relationshipIsIndefinite": false, "servicesKeyToBusiness": false}',
+          parse: (value: string) => JSON.parse(value),
+        },
       ],
       commandBasePath: (id) => `/contingent-workforce/misclassification-assessments/${id}/commands`,
       commandMappings: [
