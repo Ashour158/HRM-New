@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   Clock3,
   FileText,
@@ -50,6 +51,18 @@ interface HrServiceCase {
   slaDeadline?: string;
   resolvedAt?: string;
   status: 'OPEN' | 'IN_PROGRESS' | 'PENDING_CUSTOMER' | 'RESOLVED' | 'CLOSED' | 'ESCALATED';
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface HrKnowledgeArticle {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  tags: string[];
+  status: 'DRAFT' | 'PUBLISHED' | 'ARCHIVED' | 'DEPRECATED';
+  viewCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -170,6 +183,11 @@ function slaHealth(serviceCase: Pick<HrServiceCase, 'slaDeadline' | 'status'>) {
   return { label: 'SLA on track', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' };
 }
 
+function excerpt(content: string, maxLength = 160) {
+  if (content.length <= maxLength) return content;
+  return `${content.slice(0, maxLength).trimEnd()}...`;
+}
+
 function employeeVisibleModules() {
   return commercialModules.filter((module) => (
     module.personas.some((persona) => ['Employee', 'New Hire'].includes(persona))
@@ -189,6 +207,7 @@ export function EmployeeServices() {
   const [priority, setPriority] = React.useState('MEDIUM');
   const [description, setDescription] = React.useState('');
   const [message, setMessage] = React.useState('');
+  const [kbSearch, setKbSearch] = React.useState('');
   const addNotification = useUIStore((s) => s.addNotification);
   const canOpenAdminWorkspaces = React.useMemo(
     () => roles.some((role) => ['HR_ADMIN', 'SUPER_ADMIN'].includes(role.name)),
@@ -205,6 +224,19 @@ export function EmployeeServices() {
     isLoading: casesLoading,
     isError: casesError,
   } = useApiQuery<HrServiceCase[]>(['employee-services-cases'], '/hr-service-delivery/cases/my');
+  const {
+    data: knowledgeArticles = [],
+    isLoading: knowledgeLoading,
+    isError: knowledgeError,
+  } = useApiQuery<HrKnowledgeArticle[]>(['employee-kb-articles'], '/hr-service-delivery/knowledge-articles');
+
+  const filteredKnowledgeArticles = React.useMemo(() => {
+    const normalized = kbSearch.trim().toLowerCase();
+    if (!normalized) return knowledgeArticles;
+    return knowledgeArticles.filter((article) => (
+      `${article.title} ${article.category} ${article.content} ${(article.tags ?? []).join(' ')}`.toLowerCase().includes(normalized)
+    ));
+  }, [knowledgeArticles, kbSearch]);
 
   const catalog = React.useMemo(() => {
     const active = catalogData.filter((item) => item.status === 'ACTIVE');
@@ -413,6 +445,69 @@ export function EmployeeServices() {
               <Link to="/admin/system-console" className="font-semibold text-primary underline">Admin Panel</Link>.
             </div>
           ) : null}
+        </section>
+
+        <section className="rounded-lg border border-border bg-white shadow-sm">
+          <div className="grid gap-4 border-b border-border p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div>
+              <Badge variant="secondary" className="mb-3 bg-accent text-primary">Self-Serve First</Badge>
+              <h2 className="font-headline text-2xl font-semibold text-slate-950">Find an answer before opening a case</h2>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">
+                Search published HR knowledge base articles. Most payroll, benefits, and policy questions already have a written answer -- try here first, then submit a case below if you still need help.
+              </p>
+            </div>
+            <div className="relative w-full lg:w-80">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                value={kbSearch}
+                onChange={(event) => setKbSearch(event.target.value)}
+                placeholder="Search the knowledge base..."
+                aria-label="Search knowledge base"
+                className="pl-9"
+              />
+            </div>
+          </div>
+          <div className="p-4">
+            {knowledgeLoading ? (
+              <div className="flex items-center gap-2 p-6 text-sm text-slate-500"><Clock3 className="h-4 w-4" /> Loading knowledge base articles...</div>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {filteredKnowledgeArticles.map((article) => (
+                  <div key={article.id} className="flex flex-col rounded-lg border border-slate-200 bg-white p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="grid h-10 w-10 place-items-center rounded-md bg-success/15 text-primary">
+                        <BookOpen className="h-5 w-5" />
+                      </span>
+                      <Badge variant="outline">{article.category}</Badge>
+                    </div>
+                    <h3 className="mt-3 font-semibold text-slate-950">{article.title}</h3>
+                    <p className="mt-2 flex-1 text-sm leading-5 text-slate-600">{excerpt(article.content)}</p>
+                    {article.tags && article.tags.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-1">
+                        {article.tags.map((tag) => (
+                          <Badge key={tag} variant="secondary" className="bg-slate-100 text-xs text-slate-600">{tag}</Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+                {!knowledgeLoading && filteredKnowledgeArticles.length === 0 ? (
+                  <div className="col-span-full flex flex-col items-center justify-center p-10 text-center">
+                    <BookOpen className="h-10 w-10 text-slate-300" />
+                    <h3 className="mt-3 font-semibold text-slate-950">{kbSearch.trim() ? 'No articles match your search' : 'No knowledge base articles yet'}</h3>
+                    <p className="mt-1 max-w-md text-sm text-slate-500">
+                      {kbSearch.trim() ? 'Try different keywords, or submit a case below and HR will help directly.' : 'Once HR publishes articles, they will show up here for self-service search.'}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            )}
+            {knowledgeError ? (
+              <p className="mt-3 rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">
+                Could not load the knowledge base. You can still submit a case below.
+              </p>
+            ) : null}
+          </div>
         </section>
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
