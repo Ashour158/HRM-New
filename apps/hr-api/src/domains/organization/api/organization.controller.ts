@@ -37,14 +37,24 @@ import type { Position } from '../../position-control/aggregates/position.aggreg
 import type { HeadcountRequest } from '../../position-control/aggregates/headcount-request.aggregate.js';
 import {
   CreateLegalEntityDto,
+  CreateLegalEntityDtoSchema,
   UpdateLegalEntityDto,
+  UpdateLegalEntityDtoSchema,
   CreateOrgUnitDto,
+  CreateOrgUnitDtoSchema,
   UpdateOrgUnitDto,
+  UpdateOrgUnitDtoSchema,
   RestructureOrgUnitDto,
+  RestructureOrgUnitDtoSchema,
   AssignManagerDto,
+  AssignManagerDtoSchema,
   AssignWorkerOrganizationDto,
+  AssignWorkerOrganizationDtoSchema,
   AssignWorkerOrganizationByBodyDto,
+  AssignWorkerOrganizationByBodyDtoSchema,
   WorkforceScenarioDto,
+  WorkforceScenarioDtoSchema,
+  ZodValidationPipe,
 } from './dtos.js';
 
 type WorkerOrganizationAssignmentResult = {
@@ -137,7 +147,7 @@ export class OrganizationController {
   // ------------------------------------------------------------------
 
   @Post('legal-entities')
-  async createLegalEntity(@Body() dto: CreateLegalEntityDto, @Req() req: Request) {
+  async createLegalEntity(@Body(new ZodValidationPipe(CreateLegalEntityDtoSchema)) dto: CreateLegalEntityDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateLegalEntity', 'LegalEntity', undefined, {
       legalEntityId: new Uuid(dto.legalEntityId),
       name: dto.name,
@@ -165,7 +175,7 @@ export class OrganizationController {
   }
 
   @Patch('legal-entities/:id')
-  async updateLegalEntity(@Param('id') id: string, @Body() dto: UpdateLegalEntityDto, @Req() req: Request) {
+  async updateLegalEntity(@Param('id') id: string, @Body(new ZodValidationPipe(UpdateLegalEntityDtoSchema)) dto: UpdateLegalEntityDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'UpdateLegalEntity', 'LegalEntity', id, {
       legalEntityId: new Uuid(id),
       name: dto.name,
@@ -202,7 +212,7 @@ export class OrganizationController {
   // ------------------------------------------------------------------
 
   @Post('org-units')
-  async createOrgUnit(@Body() dto: CreateOrgUnitDto, @Req() req: Request) {
+  async createOrgUnit(@Body(new ZodValidationPipe(CreateOrgUnitDtoSchema)) dto: CreateOrgUnitDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateOrgUnit', 'OrgUnit', undefined, {
       orgUnitId: new Uuid(dto.orgUnitId),
       legalEntityId: new Uuid(dto.legalEntityId),
@@ -221,7 +231,7 @@ export class OrganizationController {
   }
 
   @Post('org-units/:id/commands/restructure')
-  async restructureOrgUnit(@Param('id') id: string, @Body() dto: RestructureOrgUnitDto, @Req() req: Request) {
+  async restructureOrgUnit(@Param('id') id: string, @Body(new ZodValidationPipe(RestructureOrgUnitDtoSchema)) dto: RestructureOrgUnitDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'RestructureOrgUnit', 'OrgUnit', id, {
       orgUnitId: new Uuid(id),
       newParentOrgUnitId: dto.newParentOrgUnitId === null
@@ -233,7 +243,7 @@ export class OrganizationController {
   }
 
   @Patch('org-units/:id')
-  async updateOrgUnit(@Param('id') id: string, @Body() dto: UpdateOrgUnitDto, @Req() req: Request) {
+  async updateOrgUnit(@Param('id') id: string, @Body(new ZodValidationPipe(UpdateOrgUnitDtoSchema)) dto: UpdateOrgUnitDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'UpdateOrgUnit', 'OrgUnit', id, {
       orgUnitId: new Uuid(id),
       name: dto.name,
@@ -271,7 +281,7 @@ export class OrganizationController {
   // ------------------------------------------------------------------
 
   @Post('manager-relationships')
-  async assignManager(@Body() dto: AssignManagerDto, @Req() req: Request) {
+  async assignManager(@Body(new ZodValidationPipe(AssignManagerDtoSchema)) dto: AssignManagerDto, @Req() req: Request) {
     const workerId = new Uuid(dto.workerId);
     const managerId = new Uuid(dto.managerId);
     const departmentId = dto.departmentId ? new Uuid(dto.departmentId) : undefined;
@@ -304,7 +314,7 @@ export class OrganizationController {
   @Patch('worker-assignments/:workerId')
   async assignWorkerOrganization(
     @Param('workerId') workerId: string,
-    @Body() dto: AssignWorkerOrganizationDto,
+    @Body(new ZodValidationPipe(AssignWorkerOrganizationDtoSchema)) dto: AssignWorkerOrganizationDto,
     @Req() req: Request,
   ) {
     const tenantId = this.requireTenant(req);
@@ -358,7 +368,7 @@ export class OrganizationController {
 
   @Post('assignments')
   async assignWorkerOrganizationByBody(
-    @Body() dto: AssignWorkerOrganizationByBodyDto,
+    @Body(new ZodValidationPipe(AssignWorkerOrganizationByBodyDtoSchema)) dto: AssignWorkerOrganizationByBodyDto,
     @Req() req: Request,
   ) {
     const { workerId, ...assignment } = dto;
@@ -427,7 +437,7 @@ export class OrganizationController {
   }
 
   @Post('workforce-scenarios/simulate')
-  async simulateWorkforceScenario(@Body() dto: WorkforceScenarioDto, @Req() req: Request) {
+  async simulateWorkforceScenario(@Body(new ZodValidationPipe(WorkforceScenarioDtoSchema)) dto: WorkforceScenarioDto, @Req() req: Request) {
     this.assertOrganizationAdminScope(req);
     const data = await this.collectPlanningData(req);
     const baselineCost = this.calculateAnnualWorkforceCost(data.profiles);
