@@ -1,6 +1,16 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useFieldArray,
+  useForm,
+  type Control,
+  type FieldErrors,
+  type UseFieldArrayReturn,
+  type UseFormRegister,
+} from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { AlertTriangle, CheckCircle2, PlayCircle, Plus, Save, ShieldCheck } from 'lucide-react';
 import { useApiQuery } from '@/hooks/use-api';
 import { apiClient } from '@/lib/api-client';
@@ -10,12 +20,14 @@ import { BusinessMetric, BusinessPageHeader, SectionHeading } from '@/components
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { FormField } from '@/components/common/form-field';
+import { ControlledSelect } from '@/components/forms/controlled-select';
+import { requiredText } from '@/components/forms/schema-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type PolicyArea =
@@ -96,31 +108,7 @@ type PolicySummary = {
   byArea: Record<string, number>;
 };
 
-type RuleRow = {
-  code: string;
-  condition: string;
-  outcome: string;
-  value: string;
-};
-
-type BuilderForm = {
-  title: string;
-  area: PolicyArea;
-  countries: string;
-  legalEntities: string;
-  orgUnits: string;
-  departments: string;
-  jobs: string;
-  grades: string;
-  locations: string;
-  employeeTypes: string;
-  workers: string;
-  effectiveFrom: string;
-  effectiveUntil: string;
-  rules: RuleRow[];
-};
-
-const policyAreas: PolicyArea[] = [
+const policyAreas = [
   'LEAVE',
   'ATTENDANCE',
   'PAYROLL',
@@ -132,7 +120,45 @@ const policyAreas: PolicyArea[] = [
   'GLOBAL_HR',
   'DEI_ANALYTICS',
   'ENGAGEMENT',
-];
+] as const satisfies readonly PolicyArea[];
+
+const ruleRowSchema = z.object({
+  code: z.string(),
+  condition: z.string(),
+  outcome: z.string(),
+  value: z.string(),
+});
+
+type RuleRow = z.infer<typeof ruleRowSchema>;
+
+/**
+ * Schema factory (not a module-level constant) because the "title is
+ * required" error message is translated — see @/pages/login.tsx's
+ * `createLoginSchema` for the same pattern. `title` is the field this page
+ * was flagged for: `saveDraft()` used to mask a missing title with a
+ * fallback string instead of blocking submit. See
+ * @/components/forms/README.md for the general pattern.
+ */
+function createPolicyBuilderSchema(t: (key: string) => string) {
+  return z.object({
+    title: requiredText(t('lowCode.policies.form.titleRequired')),
+    area: z.enum(policyAreas),
+    countries: z.string(),
+    legalEntities: z.string(),
+    orgUnits: z.string(),
+    departments: z.string(),
+    jobs: z.string(),
+    grades: z.string(),
+    locations: z.string(),
+    employeeTypes: z.string(),
+    workers: z.string(),
+    effectiveFrom: z.string(),
+    effectiveUntil: z.string(),
+    rules: z.array(ruleRowSchema),
+  });
+}
+
+type BuilderForm = z.infer<ReturnType<typeof createPolicyBuilderSchema>>;
 
 const initialRule: RuleRow = {
   code: 'DEFAULT_RULE',
@@ -220,7 +246,12 @@ export function AdminPolicies() {
   const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const addNotification = useUIStore((state) => state.addNotification);
-  const [form, setForm] = React.useState<BuilderForm>(initialForm);
+  const policyBuilderSchema = React.useMemo(() => createPolicyBuilderSchema(t), [t]);
+  const form = useForm<BuilderForm>({
+    resolver: zodResolver(policyBuilderSchema),
+    defaultValues: initialForm,
+  });
+  const rulesArray = useFieldArray({ control: form.control, name: 'rules' });
   const [selectedRevisionId, setSelectedRevisionId] = React.useState<string>('');
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
@@ -312,8 +343,8 @@ export function AdminPolicies() {
     });
 
   const applyTemplate = (template: PolicyTemplate) => {
-    setForm((current) => ({
-      ...current,
+    form.reset({
+      ...form.getValues(),
       title: template.title,
       area: template.area,
       countries: template.recommendedScope.countryCodes?.join(', ') ?? '',
@@ -327,22 +358,22 @@ export function AdminPolicies() {
       workers: template.recommendedScope.workerIds?.join(', ') ?? '',
       effectiveFrom: template.recommendedScope.effectiveFrom ?? '',
       effectiveUntil: template.recommendedScope.effectiveUntil ?? '',
-    }));
+    });
   };
 
-  const saveDraft = () => {
+  const saveDraft = form.handleSubmit((values) => {
     const payload = {
-      area: form.area,
-      title: form.title || t('lowCode.policies.untitledPolicy'),
-      scope: buildScope(form, tenantId),
-      draftConfig: buildDraftConfig(form),
+      area: values.area,
+      title: values.title,
+      scope: buildScope(values, tenantId),
+      draftConfig: buildDraftConfig(values),
     };
     if (selectedRevision?.status === 'DRAFT') {
       updateMutation.mutate({ id: selectedRevision.id, payload });
       return;
     }
     createMutation.mutate(payload);
-  };
+  });
 
   const lifecycle = (action: string, body?: Record<string, unknown>) => {
     if (!selectedRevision) return;
@@ -388,7 +419,14 @@ export function AdminPolicies() {
               <DialogHeader>
                 <DialogTitle>{t('lowCode.policies.newPolicy')}</DialogTitle>
               </DialogHeader>
-              <PolicyBuilderForm form={form} onChange={setForm} templates={templates} onApplyTemplate={applyTemplate} />
+              <PolicyBuilderForm
+                control={form.control}
+                register={form.register}
+                errors={form.formState.errors}
+                rulesArray={rulesArray}
+                templates={templates}
+                onApplyTemplate={applyTemplate}
+              />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('lowCode.common.cancel')}</Button>
                 <Button type="button" onClick={saveDraft} disabled={createMutation.isPending || updateMutation.isPending}>
@@ -473,99 +511,89 @@ export function AdminPolicies() {
   );
 }
 
+const scopeListFields = [
+  { key: 'countries', labelKey: 'countries' },
+  { key: 'legalEntities', labelKey: 'legalEntities' },
+  { key: 'orgUnits', labelKey: 'orgUnits' },
+  { key: 'departments', labelKey: 'departments' },
+  { key: 'jobs', labelKey: 'jobs' },
+  { key: 'grades', labelKey: 'grades' },
+  { key: 'locations', labelKey: 'locations' },
+  { key: 'employeeTypes', labelKey: 'employeeTypes' },
+  { key: 'workers', labelKey: 'workers' },
+] as const;
+
 function PolicyBuilderForm({
-  form,
-  onChange,
+  control,
+  register,
+  errors,
+  rulesArray,
   templates,
   onApplyTemplate,
 }: {
-  form: BuilderForm;
-  onChange: React.Dispatch<React.SetStateAction<BuilderForm>>;
+  control: Control<BuilderForm>;
+  register: UseFormRegister<BuilderForm>;
+  errors: FieldErrors<BuilderForm>;
+  rulesArray: UseFieldArrayReturn<BuilderForm, 'rules'>;
   templates: PolicyTemplate[];
   onApplyTemplate: (template: PolicyTemplate) => void;
 }) {
   const { t } = useTranslation();
-  const updateRule = (index: number, patch: Partial<RuleRow>) => {
-    onChange((current) => ({
-      ...current,
-      rules: current.rules.map((rule, currentIndex) => (currentIndex === index ? { ...rule, ...patch } : rule)),
-    }));
-  };
 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.template')}</Label>
+        <FormField id="policy-template" label={t('lowCode.policies.form.template')}>
           <Select onValueChange={(code) => {
             const template = templates.find((item) => item.code === code);
             if (template) onApplyTemplate(template);
           }}>
-            <SelectTrigger><SelectValue placeholder={t('lowCode.policies.form.templatePlaceholder')} /></SelectTrigger>
+            <SelectTrigger id="policy-template"><SelectValue placeholder={t('lowCode.policies.form.templatePlaceholder')} /></SelectTrigger>
             <SelectContent>
               {templates.map((template) => (
                 <SelectItem key={template.code} value={template.code}>{template.title}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.area')}</Label>
-          <Select value={form.area} onValueChange={(area) => onChange((current) => ({ ...current, area: area as PolicyArea }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {policyAreas.map((area) => <SelectItem key={area} value={area}>{area.replace(/_/g, ' ')}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2 md:col-span-2">
-          <Label>{t('lowCode.policies.form.title')}</Label>
-          <Input value={form.title} onChange={(event) => onChange((current) => ({ ...current, title: event.target.value }))} />
-        </div>
+        </FormField>
+        <FormField id="policy-area" label={t('lowCode.policies.form.area')}>
+          <ControlledSelect
+            control={control}
+            name="area"
+            id="policy-area"
+            options={policyAreas.map((area) => ({ value: area, label: area.replace(/_/g, ' ') }))}
+          />
+        </FormField>
+        <FormField id="policy-title" label={t('lowCode.policies.form.title')} error={errors.title?.message} className="md:col-span-2">
+          <Input {...register('title')} />
+        </FormField>
       </div>
 
       <section className="grid gap-3 md:grid-cols-2">
-        {[
-          ['countries', 'countries'],
-          ['legalEntities', 'legalEntities'],
-          ['orgUnits', 'orgUnits'],
-          ['departments', 'departments'],
-          ['jobs', 'jobs'],
-          ['grades', 'grades'],
-          ['locations', 'locations'],
-          ['employeeTypes', 'employeeTypes'],
-          ['workers', 'workers'],
-        ].map(([field, label]) => (
-          <div key={field} className="grid gap-2">
-            <Label>{t(`lowCode.policies.form.${label}`)}</Label>
-            <Input
-              value={form[field as keyof BuilderForm] as string}
-              onChange={(event) => onChange((current) => ({ ...current, [field]: event.target.value }))}
-              placeholder={t('lowCode.policies.form.listPlaceholder')}
-            />
-          </div>
+        {scopeListFields.map(({ key, labelKey }) => (
+          <FormField key={key} id={`policy-${key}`} label={t(`lowCode.policies.form.${labelKey}`)}>
+            <Input {...register(key)} placeholder={t('lowCode.policies.form.listPlaceholder')} />
+          </FormField>
         ))}
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.effectiveFrom')}</Label>
-          <Input type="date" value={form.effectiveFrom} onChange={(event) => onChange((current) => ({ ...current, effectiveFrom: event.target.value }))} />
-        </div>
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.effectiveUntil')}</Label>
-          <Input type="date" value={form.effectiveUntil} onChange={(event) => onChange((current) => ({ ...current, effectiveUntil: event.target.value }))} />
-        </div>
+        <FormField id="policy-effective-from" label={t('lowCode.policies.form.effectiveFrom')}>
+          <Input type="date" {...register('effectiveFrom')} />
+        </FormField>
+        <FormField id="policy-effective-until" label={t('lowCode.policies.form.effectiveUntil')}>
+          <Input type="date" {...register('effectiveUntil')} />
+        </FormField>
       </section>
 
       <section className="space-y-3">
         <SectionHeading
           title={t('lowCode.policies.form.rules')}
-          actions={<Button type="button" variant="outline" size="sm" onClick={() => onChange((current) => ({ ...current, rules: [...current.rules, { ...initialRule, code: `RULE_${current.rules.length + 1}` }] }))}>{t('lowCode.policies.form.addRule')}</Button>}
+          actions={<Button type="button" variant="outline" size="sm" onClick={() => rulesArray.append({ ...initialRule, code: `RULE_${rulesArray.fields.length + 1}` })}>{t('lowCode.policies.form.addRule')}</Button>}
         />
-        {form.rules.map((rule, index) => (
-          <div key={`${rule.code}-${index}`} className="grid gap-3 rounded-xl border p-3 md:grid-cols-4">
-            <Input aria-label={t('lowCode.policies.form.ruleCode')} value={rule.code} onChange={(event) => updateRule(index, { code: event.target.value })} />
-            <Input aria-label={t('lowCode.policies.form.condition')} value={rule.condition} onChange={(event) => updateRule(index, { condition: event.target.value })} />
-            <Input aria-label={t('lowCode.policies.form.outcome')} value={rule.outcome} onChange={(event) => updateRule(index, { outcome: event.target.value })} />
-            <Input aria-label={t('lowCode.policies.form.value')} value={rule.value} onChange={(event) => updateRule(index, { value: event.target.value })} />
+        {rulesArray.fields.map((field, index) => (
+          <div key={field.id} className="grid gap-3 rounded-xl border p-3 md:grid-cols-4">
+            <Input aria-label={t('lowCode.policies.form.ruleCode')} {...register(`rules.${index}.code`)} />
+            <Input aria-label={t('lowCode.policies.form.condition')} {...register(`rules.${index}.condition`)} />
+            <Input aria-label={t('lowCode.policies.form.outcome')} {...register(`rules.${index}.outcome`)} />
+            <Input aria-label={t('lowCode.policies.form.value')} {...register(`rules.${index}.value`)} />
           </div>
         ))}
       </section>

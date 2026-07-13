@@ -103,4 +103,42 @@ describe('AdminSso', () => {
     expect(await screen.findByText('Acme Okta')).toBeInTheDocument();
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
+
+  it('blocks submission and shows an inline error when display name is cleared', async () => {
+    renderSso();
+
+    expect(await screen.findByText('Acme Okta')).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText('Display name'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Provider' }));
+
+    expect(await screen.findByText('Display name is required')).toBeInTheDocument();
+    expect(apiClientPatchMock).not.toHaveBeenCalled();
+    expect(apiClientPostMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks submission and shows an inline error when the OIDC issuer URL is cleared', async () => {
+    renderSso();
+
+    expect(await screen.findByText('Acme Okta')).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText('Issuer URL'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Provider' }));
+
+    expect(await screen.findByText('Issuer URL is required')).toBeInTheDocument();
+    expect(apiClientPatchMock).not.toHaveBeenCalled();
+    expect(apiClientPostMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks submission and shows an inline error when attribute mapping is not valid JSON', async () => {
+    renderSso();
+
+    expect(await screen.findByText('Acme Okta')).toBeInTheDocument();
+    const attributeMappingField = screen.getByLabelText('Attribute mapping');
+    await userEvent.clear(attributeMappingField);
+    await userEvent.type(attributeMappingField, '{{not valid json');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Provider' }));
+
+    expect(await screen.findByText('Attribute mapping must be a valid JSON object')).toBeInTheDocument();
+    expect(apiClientPatchMock).not.toHaveBeenCalled();
+    expect(apiClientPostMock).not.toHaveBeenCalled();
+  });
 });

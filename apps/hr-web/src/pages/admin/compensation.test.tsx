@@ -108,4 +108,54 @@ describe('AdminCompensation', () => {
       }),
     ));
   });
+
+  it('blocks creating a plan with an empty name and shows an inline error', async () => {
+    renderCompensation();
+
+    expect(await screen.findByText('Annual merit plan')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Create Plan' }));
+    await userEvent.clear(screen.getByLabelText('Plan name'));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Plan' }));
+
+    expect(await screen.findByText('Plan name is required')).toBeInTheDocument();
+    expect(apiClientPostMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks creating a band with non-numeric salary values and shows an inline error', async () => {
+    renderCompensation();
+
+    expect(await screen.findByText('Annual merit plan')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Bands' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create Band' }));
+
+    await userEvent.clear(screen.getByLabelText('Minimum salary'));
+    await userEvent.type(screen.getByLabelText('Minimum salary'), 'not-a-number');
+    await userEvent.click(screen.getByRole('button', { name: 'Save Band' }));
+
+    expect(await screen.findByText('Enter a valid number')).toBeInTheDocument();
+    expect(apiClientPostMock).not.toHaveBeenCalled();
+  });
+
+  it('creates a band with the exact same payload shape as before once validation passes', async () => {
+    renderCompensation();
+
+    expect(await screen.findByText('Annual merit plan')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Bands' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Create Band' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Band' }));
+
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
+      '/hr/compensation/bands',
+      expect.objectContaining({
+        bandCode: 'BAND-001',
+        jobLevel: 'L3',
+        jobFamily: 'Operations',
+        minSalary: 50000,
+        midSalary: 65000,
+        maxSalary: 80000,
+        currency: 'AED',
+      }),
+    ));
+  });
 });
