@@ -116,6 +116,8 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   Offer: aggregateLoader('hr_recruiting.offers'),
   OnboardingPlan: aggregateLoader('hr_onboarding.onboarding_plans'),
   OnboardingTask: aggregateLoader('hr_onboarding.onboarding_tasks'),
+  OffboardingPlan: aggregateLoader('hr_offboarding.offboarding_plans'),
+  OffboardingTask: aggregateLoader('hr_offboarding.offboarding_tasks'),
 
   ApprovalChain: aggregateLoader('hr_workflow.approval_chains'),
 

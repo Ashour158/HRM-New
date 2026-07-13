@@ -14,6 +14,9 @@ export const HR_RECRUITING = 'hr.recruiting.v1';
 /** Onboarding bounded-context topic. */
 export const HR_ONBOARDING = 'hr.onboarding.v1';
 
+/** Offboarding bounded-context topic. */
+export const HR_OFFBOARDING = 'hr.offboarding.v1';
+
 /** Compensation bounded-context topic. */
 export const HR_COMPENSATION = 'hr.compensation.v1';
 
@@ -52,6 +55,7 @@ export const AllHrTopics = [
   HR_CORE,
   HR_RECRUITING,
   HR_ONBOARDING,
+  HR_OFFBOARDING,
   HR_COMPENSATION,
   HR_TIME,
   HR_ABSENCE,
@@ -97,6 +101,10 @@ export const TopicRegistry: Record<string, string> = {
   OnboardingPlan: HR_ONBOARDING,
   onboardingTask: HR_ONBOARDING,
   OnboardingTask: HR_ONBOARDING,
+  offboardingPlan: HR_OFFBOARDING,
+  OffboardingPlan: HR_OFFBOARDING,
+  offboardingTask: HR_OFFBOARDING,
+  OffboardingTask: HR_OFFBOARDING,
   compensationPlan: HR_COMPENSATION,
   CompensationPlan: HR_COMPENSATION,
   salaryStructure: HR_COMPENSATION,
@@ -317,6 +325,8 @@ export const EventNameTopicPrefixes: ReadonlyArray<readonly [string, string]> = 
   ['Position', HR_CORE],
   ['HeadcountRequest', HR_CORE],
   ['Reminder', HR_GLOBAL],
+  ['OffboardingPlan', HR_OFFBOARDING],
+  ['OffboardingTask', HR_OFFBOARDING],
 ];
 
 export interface EventContractRegistrySnapshot {

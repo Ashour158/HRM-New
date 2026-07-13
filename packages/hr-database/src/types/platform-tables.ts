@@ -973,6 +973,42 @@ export interface OnboardingTrackTemplatesTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface OffboardingPlansTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  last_working_day: Date;
+  initiated_by: string;
+  reason_category: string;
+  reason_notes: string | null;
+  manager_id: string | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface OffboardingTasksTable {
+  id: string;
+  tenant_id: string;
+  offboarding_plan_id: string;
+  title: string;
+  description: string | null;
+  assigned_to: string | null;
+  owner_group: string;
+  category: string;
+  required: boolean;
+  evidence_type: string | null;
+  evidence_payload: unknown;
+  completion_notes: string | null;
+  due_date: Date | null;
+  completed_at: Date | null;
+  status: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface CompensationPlansTable {
   id: string;
   tenant_id: string;
@@ -2394,6 +2430,8 @@ export interface Database {
   'hr_onboarding.onboarding_plans': OnboardingPlansTable;
   'hr_onboarding.onboarding_tasks': OnboardingTasksTable;
   'hr_onboarding.onboarding_track_templates': OnboardingTrackTemplatesTable;
+  'hr_offboarding.offboarding_plans': OffboardingPlansTable;
+  'hr_offboarding.offboarding_tasks': OffboardingTasksTable;
   compensation_plans: CompensationPlansTable;
   compensation_bands: CompensationBandsTable;
   compensation_changes: CompensationChangesTable;
