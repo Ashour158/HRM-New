@@ -64,6 +64,7 @@ export const CreateWorkerDtoSchema = z.object({
   privacyNotices: z.array(z.record(z.unknown())).optional(),
   retentionHolds: z.array(z.record(z.unknown())).optional(),
   employmentContract: z.record(z.unknown()).optional(),
+  customFieldValues: z.record(z.unknown()).optional(),
 });
 
 export class CreateWorkerDto {
@@ -124,6 +125,7 @@ export class CreateWorkerDto {
   @ApiPropertyOptional() privacyNotices?: Record<string, unknown>[];
   @ApiPropertyOptional() retentionHolds?: Record<string, unknown>[];
   @ApiPropertyOptional() employmentContract?: Record<string, unknown>;
+  @ApiPropertyOptional() customFieldValues?: Record<string, unknown>;
 }
 
 export const UpdateWorkerDtoSchema = z.object({

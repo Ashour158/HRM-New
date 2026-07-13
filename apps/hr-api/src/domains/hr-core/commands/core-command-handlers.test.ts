@@ -261,11 +261,20 @@ describe('Core HR command handlers', () => {
   it('upserts generic profile sections including CUSTOM fields', async () => {
     const workerRepo = { findByIdForTenant: vi.fn().mockResolvedValue(worker('ACTIVE')) };
     const personalDataRepo = { findByWorkerAndCategoryForTenant: vi.fn(), save: vi.fn() };
+    const hcmSetup = {
+      getSetup: vi.fn().mockResolvedValue({
+        fieldRules: [
+          { fieldKey: 'localUnionCode', label: 'Local Union Code', section: 'Custom', required: false, active: true, fieldType: 'TEXT' },
+          { fieldKey: 'healthCardExpiryDate', label: 'Health Card Expiry', section: 'Custom', required: false, active: true, fieldType: 'DATE' },
+        ],
+      }),
+    };
 
     const created = await new UpsertWorkerProfileSectionHandler(
       workerRepo as never,
       personalDataRepo as never,
       fsm as never,
+      hcmSetup as never,
     ).handle(command('UpsertWorkerProfileSection', 'WorkerProfile', {
       workerId,
       dataCategory: 'CUSTOM',
@@ -279,6 +288,9 @@ describe('Core HR command handlers', () => {
       data: { workerId: workerId.value, dataCategory: 'CUSTOM' },
       eventsEmitted: ['PersonalDataRecordCreated', 'PersonalDataRecordActivated'],
     });
+    expect(personalDataRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: { localUnionCode: 'EG-CUSTOM-1', healthCardExpiryDate: '2026-06-20' } }),
+    );
 
     personalDataRepo.findByWorkerAndCategoryForTenant.mockResolvedValueOnce(new PersonalDataRecord({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440006'),
@@ -294,6 +306,7 @@ describe('Core HR command handlers', () => {
       workerRepo as never,
       personalDataRepo as never,
       fsm as never,
+      hcmSetup as never,
     ).handle(command('UpsertWorkerProfileSection', 'WorkerProfile', {
       workerId,
       dataCategory: 'CUSTOM',
@@ -303,6 +316,29 @@ describe('Core HR command handlers', () => {
       success: true,
       eventsEmitted: ['PersonalDataRecordUpdated'],
     });
+  });
+
+  it('rejects a CUSTOM profile section update carrying a value of the wrong type', async () => {
+    const workerRepo = { findByIdForTenant: vi.fn().mockResolvedValue(worker('ACTIVE')) };
+    const personalDataRepo = { findByWorkerAndCategoryForTenant: vi.fn().mockResolvedValue(undefined), save: vi.fn() };
+    const hcmSetup = {
+      getSetup: vi.fn().mockResolvedValue({
+        fieldRules: [
+          { fieldKey: 'shiftCount', label: 'Shift Count', section: 'Custom', required: false, active: true, fieldType: 'NUMBER' },
+        ],
+      }),
+    };
+
+    await expect(
+      new UpsertWorkerProfileSectionHandler(workerRepo as never, personalDataRepo as never, fsm as never, hcmSetup as never).handle(
+        command('UpsertWorkerProfileSection', 'WorkerProfile', {
+          workerId,
+          dataCategory: 'CUSTOM',
+          fields: { shiftCount: 'three' },
+        }, { aggregateId: workerId }),
+      ),
+    ).rejects.toThrow('Shift Count must be a number');
+    expect(personalDataRepo.save).not.toHaveBeenCalled();
   });
 
   it('applies worker mass updates as one aggregate/profile unit of work', async () => {

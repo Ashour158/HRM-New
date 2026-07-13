@@ -40,13 +40,55 @@ export type DocumentRequirement = SetupOption & {
   acceptedMimeTypes: string[];
 };
 
+export type FieldRuleType = 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT';
+
 export type FieldRule = {
   fieldKey: string;
   label: string;
   section: string;
   required: boolean;
   active: boolean;
+  /**
+   * Input type used to render/validate a genuinely custom field (any fieldKey
+   * that is not one of the fixed, built-in fields listed in
+   * KNOWN_FIELD_RULE_KEYS). Defaults to 'TEXT' when omitted. Ignored for
+   * built-in fields, which always render their dedicated real input.
+   */
+  fieldType?: FieldRuleType;
+  /** Selectable values when fieldType is 'SELECT'. */
+  options?: string[];
 };
+
+/**
+ * fieldKeys that already map to a real, dedicated input and payload property
+ * across the worker create/update/profile surfaces. Any FieldRule whose
+ * fieldKey is NOT in this set is a genuinely admin-defined custom field and
+ * must be read from/written to the dynamic custom-field-value store
+ * (PersonalDataRecord dataCategory 'CUSTOM') instead of a fixed property.
+ */
+export const KNOWN_FIELD_RULE_KEYS: ReadonlySet<string> = new Set([
+  'firstName',
+  'lastName',
+  'personalEmail',
+  'workEmail',
+  'phoneNumber',
+  'workPhoneNumber',
+  'department',
+  'jobTitle',
+  'workAuthorization',
+  'taxProfile',
+  'bankAccount',
+  'dependents',
+  'beneficiaries',
+  'assets',
+  'skills',
+  'consents',
+  'employmentContract',
+]);
+
+export function isCustomFieldRuleKey(fieldKey: string): boolean {
+  return !KNOWN_FIELD_RULE_KEYS.has(fieldKey);
+}
 
 export type LeaveDurationUnit = 'DAYS' | 'HOURS';
 

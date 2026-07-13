@@ -6,6 +6,8 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { WorkerRepository } from '../repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from '../repositories/personal-data-record.repository.js';
 import { PersonalDataRecord, type DataCategory } from '../aggregates/personal-data-record.aggregate.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import { filterAllowedCustomFieldValues, validateCustomFieldSection } from '../custom-field-values.js';
 
 const UPSERTABLE_CATEGORIES = new Set<DataCategory>([
   'BASIC',
@@ -42,6 +44,7 @@ export class UpsertWorkerProfileSectionHandler {
     private readonly workerRepo: WorkerRepository,
     private readonly personalDataRepo: PersonalDataRecordRepository,
     private readonly fsm: FsmFramework,
+    private readonly hcmSetup: HcmSetupService,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -56,8 +59,17 @@ export class UpsertWorkerProfileSectionHandler {
     if (!worker) throw new NotFoundError('Worker not found');
 
     let record = await this.personalDataRepo.findByWorkerAndCategoryForTenant(worker.id, command.tenantId, dataCategory);
+
+    let fields = payload.fields;
+    if (dataCategory === 'CUSTOM') {
+      const setup = await this.hcmSetup.getSetup(command.tenantId);
+      fields = filterAllowedCustomFieldValues(payload.fields, setup);
+      const merged = { ...(record?.payload ?? {}), ...fields };
+      validateCustomFieldSection(setup, merged, new Set(Object.keys(fields)));
+    }
+
     if (record) {
-      record.update(payload.fields, command.correlationId);
+      record.update(fields, command.correlationId);
     } else {
       record = PersonalDataRecord.create(
         {
@@ -66,7 +78,7 @@ export class UpsertWorkerProfileSectionHandler {
           workerId: worker.id,
           dataCategory,
           dataClassification: this.classifyDataCategory(dataCategory),
-          payload: payload.fields,
+          payload: fields,
           consentStatus: 'GRANTED',
           state: 'DRAFT',
         },
