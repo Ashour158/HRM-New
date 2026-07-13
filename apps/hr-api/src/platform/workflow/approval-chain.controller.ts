@@ -10,13 +10,23 @@ import { Permissions } from '../../decorators/permissions.decorator.js';
 import { actorClientType, requireActor, requireTenantId } from '../http/request-context.js';
 import { CommandBus } from '../command-bus/command-bus.js';
 import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
-import type { ApprovalWorkflowRule } from '../../domains/hcm-setup/hcm-setup.types.js';
+import type { ApprovalConditionOperator, ApprovalWorkflowRule } from '../../domains/hcm-setup/hcm-setup.types.js';
 import { ApprovalWorkflowService } from './approval-workflow.service.js';
 import { ApprovalChain } from './approval-chain.aggregate.js';
 
 interface ApprovalConfigBody {
   rules?: ApprovalWorkflowRule[];
 }
+
+const APPROVAL_CONDITION_OPERATORS: ApprovalConditionOperator[] = [
+  'EQUALS',
+  'NOT_EQUALS',
+  'GREATER_THAN',
+  'LESS_THAN',
+  'GREATER_OR_EQUAL',
+  'LESS_OR_EQUAL',
+  'CONTAINS',
+];
 
 @ApiTags('Platform Workflow')
 @UseGuards(AuthGuard, PermissionGuard)
@@ -137,9 +147,12 @@ export class ApprovalChainController {
       if (!rule.code || !rule.label || !rule.commandName || !Array.isArray(rule.steps) || rule.steps.length === 0) {
         throw new BadRequestException('Approval workflow rules require code, label, commandName, and at least one step');
       }
+      const conditions = this.normalizeConditions(rule.conditions);
       return {
         ...rule,
         active: rule.active !== false,
+        conditions,
+        conditionLogic: conditions.length > 0 ? (rule.conditionLogic === 'ANY' ? 'ANY' : 'ALL') : undefined,
         steps: rule.steps
           .slice()
           .sort((left, right) => left.order - right.order)
@@ -150,6 +163,22 @@ export class ApprovalChainController {
             approverType: step.approverType ?? 'ROLE',
           })),
       };
+    });
+  }
+
+  private normalizeConditions(conditions: ApprovalWorkflowRule['conditions']): NonNullable<ApprovalWorkflowRule['conditions']> {
+    if (!Array.isArray(conditions) || conditions.length === 0) return [];
+    return conditions.map((condition) => {
+      if (!condition.field || typeof condition.field !== 'string' || !condition.field.trim()) {
+        throw new BadRequestException('Approval routing conditions require a field path');
+      }
+      if (!APPROVAL_CONDITION_OPERATORS.includes(condition.operator)) {
+        throw new BadRequestException(`Approval routing condition operator "${condition.operator}" is not supported`);
+      }
+      if (condition.value === undefined) {
+        throw new BadRequestException('Approval routing conditions require a comparison value');
+      }
+      return { field: condition.field.trim(), operator: condition.operator, value: condition.value };
     });
   }
 }

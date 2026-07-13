@@ -2,7 +2,12 @@ import { Inject, Injectable, Optional } from '@nestjs/common';
 import { Uuid, ValidationError } from '@hcm/shared-kernel';
 import type { AccessControlDecision } from '@hcm/access-control';
 import type { CommandOutcome, CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
-import type { HcmSetupConfig, ApprovalWorkflowRule, ApprovalWorkflowStepRule } from '../../domains/hcm-setup/hcm-setup.types.js';
+import type {
+  ApprovalWorkflowCondition,
+  HcmSetupConfig,
+  ApprovalWorkflowRule,
+  ApprovalWorkflowStepRule,
+} from '../../domains/hcm-setup/hcm-setup.types.js';
 import { ReminderEmitter } from '../scheduler/reminder-emitter.js';
 import { ApprovalChain, type ApprovalStepDefinition } from './approval-chain.aggregate.js';
 import { ApprovalChainRepository, type ApprovalChainRepositoryPort } from './approval-chain.repository.js';
@@ -181,11 +186,16 @@ export class ApprovalWorkflowService {
     setup: HcmSetupConfig,
     accessDecision?: Pick<AccessControlDecision, 'requiresApproval'>,
   ): ApprovalWorkflowRule | undefined {
-    const explicit = (setup.approvalWorkflowRules ?? []).find((rule) => (
-      rule.active !== false
-      && rule.commandName === command.commandName
-      && (!rule.aggregateType || rule.aggregateType === command.aggregateType)
-    ));
+    // Among all rules configured for this command/aggregate, pick the first (in configured
+    // order) whose payload conditions are satisfied. A rule with no conditions always matches
+    // once it's a commandName/aggregateType candidate — identical to the pre-conditions behavior.
+    const explicit = (setup.approvalWorkflowRules ?? [])
+      .filter((rule) => (
+        rule.active !== false
+        && rule.commandName === command.commandName
+        && (!rule.aggregateType || rule.aggregateType === command.aggregateType)
+      ))
+      .find((rule) => ruleConditionsMatch(rule, command.payload));
     if (explicit) return explicit;
     if (accessDecision?.requiresApproval) {
       return {
@@ -305,6 +315,103 @@ export class ApprovalWorkflowService {
       });
     }
   }
+}
+
+/**
+ * Evaluates a rule's optional field-level conditions against a command payload.
+ * A rule with no conditions always matches (preserves pre-conditions behavior).
+ */
+function ruleConditionsMatch(rule: ApprovalWorkflowRule, payload: unknown): boolean {
+  const conditions = rule.conditions ?? [];
+  if (conditions.length === 0) return true;
+  const logic = rule.conditionLogic ?? 'ALL';
+  return logic === 'ANY'
+    ? conditions.some((condition) => conditionMatches(condition, payload))
+    : conditions.every((condition) => conditionMatches(condition, payload));
+}
+
+function conditionMatches(condition: ApprovalWorkflowCondition, payload: unknown): boolean {
+  const actual = resolveFieldValue(payload, condition.field);
+  const expected = condition.value;
+  switch (condition.operator) {
+    case 'EQUALS':
+      return looseEquals(actual, expected);
+    case 'NOT_EQUALS':
+      return !looseEquals(actual, expected);
+    case 'CONTAINS':
+      return containsMatch(actual, expected);
+    case 'GREATER_THAN':
+    case 'LESS_THAN':
+    case 'GREATER_OR_EQUAL':
+    case 'LESS_OR_EQUAL': {
+      const actualNumber = toComparableNumber(actual);
+      const expectedNumber = toComparableNumber(expected);
+      if (actualNumber === undefined || expectedNumber === undefined) return false;
+      if (condition.operator === 'GREATER_THAN') return actualNumber > expectedNumber;
+      if (condition.operator === 'LESS_THAN') return actualNumber < expectedNumber;
+      if (condition.operator === 'GREATER_OR_EQUAL') return actualNumber >= expectedNumber;
+      return actualNumber <= expectedNumber;
+    }
+    default:
+      return false;
+  }
+}
+
+/** Resolves a dot-separated field path (e.g. "compensationChange.newAnnualSalary") against a command payload. */
+function resolveFieldValue(source: unknown, fieldPath: string): unknown {
+  if (!fieldPath) return undefined;
+  const segments = fieldPath.split('.').map((segment) => segment.trim()).filter(Boolean);
+  let current: unknown = source;
+  for (const segment of segments) {
+    if (current === null || current === undefined) return undefined;
+    if (current instanceof Uuid) current = current.value;
+    if (typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return unwrapValue(current);
+}
+
+function unwrapValue(value: unknown): unknown {
+  if (value instanceof Uuid) return value.value;
+  if (value instanceof Date) return value.toISOString();
+  return value;
+}
+
+function looseEquals(actual: unknown, expected: unknown): boolean {
+  const left = unwrapValue(actual);
+  const right = unwrapValue(expected);
+  if (left === right) return true;
+  if (left === null || left === undefined || right === null || right === undefined) return false;
+  if (typeof left === 'boolean' || typeof right === 'boolean') {
+    return String(left).toLowerCase() === String(right).toLowerCase();
+  }
+  const leftNumber = toComparableNumber(left);
+  const rightNumber = toComparableNumber(right);
+  if (leftNumber !== undefined && rightNumber !== undefined) {
+    return leftNumber === rightNumber;
+  }
+  return String(left) === String(right);
+}
+
+function containsMatch(actual: unknown, expected: unknown): boolean {
+  const value = unwrapValue(actual);
+  if (Array.isArray(value)) {
+    return value.some((item) => looseEquals(item, expected));
+  }
+  if (typeof value === 'string') {
+    return value.includes(String(unwrapValue(expected)));
+  }
+  return false;
+}
+
+function toComparableNumber(value: unknown): number | undefined {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  if (value instanceof Date) return value.getTime();
+  return undefined;
 }
 
 function toEscalationTiers(step: ApprovalWorkflowStepRule): ApprovalStepDefinition['escalationTiers'] {

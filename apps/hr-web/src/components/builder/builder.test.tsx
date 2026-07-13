@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { PreviewPanel, RuleRow, WorkflowStepBuilder } from '.';
+import { ConditionRowBuilder, PreviewPanel, RuleRow, WorkflowStepBuilder } from '.';
 
 describe('builder primitives', () => {
   it('edits workflow step routing and move controls', async () => {
@@ -45,5 +45,28 @@ describe('builder primitives', () => {
     expect(screen.getByText('Late arrival grace')).toBeInTheDocument();
     expect(screen.getByText('Monthly cap 3')).toBeInTheDocument();
     expect(screen.getByText('Total SLA')).toBeInTheDocument();
+  });
+
+  it('edits a routing condition field, operator, and value', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onRemove = vi.fn();
+
+    render(
+      <ConditionRowBuilder
+        index={0}
+        field="newAnnualSalary"
+        operator="GREATER_THAN"
+        value="10000"
+        onChange={onChange}
+        onRemove={onRemove}
+      />,
+    );
+
+    await user.selectOptions(screen.getByLabelText('Operator'), 'LESS_THAN');
+    expect(onChange).toHaveBeenCalledWith({ operator: 'LESS_THAN' });
+
+    await user.click(screen.getByRole('button', { name: 'Remove condition' }));
+    expect(onRemove).toHaveBeenCalledTimes(1);
   });
 });
