@@ -102,7 +102,11 @@ export function AdminPrimaryNav({ canSeeSystemConsole, className }: AdminPrimary
   );
 
   const moreVisibleLinks = visibleLinksFor(ADMIN_MORE_LINKS);
-  const moreActive = ADMIN_MORE_LINKS.some((link) => isLinkActive(location.pathname, link));
+  // Active-state must be derived from the links actually rendered in the
+  // flyout (role-filtered), not the full catalog - otherwise a hidden
+  // system-only route can mark "More" active even though the admin can't
+  // see or reach it.
+  const moreActive = moreVisibleLinks.some((link) => isLinkActive(location.pathname, link));
 
   return (
     <nav aria-label="Admin modules" className={cn('w-full overflow-x-auto', className)}>

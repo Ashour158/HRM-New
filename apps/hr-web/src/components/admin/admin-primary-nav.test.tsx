@@ -98,4 +98,22 @@ describe('AdminPrimaryNav', () => {
     const governanceTrigger = screen.getByRole('button', { name: 'Governance menu' });
     expect(governanceTrigger.className).toMatch(/text-indigo-700/);
   });
+
+  it('does not mark More active on a hidden system-only route for admins without system console access', () => {
+    // /admin/system-console/sso is systemOnly and filtered out of this
+    // admin's moreVisibleLinks, so it must not visually activate "More"
+    // even though it belongs to ADMIN_MORE_LINKS overall.
+    renderNav(false, '/admin/system-console/sso');
+    const moreLink = screen.getByRole('link', { name: /More/i });
+    expect(moreLink.className).not.toMatch(/text-indigo-700/);
+  });
+
+  it('marks More active on a route that is in this admin\'s visible More links', () => {
+    // /admin/modules (Module Catalog) is the one ADMIN_MORE_LINKS entry
+    // that is not systemOnly, so it remains in moreVisibleLinks and should
+    // activate "More" for a restricted admin.
+    renderNav(false, '/admin/modules');
+    const moreLink = screen.getByRole('link', { name: /More/i });
+    expect(moreLink.className).toMatch(/text-indigo-700/);
+  });
 });
