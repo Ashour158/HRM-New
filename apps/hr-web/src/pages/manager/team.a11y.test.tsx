@@ -137,4 +137,41 @@ describe('ManagerTeam accessibility', () => {
     expect(screen.getByText('360 feedback')).toBeInTheDocument();
     await expect(axe(container)).resolves.toHaveNoViolations();
   });
+
+  it('renders the compensation tab without accessibility violations', async () => {
+    const selectedMember = {
+      ...directReport,
+      compensationBand: 'P3',
+      goals: [],
+    };
+    useApiQueryMock.mockImplementation((queryKey: unknown) => {
+      const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
+      if (key === 'manager-team') {
+        return {
+          data: { directReports: [directReport], selectedMember },
+          isLoading: false,
+          isError: false,
+          error: null,
+          refetch: vi.fn(),
+        };
+      }
+      if (key === 'manager-team-attrition-risk') {
+        return { data: [], isLoading: false };
+      }
+      return { data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() };
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={[`/manager/team?worker=${selectedWorkerId}`]}>
+        <Routes>
+          <Route path="/manager/team" element={<ManagerTeam />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Compensation' }));
+    expect(screen.getByRole('heading', { name: 'Compensation' })).toBeInTheDocument();
+    expect(screen.getByText('P3')).toBeInTheDocument();
+    await expect(axe(container)).resolves.toHaveNoViolations();
+  });
 });
