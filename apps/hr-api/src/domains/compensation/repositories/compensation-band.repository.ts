@@ -30,7 +30,7 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
   }
 
   async findByTenant(tenantId: Uuid): Promise<CompensationBand[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -39,7 +39,7 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
   }
 
   async findByJobFamily(jobFamily: string): Promise<CompensationBand[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('job_family', '=', jobFamily)

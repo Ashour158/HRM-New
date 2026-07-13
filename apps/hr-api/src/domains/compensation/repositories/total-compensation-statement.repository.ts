@@ -30,7 +30,7 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
   }
 
   async findByWorker(workerId: Uuid): Promise<TotalCompensationStatement[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -39,7 +39,7 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
   }
 
   async findByWorkerAndYear(workerId: Uuid, statementYear: number): Promise<TotalCompensationStatement | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)

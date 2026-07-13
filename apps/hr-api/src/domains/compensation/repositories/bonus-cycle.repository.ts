@@ -30,7 +30,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
   }
 
   async findByTenant(tenantId: Uuid): Promise<BonusCycle[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -39,7 +39,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
   }
 
   async findByYear(cycleYear: number): Promise<BonusCycle[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('cycle_year', '=', cycleYear)

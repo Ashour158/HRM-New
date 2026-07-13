@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getPool, resolveTransactionAwareExecutor } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -10,9 +10,18 @@ export class PayrollGlPostingRepository {
   private readonly db = createKyselyInstance(getPool());
   private readonly tableName = 'payroll_gl_postings' as const;
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async save(record: PayrollGlPostingRecord): Promise<void> {
     const row = this.toRow(record);
-    await this.db
+    await this.executor
       .insertInto(this.tableName)
       .values(row)
       .onConflict((oc: any) => oc
@@ -34,7 +43,7 @@ export class PayrollGlPostingRepository {
   }
 
   async findByPayrollCycle(tenantId: Uuid, payrollCycleId: Uuid): Promise<PayrollGlPostingRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
