@@ -141,6 +141,10 @@ export function WorkerPicker({
 
   const showDropdown = open && debouncedQuery.length > 0;
   const isSelected = Boolean(value) && committedIdRef.current === value;
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
+  const activeDescendant = showDropdown && highlightedIndex >= 0 && results[highlightedIndex]
+    ? optionId(highlightedIndex)
+    : undefined;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -156,6 +160,7 @@ export function WorkerPicker({
           aria-expanded={showDropdown}
           aria-controls={listboxId}
           aria-autocomplete="list"
+          aria-activedescendant={activeDescendant}
           aria-label={ariaLabel}
           className={cn('pl-9', isSelected ? 'pr-9' : undefined)}
           onChange={(event) => {
@@ -201,8 +206,10 @@ export function WorkerPicker({
             results.map((worker, index) => (
               <button
                 key={worker.id}
+                id={optionId(index)}
                 type="button"
                 role="option"
+                tabIndex={-1}
                 aria-selected={worker.id === value}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',

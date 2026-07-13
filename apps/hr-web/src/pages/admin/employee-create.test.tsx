@@ -53,7 +53,7 @@ describe('AdminEmployeeCreate hierarchy fields', () => {
       if (url === '/admin/hcm-setup') return apiResponse(DEFAULT_HCM_SETUP);
       if (url === '/hr/organization/org-units/tree') return apiResponse([]);
       if (url === '/hr/core/workers?pageSize=100') return apiResponse([]);
-      if (url === '/hr/core/workers?search=morgan&pageSize=10') {
+      if (url === '/hr/core/workers/directory-search?search=morgan&pageSize=10') {
         return apiResponse([
           {
             id: managerId,
@@ -90,7 +90,7 @@ describe('AdminEmployeeCreate hierarchy fields', () => {
     await user.click(await screen.findByText('Morgan Blake', {}, { timeout: 5000 }));
 
     expect(screen.getByLabelText('Direct Manager')).toHaveValue('Morgan Blake');
-    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/hr/core/workers?search=morgan&pageSize=10'), { timeout: 5000 });
+    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/hr/core/workers/directory-search?search=morgan&pageSize=10'), { timeout: 5000 });
   });
 
   it('searches the real worker directory instead of the capped 100-row static fetch', async () => {
@@ -100,7 +100,7 @@ describe('AdminEmployeeCreate hierarchy fields', () => {
     await user.click(await screen.findByRole('button', { name: 'Organization' }));
     await user.type(screen.getByLabelText('HR Business Partner'), 'morgan');
 
-    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/hr/core/workers?search=morgan&pageSize=10'), { timeout: 5000 });
+    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/hr/core/workers/directory-search?search=morgan&pageSize=10'), { timeout: 5000 });
     expect(await screen.findByText('EMP-6001 • Engineering Director', {}, { timeout: 5000 })).toBeInTheDocument();
   });
 });

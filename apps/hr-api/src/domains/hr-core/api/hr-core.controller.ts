@@ -584,10 +584,16 @@ export class HrCoreController {
   @Get('workers/directory-search')
   async searchWorkerDirectory(
     @Req() req: Request,
+    // Typed as string here for the common case, but Express/qs parses a repeated
+    // query param (?search=a&search=b) into a string[] at runtime regardless of
+    // this compile-time annotation -- guard with Array.isArray() below.
     @Query('search') search?: string,
     @Query('pageSize') pageSize?: string,
   ) {
     this.assertHrCoreDirectorySearchScope(req);
+    if (Array.isArray(search)) {
+      throw new BadRequestException('The search parameter must be a single value');
+    }
     const term = (search ?? '').trim();
     if (!term) {
       throw new BadRequestException('A search term is required');
@@ -595,7 +601,7 @@ export class HrCoreController {
     const tenantId = this.getTenantId(req);
     const limit = clampLimit(pageSize, { def: 10, max: 50 });
 
-    const workers = await this.workerRepo.searchForTenant(term, tenantId, { limit, offset: 0 });
+    const workers = await this.workerRepo.searchDirectoryForTenant(term, tenantId, { limit, offset: 0 });
 
     return workers.map((w) => this.toWorkerDirectoryDto(w));
   }

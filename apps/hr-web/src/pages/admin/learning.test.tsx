@@ -92,7 +92,7 @@ describe('AdminLearning', () => {
       }
       if (url === `/learning/assignments/tenant/${tenantId}`) return apiResponse([]);
       if (url === `/learning/certifications/tenant/${tenantId}`) return apiResponse([]);
-      if (url === '/hr/core/workers?search=priya&pageSize=10') {
+      if (url === '/hr/core/workers/directory-search?search=priya&pageSize=10') {
         return apiResponse([
           {
             id: assigneeWorkerId,

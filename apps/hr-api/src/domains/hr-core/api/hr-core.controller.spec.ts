@@ -64,6 +64,7 @@ describe('HrCoreController smoke test', () => {
     findActive: vi.fn(),
     search: vi.fn(),
     searchForTenant: vi.fn(),
+    searchDirectoryForTenant: vi.fn(),
     findByEmail: vi.fn(),
     findByEmailForTenant: vi.fn(),
     findByEmployeeNumber: vi.fn(),
@@ -491,7 +492,7 @@ describe('HrCoreController smoke test', () => {
     });
 
     it('returns only the minimal disambiguation fields, not the full admin payload', async () => {
-      (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+      (workerRepo.searchDirectoryForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
 
       const result = await controller.searchWorkerDirectory(requestForTenant(), 'alice');
 
@@ -506,6 +507,19 @@ describe('HrCoreController smoke test', () => {
       ]);
     });
 
+    it('searches via the name/employee-number-only repository method, never the email-inclusive admin search', async () => {
+      (workerRepo.searchDirectoryForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+      await controller.searchWorkerDirectory(requestForTenant(), 'alice');
+
+      expect(workerRepo.searchDirectoryForTenant).toHaveBeenCalledWith(
+        'alice',
+        expect.anything(),
+        expect.objectContaining({ limit: 10 }),
+      );
+      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+    });
+
     it.each([
       ['HR_ADMIN (existing admin caller)', ['HR_ADMIN']],
       ['EMPLOYEE (recognition-recipient picker)', ['EMPLOYEE']],
@@ -516,21 +530,28 @@ describe('HrCoreController smoke test', () => {
       ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
       ['ER_SPECIALIST', ['ER_SPECIALIST']],
     ])('allows %s to search the worker directory', async (_label, roles) => {
-      (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+      (workerRepo.searchDirectoryForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
 
       await expect(controller.searchWorkerDirectory(requestWithRoles(roles), 'alice')).resolves.toHaveLength(1);
-      expect(workerRepo.searchForTenant).toHaveBeenCalled();
+      expect(workerRepo.searchDirectoryForTenant).toHaveBeenCalled();
     });
 
     it('rejects roles with no directory-search grant', async () => {
       await expect(controller.searchWorkerDirectory(requestWithRoles([]), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
-      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+      expect(workerRepo.searchDirectoryForTenant).not.toHaveBeenCalled();
     });
 
     it('rejects a missing or blank search term even for privileged callers', async () => {
       await expect(controller.searchWorkerDirectory(requestForTenant())).rejects.toBeInstanceOf(BadRequestException);
       await expect(controller.searchWorkerDirectory(requestForTenant(), '   ')).rejects.toBeInstanceOf(BadRequestException);
-      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+      expect(workerRepo.searchDirectoryForTenant).not.toHaveBeenCalled();
+    });
+
+    it('rejects an array-valued search param (repeated ?search= query) with 400 instead of throwing a TypeError', async () => {
+      await expect(
+        controller.searchWorkerDirectory(requestForTenant(), ['alice', 'bob'] as unknown as string),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(workerRepo.searchDirectoryForTenant).not.toHaveBeenCalled();
     });
   });
 

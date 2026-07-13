@@ -120,7 +120,16 @@ const payrollRoleNames = new Set(['PAYROLL_ADMIN', 'COMPENSATION_ADMIN', 'HR_ADM
 // PAYROLL_ADMIN/COMPENSATION_ADMIN/BENEFITS_ADMIN/COMPLIANCE_OFFICER/ER_SPECIALIST — those
 // roles only carry WORKER_READ in the RBAC policy, not WORKER_CREATE/UPDATE/TERMINATE, and
 // use the /hr/core/workers/directory-search endpoint via WorkerPicker for name lookups instead.
-const hrCoreAdminRoleNames = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP']);
+const hrCoreAdminRoleNames = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'PEOPLE_ADMIN',
+  'WORKFORCE_PLANNING_ADMIN',
+  'SYSTEM_ACTOR',
+]);
 
 function RequireRoles({
   children,

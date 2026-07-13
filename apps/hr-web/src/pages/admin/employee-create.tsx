@@ -147,6 +147,18 @@ interface CreateEmployeeResult {
   status: string;
 }
 
+// Narrowed to the specific worker-reference fields the hierarchy pickers below write
+// to (all `string`, "none" meaning "unset"), so `update(fieldKey, ...)` type-checks
+// without widening to `keyof EmployeeCreateForm` and needing an `as never` cast.
+type HierarchyFieldKey = 'managerId' | 'dottedLineManagerId' | 'hrbpId' | 'mentorId';
+
+const hierarchyFields: ReadonlyArray<readonly [label: string, fieldKey: HierarchyFieldKey]> = [
+  ['Direct Manager', 'managerId'],
+  ['Dotted-Line Manager', 'dottedLineManagerId'],
+  ['HR Business Partner', 'hrbpId'],
+  ['Mentor / Buddy', 'mentorId'],
+];
+
 const steps = [
   { id: 'identity', label: 'Identity', icon: Contact },
   { id: 'address', label: 'Address', icon: MapPin },
@@ -1283,21 +1295,15 @@ export function AdminEmployeeCreate() {
             <section className="border-t pt-6">
               <h3 className="mb-4 text-base font-semibold">Hierarchy</h3>
               <div className="grid gap-4 md:grid-cols-4">
-                {[
-                  ['Direct Manager', 'managerId'],
-                  ['Dotted-Line Manager', 'dottedLineManagerId'],
-                  ['HR Business Partner', 'hrbpId'],
-                  ['Mentor / Buddy', 'mentorId'],
-                ].map(([label, key]) => {
-                  const fieldKey = key as keyof EmployeeCreateForm;
-                  const rawValue = String(form[fieldKey]);
+                {hierarchyFields.map(([label, fieldKey]) => {
+                  const rawValue = form[fieldKey];
                   return (
-                    <div key={key} className="grid gap-2">
-                      <Label htmlFor={`${key}-picker`}>{label}</Label>
+                    <div key={fieldKey} className="grid gap-2">
+                      <Label htmlFor={`${fieldKey}-picker`}>{label}</Label>
                       <WorkerPicker
-                        id={`${key}-picker`}
+                        id={`${fieldKey}-picker`}
                         value={rawValue === 'none' ? '' : rawValue}
-                        onChange={(workerId) => update(fieldKey, (workerId || 'none') as never)}
+                        onChange={(workerId) => update(fieldKey, workerId || 'none')}
                       />
                     </div>
                   );

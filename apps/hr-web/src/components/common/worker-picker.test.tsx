@@ -135,6 +135,29 @@ describe('WorkerPicker', () => {
     expect(await screen.findByText(/Unable to search workers/i)).toBeInTheDocument();
   });
 
+  it('exposes the keyboard-highlighted option via aria-activedescendant and keeps options out of tab order', async () => {
+    const user = userEvent.setup();
+    renderPicker();
+
+    const input = screen.getByRole('combobox');
+    await user.type(input, 'ali');
+
+    const aliceOption = await screen.findByText('Alice Nguyen');
+    const aliceButton = aliceOption.closest('button') as HTMLButtonElement;
+    const alanButton = screen.getByText('Alan Ortiz').closest('button') as HTMLButtonElement;
+
+    // Option buttons must not be natively Tab-focusable; keyboard focus stays on the input.
+    expect(aliceButton).toHaveAttribute('tabindex', '-1');
+    expect(alanButton).toHaveAttribute('tabindex', '-1');
+
+    // First result is highlighted by default, and the input points to it.
+    expect(aliceButton).toHaveAttribute('id');
+    expect(input).toHaveAttribute('aria-activedescendant', aliceButton.id);
+
+    await user.keyboard('{ArrowDown}');
+    expect(input).toHaveAttribute('aria-activedescendant', alanButton.id);
+  });
+
   it('shows a clear affordance for an existing selection and reports empty id/label on clear', async () => {
     const user = userEvent.setup();
     const { onChange } = renderPicker({ value: alice.id });
