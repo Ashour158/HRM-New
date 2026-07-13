@@ -10,23 +10,13 @@ import { Permissions } from '../../decorators/permissions.decorator.js';
 import { actorClientType, requireActor, requireTenantId } from '../http/request-context.js';
 import { CommandBus } from '../command-bus/command-bus.js';
 import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
-import type { ApprovalConditionOperator, ApprovalWorkflowRule } from '../../domains/hcm-setup/hcm-setup.types.js';
+import { APPROVAL_CONDITION_OPERATORS, type ApprovalWorkflowRule } from '../../domains/hcm-setup/hcm-setup.types.js';
 import { ApprovalWorkflowService } from './approval-workflow.service.js';
 import { ApprovalChain } from './approval-chain.aggregate.js';
 
 interface ApprovalConfigBody {
   rules?: ApprovalWorkflowRule[];
 }
-
-const APPROVAL_CONDITION_OPERATORS: ApprovalConditionOperator[] = [
-  'EQUALS',
-  'NOT_EQUALS',
-  'GREATER_THAN',
-  'LESS_THAN',
-  'GREATER_OR_EQUAL',
-  'LESS_OR_EQUAL',
-  'CONTAINS',
-];
 
 @ApiTags('Platform Workflow')
 @UseGuards(AuthGuard, PermissionGuard)
@@ -152,7 +142,7 @@ export class ApprovalChainController {
         ...rule,
         active: rule.active !== false,
         conditions,
-        conditionLogic: conditions.length > 0 ? (rule.conditionLogic === 'ANY' ? 'ANY' : 'ALL') : undefined,
+        conditionLogic: this.normalizeConditionLogic(rule.conditionLogic, conditions.length),
         steps: rule.steps
           .slice()
           .sort((left, right) => left.order - right.order)
@@ -164,6 +154,18 @@ export class ApprovalChainController {
           })),
       };
     });
+  }
+
+  private normalizeConditionLogic(
+    conditionLogic: ApprovalWorkflowRule['conditionLogic'],
+    conditionCount: number,
+  ): ApprovalWorkflowRule['conditionLogic'] {
+    if (conditionCount === 0) return undefined;
+    if (conditionLogic === undefined) return 'ALL';
+    if (conditionLogic !== 'ALL' && conditionLogic !== 'ANY') {
+      throw new BadRequestException(`Approval routing conditionLogic "${conditionLogic}" is not supported`);
+    }
+    return conditionLogic;
   }
 
   private normalizeConditions(conditions: ApprovalWorkflowRule['conditions']): NonNullable<ApprovalWorkflowRule['conditions']> {

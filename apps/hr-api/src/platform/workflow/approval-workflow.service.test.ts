@@ -364,12 +364,63 @@ describe('ApprovalWorkflowService field-level condition routing', () => {
   it('regression: a rule with no conditions still matches purely on commandName/aggregateType even when other conditioned rules exist', async () => {
     const repository = new InMemoryApprovalChainRepository();
     const service = new ApprovalWorkflowService(repository);
-    const setup = baseSetup([conditionedRule()]);
+    const setup = baseSetup([
+      conditionedRule({
+        code: 'NON_MATCHING_CONDITIONED_RULE',
+        conditions: [{ field: 'newAnnualSalary', operator: 'GREATER_THAN', value: 1_000_000_000 }],
+        steps: [{ code: 'EXEC_REVIEW', label: 'Executive review', active: true, order: 1, mode: 'SEQUENTIAL', approverType: 'ROLE', approverRole: 'EXECUTIVE', slaHours: 8 }],
+      }),
+      conditionedRule(),
+    ]);
 
     const pendingHighValue = await service.gateCommand(buildCommand({ newAnnualSalary: 999999 }), setup);
     const pendingLowValue = await service.gateCommand(buildCommand({ newAnnualSalary: 1 }), setup);
 
     expect(pendingHighValue?.success).toBe(true);
     expect(pendingLowValue?.success).toBe(true);
+  });
+
+  it.each([
+    ['GREATER_THAN', '2026-06-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', true],
+    ['GREATER_THAN', '2025-06-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', false],
+    ['LESS_THAN', '2025-06-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', true],
+    ['LESS_THAN', '2026-06-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z', false],
+  ] as const)('applies the %s operator to a Date-valued payload field (fix: unwrapValue stringifies Dates before toComparableNumber runs)', async (operator, actualIso, expectedIso, shouldIntercept) => {
+    const repository = new InMemoryApprovalChainRepository();
+    const service = new ApprovalWorkflowService(repository);
+    const setup = baseSetup([conditionedRule({
+      conditions: [{ field: 'effectiveDate', operator, value: expectedIso }],
+    })]);
+
+    const pending = await service.gateCommand(buildCommand({ effectiveDate: new Date(actualIso) }), setup);
+
+    if (shouldIntercept) {
+      expect(pending?.success).toBe(true);
+      expect(pending?.newState).toBe('PENDING_APPROVAL');
+    } else {
+      expect(pending).toBeUndefined();
+    }
+  });
+
+  it('applies the EQUALS operator on object-valued payload fields using real deep equality, not string coercion', async () => {
+    const repository = new InMemoryApprovalChainRepository();
+    const service = new ApprovalWorkflowService(repository);
+    const setup = baseSetup([conditionedRule({
+      conditions: [{ field: 'approvalMeta', operator: 'EQUALS', value: { region: 'APAC', tier: 2 } }],
+    })]);
+
+    const matching = await service.gateCommand(
+      buildCommand({ approvalMeta: { region: 'APAC', tier: 2 } }),
+      setup,
+    );
+    expect(matching?.success).toBe(true);
+
+    // Different structured value that would incorrectly compare equal under naive
+    // String(value) coercion (both objects stringify to "[object Object]").
+    const nonMatching = await service.gateCommand(
+      buildCommand({ approvalMeta: { region: 'EMEA', tier: 3 } }),
+      setup,
+    );
+    expect(nonMatching).toBeUndefined();
   });
 });

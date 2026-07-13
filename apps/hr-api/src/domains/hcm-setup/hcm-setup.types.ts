@@ -119,14 +119,17 @@ export type ApprovalWorkflowStepRule = SetupOption & {
  * Operators supported by field-level approval routing conditions. Deliberately a small,
  * structured set (not a full expression language) since this drives routing, not computation.
  */
-export type ApprovalConditionOperator =
-  | 'EQUALS'
-  | 'NOT_EQUALS'
-  | 'GREATER_THAN'
-  | 'LESS_THAN'
-  | 'GREATER_OR_EQUAL'
-  | 'LESS_OR_EQUAL'
-  | 'CONTAINS';
+export const APPROVAL_CONDITION_OPERATORS = [
+  'EQUALS',
+  'NOT_EQUALS',
+  'GREATER_THAN',
+  'LESS_THAN',
+  'GREATER_OR_EQUAL',
+  'LESS_OR_EQUAL',
+  'CONTAINS',
+] as const;
+
+export type ApprovalConditionOperator = (typeof APPROVAL_CONDITION_OPERATORS)[number];
 
 /** How multiple conditions on a rule combine: require all to match, or any one of them. */
 export type ApprovalConditionLogic = 'ALL' | 'ANY';

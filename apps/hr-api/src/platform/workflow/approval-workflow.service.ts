@@ -382,6 +382,9 @@ function looseEquals(actual: unknown, expected: unknown): boolean {
   const right = unwrapValue(expected);
   if (left === right) return true;
   if (left === null || left === undefined || right === null || right === undefined) return false;
+  if (typeof left === 'object' || typeof right === 'object') {
+    return deepEqual(left, right);
+  }
   if (typeof left === 'boolean' || typeof right === 'boolean') {
     return String(left).toLowerCase() === String(right).toLowerCase();
   }
@@ -391,6 +394,24 @@ function looseEquals(actual: unknown, expected: unknown): boolean {
     return leftNumber === rightNumber;
   }
   return String(left) === String(right);
+}
+
+/** Structural equality for object/array-valued condition fields — no string-coercion shortcuts. */
+function deepEqual(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (left === null || right === null) return false;
+  if (typeof left !== 'object' || typeof right !== 'object') return false;
+  const leftIsArray = Array.isArray(left);
+  const rightIsArray = Array.isArray(right);
+  if (leftIsArray !== rightIsArray) return false;
+  if (leftIsArray && rightIsArray) {
+    if (left.length !== right.length) return false;
+    return left.every((item, index) => deepEqual(item, right[index]));
+  }
+  const leftEntries = Object.entries(left as Record<string, unknown>);
+  const rightRecord = right as Record<string, unknown>;
+  if (leftEntries.length !== Object.keys(rightRecord).length) return false;
+  return leftEntries.every(([key, value]) => Object.hasOwn(rightRecord, key) && deepEqual(value, rightRecord[key]));
 }
 
 function containsMatch(actual: unknown, expected: unknown): boolean {
@@ -408,7 +429,11 @@ function toComparableNumber(value: unknown): number | undefined {
   if (typeof value === 'number') return Number.isFinite(value) ? value : undefined;
   if (typeof value === 'string' && value.trim() !== '') {
     const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : undefined;
+    if (Number.isFinite(parsed)) return parsed;
+    // unwrapValue() serializes Date-valued payload fields to ISO strings before this runs, so
+    // GREATER_THAN/LESS_THAN/etc. conditions on Date fields need a date-parse fallback here too.
+    const parsedDate = Date.parse(value);
+    return Number.isFinite(parsedDate) ? parsedDate : undefined;
   }
   if (value instanceof Date) return value.getTime();
   return undefined;

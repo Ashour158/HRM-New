@@ -63,8 +63,20 @@ describe('builder primitives', () => {
       />,
     );
 
+    // ConditionRowBuilder is a controlled, presentational component: the rendered `value`/`field`
+    // props stay fixed in this test (no parent state wiring), so each keystroke's change event
+    // reflects the DOM's current text at that instant rather than an accumulating string. Typing
+    // a single character is enough to prove the input is wired to onChange at all.
+    const fieldInput = screen.getByLabelText('Payload field');
+    await user.type(fieldInput, '!');
+    expect(onChange).toHaveBeenCalledWith({ field: 'newAnnualSalary!' });
+
     await user.selectOptions(screen.getByLabelText('Operator'), 'LESS_THAN');
     expect(onChange).toHaveBeenCalledWith({ operator: 'LESS_THAN' });
+
+    const valueInput = screen.getByLabelText('Value');
+    await user.type(valueInput, '5');
+    expect(onChange).toHaveBeenCalledWith({ value: '100005' });
 
     await user.click(screen.getByRole('button', { name: 'Remove condition' }));
     expect(onRemove).toHaveBeenCalledTimes(1);
