@@ -1743,7 +1743,30 @@ export interface PayrollGlPostingsTable {
   updated_at: Date;
 }
 
-
+export interface PayrollCycleCloseJobsTable {
+  id: string;
+  tenant_id: string;
+  status: string;
+  year: number;
+  month: number;
+  work_location_code: string | null;
+  close_cycle: boolean;
+  batch_size: number;
+  total_employees: number;
+  processed_employees: number;
+  total_batches: number;
+  current_batch: number;
+  payroll_cycle_id: string | null;
+  payroll_calculation_run_id: string | null;
+  errors: unknown;
+  error_message: string | null;
+  result: unknown;
+  requested_by: string | null;
+  started_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
 
 export interface ShiftSchedulesTable {
   id: string;
@@ -2438,6 +2461,7 @@ export interface Database {
   payroll_payslip_artifacts: PayrollPayslipArtifactsTable;
   payroll_export_jobs: PayrollExportJobsTable;
   payroll_gl_postings: PayrollGlPostingsTable;
+  payroll_cycle_close_jobs: PayrollCycleCloseJobsTable;
 
   shift_schedules: ShiftSchedulesTable;
   open_shifts: OpenShiftsTable;
