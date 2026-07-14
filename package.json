@@ -18,6 +18,7 @@
     "locale:scan": "node scripts/locale-scan.mjs",
     "check:no-compiled-output-in-src": "node scripts/check-no-compiled-output-in-src.mjs",
     "ci:verify-deployment-envelope": "node scripts/verify-deployment-envelope.mjs",
+    "test:build-tooling": "node --test scripts/verify-tsc-output.test.mjs",
     "runtime:smoke": "node scripts/runtime-smoke.mjs",
     "runtime:golden-workflow": "node scripts/golden-workflow-smoke.mjs",
     "db:migrate": "pnpm exec dotenv -e .env -- pnpm --filter @hcm/database migrate",
