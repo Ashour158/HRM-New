@@ -11,7 +11,15 @@ import { CountryPolicyImpactSimulationRepository } from './repositories/country-
 import { UploadCountryPolicyPackHandler } from './commands/upload-country-policy-pack.handler.js';
 import { ValidateCountryPolicyPackHandler } from './commands/validate-country-policy-pack.handler.js';
 import { SimulateCountryPolicyPackImpactHandler } from './commands/simulate-country-policy-pack-impact.handler.js';
+import { SubmitCountryPolicyPackForLegalReviewHandler } from './commands/submit-country-policy-pack-for-legal-review.handler.js';
+import { SubmitCountryPolicyPackForPayrollTaxReviewHandler } from './commands/submit-country-policy-pack-for-payroll-tax-review.handler.js';
+import { SubmitCountryPolicyPackForGlobalHRReviewHandler } from './commands/submit-country-policy-pack-for-global-hr-review.handler.js';
+import { SubmitCountryPolicyPackForBenefitsReviewHandler } from './commands/submit-country-policy-pack-for-benefits-review.handler.js';
+import { SubmitCountryPolicyPackForAbsenceReviewHandler } from './commands/submit-country-policy-pack-for-absence-review.handler.js';
+import { SubmitCountryPolicyPackForComplianceReviewHandler } from './commands/submit-country-policy-pack-for-compliance-review.handler.js';
+import { SubmitCountryPolicyPackForApprovalHandler } from './commands/submit-country-policy-pack-for-approval.handler.js';
 import { ApproveCountryPolicyPackHandler } from './commands/approve-country-policy-pack.handler.js';
+import { RejectCountryPolicyPackHandler } from './commands/reject-country-policy-pack.handler.js';
 import { PublishCountryPolicyPackHandler } from './commands/publish-country-policy-pack.handler.js';
 import { CountryPolicyEventsPublisher } from './events/country-policy-events.publisher.js';
 import { CountryPolicyPublicationSaga } from './sagas/country-policy-publication-saga.js';
@@ -38,7 +46,15 @@ import { CountryPolicyPublicationSaga } from './sagas/country-policy-publication
     UploadCountryPolicyPackHandler,
     ValidateCountryPolicyPackHandler,
     SimulateCountryPolicyPackImpactHandler,
+    SubmitCountryPolicyPackForLegalReviewHandler,
+    SubmitCountryPolicyPackForPayrollTaxReviewHandler,
+    SubmitCountryPolicyPackForGlobalHRReviewHandler,
+    SubmitCountryPolicyPackForBenefitsReviewHandler,
+    SubmitCountryPolicyPackForAbsenceReviewHandler,
+    SubmitCountryPolicyPackForComplianceReviewHandler,
+    SubmitCountryPolicyPackForApprovalHandler,
     ApproveCountryPolicyPackHandler,
+    RejectCountryPolicyPackHandler,
     PublishCountryPolicyPackHandler,
     // Event publisher
     CountryPolicyEventsPublisher,

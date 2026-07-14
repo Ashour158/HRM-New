@@ -28,6 +28,18 @@ export type CountryPolicyPackStatus =
   | 'VALIDATION_FAILED';
 
 /**
+ * The review types that make up the multi-stakeholder review gate.
+ * Values mirror {@code ApprovalStep.stepType} in @hcm/policy-engines.
+ */
+export type CountryPolicyReviewType =
+  | 'LEGAL'
+  | 'PAYROLL_TAX'
+  | 'GLOBAL_HR'
+  | 'BENEFITS'
+  | 'ABSENCE'
+  | 'COMPLIANCE';
+
+/**
  * Properties required to construct a {@link CountryPolicyPack}.
  */
 export interface CountryPolicyPackProps {
@@ -40,6 +52,7 @@ export interface CountryPolicyPackProps {
   status?: CountryPolicyPackStatus;
   sections?: Record<string, unknown>;
   requiredApprovals?: string[];
+  completedReviews?: string[];
   sourceEvidence?: Record<string, unknown>;
   recalculationRequired?: boolean;
   uploadedBy?: Uuid;
@@ -48,6 +61,9 @@ export interface CountryPolicyPackProps {
   publishedBy?: Uuid;
   supersededBy?: Uuid;
   rollbackReason?: string;
+  rejectedBy?: Uuid;
+  rejectedAt?: Date;
+  rejectionReason?: string;
   aggregateVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -220,8 +236,17 @@ export class CountryPolicyPackRolledBack extends DomainEvent {
 
 export class CountryPolicyPackRejected extends DomainEvent {
   readonly countryCode: string;
+  readonly rejectedBy: string;
+  readonly reason: string;
 
-  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid; countryCode: string }) {
+  constructor(props: {
+    tenantId: Uuid;
+    aggregateId: Uuid;
+    correlationId: Uuid;
+    countryCode: string;
+    rejectedBy: Uuid;
+    reason: string;
+  }) {
     super({
       eventName: 'CountryPolicyPackRejected',
       tenantId: props.tenantId,
@@ -230,6 +255,8 @@ export class CountryPolicyPackRejected extends DomainEvent {
       correlationId: props.correlationId,
     });
     this.countryCode = props.countryCode;
+    this.rejectedBy = props.rejectedBy.value;
+    this.reason = props.reason;
   }
 }
 
@@ -274,6 +301,7 @@ export class CountryPolicyPack extends AggregateRoot {
   status: CountryPolicyPackStatus;
   sections: Record<string, unknown>;
   requiredApprovals: string[];
+  completedReviews: string[];
   sourceEvidence: Record<string, unknown>;
   recalculationRequired: boolean;
   uploadedBy?: Uuid;
@@ -282,6 +310,9 @@ export class CountryPolicyPack extends AggregateRoot {
   publishedBy?: Uuid;
   supersededBy?: Uuid;
   rollbackReason?: string;
+  rejectedBy?: Uuid;
+  rejectedAt?: Date;
+  rejectionReason?: string;
   createdAt: Date;
   updatedAt: Date;
 
@@ -299,6 +330,7 @@ export class CountryPolicyPack extends AggregateRoot {
     this.status = props.status ?? 'DRAFT';
     this.sections = props.sections ?? {};
     this.requiredApprovals = props.requiredApprovals ?? [];
+    this.completedReviews = props.completedReviews ?? [];
     this.sourceEvidence = props.sourceEvidence ?? {};
     this.recalculationRequired = props.recalculationRequired ?? false;
     this.uploadedBy = props.uploadedBy;
@@ -307,6 +339,9 @@ export class CountryPolicyPack extends AggregateRoot {
     this.publishedBy = props.publishedBy;
     this.supersededBy = props.supersededBy;
     this.rollbackReason = props.rollbackReason;
+    this.rejectedBy = props.rejectedBy;
+    this.rejectedAt = props.rejectedAt;
+    this.rejectionReason = props.rejectionReason;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
     if (props.aggregateVersion !== undefined) {
@@ -428,6 +463,16 @@ export class CountryPolicyPack extends AggregateRoot {
   }
 
   /**
+   * Marks a review type as completed. Idempotent: submitting the same
+   * review step more than once does not create duplicate entries.
+   */
+  private markReviewCompleted(reviewType: CountryPolicyReviewType): void {
+    if (!this.completedReviews.includes(reviewType)) {
+      this.completedReviews.push(reviewType);
+    }
+  }
+
+  /**
    * Submit for legal review (IMPACT_SIMULATED → LEGAL_REVIEW_PENDING).
    */
   submitForLegalReview(_correlationId: Uuid): void {
@@ -437,6 +482,7 @@ export class CountryPolicyPack extends AggregateRoot {
       throw new ValidationError(`Cannot submit for legal review from state ${this.status}`);
     }
     this.status = 'LEGAL_REVIEW_PENDING';
+    this.markReviewCompleted('LEGAL');
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -451,6 +497,7 @@ export class CountryPolicyPack extends AggregateRoot {
       throw new ValidationError(`Cannot submit for payroll tax review from state ${this.status}`);
     }
     this.status = 'PAYROLL_TAX_REVIEW_PENDING';
+    this.markReviewCompleted('PAYROLL_TAX');
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -465,6 +512,7 @@ export class CountryPolicyPack extends AggregateRoot {
       throw new ValidationError(`Cannot submit for global HR review from state ${this.status}`);
     }
     this.status = 'GLOBAL_HR_REVIEW_PENDING';
+    this.markReviewCompleted('GLOBAL_HR');
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -479,6 +527,7 @@ export class CountryPolicyPack extends AggregateRoot {
       throw new ValidationError(`Cannot submit for benefits review from state ${this.status}`);
     }
     this.status = 'BENEFITS_REVIEW_PENDING';
+    this.markReviewCompleted('BENEFITS');
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -493,6 +542,7 @@ export class CountryPolicyPack extends AggregateRoot {
       throw new ValidationError(`Cannot submit for absence review from state ${this.status}`);
     }
     this.status = 'ABSENCE_REVIEW_PENDING';
+    this.markReviewCompleted('ABSENCE');
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -507,12 +557,19 @@ export class CountryPolicyPack extends AggregateRoot {
       throw new ValidationError(`Cannot submit for compliance review from state ${this.status}`);
     }
     this.status = 'COMPLIANCE_REVIEW_PENDING';
+    this.markReviewCompleted('COMPLIANCE');
     this.incrementVersion();
     this.updatedAt = new Date();
   }
 
   /**
    * Submit for approval after all reviews complete.
+   *
+   * Real gate: every entry in {@link requiredApprovals} must have a matching
+   * entry in {@link completedReviews} (i.e. the corresponding SubmitFor*Review
+   * call must have actually run) before the transition to APPROVAL_PENDING is
+   * allowed. This is what makes the review gate meaningful rather than a bare
+   * status-string flip.
    */
   submitForApproval(_correlationId: Uuid): void {
     const validStates: CountryPolicyPackStatus[] = [
@@ -526,6 +583,14 @@ export class CountryPolicyPack extends AggregateRoot {
     ];
     if (!validStates.includes(this.status)) {
       throw new ValidationError(`Cannot submit for approval from state ${this.status}`);
+    }
+    const missingReviews = (this.requiredApprovals ?? []).filter(
+      (required) => !this.completedReviews.includes(required),
+    );
+    if (missingReviews.length > 0) {
+      throw new ValidationError(
+        `Cannot submit for approval: the following required reviews have not been completed: ${missingReviews.join(', ')}`,
+      );
     }
     this.status = 'APPROVAL_PENDING';
     this.incrementVersion();
@@ -650,19 +715,27 @@ export class CountryPolicyPack extends AggregateRoot {
   }
 
   /**
-   * Reject the pack.
+   * Reject the pack (APPROVAL_PENDING → REJECTED).
+   *
+   * Captures who rejected the pack and why, for audit purposes.
    */
-  reject(_correlationId: Uuid): void {
+  reject(rejectedBy: Uuid, reason: string, correlationId: Uuid): void {
     if (this.status !== 'APPROVAL_PENDING') {
       throw new ValidationError(`Cannot reject from state ${this.status}`);
     }
+    Guard.againstEmptyString(reason, 'reason');
     this.status = 'REJECTED';
+    this.rejectedBy = rejectedBy;
+    this.rejectedAt = new Date();
+    this.rejectionReason = reason;
     this.addDomainEvent(
       new CountryPolicyPackRejected({
         tenantId: this.tenantId,
         aggregateId: this.id,
-        correlationId: _correlationId,
+        correlationId,
         countryCode: this.countryCode,
+        rejectedBy,
+        reason,
       }),
     );
     this.incrementVersion();
