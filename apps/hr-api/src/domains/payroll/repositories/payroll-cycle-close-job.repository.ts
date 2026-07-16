@@ -83,9 +83,14 @@ export class PayrollCycleCloseJobRepository {
       current_batch: 0,
       payroll_cycle_id: null,
       payroll_calculation_run_id: null,
-      errors: [],
+      // jsonb columns: serialize explicitly. node-postgres renders a JS array as a
+      // Postgres array literal (invalid for jsonb), so `errors` (an array) must be
+      // JSON.stringify'd; `result` is stringified too for consistency (pg casts the
+      // JSON text to jsonb either way). See PROD-2 jsonb serialization fix precedent
+      // in payroll-payment-batch.repository.ts / payroll-gl-posting.repository.ts.
+      errors: JSON.stringify([]),
       error_message: null,
-      result: {},
+      result: JSON.stringify({}),
       requested_by: input.requestedBy ?? null,
       started_at: now,
       finished_at: null,
@@ -118,7 +123,10 @@ export class PayrollCycleCloseJobRepository {
     if (patch.totalEmployees !== undefined) update.total_employees = patch.totalEmployees;
     if (patch.payrollCycleId !== undefined) update.payroll_cycle_id = patch.payrollCycleId;
     if (patch.payrollCalculationRunId !== undefined) update.payroll_calculation_run_id = patch.payrollCalculationRunId;
-    if (patch.errors !== undefined) update.errors = patch.errors as unknown as Record<string, unknown>;
+    // jsonb array column: must be JSON.stringify'd (see comment in create()) or
+    // node-postgres will send a Postgres array literal instead of JSON, which fails
+    // to cast into jsonb for any non-empty errors array.
+    if (patch.errors !== undefined) update.errors = JSON.stringify(patch.errors) as unknown as Record<string, unknown>;
     await this.db
       .updateTable(this.tableName)
       .set(update)
@@ -132,7 +140,7 @@ export class PayrollCycleCloseJobRepository {
       .updateTable(this.tableName)
       .set({
         status: 'SUCCEEDED',
-        result: result as unknown as Record<string, unknown>,
+        result: JSON.stringify(result ?? {}) as unknown as Record<string, unknown>,
         finished_at: new Date(),
         updated_at: new Date().toISOString(),
       })

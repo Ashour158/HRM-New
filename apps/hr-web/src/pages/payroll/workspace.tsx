@@ -351,6 +351,10 @@ export function PayrollWorkspace() {
         </div>
       </div>
 
+      {/* Establishes the h2 level between the page h1 and the card titles (h3) below,
+          so the heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">Payroll workspace sections</h2>
+
       {activeJobId ? (
         <Card className="rounded-3xl border-white/60 bg-white/75 shadow-sm" role="status" aria-live="polite">
           <CardContent className="space-y-3 p-5">

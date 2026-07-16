@@ -69,7 +69,7 @@ export function AuditTrail({ resourceType, resourceId }: AuditTrailProps) {
         <div className="space-y-1">
           <label className="text-sm font-medium">Action</label>
           <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-[180px]" aria-label="Action">
               <SelectValue placeholder="All actions" />
             </SelectTrigger>
             <SelectContent>
