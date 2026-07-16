@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -111,14 +111,14 @@ export class AbsenceRequestRepository extends BaseRepository<'absence_requests',
       startDate: normalizeDateColumn(row.start_date),
       endDate: normalizeDateColumn(row.end_date),
       durationUnit: row.duration_unit as AbsenceDurationUnit,
-      durationAmount: Number(row.duration_amount),
+      durationAmount: parseNumeric(row.duration_amount),
       startTime: row.start_time ?? undefined,
       endTime: row.end_time ?? undefined,
       paid: row.paid,
       deductFromBalance: row.deduct_from_balance,
       payrollImpact: row.payroll_impact as AbsencePayrollImpact,
       calendarDays: row.calendar_days,
-      workingDays: Number(row.working_days),
+      workingDays: parseNumeric(row.working_days),
       excludedHolidayDates: this.parseHolidayDates(row.excluded_holiday_dates),
       reason: row.reason ?? undefined,
       status: row.status as AbsenceRequestStatus,

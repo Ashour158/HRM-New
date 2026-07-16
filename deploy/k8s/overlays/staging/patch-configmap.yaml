@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hcm-platform-config
+data:
+  # Connection-pool budget, scaled down for staging (see deploy/k8s/base/configmap.yaml
+  # for the full explanation of the formula). Staging's hcm-api HPA maxReplicas is 3
+  # (deploy/k8s/overlays/staging/patch-api-hpa.yaml), and the pool sizes keep the same
+  # 3:1 DATABASE_URL:SYSTEM_DATABASE_URL ratio as production (6:2) at a smaller scale:
+  # worst case total = 3 x (3 + 1) = 12 connections, comfortably under even a modest
+  # staging Postgres instance's max_connections (typically 50-100 on the smallest
+  # managed tiers). Recompute this if you change staging's maxReplicas or pool sizes.
+  DB_POOL_MAX: "3"
+  DB_SYSTEM_POOL_MAX: "1"
+  # Staging's own ingress host (see patch-ingress.yaml) — must match or browser
+  # requests from the staging web app to the staging API will be rejected by CORS.
+  CORS_ORIGINS: https://staging.hcm.example.com
