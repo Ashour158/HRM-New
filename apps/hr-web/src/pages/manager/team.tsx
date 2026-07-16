@@ -4,7 +4,7 @@ import { useApiQuery } from '@/hooks/use-api';
 import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -773,10 +773,11 @@ export function ManagerTeam() {
         <Card className="bg-white/70">
           <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
             <div>
-              <CardTitle className="flex items-center gap-2">
+              {/* Rendered as h2 (not CardTitle's default h3) to keep heading levels sequential directly under the page h1. */}
+              <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
                 <Clock3 className="h-5 w-5 text-indigo-500" />
                 Team Attendance
-              </CardTitle>
+              </h2>
               <CardDescription>Who is in today, exceptions, and hours across your direct reports.</CardDescription>
             </div>
             <Select value={attendanceRange} onValueChange={(value) => setAttendanceRange(value as AttendancePeriodRange)}>
@@ -799,7 +800,7 @@ export function ManagerTeam() {
             </div>
 
             <div>
-              <h4 className="mb-2 text-sm font-bold text-slate-900">Who's in today</h4>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Who's in today</h3>
               <DataTable
                 columns={todayLedgerColumns}
                 data={dailyLedger?.rows ?? []}
@@ -811,7 +812,7 @@ export function ManagerTeam() {
 
             {(dailyLedger?.exceptionQueue ?? []).length > 0 ? (
               <div>
-                <h4 className="mb-2 text-sm font-bold text-slate-900">Needs attention</h4>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">Needs attention</h3>
                 <div className="space-y-2">
                   {(dailyLedger?.exceptionQueue ?? []).slice(0, 5).map((item, index) => (
                     <div key={`${item.workerId}-${item.description}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/60 bg-white/55 px-3 py-2 text-sm">
@@ -827,7 +828,7 @@ export function ManagerTeam() {
             ) : null}
 
             <div>
-              <h4 className="mb-2 text-sm font-bold text-slate-900">Team roster - {rangeLabel(attendanceRange)}</h4>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Team roster - {rangeLabel(attendanceRange)}</h3>
               <DataTable
                 columns={teamRosterColumns}
                 data={sortedTeamRoster}
@@ -844,10 +845,11 @@ export function ManagerTeam() {
 
         <Card className="bg-white/70">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            {/* Rendered as h2 (not CardTitle's default h3) to keep heading levels sequential directly under the page h1. */}
+            <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
               <Sparkles className="h-5 w-5 text-violet-500" />
               Team Performance
-            </CardTitle>
+            </h2>
             <CardDescription>Rating distribution, goal health, and talent grid across your direct reports.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -865,7 +867,7 @@ export function ManagerTeam() {
             )}
 
             <div>
-              <h4 className="mb-2 text-sm font-bold text-slate-900">Talent grid</h4>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Talent grid</h3>
               <div className="space-y-2">
                 {(performanceDashboard?.analytics?.nineBox ?? []).length > 0 ? (performanceDashboard?.analytics?.nineBox ?? []).slice(0, 5).map((item) => (
                   <div key={item.workerId} className="flex items-center justify-between gap-3 rounded-xl border border-white/60 bg-white/55 px-3 py-2 text-sm">
@@ -882,7 +884,7 @@ export function ManagerTeam() {
             </div>
 
             <div>
-              <h4 className="mb-2 text-sm font-bold text-slate-900">Action plans</h4>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Action plans</h3>
               <div className="space-y-2">
                 {(performanceDashboard?.analytics?.actionPlans ?? []).length > 0 ? (performanceDashboard?.analytics?.actionPlans ?? [])
                   .slice()
