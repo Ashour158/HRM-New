@@ -27,7 +27,7 @@ images:
   # freshly built image tag before applying (see
   # .github/workflows/deploy-staging.yml), so staging can run ahead of the
   # last tagged production release without editing this file by hand.
-  - name: ghcr.io/your-org/hr-hcm-api
+  - name: ghcr.io/Ashour158/hr-hcm-api
     newTag: v1.4.0
-  - name: ghcr.io/your-org/hr-hcm-web
+  - name: ghcr.io/Ashour158/hr-hcm-web
     newTag: v1.4.0

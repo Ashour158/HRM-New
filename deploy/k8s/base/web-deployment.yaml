@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: web
-          image: ghcr.io/your-org/hr-hcm-web:v1.4.0
+          image: ghcr.io/Ashour158/hr-hcm-web:v1.4.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

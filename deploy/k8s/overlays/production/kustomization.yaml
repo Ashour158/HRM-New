@@ -14,7 +14,7 @@ resources:
   - ../../base
 
 images:
-  - name: ghcr.io/your-org/hr-hcm-api
+  - name: ghcr.io/Ashour158/hr-hcm-api
     newTag: v1.4.0
-  - name: ghcr.io/your-org/hr-hcm-web
+  - name: ghcr.io/Ashour158/hr-hcm-web
     newTag: v1.4.0
