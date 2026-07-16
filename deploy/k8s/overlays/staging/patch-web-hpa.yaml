@@ -1,0 +1,8 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hcm-web
+spec:
+  # Down from 2/6 in production.
+  minReplicas: 1
+  maxReplicas: 2
