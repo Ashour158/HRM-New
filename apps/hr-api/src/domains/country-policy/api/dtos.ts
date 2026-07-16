@@ -48,6 +48,74 @@ export class SimulateCountryPolicyPackImpactDto {
   @ApiProperty() simulationScope!: string;
 }
 
+export const SubmitForLegalReviewDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForLegalReviewDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SubmitForPayrollTaxReviewDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForPayrollTaxReviewDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SubmitForGlobalHRReviewDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForGlobalHRReviewDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SubmitForBenefitsReviewDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForBenefitsReviewDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SubmitForAbsenceReviewDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForAbsenceReviewDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SubmitForComplianceReviewDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForComplianceReviewDto {
+  @ApiProperty() packId!: string;
+}
+
+export const SubmitForApprovalDtoSchema = z.object({
+  packId: z.string().uuid(),
+});
+
+export class SubmitForApprovalDto {
+  @ApiProperty() packId!: string;
+}
+
+export const RejectCountryPolicyPackDtoSchema = z.object({
+  packId: z.string().uuid(),
+  rejectedBy: z.string().uuid(),
+  reason: z.string().min(1),
+});
+
+export class RejectCountryPolicyPackDto {
+  @ApiProperty() packId!: string;
+  @ApiProperty() rejectedBy!: string;
+  @ApiProperty() reason!: string;
+}
+
 export const ApproveCountryPolicyPackDtoSchema = z.object({
   packId: z.string().uuid(),
   approvedBy: z.string().uuid(),

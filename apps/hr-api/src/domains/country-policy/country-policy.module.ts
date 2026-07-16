@@ -21,12 +21,12 @@ import { SubmitCountryPolicyPackForAbsenceReviewHandler } from './commands/submi
 import { SubmitCountryPolicyPackForComplianceReviewHandler } from './commands/submit-country-policy-pack-for-compliance-review.handler.js';
 import { SubmitCountryPolicyPackForApprovalHandler } from './commands/submit-country-policy-pack-for-approval.handler.js';
 import { ApproveCountryPolicyPackHandler } from './commands/approve-country-policy-pack.handler.js';
+import { RejectCountryPolicyPackHandler } from './commands/reject-country-policy-pack.handler.js';
 import { ScheduleCountryPolicyPackPublicationHandler } from './commands/schedule-country-policy-pack-publication.handler.js';
 import { PublishCountryPolicyPackHandler } from './commands/publish-country-policy-pack.handler.js';
 import { SupersedeCountryPolicyPackHandler } from './commands/supersede-country-policy-pack.handler.js';
 import { RollbackCountryPolicyPackHandler } from './commands/rollback-country-policy-pack.handler.js';
 import { RetireCountryPolicyPackHandler } from './commands/retire-country-policy-pack.handler.js';
-import { RejectCountryPolicyPackHandler } from './commands/reject-country-policy-pack.handler.js';
 import { QuarantineCountryPolicyPackHandler } from './commands/quarantine-country-policy-pack.handler.js';
 import { CountryPolicyEventsPublisher } from './events/country-policy-events.publisher.js';
 import { CountryPolicyPublicationSaga } from './sagas/country-policy-publication-saga.js';
@@ -63,12 +63,12 @@ import { CountryPolicyPublicationSaga } from './sagas/country-policy-publication
     SubmitCountryPolicyPackForComplianceReviewHandler,
     SubmitCountryPolicyPackForApprovalHandler,
     ApproveCountryPolicyPackHandler,
+    RejectCountryPolicyPackHandler,
     ScheduleCountryPolicyPackPublicationHandler,
     PublishCountryPolicyPackHandler,
     SupersedeCountryPolicyPackHandler,
     RollbackCountryPolicyPackHandler,
     RetireCountryPolicyPackHandler,
-    RejectCountryPolicyPackHandler,
     QuarantineCountryPolicyPackHandler,
     // Event publisher
     CountryPolicyEventsPublisher,

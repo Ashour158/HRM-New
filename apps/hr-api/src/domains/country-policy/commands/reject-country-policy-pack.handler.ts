@@ -7,6 +7,8 @@ import { CountryPolicyPackRepository } from '../repositories/country-policy-pack
 
 export interface RejectCountryPolicyPackPayload {
   packId: string;
+  rejectedBy: string;
+  reason: string;
 }
 
 /**
@@ -28,12 +30,17 @@ export class RejectCountryPolicyPackHandler implements ICommandHandler {
       throw new ValidationError('Country policy pack not found');
     }
 
-    pack.reject(command.correlationId);
+    pack.reject(new Uuid(payload.rejectedBy), payload.reason, command.correlationId);
     await this.repo.save(pack);
 
     return {
       success: true,
-      data: { packId: pack.id.value, status: pack.status },
+      data: {
+        packId: pack.id.value,
+        status: pack.status,
+        rejectedBy: pack.rejectedBy?.value,
+        rejectionReason: pack.rejectionReason,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: pack.id,

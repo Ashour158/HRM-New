@@ -80,7 +80,7 @@ describe('CountryPolicyPack lifecycle handlers (HCM-P0-19)', () => {
 
     vi.mocked(repo.findById).mockResolvedValue(packAtState('LEGAL_REVIEW_PENDING'));
     const submitted = await new SubmitCountryPolicyPackForApprovalHandler(repo).handle(
-      command('SubmitCountryPolicyPackForApproval'),
+      command('SubmitForApproval'),
     );
     expect(submitted.newState).toBe('APPROVAL_PENDING');
     expect(vi.mocked(repo.save)).toHaveBeenCalledTimes(4);
@@ -112,7 +112,9 @@ describe('CountryPolicyPack lifecycle handlers (HCM-P0-19)', () => {
 
   it('rejects from APPROVAL_PENDING and quarantines from any non-terminal state', async () => {
     vi.mocked(repo.findById).mockResolvedValue(packAtState('APPROVAL_PENDING'));
-    const rejected = await new RejectCountryPolicyPackHandler(repo).handle(command('RejectCountryPolicyPack'));
+    const rejected = await new RejectCountryPolicyPackHandler(repo).handle(
+      command('RejectCountryPolicyPack', { rejectedBy: Uuid.generate().value, reason: 'Statutory correction required' }),
+    );
     expect(rejected.newState).toBe('REJECTED');
 
     vi.mocked(repo.findById).mockResolvedValue(packAtState('LEGAL_REVIEW_PENDING'));

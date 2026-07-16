@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric, parseNullableNumeric } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { KpiMeasurement, type KpiMeasurementStatus } from '../aggregates/kpi-measurement.aggregate.js';
 
@@ -46,10 +46,10 @@ export class KpiMeasurementRepository extends BaseRepository<'kpi_measurements',
       kpiId: new Uuid(row.kpi_id),
       periodStart: row.period_start,
       periodEnd: row.period_end,
-      actualValue: row.actual_value,
-      targetValue: row.target_value ?? undefined,
-      variance: row.variance ?? undefined,
-      variancePercentage: row.variance_percentage ?? undefined,
+      actualValue: parseNumeric(row.actual_value),
+      targetValue: parseNullableNumeric(row.target_value),
+      variance: parseNullableNumeric(row.variance),
+      variancePercentage: parseNullableNumeric(row.variance_percentage),
       status: (row.status as KpiMeasurementStatus) ?? 'RECORDED',
       recordedBy: row.recorded_by ? new Uuid(row.recorded_by) : undefined,
       validatedBy: row.validated_by ? new Uuid(row.validated_by) : undefined,

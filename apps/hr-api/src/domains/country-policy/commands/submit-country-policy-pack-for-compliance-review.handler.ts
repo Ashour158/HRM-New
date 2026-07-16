@@ -5,7 +5,7 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import { Uuid, ValidationError } from '@hcm/shared-kernel';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
 
-export interface SubmitForComplianceReviewPayload {
+export interface SubmitCountryPolicyPackForComplianceReviewPayload {
   packId: string;
 }
 
@@ -22,7 +22,7 @@ export class SubmitCountryPolicyPackForComplianceReviewHandler implements IComma
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as SubmitForComplianceReviewPayload;
+    const payload = command.payload as SubmitCountryPolicyPackForComplianceReviewPayload;
     const pack = await this.repo.findById(new Uuid(payload.packId));
     if (!pack) {
       throw new ValidationError('Country policy pack not found');
@@ -33,7 +33,7 @@ export class SubmitCountryPolicyPackForComplianceReviewHandler implements IComma
 
     return {
       success: true,
-      data: { packId: pack.id.value, status: pack.status },
+      data: { packId: pack.id.value, status: pack.status, completedReviews: pack.completedReviews },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: pack.id,
@@ -45,7 +45,7 @@ export class SubmitCountryPolicyPackForComplianceReviewHandler implements IComma
         'SubmitForGlobalHRReview',
         'SubmitForBenefitsReview',
         'SubmitForAbsenceReview',
-        'SubmitCountryPolicyPackForApproval',
+        'SubmitForApproval',
       ],
       fieldAccessDecisions: {},
       eventsEmitted: pack.domainEvents.map((e) => e.eventName),

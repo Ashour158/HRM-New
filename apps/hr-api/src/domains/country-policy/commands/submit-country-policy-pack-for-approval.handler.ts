@@ -10,12 +10,16 @@ export interface SubmitCountryPolicyPackForApprovalPayload {
 }
 
 /**
- * Handler for the SubmitCountryPolicyPackForApproval command.
+ * Handler for the SubmitForApproval command.
+ *
+ * Delegates to {@link CountryPolicyPack.submitForApproval}, which is the
+ * real review gate: it rejects the transition unless every entry in
+ * `requiredApprovals` has a matching entry in `completedReviews`.
  */
 @Injectable()
-@CommandHandler('SubmitCountryPolicyPackForApproval')
+@CommandHandler('SubmitForApproval')
 export class SubmitCountryPolicyPackForApprovalHandler implements ICommandHandler {
-  readonly commandName = 'SubmitCountryPolicyPackForApproval';
+  readonly commandName = 'SubmitForApproval';
 
   constructor(
     private readonly repo: CountryPolicyPackRepository,
@@ -33,7 +37,7 @@ export class SubmitCountryPolicyPackForApprovalHandler implements ICommandHandle
 
     return {
       success: true,
-      data: { packId: pack.id.value, status: pack.status },
+      data: { packId: pack.id.value, status: pack.status, completedReviews: pack.completedReviews },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: pack.id,
