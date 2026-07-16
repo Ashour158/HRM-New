@@ -1354,6 +1354,7 @@ export interface CountryPolicyPacksTable {
   status: string;
   sections: unknown;
   required_approvals: unknown;
+  completed_reviews: unknown;
   source_evidence: unknown;
   recalculation_required: boolean;
   uploaded_by: string | null;
@@ -1362,6 +1363,9 @@ export interface CountryPolicyPacksTable {
   published_by: string | null;
   superseded_by: string | null;
   rollback_reason: string | null;
+  rejected_by: string | null;
+  rejected_at: Date | null;
+  rejection_reason: string | null;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
