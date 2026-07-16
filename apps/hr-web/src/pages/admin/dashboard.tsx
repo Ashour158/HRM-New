@@ -412,7 +412,7 @@ export function AdminDashboard() {
                     <Icon size={22} />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="mb-1 font-bold leading-tight text-slate-800">{mod.label}</h4>
+                    <h3 className="mb-1 font-bold leading-tight text-slate-800">{mod.label}</h3>
                     <p className="text-sm font-medium leading-relaxed text-slate-500">{mod.description}</p>
                   </div>
                 </Link>
