@@ -15,6 +15,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "secret:scan": "node scripts/secret-scan.mjs",
+    "dependency:audit": "node scripts/dependency-audit.mjs",
     "locale:scan": "node scripts/locale-scan.mjs",
     "check:no-compiled-output-in-src": "node scripts/check-no-compiled-output-in-src.mjs",
     "ci:verify-deployment-envelope": "node scripts/verify-deployment-envelope.mjs",
