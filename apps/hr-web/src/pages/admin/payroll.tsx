@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { ErrorState } from '@/components/common/error-state';
 import { BusinessPageHeader } from '@/components/common/business-page';
@@ -695,7 +695,10 @@ export function AdminPayroll() {
   const rows = preview?.rows ?? [];
   const currency = preview?.currency ?? setup.locations[0]?.currency ?? 'EGP';
   const selectedPayrollRow = rows.find((row) => row.workerId === selectedWorkerId) ?? rows[0];
-  const tabClass = (tab: PayrollTab, className: string) => activePayrollTab === tab ? className : 'hidden';
+  // Inactive tab panels are hidden with the native `hidden` attribute (not a CSS class) so
+  // they are reliably removed from the accessibility tree - and from layout - even if
+  // stylesheets fail to load, instead of depending on a Tailwind utility class being present.
+  const isActiveTab = (tab: PayrollTab) => activePayrollTab === tab;
   const isRuleTab = activePayrollTab === 'policies'
     || activePayrollTab === 'composition'
     || activePayrollTab === 'attendance'
@@ -781,18 +784,18 @@ export function AdminPayroll() {
             ))}
           </TabsList>
         </div>
-      </Tabs>
 
       <main className="px-6 pb-6">
-      <section id="payroll-cycle" className={tabClass('cycle', 'fusion-glass mt-6 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4')}>
+      <TabsContent value="cycle">
+      <section id="payroll-cycle" className="fusion-glass mt-6 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4">
         <div className="grid gap-2">
-          <Label>Year</Label>
-          <Input value={year} onChange={(event) => setYear(event.target.value)} />
+          <Label htmlFor="payroll-year">Year</Label>
+          <Input id="payroll-year" value={year} onChange={(event) => setYear(event.target.value)} />
         </div>
         <div className="grid gap-2">
           <Label>Month</Label>
           <Select value={month} onValueChange={setMonth}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Month"><SelectValue /></SelectTrigger>
             <SelectContent>
               {Array.from({ length: 12 }, (_, index) => (
                 <SelectItem key={index + 1} value={String(index + 1)}>
@@ -805,7 +808,7 @@ export function AdminPayroll() {
         <div className="grid gap-2">
           <Label>Workplace</Label>
           <Select value={workLocationCode} onValueChange={setWorkLocationCode}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger aria-label="Workplace"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">All workplaces</SelectItem>
               {locations.map((location) => (
@@ -841,7 +844,7 @@ export function AdminPayroll() {
         </div>
       </section>
 
-      <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-5')}>
+      <section className="fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-5" hidden={!isActiveTab('cycle')}>
         <div>
           <p className="text-xs text-muted-foreground">Cycle</p>
           <p className="font-semibold">{preview?.name ?? 'Loading cycle'}</p>
@@ -866,7 +869,7 @@ export function AdminPayroll() {
       </section>
 
       {paymentBatch ? (
-        <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4')}>
+        <section className="fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4" hidden={!isActiveTab('cycle')}>
           <div>
             <p className="text-xs text-muted-foreground">Payment Batch</p>
             <p className="font-semibold">{paymentBatch.ready ? 'Ready for bank review' : 'Needs attention'}</p>
@@ -890,7 +893,7 @@ export function AdminPayroll() {
       ) : null}
 
       {closeResult ? (
-        <section className={tabClass('cycle', 'fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4 xl:grid-cols-7')}>
+        <section className="fusion-glass mt-4 grid gap-4 rounded-[2rem] p-6 md:grid-cols-4 xl:grid-cols-7" hidden={!isActiveTab('cycle')}>
           <div>
             <p className="text-xs text-muted-foreground">Closed Cycle</p>
             <p className="font-semibold">{closeResult.status}</p>
@@ -929,7 +932,7 @@ export function AdminPayroll() {
       ) : null}
 
       {(closeResult || paymentBatch) ? (
-        <section className={tabClass('cycle', 'fusion-glass mt-4 rounded-[2rem] p-4')}>
+        <section className="fusion-glass mt-4 rounded-[2rem] p-4" hidden={!isActiveTab('cycle')}>
           <Button type="button" variant="ghost" size="sm" onClick={() => setShowPayrollDiagnostics((current) => !current)}>
             Diagnostics
           </Button>
@@ -956,7 +959,7 @@ export function AdminPayroll() {
       ) : null}
 
       {readiness && !readiness.canClose ? (
-        <section className={tabClass('cycle', 'fusion-glass mt-4 space-y-3 rounded-[2rem] p-6')}>
+        <section className="fusion-glass mt-4 space-y-3 rounded-[2rem] p-6" hidden={!isActiveTab('cycle')}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="font-semibold text-destructive">Payroll readiness blockers</p>
@@ -978,10 +981,12 @@ export function AdminPayroll() {
           </div>
         </section>
       ) : null}
+      </TabsContent>
 
-      <div className={activePayrollTab === 'cycle' ? 'hidden' : 'space-y-6 py-6'}>
+      <div className="space-y-6 py-6">
         <section className="space-y-6">
-          <Card id="payroll-register" className={tabClass('register', '')}>
+          <TabsContent value="register">
+          <Card id="payroll-register">
             <CardHeader>
               <CardTitle className="text-lg">Payroll Register</CardTitle>
             </CardHeader>
@@ -1081,8 +1086,10 @@ export function AdminPayroll() {
               </div>
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card id="payroll-exports" className={tabClass('exports', '')}>
+          <TabsContent value="exports">
+          <Card id="payroll-exports">
             <CardHeader>
               <CardTitle className="text-lg">Payments & Reports</CardTitle>
             </CardHeader>
@@ -1268,10 +1275,12 @@ export function AdminPayroll() {
               ) : null}
             </CardContent>
           </Card>
+          </TabsContent>
         </section>
 
         <aside className="space-y-6">
-          <Card id="payroll-composition" className={tabClass('composition', '')}>
+          <TabsContent value="composition">
+          <Card id="payroll-composition">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1465,8 +1474,10 @@ export function AdminPayroll() {
               ))}
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card id="payroll-policies" className={tabClass('policies', '')}>
+          <TabsContent value="policies">
+          <Card id="payroll-policies">
             <CardHeader>
               <CardTitle className="text-lg">Gross-to-Net Policy</CardTitle>
               <CardDescription>Statutory percentages used by payroll calculations.</CardDescription>
@@ -1656,8 +1667,10 @@ export function AdminPayroll() {
               </div>
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card id="payroll-attendance" className={tabClass('attendance', '')}>
+          <TabsContent value="attendance">
+          <Card id="payroll-attendance">
             <CardHeader>
               <CardTitle className="text-lg">Attendance Policy</CardTitle>
               <CardDescription>Flexible hours, grace, overtime, and geofence rules.</CardDescription>
@@ -2007,8 +2020,10 @@ export function AdminPayroll() {
               </div>
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card id="payroll-earnings" className={tabClass('earnings', '')}>
+          <TabsContent value="earnings">
+          <Card id="payroll-earnings">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -2138,8 +2153,10 @@ export function AdminPayroll() {
               ))}
             </CardContent>
           </Card>
+          </TabsContent>
 
-          <Card id="payroll-deductions" className={tabClass('deductions', '')}>
+          <TabsContent value="deductions">
+          <Card id="payroll-deductions">
             <CardHeader>
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -2236,9 +2253,11 @@ export function AdminPayroll() {
               ))}
             </CardContent>
           </Card>
+          </TabsContent>
         </aside>
       </div>
       </main>
+      </Tabs>
     </div>
   );
 }

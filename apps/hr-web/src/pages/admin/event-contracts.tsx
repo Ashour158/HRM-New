@@ -72,6 +72,7 @@ export function AdminEventContracts() {
           <ErrorState error={registryQuery.error} onRetry={() => registryQuery.refetch()} />
         ) : (
           <>
+            <h2 className="sr-only">Event contract registry details</h2>
             <section className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
