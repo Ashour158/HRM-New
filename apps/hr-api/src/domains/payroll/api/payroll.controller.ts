@@ -79,6 +79,16 @@ type ClockLocationPayload = {
 
 const PAYROLL_VISIBILITY_ROLES = new Set(['HR_ADMIN', 'PAYROLL_ADMIN', 'SUPER_ADMIN']);
 
+// Worker directory reads used to be capped at a single `{ limit: 1000 }` call, which
+// silently dropped workers beyond the 1000th row on larger tenants. The repository
+// methods behind HrCoreDirectoryQueryService support real limit/offset pagination, so
+// we page through results instead. WORKER_FETCH_MAX_PAGES is a defensive circuit
+// breaker (not a designed truncation point) -- at the page size below it allows up to
+// 25,000 workers per tenant, far beyond any realistic tenant size, so it should never
+// actually be hit in practice.
+const WORKER_FETCH_PAGE_SIZE = 500;
+const WORKER_FETCH_MAX_PAGES = 50;
+
 function csvEscape(value: string | number | null | undefined): string {
   let text = value === null || value === undefined ? '' : String(value);
   if (/^[=+\-@]/.test(text)) text = `'${text}`;
@@ -506,14 +516,45 @@ export class PayrollController {
     }));
   }
 
+  /**
+   * Repeatedly fetches pages via `fetchPage` until a page returns fewer rows than
+   * `pageSize` (end of results) or the safety cap is hit, accumulating every row
+   * rather than silently truncating at a single capped call.
+   */
+  private async fetchAllPages<T>(
+    fetchPage: (options: { limit: number; offset: number }) => Promise<T[]>,
+    pageSize = WORKER_FETCH_PAGE_SIZE,
+    maxPages = WORKER_FETCH_MAX_PAGES,
+  ): Promise<T[]> {
+    const results: T[] = [];
+    for (let page = 0; page < maxPages; page += 1) {
+      const batch = await fetchPage({ limit: pageSize, offset: page * pageSize });
+      results.push(...batch);
+      if (batch.length < pageSize) break;
+    }
+    return results;
+  }
+
+  private fetchAllActiveWorkersForTenant(tenantId: Uuid) {
+    return this.fetchAllPages((options) => this.hrCoreDirectory.findWorkersByStatusForTenant('ACTIVE', tenantId, options));
+  }
+
+  private fetchAllWorkersForTenant(tenantId: Uuid) {
+    return this.fetchAllPages((options) => this.hrCoreDirectory.searchWorkersForTenant('', tenantId, options));
+  }
+
   private async findWorkerByEmployeeId(employeeId: string, tenantId: Uuid) {
     // Resolve strictly within the request tenant so colliding employee numbers across
     // tenants cannot leak/cross-apply another tenant's worker.
-    const activeWorkers = await this.hrCoreDirectory.findWorkersByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
-    const fallbackWorkers = activeWorkers.length > 0
-      ? activeWorkers
-      : await this.hrCoreDirectory.searchWorkersForTenant('', tenantId, { limit: 1000 });
-    return fallbackWorkers.find((worker) => worker.employeeNumber === employeeId);
+    const activeWorkers = await this.fetchAllActiveWorkersForTenant(tenantId);
+    const activeMatch = activeWorkers.find((worker) => worker.employeeNumber === employeeId);
+    if (activeMatch) return activeMatch;
+    // Fall back to a full tenant search (including inactive/terminated workers) whenever
+    // the target employeeId isn't found among active workers -- not only when the active
+    // list is entirely empty -- so a terminated employee remains resolvable by employeeId
+    // even when the tenant has other active workers.
+    const allWorkers = await this.fetchAllWorkersForTenant(tenantId);
+    return allWorkers.find((worker) => worker.employeeNumber === employeeId);
   }
 
   private async resolvePayrollCurrencyForRequest(req: Request): Promise<string> {
@@ -590,8 +631,8 @@ export class PayrollController {
   private async buildPayrollEmployees(year: number, month: number, req: Request): Promise<PayrollCycleEmployeeInput[]> {
     const tenantId = this.getTenantId(req);
     const setup = await this.hcmSetupService.getSetup(tenantId);
-    const activeWorkers = await this.hrCoreDirectory.findWorkersByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
-    const workers = activeWorkers.length > 0 ? activeWorkers : await this.hrCoreDirectory.searchWorkersForTenant('', tenantId, { limit: 1000 });
+    const activeWorkers = await this.fetchAllActiveWorkersForTenant(tenantId);
+    const workers = activeWorkers.length > 0 ? activeWorkers : await this.fetchAllWorkersForTenant(tenantId);
     const tenantCurrency = resolveTenantCurrency(setup);
 
     return Promise.all(workers.map(async (worker) => {

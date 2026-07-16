@@ -5,7 +5,7 @@ import { PayrollController } from './payroll.controller.js';
 import { PayrollCycleGovernanceService } from '../services/payroll-cycle-governance.service.js';
 import { PayrollGlPostingService } from '../services/payroll-gl-posting.service.js';
 
-function buildController(overrides: { payrollCycleRepo?: unknown } = {}) {
+function buildController(overrides: { payrollCycleRepo?: unknown; hrCoreDirectory?: unknown } = {}) {
   const payrollCalculation = {
     buildMonthlyCycle: () => ({
       id: '2026-05',
@@ -32,7 +32,7 @@ function buildController(overrides: { payrollCycleRepo?: unknown } = {}) {
   return new PayrollController(
     {} as never,
     { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', active: true, currency: 'EGP' }] }) } as never,
-    { findWorkersByStatusForTenant: async () => [], searchWorkersForTenant: async () => [], findPersonalDataRecordsForWorker: async () => [] } as never,
+    (overrides.hrCoreDirectory ?? { findWorkersByStatusForTenant: async () => [], searchWorkersForTenant: async () => [], findPersonalDataRecordsForWorker: async () => [] }) as never,
     {} as never,
     payrollCalculation as never,
     {} as never,
@@ -1066,5 +1066,99 @@ describe('PayrollController salary governance', () => {
       },
     });
     expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+});
+
+describe('PayrollController worker directory lookup (findWorkerByEmployeeId)', () => {
+  // Mimics the real repository's limit/offset pagination so the tests exercise the
+  // controller's paging loop rather than a single unbounded call.
+  function pagedFetcher<T>(items: T[]) {
+    return vi.fn(async (_arg1: unknown, _arg2: unknown, options?: { limit?: number; offset?: number }) => {
+      const limit = options?.limit ?? items.length;
+      const offset = options?.offset ?? 0;
+      return items.slice(offset, offset + limit);
+    });
+  }
+
+  it('finds an active worker beyond the first pagination page instead of being capped', async () => {
+    const targetId = Uuid.generate();
+    // 501 active workers forces the controller's fetch-all loop to request a second
+    // page; the target sits at position 501 (index 500), just past the first page.
+    const activeWorkers = Array.from({ length: 501 }, (_, index) => ({
+      id: index === 500 ? targetId : Uuid.generate(),
+      employeeNumber: index === 500 ? 'EMP-PAGE-501' : `EMP-FILLER-${index}`,
+    }));
+    const findWorkersByStatusForTenant = pagedFetcher(activeWorkers);
+    const searchWorkersForTenant = vi.fn(async () => []);
+    const controller = buildController({
+      hrCoreDirectory: {
+        findWorkersByStatusForTenant,
+        searchWorkersForTenant,
+        findPersonalDataRecordsForWorker: async () => [],
+      },
+    });
+
+    const found = await (controller as unknown as {
+      findWorkerByEmployeeId: (employeeId: string, tenantId: Uuid) => Promise<{ id: Uuid } | undefined>;
+    }).findWorkerByEmployeeId('EMP-PAGE-501', new Uuid('00000000-0000-0000-0000-000000000001'));
+
+    expect(found?.id).toEqual(targetId);
+    // A single capped `{ limit: 1000 }` call would have returned all 501 rows in one
+    // shot; asserting on 2+ calls proves the paging loop actually ran rather than
+    // happening to work because the fixture fit under some hidden cap.
+    expect(findWorkersByStatusForTenant.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(searchWorkersForTenant).not.toHaveBeenCalled();
+  });
+
+  it('falls back to a full tenant search for a terminated employee even when active workers exist', async () => {
+    const activeWorkers = [
+      { id: Uuid.generate(), employeeNumber: 'EMP-ACTIVE-001' },
+      { id: Uuid.generate(), employeeNumber: 'EMP-ACTIVE-002' },
+    ];
+    const terminatedId = Uuid.generate();
+    const allWorkers = [
+      ...activeWorkers,
+      { id: terminatedId, employeeNumber: 'EMP-TERMINATED-001' },
+    ];
+    const findWorkersByStatusForTenant = pagedFetcher(activeWorkers);
+    const searchWorkersForTenant = pagedFetcher(allWorkers);
+    const controller = buildController({
+      hrCoreDirectory: {
+        findWorkersByStatusForTenant,
+        searchWorkersForTenant,
+        findPersonalDataRecordsForWorker: async () => [],
+      },
+    });
+
+    const found = await (controller as unknown as {
+      findWorkerByEmployeeId: (employeeId: string, tenantId: Uuid) => Promise<{ id: Uuid } | undefined>;
+    }).findWorkerByEmployeeId('EMP-TERMINATED-001', new Uuid('00000000-0000-0000-0000-000000000001'));
+
+    // Regression test: the old code only searched all workers when the active list
+    // was entirely empty, so a terminated employee was never found whenever the
+    // tenant had any active workers at all (the common case).
+    expect(found?.id).toEqual(terminatedId);
+    expect(searchWorkersForTenant).toHaveBeenCalled();
+  });
+
+  it('does not fall back to a full tenant search when the employee is already found among active workers', async () => {
+    const targetId = Uuid.generate();
+    const activeWorkers = [{ id: targetId, employeeNumber: 'EMP-ACTIVE-001' }];
+    const findWorkersByStatusForTenant = pagedFetcher(activeWorkers);
+    const searchWorkersForTenant = vi.fn(async () => []);
+    const controller = buildController({
+      hrCoreDirectory: {
+        findWorkersByStatusForTenant,
+        searchWorkersForTenant,
+        findPersonalDataRecordsForWorker: async () => [],
+      },
+    });
+
+    const found = await (controller as unknown as {
+      findWorkerByEmployeeId: (employeeId: string, tenantId: Uuid) => Promise<{ id: Uuid } | undefined>;
+    }).findWorkerByEmployeeId('EMP-ACTIVE-001', new Uuid('00000000-0000-0000-0000-000000000001'));
+
+    expect(found?.id).toEqual(targetId);
+    expect(searchWorkersForTenant).not.toHaveBeenCalled();
   });
 });
