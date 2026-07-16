@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nest build",
+    "build": "nest build && node ../../scripts/verify-tsc-output.mjs",
     "start": "pnpm exec dotenv -e ../../.env -- nest start",
     "start:dev": "pnpm exec dotenv -e ../../.env -- nest start --watch",
     "start:debug": "pnpm exec dotenv -e ../../.env -- nest start --debug --watch",
