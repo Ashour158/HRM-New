@@ -7,6 +7,7 @@ export { isRlsEnabled, createTenantBoundPool, maybeTenantBoundPool, NIL_TENANT_I
 export { BaseRepository } from './repository/base-repository.js';
 export { parseNumeric, parseNullableNumeric } from './util/numeric.js';
 export { runMigrations } from './migration-runner.js';
+export { parseNumeric, parseNullableNumeric } from './util/numeric.js';
 export type { BaseTable, AuditTable } from './types/base-tables.js';
 export type {
   TenantsTable,
