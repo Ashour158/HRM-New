@@ -1046,6 +1046,7 @@ export function AdminSystemConsole() {
           title="Admin Command Center"
           subtitle="Start the right admin journey, review pending work, and check operational health from one governed landing page."
         />
+        <h2 className="sr-only">Admin command center details</h2>
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
           <Card className="overflow-hidden border-border bg-white">

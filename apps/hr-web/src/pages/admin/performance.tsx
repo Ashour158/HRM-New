@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { formatDate } from '@/lib/utils';
 import { AdminPerformanceOperations } from '@/pages/admin/performance-operations';
@@ -929,9 +929,8 @@ export function AdminPerformance() {
             Operations
           </TabsTrigger>
         </TabsList>
-      </Tabs>
 
-      {activeTab === 'cycles' ? (
+      <TabsContent value="cycles">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
           <Card className="rounded-2xl">
             <CardHeader>
@@ -968,7 +967,7 @@ export function AdminPerformance() {
                   <div className="space-y-2">
                     <Label>Type</Label>
                     <Select value={cycleForm.reviewType} onValueChange={(value) => setCycleForm({ ...cycleForm, reviewType: value })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Type"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="ANNUAL">Annual</SelectItem>
                         <SelectItem value="MID_YEAR">Mid Year</SelectItem>
@@ -991,7 +990,7 @@ export function AdminPerformance() {
                 <div className="space-y-2">
                   <Label>Review Template</Label>
                   <Select value={cycleForm.templateId || 'none'} onValueChange={(value) => setCycleForm({ ...cycleForm, templateId: value === 'none' ? '' : value })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Review Template"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No template</SelectItem>
                       {activeTemplates.map((template) => (
@@ -1032,9 +1031,9 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === 'templates' ? (
+      <TabsContent value="templates">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card className="rounded-2xl">
             <CardHeader>
@@ -1089,9 +1088,9 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === 'competencies' ? (
+      <TabsContent value="competencies">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card className="rounded-2xl">
             <CardHeader>
@@ -1142,9 +1141,9 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === 'goals' ? (
+      <TabsContent value="goals">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
           <Card className="rounded-2xl">
             <CardHeader>
@@ -1210,7 +1209,7 @@ export function AdminPerformance() {
                   <div className="space-y-2">
                     <Label>Review Cadence</Label>
                     <Select value={goalForm.reviewCadence} onValueChange={(value) => setGoalForm({ ...goalForm, reviewCadence: value })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Review Cadence"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="WEEKLY">Weekly</SelectItem>
                         <SelectItem value="BIWEEKLY">Biweekly</SelectItem>
@@ -1265,9 +1264,9 @@ export function AdminPerformance() {
             </CardContent>
           </Card>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === 'manager' ? (
+      <TabsContent value="manager">
         <div className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
           <Card className="rounded-2xl">
             <CardHeader>
@@ -1282,7 +1281,7 @@ export function AdminPerformance() {
                   onValueChange={setSelectedManagerId}
                   disabled={workersLoading || workers.length === 0}
                 >
-                  <SelectTrigger><SelectValue placeholder="Select manager" /></SelectTrigger>
+                  <SelectTrigger aria-label="Manager"><SelectValue placeholder="Select manager" /></SelectTrigger>
                   <SelectContent>
                     {workers.map((worker) => (
                       <SelectItem key={worker.id} value={worker.id}>
@@ -1381,9 +1380,12 @@ export function AdminPerformance() {
             </div>
           </div>
         </div>
-      ) : null}
+      </TabsContent>
 
-      {activeTab === 'operations' ? <AdminPerformanceOperations /> : null}
+      <TabsContent value="operations">
+        <AdminPerformanceOperations />
+      </TabsContent>
+      </Tabs>
 
       <section className="grid gap-4 lg:grid-cols-3">
         <div className="fusion-glass fusion-hover rounded-2xl p-4">

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNullableNumeric } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -48,15 +48,15 @@ export class GoalRepository extends BaseRepository<'goals', Goal> {
       workerId: new Uuid(row.worker_id),
       title: row.title,
       description: row.description ?? undefined,
-      targetValue: row.target_value ?? undefined,
-      currentValue: row.current_value ?? undefined,
+      targetValue: parseNullableNumeric(row.target_value),
+      currentValue: parseNullableNumeric(row.current_value),
       unit: row.unit ?? undefined,
       startDate: row.start_date ?? undefined,
       dueDate: row.due_date ?? undefined,
       smartCriteria: (row.smart_criteria as Goal['smartCriteria']) ?? {},
       metricName: row.metric_name ?? undefined,
-      baselineValue: row.baseline_value ?? undefined,
-      weight: row.weight ?? undefined,
+      baselineValue: parseNullableNumeric(row.baseline_value),
+      weight: parseNullableNumeric(row.weight),
       reviewCadence: row.review_cadence ?? undefined,
       evidenceRequired: Boolean(row.evidence_required ?? false),
       status: (row.status as GoalStatus) ?? 'DRAFT',
