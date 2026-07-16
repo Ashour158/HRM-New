@@ -49,6 +49,9 @@ jobs:
       - name: Deployment envelope check
         run: pnpm ci:verify-deployment-envelope
 
+      - name: Build tooling script tests
+        run: pnpm test:build-tooling
+
       - name: Lint
         run: pnpm lint
 

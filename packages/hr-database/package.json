@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ../../scripts/verify-tsc-output.mjs",
     "typecheck": "tsc --noEmit",
     "migrate": "node-pg-migrate up --migrations-dir ../../infra/migrations",
     "migrate:create": "node-pg-migrate create --migrations-dir ../../infra/migrations",
