@@ -180,6 +180,10 @@ export function AdminCompliance() {
         <ErrorState error={error} onRetry={() => refetch()} />
       ) : null}
 
+      {/* Establishes the h2 level between the page h1 and the card titles (h3),
+          so the heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">Compliance workspace</h2>
+
       <Card className="fusion-glass rounded-[2rem] border-transparent">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">

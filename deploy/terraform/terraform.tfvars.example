@@ -1,0 +1,47 @@
+# Copy this file to terraform.tfvars and fill in real values. terraform.tfvars is
+# account-specific and MUST NOT be committed — it is (or should be) in .gitignore.
+#
+# Every value below is a placeholder. None of them are real.
+
+aws_region     = "REPLACE_ME_us-east-1"       # e.g. "us-east-1" — pick your real region
+aws_account_id = "000000000000"                # REPLACE_ME — your real 12-digit AWS account id
+
+# --- Naming ---
+project_name = "hcm-platform"
+environment  = "production"
+
+# --- Networking ---
+vpc_cidr           = "10.42.0.0/16"            # example only — check for overlaps first
+az_count           = 2
+single_nat_gateway = true                       # false for HA (roughly doubles NAT cost)
+
+# --- EKS ---
+cluster_name                = "hcm-platform-eks"
+kubernetes_version           = "1.31"
+eks_public_endpoint_enabled = true
+eks_public_access_cidrs     = ["REPLACE_ME_203.0.113.0/24"] # narrow to your office/VPN/CI CIDR(s)
+node_instance_types         = ["m6i.large"]
+node_capacity_type          = "ON_DEMAND"
+node_desired_size           = 3
+node_min_size                = 2
+node_max_size                = 6
+
+# --- RDS PostgreSQL (PITR) ---
+postgres_engine_version    = "15.8"
+db_parameter_group_family = "postgres15"
+db_instance_class          = "db.r6g.large"    # size to your real worst-case connection budget
+db_allocated_storage_gb    = 100
+db_max_allocated_storage_gb = 500
+db_name                     = "hcm_platform"
+db_master_username          = "hcm_master"
+db_backup_retention_days    = 7                 # 1-35; drives PITR window
+db_backup_window             = "03:00-04:00"
+db_maintenance_window        = "mon:04:30-mon:05:30"
+db_multi_az                  = false            # true for production HA
+db_deletion_protection       = true
+db_skip_final_snapshot       = false
+
+# --- AWS Budgets (account-level cost guardrail) ---
+monthly_budget_limit_usd   = 500                                  # REPLACE_ME with your real ceiling
+budget_alert_emails        = ["REPLACE_ME_billing-alerts@example.com"]
+budget_alert_sns_topic_arn = ""                                    # optional

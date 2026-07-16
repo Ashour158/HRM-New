@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNullableNumeric } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { Objective, type ObjectiveStatus } from '../aggregates/objective.aggregate.js';
 
@@ -65,8 +65,8 @@ export class ObjectiveRepository extends BaseRepository<'objectives', Objective>
       title: row.title,
       description: row.description ?? undefined,
       period: row.period,
-      confidenceScore: row.confidence_score ?? undefined,
-      progress: row.progress ?? 0,
+      confidenceScore: parseNullableNumeric(row.confidence_score),
+      progress: parseNullableNumeric(row.progress) ?? 0,
       status: (row.status as ObjectiveStatus) ?? 'DRAFT',
       alignmentType: row.alignment_type ?? undefined,
       aggregateVersion: row.aggregate_version,
