@@ -425,6 +425,78 @@ describe('PayrollCycleGovernanceService', () => {
     ]));
   });
 
+  const enterpriseGlSetup = {
+    locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }],
+    statutoryPayrollPacks: [{
+      code: 'EG_STAT',
+      label: 'Egypt statutory payroll',
+      active: true,
+      countryCode: 'EG',
+      locationCodes: ['CAIRO_HQ'],
+      bankFileFormats: ['CBE_EGYPT_CSV'],
+      calculationPolicy: {
+        taxRatePercent: 10,
+        employeeInsuranceRatePercent: 5,
+      },
+      glAccountMapping: {
+        salaryExpenseAccount: '6100',
+        employerInsuranceExpenseAccount: '6110',
+        taxPayableAccount: '2150',
+        insurancePayableAccount: '2160',
+        deductionPayableAccount: '2250',
+        bankClearingAccount: '1050',
+      },
+    }],
+  };
+
+  function readinessForGlPosting(totalDebits: number, totalCredits: number) {
+    return service.evaluateCloseToPayReadiness({
+      preview: { ...preview, rows: [preview.rows[0]], employeeCount: 1 },
+      bankRows: [bankRows[0]],
+      workLocationCode: 'CAIRO_HQ',
+      existingCycles: [],
+      setup: enterpriseGlSetup,
+      closeEvidence: {
+        requireEnterpriseEvidence: true,
+        expectedPayslipWorkerIds: ['worker-1'],
+        glPosting: { status: 'POSTED', totalDebits, totalCredits, lineCount: 2 },
+        paymentBatch: {
+          status: 'READY',
+          readyCount: 1,
+          blockedCount: 0,
+          totalNet: 8400,
+          exceptionCount: 0,
+        },
+        payslipArtifacts: [{
+          workerId: 'worker-1',
+          employeeId: 'EMP-001',
+          status: 'GENERATED',
+          contentHash: 'hash',
+          htmlReady: true,
+        }],
+      },
+    });
+  }
+
+  it('flags a genuine one-cent GL debit/credit mismatch as unbalanced instead of tolerating it as a rounding epsilon', () => {
+    // Previously: Math.abs(100.10 - 100.09) <= 0.01 evaluated to true, so a
+    // real one-cent GL imbalance was incorrectly reported as "balanced".
+    const readiness = readinessForGlPosting(8400.10, 8400.09);
+    expect(readiness.issues).toContainEqual(expect.objectContaining({ code: 'GL_POSTING_UNBALANCED', blocking: true }));
+  });
+
+  it('still treats harmless binary floating-point noise as balanced after rounding to cents', () => {
+    // 8400 + 0.1 + 0.2 in IEEE 754 double precision is 8400.300000000001,
+    // not exactly 8400.3 -- roundMoney must absorb that noise so two totals
+    // that are equal in cents, but computed via different summation paths,
+    // still compare equal instead of failing a strict raw `===`.
+    const totalDebits = 8400 + 0.1 + 0.2;
+    const totalCredits = 8400.3;
+    expect(totalDebits).not.toBe(totalCredits); // sanity: raw float noise is real
+    const readiness = readinessForGlPosting(totalDebits, totalCredits);
+    expect(readiness.issues).not.toContainEqual(expect.objectContaining({ code: 'GL_POSTING_UNBALANCED' }));
+  });
+
   it('evaluates close readiness for a large tenant payroll preview without dropping worker-level blockers', () => {
     const rowCount = 1_000;
     const largeRows = Array.from({ length: rowCount }, (_, index) => ({
