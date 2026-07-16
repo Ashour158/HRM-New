@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Production overlay. Intentionally thin: the base already encodes production's
+# values (namespace hcm-production, replicas: 2/2, hpa max 10/6, ingress host
+# hcm.example.com, DB_POOL_MAX/DB_SYSTEM_POOL_MAX 6/2). Applying this overlay
+# reproduces today's existing hardcoded behavior exactly — it changes nothing
+# for prod. It exists so "production" is a first-class, explicit target
+# alongside "staging" rather than an implicit default.
+
+namespace: hcm-production
+
+resources:
+  - ../../base
+
+images:
+  - name: ghcr.io/your-org/hr-hcm-api
+    newTag: v1.4.0
+  - name: ghcr.io/your-org/hr-hcm-web
+    newTag: v1.4.0

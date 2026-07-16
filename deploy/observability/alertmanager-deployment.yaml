@@ -1,0 +1,86 @@
+# Consumes the EXISTING alertmanager-config.yaml ConfigMap in this same directory
+# (referenced as-is in kustomization.yaml's resources, content not duplicated here)
+# plus the receiver secret files it expects at /etc/alertmanager/secrets/ — see
+# alertmanager-secret.example.yaml in this directory for what that Secret must contain.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  labels: { app: hcm-platform, component: observability }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: alertmanager }
+  template:
+    metadata:
+      labels: { app: alertmanager }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: alertmanager
+          image: prom/alertmanager:v0.27.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config.file=/etc/alertmanager/alertmanager.yml
+            - --storage.path=/alertmanager
+          ports:
+            - containerPort: 9093
+              name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alertmanager/alertmanager.yml
+              subPath: alertmanager.yml
+            - name: receiver-secrets
+              mountPath: /etc/alertmanager/secrets
+              readOnly: true
+            - name: storage
+              mountPath: /alertmanager
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9093 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /-/healthy, port: 9093 }
+            initialDelaySeconds: 20
+            periodSeconds: 15
+      volumes:
+        - name: config
+          configMap:
+            # The pre-existing ConfigMap object (kind: ConfigMap, name:
+            # alertmanager-config) from this directory — included as-is via
+            # kustomization.yaml resources.
+            name: alertmanager-config
+        - name: receiver-secrets
+          secret:
+            # Real deployments provision this from alertmanager-secret.example.yaml with
+            # real values — it is intentionally NOT part of this kustomization's resources
+            # (same pattern as deploy/k8s/base/secret.example.yaml).
+            secretName: hcm-alertmanager-secrets
+        - name: storage
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager
+  labels: { app: hcm-platform, component: observability }
+spec:
+  selector: { app: alertmanager }
+  ports:
+    - name: http
+      port: 9093
+      targetPort: 9093
