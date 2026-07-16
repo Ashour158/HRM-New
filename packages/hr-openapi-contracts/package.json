@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && node ../../scripts/verify-tsc-output.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'No source files to lint'"
   },

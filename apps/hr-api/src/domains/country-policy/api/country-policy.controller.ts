@@ -27,7 +27,15 @@ import {
   UploadCountryPolicyPackDtoSchema,
   ValidateCountryPolicyPackDtoSchema,
   SimulateCountryPolicyPackImpactDtoSchema,
+  SubmitForLegalReviewDtoSchema,
+  SubmitForPayrollTaxReviewDtoSchema,
+  SubmitForGlobalHRReviewDtoSchema,
+  SubmitForBenefitsReviewDtoSchema,
+  SubmitForAbsenceReviewDtoSchema,
+  SubmitForComplianceReviewDtoSchema,
+  SubmitForApprovalDtoSchema,
   ApproveCountryPolicyPackDtoSchema,
+  RejectCountryPolicyPackDtoSchema,
   PublishCountryPolicyPackDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
@@ -138,6 +146,153 @@ export class CountryPolicyController {
     return this.commandBus.execute(command);
   }
 
+  @Post('policy-packs/submit-for-legal-review')
+  async submitCountryPolicyPackForLegalReview(
+    @Body(new ZodValidationPipe(SubmitForLegalReviewDtoSchema)) dto: dtos.SubmitForLegalReviewDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForLegalReview',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/submit-for-payroll-tax-review')
+  async submitCountryPolicyPackForPayrollTaxReview(
+    @Body(new ZodValidationPipe(SubmitForPayrollTaxReviewDtoSchema)) dto: dtos.SubmitForPayrollTaxReviewDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForPayrollTaxReview',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/submit-for-global-hr-review')
+  async submitCountryPolicyPackForGlobalHRReview(
+    @Body(new ZodValidationPipe(SubmitForGlobalHRReviewDtoSchema)) dto: dtos.SubmitForGlobalHRReviewDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForGlobalHRReview',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/submit-for-benefits-review')
+  async submitCountryPolicyPackForBenefitsReview(
+    @Body(new ZodValidationPipe(SubmitForBenefitsReviewDtoSchema)) dto: dtos.SubmitForBenefitsReviewDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForBenefitsReview',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/submit-for-absence-review')
+  async submitCountryPolicyPackForAbsenceReview(
+    @Body(new ZodValidationPipe(SubmitForAbsenceReviewDtoSchema)) dto: dtos.SubmitForAbsenceReviewDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForAbsenceReview',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/submit-for-compliance-review')
+  async submitCountryPolicyPackForComplianceReview(
+    @Body(new ZodValidationPipe(SubmitForComplianceReviewDtoSchema)) dto: dtos.SubmitForComplianceReviewDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForComplianceReview',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/submit-for-approval')
+  async submitCountryPolicyPackForApproval(
+    @Body(new ZodValidationPipe(SubmitForApprovalDtoSchema)) dto: dtos.SubmitForApprovalDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'SubmitForApproval',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
   @Post('policy-packs/approve')
   async approveCountryPolicyPack(
     @Body(new ZodValidationPipe(ApproveCountryPolicyPackDtoSchema)) dto: dtos.ApproveCountryPolicyPackDto,
@@ -147,6 +302,27 @@ export class CountryPolicyController {
     if (!pack) throw new BadRequestException('Country policy pack not found');
     const command = this.buildCommand(
       'ApproveCountryPolicyPack',
+      'CountryPolicyPack',
+      dto,
+      req,
+      {
+        aggregateId: new Uuid(dto.packId),
+        expectedState: pack.status,
+        expectedVersion: pack.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/reject')
+  async rejectCountryPolicyPack(
+    @Body(new ZodValidationPipe(RejectCountryPolicyPackDtoSchema)) dto: dtos.RejectCountryPolicyPackDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand(
+      'RejectCountryPolicyPack',
       'CountryPolicyPack',
       dto,
       req,

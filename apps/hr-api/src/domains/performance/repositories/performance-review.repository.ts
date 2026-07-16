@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNullableNumeric } from '@hcm/database';
 
 
 import { Uuid } from '@hcm/shared-kernel';
@@ -60,8 +60,8 @@ export class PerformanceReviewRepository extends BaseRepository<'performance_rev
       managerId: new Uuid(row.manager_id),
       selfReviewContent: row.self_review_content ?? undefined,
       managerReviewContent: row.manager_review_content ?? undefined,
-      calibratedRating: row.calibrated_rating ?? undefined,
-      finalRating: row.final_rating ?? undefined,
+      calibratedRating: parseNullableNumeric(row.calibrated_rating),
+      finalRating: parseNullableNumeric(row.final_rating),
       status: (row.status as PerformanceReviewStatus) ?? 'DRAFT',
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
