@@ -35,7 +35,7 @@ spec:
                   echo "backup complete"
               env:
                 - name: DATABASE_URL
-                  valueFrom: { secretKeyRef: { name: hcm-secrets, key: DATABASE_URL } }
+                  valueFrom: { secretKeyRef: { name: hcm-platform-secrets, key: DATABASE_URL } }
               resources:
                 requests: { cpu: "100m", memory: "256Mi" }
                 limits: { cpu: "500m", memory: "512Mi" }
