@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, parseNumeric } from '@hcm/database';
 import { Offer, type OfferStatus } from '../aggregates/offer.aggregate.js';
 
 /**
@@ -120,7 +120,7 @@ export class OfferRepository {
         tenantId: new Uuid(row.tenant_id as string),
         candidateId: new Uuid(row.candidate_id as string),
         requisitionId: new Uuid(row.requisition_id as string),
-        proposedSalary: row.proposed_salary as number,
+        proposedSalary: parseNumeric(row.proposed_salary as string | number),
         currency: row.currency as string,
         startDate: new Date(row.start_date as string),
         benefitsPackage: (row.benefits_package as Record<string, unknown>) ?? undefined,

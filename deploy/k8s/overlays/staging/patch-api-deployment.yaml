@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hcm-api
+spec:
+  # Matches the staging HPA's minReplicas (patch-api-hpa.yaml) so the initial
+  # apply, before the HPA has taken a measurement, already sits at the floor.
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: api
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
