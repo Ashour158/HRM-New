@@ -565,6 +565,10 @@ export function RecruiterWorkspace() {
         </Button>
       </div>
 
+      {/* Establishes the h2 level between the page h1 and the card titles (h3) below,
+          so the heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">Recruiting workspace sections</h2>
+
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="rounded-3xl border-white/60 bg-white/70 shadow-sm">
           <CardContent className="flex items-center justify-between p-5">
