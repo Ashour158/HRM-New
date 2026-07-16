@@ -283,7 +283,7 @@ export class CountryPolicyController {
     const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
     if (!pack) throw new BadRequestException('Country policy pack not found');
     const command = this.buildCommand(
-      'SubmitForApproval',
+      'SubmitCountryPolicyPackForApproval',
       'CountryPolicyPack',
       dto,
       req,

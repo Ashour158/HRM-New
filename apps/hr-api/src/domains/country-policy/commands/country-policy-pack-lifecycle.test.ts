@@ -80,7 +80,7 @@ describe('CountryPolicyPack lifecycle handlers (HCM-P0-19)', () => {
 
     vi.mocked(repo.findById).mockResolvedValue(packAtState('LEGAL_REVIEW_PENDING'));
     const submitted = await new SubmitCountryPolicyPackForApprovalHandler(repo).handle(
-      command('SubmitForApproval'),
+      command('SubmitCountryPolicyPackForApproval'),
     );
     expect(submitted.newState).toBe('APPROVAL_PENDING');
     expect(vi.mocked(repo.save)).toHaveBeenCalledTimes(4);
