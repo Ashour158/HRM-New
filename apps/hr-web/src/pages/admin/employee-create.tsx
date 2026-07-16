@@ -958,7 +958,7 @@ export function AdminEmployeeCreate() {
               <div className="grid gap-2">
                 <Label>Gender</Label>
                 <Select value={form.gender || 'none'} onValueChange={(value) => update('gender', value === 'none' ? '' : value)}>
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Gender">
                     <SelectValue placeholder="Select gender" />
                   </SelectTrigger>
                   <SelectContent>
@@ -976,7 +976,7 @@ export function AdminEmployeeCreate() {
                   onValueChange={(value) => update('employeeIdMode', value as 'AUTO' | 'MANUAL')}
                   disabled={idPolicy.mode !== 'MANUAL_WITH_APP_ADMIN'}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Employee ID Policy">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
