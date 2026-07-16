@@ -260,6 +260,10 @@ export function AdminFeedback360() {
         </div>
       </header>
 
+      {/* Establishes the h2 level between the page h1 and the card titles (h3), so the
+          heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">Feedback 360 cycles</h2>
+
       {cyclesQuery.isError ? (
         <ErrorState title="Unable to load feedback cycles" error={cyclesQuery.error} onRetry={() => cyclesQuery.refetch()} />
       ) : (
