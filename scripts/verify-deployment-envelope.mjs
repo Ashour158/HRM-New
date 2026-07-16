@@ -46,7 +46,7 @@ const contentChecks = [
       /pnpm --filter hr-web exec playwright install --with-deps chromium/,
       /pnpm --filter hr-web test:e2e/,
       /pnpm build/,
-      /pnpm audit --prod --audit-level high/,
+      /pnpm dependency:audit/,
       /pnpm --filter @hcm\/database migrate/,
       /postgres:15-alpine/,
       /docker\/build-push-action/,
@@ -59,7 +59,7 @@ const contentChecks = [
     patterns: [
       /tags:\s*[\s\S]*v\*/,
       /pnpm secret:scan/,
-      /pnpm audit --prod --audit-level high/,
+      /pnpm dependency:audit/,
       /pnpm ci:verify-deployment-envelope/,
       /pnpm --filter @hcm\/database migrate/,
       /pnpm lint/,
@@ -271,7 +271,7 @@ const contentChecks = [
       /restore/i,
       /disaster recovery/i,
       /pnpm secret:scan/,
-      /pnpm audit --prod --audit-level high/,
+      /pnpm dependency:audit/,
     ],
   },
   {
