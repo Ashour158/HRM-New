@@ -38,6 +38,12 @@ beforeAll(() => {
   }
 });
 
+function isoDateDaysFromNow(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 function setupQueries() {
   useApiQueryMock.mockImplementation((key: unknown[]) => {
     const queryKey = key[0];
@@ -107,8 +113,8 @@ describe('EmployeeTimeOff guided request', () => {
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
     expect(screen.getByLabelText(/start date/i)).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/start date/i), '2026-07-06');
-    await user.type(screen.getByLabelText(/end date/i), '2026-07-07');
+    await user.type(screen.getByLabelText(/start date/i), isoDateDaysFromNow(1));
+    await user.type(screen.getByLabelText(/end date/i), isoDateDaysFromNow(2));
     await user.click(screen.getByRole('button', { name: /continue/i }));
 
     const summary = screen.getByText('Request Summary').closest('div');
