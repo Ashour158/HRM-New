@@ -533,7 +533,7 @@ export function ManagerTeam() {
 
           <TabsContent value="profile">
             <div className="fusion-glass rounded-[2rem] p-6">
-              <div className="mb-4 text-lg font-bold">Employment Details</div>
+              <h2 className="mb-4 text-lg font-bold">Employment Details</h2>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">Employee ID</p>
@@ -575,10 +575,10 @@ export function ManagerTeam() {
 
           <TabsContent value="performance">
             <div className="fusion-glass rounded-[2rem] p-6">
-              <div className="mb-4 flex items-center gap-2 text-lg font-bold">
+              <h2 className="mb-4 flex items-center gap-2 text-lg font-bold">
                 <Star className="h-5 w-5 text-amber-500" />
                 Performance
-              </div>
+              </h2>
               <div className="space-y-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="fusion-glass rounded-2xl p-4">
@@ -678,7 +678,7 @@ export function ManagerTeam() {
 
                 {member.goals.length > 0 ? (
                   <div className="space-y-3">
-                    <h4 className="text-sm font-medium">Goals</h4>
+                    <h3 className="text-sm font-medium">Goals</h3>
                     {member.goals.map((goal) => (
                       <div
                         key={goal.id}
@@ -723,10 +723,10 @@ export function ManagerTeam() {
 
           <TabsContent value="compensation">
             <div className="fusion-glass rounded-[2rem] p-6">
-              <div className="flex items-center gap-2 text-lg font-bold">
+              <h2 className="flex items-center gap-2 text-lg font-bold">
                 <DollarSign className="h-5 w-5 text-emerald-500" />
                 Compensation
-              </div>
+              </h2>
               <p className="text-sm text-slate-500">
                 Compensation band and recommendations
               </p>
@@ -909,10 +909,11 @@ export function ManagerTeam() {
         <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_24rem]">
           <Card className="bg-white/70">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              {/* Rendered as h2 (not CardTitle's default h3) to keep heading levels sequential directly under the page h1. */}
+              <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
                 <BrainCircuit className="h-5 w-5 text-indigo-500" />
                 Team attrition signals
-              </CardTitle>
+              </h2>
             </CardHeader>
             <CardContent>
               {teamRiskRows.length === 0 ? (
