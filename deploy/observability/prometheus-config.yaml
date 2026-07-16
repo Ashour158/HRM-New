@@ -1,0 +1,55 @@
+# Prometheus's own scrape/alerting config. The alert *rules* themselves are NOT here —
+# they're generated straight from the existing prometheus-rules.yaml in this same
+# directory via the configMapGenerator in kustomization.yaml, so that file stays the
+# single source of truth (nothing about its content is duplicated/retyped here).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  labels: { app: hcm-platform, component: observability }
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ["alertmanager.hcm-observability.svc.cluster.local:9093"]
+
+    scrape_configs:
+      # Anything annotated prometheus.io/scrape: "true" in any namespace — this is how
+      # hcm-api's own /api/v1/metrics (see deploy/k8s/base/api-deployment.yaml annotations)
+      # gets picked up, and covers hcm-web / future services the same way.
+      - job_name: kubernetes-pods
+        kubernetes_sd_configs:
+          - role: pod
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: "true"
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - source_labels: [__meta_kubernetes_namespace]
+            target_label: namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            target_label: pod
+
+      # kube-state-metrics is what makes HcmHpaAtMaxReplicasSustained possible at all —
+      # that alert reads kube_horizontalpodautoscaler_status_current_replicas /
+      # kube_horizontalpodautoscaler_spec_max_replicas, which only exist because this
+      # job is scraped (deployed by kube-state-metrics-deployment.yaml in this directory).
+      - job_name: kube-state-metrics
+        static_configs:
+          - targets: ["kube-state-metrics.hcm-observability.svc.cluster.local:8080"]
