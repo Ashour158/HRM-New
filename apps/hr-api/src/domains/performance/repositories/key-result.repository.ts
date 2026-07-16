@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric, parseNullableNumeric } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { KeyResult, type KeyResultStatus } from '../aggregates/key-result.aggregate.js';
 
@@ -46,12 +46,12 @@ export class KeyResultRepository extends BaseRepository<'key_results', KeyResult
       objectiveId: new Uuid(row.objective_id),
       title: row.title,
       description: row.description ?? undefined,
-      targetValue: row.target_value,
-      currentValue: row.current_value ?? 0,
-      startValue: row.start_value ?? 0,
+      targetValue: parseNumeric(row.target_value),
+      currentValue: parseNullableNumeric(row.current_value) ?? 0,
+      startValue: parseNullableNumeric(row.start_value) ?? 0,
       unit: row.unit ?? undefined,
       scoringMethod: row.scoring_method ?? 'LINEAR',
-      progress: row.progress ?? 0,
+      progress: parseNullableNumeric(row.progress) ?? 0,
       status: (row.status as KeyResultStatus) ?? 'DRAFT',
       dueDate: row.due_date ?? undefined,
       aggregateVersion: row.aggregate_version,

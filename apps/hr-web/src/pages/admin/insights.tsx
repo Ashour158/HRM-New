@@ -177,6 +177,8 @@ export function AdminInsights() {
         </Badge>
       </div>
 
+      <h2 className="sr-only">Attrition risk and anomaly detail</h2>
+
       <div className="grid gap-3 md:grid-cols-4">
         <Card>
           <CardContent className="flex items-center justify-between p-4">
