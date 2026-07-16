@@ -444,7 +444,7 @@ export function AdminOnboarding() {
                   <div className="space-y-2">
                     <Label>New hire</Label>
                     <Select value={form.workerId} onValueChange={(workerId) => setForm({ ...form, workerId })}>
-                      <SelectTrigger><SelectValue placeholder="Select worker" /></SelectTrigger>
+                      <SelectTrigger aria-label="New hire"><SelectValue placeholder="Select worker" /></SelectTrigger>
                       <SelectContent>
                         {workers.map((worker) => (
                           <SelectItem key={worker.id} value={worker.id}>{workerName(worker)} - {worker.employeeId}</SelectItem>
@@ -459,7 +459,7 @@ export function AdminOnboarding() {
                   <div className="space-y-2">
                     <Label>Buddy / mentor</Label>
                     <Select value={form.assignedBuddyId} onValueChange={(assignedBuddyId) => setForm({ ...form, assignedBuddyId })}>
-                      <SelectTrigger><SelectValue placeholder="Assign buddy" /></SelectTrigger>
+                      <SelectTrigger aria-label="Buddy / mentor"><SelectValue placeholder="Assign buddy" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Assign later</SelectItem>
                         {workers.filter((worker) => worker.id !== form.workerId).map((worker) => (
@@ -594,7 +594,7 @@ export function AdminOnboarding() {
                       <div className="space-y-2">
                         <Label>Owner</Label>
                         <Select value={taskForm.ownerGroup} onValueChange={(ownerGroup) => setTaskForm({ ...taskForm, ownerGroup: ownerGroup as OwnerGroup })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger aria-label="Owner"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {ownerGroups.map((ownerGroup) => <SelectItem key={ownerGroup} value={ownerGroup}>{ownerGroup}</SelectItem>)}
                           </SelectContent>
