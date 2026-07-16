@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNullableNumeric } from '@hcm/database';
 import { Uuid } from '@hcm/shared-kernel';
 import { KeyPerformanceIndicator, type KpiStatus } from '../aggregates/kpi.aggregate.js';
 
@@ -51,8 +51,8 @@ export class KpiRepository extends BaseRepository<'kpis', KeyPerformanceIndicato
       orgUnitId: row.org_unit_id ? new Uuid(row.org_unit_id) : undefined,
       name: row.name,
       description: row.description ?? undefined,
-      targetValue: row.target_value ?? undefined,
-      actualValue: row.actual_value ?? undefined,
+      targetValue: parseNullableNumeric(row.target_value),
+      actualValue: parseNullableNumeric(row.actual_value),
       unit: row.unit ?? undefined,
       frequency: row.frequency ?? 'MONTHLY',
       ownerId: row.owner_id ? new Uuid(row.owner_id) : undefined,
