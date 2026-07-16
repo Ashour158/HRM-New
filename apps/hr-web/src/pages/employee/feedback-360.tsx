@@ -136,7 +136,7 @@ export function EmployeeFeedback360() {
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
       <header>
-        <h1 className="font-headline text-3xl font-bold text-slate-950">Feedback 360</h1>
+        <h2 className="font-headline text-3xl font-bold text-slate-950">Feedback 360</h2>
         <p className="mt-1 text-sm text-slate-500">Complete assigned feedback and review closed summaries.</p>
       </header>
 
