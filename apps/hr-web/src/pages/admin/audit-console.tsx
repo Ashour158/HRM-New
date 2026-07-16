@@ -116,6 +116,10 @@ export function AdminAuditConsole() {
           </Button>
         </div>
 
+        {/* Establishes the h2 level between the page h1 and the card titles (h3),
+            so the heading order is valid (a11y: heading-order). */}
+        <h2 className="sr-only">Audit trail workspace</h2>
+
         <section className="grid gap-4 md:grid-cols-3">
           <Card className="fusion-glass fusion-hover rounded-2xl border-transparent">
             <CardHeader className="pb-2">

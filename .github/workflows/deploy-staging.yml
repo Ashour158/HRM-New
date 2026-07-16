@@ -1,0 +1,198 @@
+name: Deploy to Staging
+
+# Manual only, on purpose: staging is meant for deliberate pre-production
+# verification (canary testing, RLS rollout drills, load baselines — see
+# docs/RLS-ROLLOUT-PLAN.md and docs/GO-LIVE-RUNBOOK.md), not a moving target
+# that redeploys on every push to main. Trigger it by hand from the Actions
+# tab (or `gh workflow run deploy-staging.yml`) once you're ready to push a
+# candidate build to staging.
+#
+# This workflow references a GitHub Environment named "staging" that does
+# NOT exist in repo settings yet, and it will fail at the `environment:`
+# gate until it does. Creating that Environment (and its secrets) is a
+# manual step documented in docs/staging-environment-setup.md — it is
+# intentionally not automated here.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: >-
+          Tag to build and deploy (e.g. a version like v1.5.0-rc1). Defaults
+          to the short commit SHA of the selected ref if left blank.
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  # Staging is a single shared environment — serialize deploys to it so two
+  # manual runs can't race and apply out of order.
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  resolve-tag:
+    name: Resolve image tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - name: Resolve image tag
+        id: tag
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.image_tag }}" ]; then
+            echo "value=${{ inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=staging-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
+  build-and-push:
+    name: Build & push candidate images
+    needs: resolve-tag
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: api
+            dockerfile: apps/hr-api/Dockerfile
+            repository: hr-hcm-api
+          - image: web
+            dockerfile: apps/hr-web/Dockerfile
+            repository: hr-hcm-web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.image }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.repository }}:${{ needs.resolve-tag.outputs.tag }}
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.repository }}:staging-latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.resolve-tag.outputs.tag }}
+          build-args: |
+            VITE_API_BASE_URL=/api/v1
+
+  deploy:
+    name: Apply staging kustomize overlay
+    needs: [resolve-tag, build-and-push]
+    runs-on: ubuntu-latest
+    # This is the GitHub Environment that must be created by hand in
+    # Settings -> Environments before this job can run — see
+    # docs/staging-environment-setup.md. It gates this job behind whatever
+    # protection rules you configure there and scopes KUBE_CONFIG_STAGING
+    # (and any other secrets/variables you add) to this job only.
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.32.2
+
+      - name: Set up kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.5.0"
+
+      - name: Configure kubeconfig
+        # KUBE_CONFIG_STAGING: base64-encoded kubeconfig with a context that
+        # can reach the staging cluster and apply into the hcm-staging
+        # namespace. Does not exist yet — create it as a secret on the
+        # "staging" Environment (see docs/staging-environment-setup.md).
+        # This step intentionally fails loudly rather than silently
+        # no-op'ing when the secret hasn't been set up yet.
+        run: |
+          if [ -z "${{ secrets.KUBE_CONFIG_STAGING }}" ]; then
+            echo "::error::KUBE_CONFIG_STAGING is not set on the 'staging' Environment. See docs/staging-environment-setup.md." >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/.kube"
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > "$RUNNER_TEMP/.kube/config"
+          echo "KUBECONFIG=$RUNNER_TEMP/.kube/config" >> "$GITHUB_ENV"
+
+      - name: Point the staging overlay at the freshly built images
+        working-directory: deploy/k8s/overlays/staging
+        run: |
+          kustomize edit set image \
+            ghcr.io/${{ github.repository_owner }}/hr-hcm-api=ghcr.io/${{ github.repository_owner }}/hr-hcm-api:${{ needs.resolve-tag.outputs.tag }} \
+            ghcr.io/${{ github.repository_owner }}/hr-hcm-web=ghcr.io/${{ github.repository_owner }}/hr-hcm-web:${{ needs.resolve-tag.outputs.tag }}
+
+      - name: Diff against the live cluster
+        run: kubectl diff -k deploy/k8s/overlays/staging || true
+
+      - name: Delete the previous migration Job
+        # Jobs are immutable once created, so re-applying the overlay with an
+        # unchanged-named Job fails on the second and later runs. Delete any
+        # previous run's Job first so this workflow is safely re-runnable.
+        run: kubectl -n hcm-staging delete job hcm-database-migrate --ignore-not-found
+
+      - name: Apply the staging overlay
+        run: kubectl apply -k deploy/k8s/overlays/staging
+
+      - name: Wait for the migration Job to complete
+        run: kubectl -n hcm-staging wait --for=condition=complete --timeout=600s job/hcm-database-migrate
+
+      - name: Wait for rollout
+        run: |
+          kubectl -n hcm-staging rollout status deployment/hcm-api --timeout=300s
+          kubectl -n hcm-staging rollout status deployment/hcm-web --timeout=300s
+
+  smoke:
+    name: Post-deploy smoke test
+    needs: deploy
+    runs-on: ubuntu-latest
+    environment: staging
+    # Optional: set the "STAGING_API_BASE_URL" variable on the "staging"
+    # Environment (e.g. https://staging.hcm.example.com/api/v1) once DNS and
+    # the ingress are live, and this job runs the same smoke harness release.yml
+    # uses for production candidates. Until then it's a no-op.
+    if: ${{ vars.STAGING_API_BASE_URL != '' }}
+    env:
+      RUNTIME_API_BASE_URL: ${{ vars.STAGING_API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Runtime API smoke
+        run: pnpm runtime:smoke | tee runtime-smoke.log
+
+      - name: Upload runtime smoke evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-runtime-smoke-evidence
+          path: runtime-smoke.log

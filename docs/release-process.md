@@ -14,7 +14,7 @@ This release process turns the local prototype workflow into a controlled enterp
 Pull requests and release tags must pass:
 
 - Secret scan: `pnpm secret:scan`.
-- Production dependency audit: `pnpm audit --prod --audit-level high`.
+- Production dependency audit: `pnpm dependency:audit` (osv-scanner-backed; `pnpm audit` is unusable — npm retired the legacy audit API it depends on).
 - Deployment envelope check: `pnpm ci:verify-deployment-envelope`.
 - Lint: `pnpm lint`.
 - Typecheck: `pnpm typecheck`.
