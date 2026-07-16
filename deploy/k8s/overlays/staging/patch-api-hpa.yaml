@@ -1,0 +1,9 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: hcm-api
+spec:
+  # Down from 2/10 in production. Recompute deploy/k8s/overlays/staging/patch-configmap.yaml's
+  # connection-budget comment if you change maxReplicas here.
+  minReplicas: 1
+  maxReplicas: 3
