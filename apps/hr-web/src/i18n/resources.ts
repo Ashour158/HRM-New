@@ -213,6 +213,7 @@ export const resources = {
         readinessScore: 'Readiness {{readinessScore}}%',
         progressDescription: 'Completion is calculated from live setup, people, policy, payroll, integration, and SSO signals.',
         stepNumber: 'Step {{number}}',
+        stepsHeading: 'Setup steps',
         status: {
           complete: 'Complete',
           incomplete: 'Needs setup',
@@ -721,6 +722,7 @@ export const resources = {
         readinessScore: 'الجاهزية {{readinessScore}}%',
         progressDescription: 'يتم احتساب الاكتمال من إشارات الإعداد والأفراد والسياسات والرواتب والتكاملات وتسجيل الدخول الموحد.',
         stepNumber: 'الخطوة {{number}}',
+        stepsHeading: 'خطوات الإعداد',
         status: {
           complete: 'مكتمل',
           incomplete: 'يحتاج إعداد',
