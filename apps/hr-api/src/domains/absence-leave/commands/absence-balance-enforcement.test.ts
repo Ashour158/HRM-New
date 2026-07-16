@@ -141,8 +141,8 @@ describe('absence balance enforcement', () => {
     const result = await handler.handle(command({
       workerId,
       absenceType: 'VACATION',
-      startDate: new Date('2026-07-05T00:00:00.000Z'),
-      endDate: new Date('2026-07-09T00:00:00.000Z'),
+      startDate: futureWorkingDate(2),
+      endDate: futureWorkingDate(8),
     }));
 
     expect(result.data).toMatchObject({

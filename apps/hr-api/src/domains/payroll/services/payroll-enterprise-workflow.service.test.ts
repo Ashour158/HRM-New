@@ -105,6 +105,49 @@ describe('PayrollEnterpriseWorkflowService', () => {
     }));
   });
 
+  it('rounds the settled/exception totals to correct binary floating-point summation drift', () => {
+    // 0.1 + 0.2 + 8399.99 in IEEE 754 double precision is
+    // 8400.290000000001, not exactly 8400.29 -- naive accumulation left
+    // the raw drift in the persisted reconciliation summary.
+    const exported = service.markPaymentBatchExported(
+      service.approvePaymentBatch(paymentBatch(), 'actor-1', now),
+      'CBE_EGYPT_CSV',
+      'actor-1',
+      now,
+    );
+
+    const reconciled = service.reconcilePaymentBatch(exported, [
+      { employeeId: 'EMP-001', amount: 0.1, status: 'SETTLED', bankReference: 'BANK-1' },
+      { employeeId: 'EMP-002', amount: 0.2, status: 'SETTLED', bankReference: 'BANK-2' },
+      { employeeId: 'EMP-003', amount: 8399.99, status: 'SETTLED', bankReference: 'BANK-3' },
+    ], 'actor-2', now);
+
+    const rawSum = 0.1 + 0.2 + 8399.99;
+    expect(rawSum).not.toBe(8400.29); // sanity: raw float drift is real
+    expect(reconciled.reconciliationSummary).toEqual(expect.objectContaining({
+      settledAmount: 8400.29,
+    }));
+  });
+
+  it('fails loudly instead of silently turning a corrupt settlement amount into NaN', () => {
+    // Previously: Number(row.amount || 0) on a non-numeric `amount` (as can
+    // arrive from an unvalidated HTTP body despite the `number` TS type)
+    // produced NaN, which then silently poisoned the entire settledAmount
+    // total for the whole payment batch instead of failing the request.
+    const exported = service.markPaymentBatchExported(
+      service.approvePaymentBatch(paymentBatch(), 'actor-1', now),
+      'CBE_EGYPT_CSV',
+      'actor-1',
+      now,
+    );
+
+    const corruptRows = [
+      { employeeId: 'EMP-001', amount: 'not-a-number' as unknown as number, status: 'SETTLED' as const, bankReference: 'BANK-1' },
+    ];
+
+    expect(() => service.reconcilePaymentBatch(exported, corruptRows, 'actor-2', now)).toThrow(/Expected a numeric value/);
+  });
+
   it('publishes payslips only from generated state', () => {
     const published = service.publishPayslip(payslip(), 'actor-1', now);
     expect(published.status).toBe('PUBLISHED');
