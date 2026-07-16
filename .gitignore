@@ -70,3 +70,14 @@ coverage/
 # DB backup artifacts
 backups/
 *.dump
+
+# Terraform — local state, provider plugins, and real per-account values must never
+# be committed. Only deploy/terraform/*.tf and terraform.tfvars.example are tracked.
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+terraform.tfvars
+*.auto.tfvars
+crash.log
+crash.*.log

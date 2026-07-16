@@ -427,7 +427,7 @@ export function ManagerDashboard() {
                 </p>
               </div>
               <Select value={attendanceRange} onValueChange={(value) => setAttendanceRange(value as AttendancePeriodRange)}>
-                <SelectTrigger className="h-9 w-[132px] rounded-xl bg-white/70">
+                <SelectTrigger aria-label="Attendance period" className="h-9 w-[132px] rounded-xl bg-white/70">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
