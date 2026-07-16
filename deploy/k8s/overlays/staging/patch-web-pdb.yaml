@@ -1,0 +1,7 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hcm-web
+spec:
+  # See patch-api-pdb.yaml — same single-replica-floor reasoning.
+  minAvailable: 0
