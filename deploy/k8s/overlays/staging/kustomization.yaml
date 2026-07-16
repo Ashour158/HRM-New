@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Staging overlay: a smaller, cost-conscious environment for pre-production
+# verification (canary testing, RLS rollout, load baselines — see
+# docs/RLS-ROLLOUT-PLAN.md and docs/GO-LIVE-RUNBOOK.md). See
+# docs/staging-environment-setup.md for what still has to be done by hand
+# (cluster, DNS, GitHub Environment + secrets) before this is actually live.
+
+namespace: hcm-staging
+
+resources:
+  - ../../base
+
+patches:
+  - path: patch-configmap.yaml
+  - path: patch-api-deployment.yaml
+  - path: patch-web-deployment.yaml
+  - path: patch-api-hpa.yaml
+  - path: patch-web-hpa.yaml
+  - path: patch-api-pdb.yaml
+  - path: patch-web-pdb.yaml
+  - path: patch-ingress.yaml
+
+images:
+  # Initial default — the deploy-staging workflow overwrites this with the
+  # freshly built image tag before applying (see
+  # .github/workflows/deploy-staging.yml), so staging can run ahead of the
+  # last tagged production release without editing this file by hand.
+  - name: ghcr.io/your-org/hr-hcm-api
+    newTag: v1.4.0
+  - name: ghcr.io/your-org/hr-hcm-web
+    newTag: v1.4.0

@@ -86,4 +86,93 @@ describe('CountryPolicyController', () => {
     }));
     expect(policyPackRepo.findById).toHaveBeenCalledWith(new Uuid(packId));
   });
+
+  const reviewGateRoutes: Array<{
+    method: keyof CountryPolicyController;
+    route: string;
+    commandName: string;
+    payload: Record<string, unknown>;
+  }> = [
+    { method: 'submitCountryPolicyPackForLegalReview', route: 'submit-for-legal-review', commandName: 'SubmitForLegalReview', payload: { packId } },
+    { method: 'submitCountryPolicyPackForPayrollTaxReview', route: 'submit-for-payroll-tax-review', commandName: 'SubmitForPayrollTaxReview', payload: { packId } },
+    { method: 'submitCountryPolicyPackForGlobalHRReview', route: 'submit-for-global-hr-review', commandName: 'SubmitForGlobalHRReview', payload: { packId } },
+    { method: 'submitCountryPolicyPackForBenefitsReview', route: 'submit-for-benefits-review', commandName: 'SubmitForBenefitsReview', payload: { packId } },
+    { method: 'submitCountryPolicyPackForAbsenceReview', route: 'submit-for-absence-review', commandName: 'SubmitForAbsenceReview', payload: { packId } },
+    { method: 'submitCountryPolicyPackForComplianceReview', route: 'submit-for-compliance-review', commandName: 'SubmitForComplianceReview', payload: { packId } },
+    { method: 'submitCountryPolicyPackForApproval', route: 'submit-for-approval', commandName: 'SubmitForApproval', payload: { packId } },
+  ];
+
+  it.each(reviewGateRoutes)(
+    'wires POST policy-packs/$route to the $commandName command with an aggregate guard',
+    async ({ method, commandName, payload }) => {
+      const { controller, commandBus, policyPackRepo } = buildController();
+      const persistedPack = {
+        id: new Uuid(packId),
+        tenantId: new Uuid(tenantId),
+        countryCode: 'EG',
+        status: 'IMPACT_SIMULATED',
+        aggregateVersion: 7,
+      };
+      policyPackRepo.findById.mockResolvedValue(persistedPack);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (controller[method] as any)(payload, request());
+
+      expect(policyPackRepo.findById).toHaveBeenCalledWith(new Uuid(packId));
+      expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+        commandName,
+        aggregateType: 'CountryPolicyPack',
+        aggregateId: new Uuid(packId),
+        expectedState: 'IMPACT_SIMULATED',
+        expectedVersion: 7,
+        payload,
+      }));
+    },
+  );
+
+  it('wires POST policy-packs/reject to the RejectCountryPolicyPack command with an aggregate guard', async () => {
+    const { controller, commandBus, policyPackRepo } = buildController();
+    const persistedPack = {
+      id: new Uuid(packId),
+      tenantId: new Uuid(tenantId),
+      countryCode: 'EG',
+      status: 'APPROVAL_PENDING',
+      aggregateVersion: 9,
+    };
+    policyPackRepo.findById.mockResolvedValue(persistedPack);
+
+    const rejectDto = { packId, rejectedBy: actorId, reason: 'Missing statutory evidence' };
+    await controller.rejectCountryPolicyPack(rejectDto, request());
+
+    expect(policyPackRepo.findById).toHaveBeenCalledWith(new Uuid(packId));
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'RejectCountryPolicyPack',
+      aggregateType: 'CountryPolicyPack',
+      aggregateId: new Uuid(packId),
+      expectedState: 'APPROVAL_PENDING',
+      expectedVersion: 9,
+      payload: rejectDto,
+    }));
+  });
+
+  it('rejects review-gate and reject routes for actors without country policy admin roles', async () => {
+    const { controller, policyPackRepo } = buildController();
+    policyPackRepo.findById.mockResolvedValue({
+      id: new Uuid(packId),
+      status: 'IMPACT_SIMULATED',
+      aggregateVersion: 1,
+    });
+    const nonAdminRequest = {
+      tenantId,
+      actor: { ...actor(), roles: ['EMPLOYEE'] },
+      headers: {},
+    } as unknown as Request;
+
+    await expect(
+      controller.submitCountryPolicyPackForLegalReview({ packId }, nonAdminRequest),
+    ).rejects.toThrow(/Only country policy administrators/);
+    await expect(
+      controller.rejectCountryPolicyPack({ packId, rejectedBy: actorId, reason: 'no' }, nonAdminRequest),
+    ).rejects.toThrow(/Only country policy administrators/);
+  });
 });
