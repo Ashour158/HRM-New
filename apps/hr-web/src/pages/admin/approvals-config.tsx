@@ -271,6 +271,10 @@ export function AdminApprovalsConfig() {
         </Button>
       </div>
 
+      {/* Establishes the h2 level between the page h1 and the card titles (h3),
+          so the heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">Approval paths workspace</h2>
+
       <section className="grid gap-3 md:grid-cols-3">
         {ruleTemplates.map((template) => (
           <Card key={template.code} className="border-slate-200">
