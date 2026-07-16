@@ -80,14 +80,16 @@ kubectl get nodes    # confirm the node group registered
      -v app_password="'<a-strong-generated-password>'" \
      -f infra/rls/provision-app-role.sql
    ```
-   This creates the `hcm_app` (RLS-subject) and `hcm_system` (BYPASSRLS) roles the
-   application actually connects as — see `infra/rls/README.md` and
-   `docs/RLS-ROLLOUT-PLAN.md` for the full model. **Known gap:** as shipped, this script
-   does not grant `hcm_system` `CREATEDB` — the restore-drill CronJob's `CREATE
-   DATABASE`/`DROP DATABASE` step needs that privilege (see the comment in
-   `deploy/k8s/base/restore-drill-cronjob.yaml`). Decide how to close that (grant it to
-   `hcm_system`, or provision a separate least-privilege drill role) as part of this step
-   — that decision belongs with whoever owns the RLS role model, not this infra change.
+   This creates the `hcm_app` (RLS-subject) and `hcm_system` (BYPASSRLS, CREATEDB) roles
+   the application actually connects as — see `infra/rls/README.md` and
+   `docs/RLS-ROLLOUT-PLAN.md` for the full model. `hcm_system` is granted `CREATEDB` (not
+   full superuser) so the restore-drill CronJob's `CREATE DATABASE`/`DROP DATABASE` step
+   (see `deploy/k8s/base/restore-drill-cronjob.yaml`) can run — this was previously a
+   known gap (permission denied on that step) and is now closed at the SQL-grant level.
+   That said, the in-cluster CronJob itself still needs a real, observed drill run
+   against this environment before it can be treated as proven — the grant fix removes
+   the blocking permission error, it does not by itself constitute a passing drill (see
+   `docs/GO-LIVE-RUNBOOK.md` item 3 and `docs/disaster-recovery.md`).
 3. Build the two connection strings and populate the real `hcm-platform-secrets` Secret
    (copy `deploy/k8s/base/secret.example.yaml` to a real, gitignored `secret.yaml` — do
    not commit it):
