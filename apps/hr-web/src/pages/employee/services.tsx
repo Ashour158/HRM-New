@@ -304,7 +304,7 @@ export function EmployeeServices() {
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
                 <Badge variant="secondary" className="mb-3 bg-success/15 text-primary">Employee Services</Badge>
-                <h1 className="font-headline text-3xl font-semibold text-slate-950 md:text-4xl">Ask HR, track requests, and get support</h1>
+                <h2 className="font-headline text-3xl font-semibold text-slate-950 md:text-4xl">Ask HR, track requests, and get support</h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
                   Open a service case for documents, payroll, benefits, profile corrections, onboarding access, or any HR support need.
                 </p>
@@ -565,7 +565,7 @@ export function EmployeeServices() {
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Service</label>
                   <Select value={selectedCode} onValueChange={setSelectedCode}>
-                    <SelectTrigger><SelectValue placeholder="Select service" /></SelectTrigger>
+                    <SelectTrigger aria-label="Service"><SelectValue placeholder="Select service" /></SelectTrigger>
                     <SelectContent>
                       {catalog.map((item) => (
                         <SelectItem key={item.id} value={item.serviceCode}>{item.serviceName}</SelectItem>
@@ -576,7 +576,7 @@ export function EmployeeServices() {
                 <div>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Priority</label>
                   <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger aria-label="Priority"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {priorityOptions.map((option) => (
                         <SelectItem key={option.value} value={option.value}>{option.label} - {option.hint}</SelectItem>

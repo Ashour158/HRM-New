@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hcm-observability
+
+resources:
+  - namespace.yaml
+  - prometheus-config.yaml
+  - prometheus-rbac.yaml
+  - prometheus-deployment.yaml
+  - kube-state-metrics-rbac.yaml
+  - kube-state-metrics-deployment.yaml
+  - alertmanager-deployment.yaml
+  # The EXISTING, already-written Alertmanager routing config — included as-is, not
+  # copied. It's already a full ConfigMap manifest (kind: ConfigMap, name:
+  # alertmanager-config), so it just slots straight into this kustomization.
+  - alertmanager-config.yaml
+
+# The EXISTING, already-written Prometheus alert rules (prometheus-rules.yaml, in this
+# same directory) are raw Prometheus rule-file YAML, not a K8s object — configMapGenerator
+# reads that file's *content* straight from disk at kustomize-build time to build the
+# ConfigMap Prometheus mounts. Nothing about the rules themselves is duplicated/retyped
+# here, and any future edit to prometheus-rules.yaml (e.g. once the not-yet-merged
+# HcmHpaAtMaxReplicasSustained alert on chore/dockerfile-copy-trim-cost-guardrail lands
+# on main) is picked up automatically on the next `kubectl apply -k`/`kustomize build` —
+# nothing in this directory needs to change.
+configMapGenerator:
+  - name: prometheus-rules
+    files:
+      - alerts.yml=prometheus-rules.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
