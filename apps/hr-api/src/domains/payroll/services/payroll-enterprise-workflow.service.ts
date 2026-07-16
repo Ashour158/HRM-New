@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { parseNumeric } from '@hcm/database';
+import { roundMoney } from '@hcm/shared-kernel';
 import type { PayrollPaymentBatchRecord, PayrollPayslipArtifactRecord } from './payroll-artifact.service.js';
 
 export type PayrollReconciliationRow = {
@@ -71,8 +73,15 @@ export class PayrollEnterpriseWorkflowService {
     }
     const settledRows = rows.filter((row) => row.status === 'SETTLED');
     const exceptionRows = rows.filter((row) => row.status !== 'SETTLED');
-    const settledAmount = settledRows.reduce((total, row) => total + Number(row.amount || 0), 0);
-    const exceptionAmount = exceptionRows.reduce((total, row) => total + Number(row.amount || 0), 0);
+    // Parse each row's amount before accumulating: `row.amount` is typed
+    // `number`, but this is fed from an HTTP request body with no runtime
+    // coercion, so a non-numeric value would previously flow straight into
+    // `+` and silently poison the whole running total to NaN. parseNumeric
+    // fails loudly on that instead. The final total is rounded once via
+    // roundMoney to correct any binary floating-point summation drift from
+    // adding many decimal amounts together.
+    const settledAmount = roundMoney(settledRows.reduce((total, row) => total + parseNumeric(row.amount ?? 0), 0));
+    const exceptionAmount = roundMoney(exceptionRows.reduce((total, row) => total + parseNumeric(row.amount ?? 0), 0));
     const status: PayrollPaymentBatchRecord['status'] = exceptionRows.length > 0 ? 'RECONCILIATION_EXCEPTION' : 'RECONCILED';
     return {
       ...record,
