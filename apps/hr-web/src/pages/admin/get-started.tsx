@@ -304,6 +304,7 @@ export function AdminGetStarted() {
         </CardContent>
       </Card>
 
+      <h2 className="sr-only">{t('adminGetStarted.stepsHeading')}</h2>
       <div className="grid gap-4 md:grid-cols-2">
         {steps.map((step, index) => (
           <Card key={step.id} className="border-white/60 bg-white/75">
