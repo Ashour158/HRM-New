@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: hcm-api
+spec:
+  # Staging's HPA floor is 1 replica (patch-api-hpa.yaml). A minAvailable: 1 PDB
+  # (production's setting) against a single-replica deployment would block every
+  # voluntary disruption (node drains, cluster upgrades) indefinitely. Staging
+  # doesn't need the HA guarantee production does, so relax it to 0 here.
+  minAvailable: 0
