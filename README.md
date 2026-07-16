@@ -76,6 +76,45 @@ pnpm lint
 pnpm test
 ```
 
+### Incremental TypeScript build caveat (Turborepo + `composite: true`)
+
+Every package under `packages/*` (plus `apps/hr-api` and `apps/hr-auditor-agent`)
+compiles with `composite: true` (inherited from the root `tsconfig.json`), which
+makes `tsc` (and Nest's `nest build`, which also uses TypeScript's incremental
+program API) write a `tsconfig.tsbuildinfo` file recording source-signature
+hashes. `tsc`'s incremental engine uses that file to skip re-emitting files it
+believes are already up to date -- but it only checks source signatures, **it
+never verifies the previously-emitted output files still exist on disk.** If
+`dist/` is ever partially deleted or corrupted (an interrupted build, an
+antivirus quarantine, a bad cache extraction -- this shows up disproportionately
+often on Windows) while `tsconfig.tsbuildinfo` is left untouched, a subsequent
+`tsc` run can exit `0` without regenerating the missing files.
+
+Two things guard against this:
+
+1. **`turbo.json`'s `build` task includes `*.tsbuildinfo` in `outputs`**, so
+   Turborepo always caches and restores `dist/**` and `tsconfig.tsbuildinfo`
+   together, atomically, as a single unit. This prevents a stale, mismatched
+   local `tsbuildinfo` from surviving a cache restore of a different (or
+   corrected) `dist/`, which is what lets this kind of corruption silently
+   persist and spread across machines/branches/CI via the shared cache.
+2. **`scripts/verify-tsc-output.mjs` runs as the last step of every affected
+   package's `build` script** (e.g. `"build": "tsc && node
+   ../../scripts/verify-tsc-output.mjs"`). It walks each source file under the
+   package's `rootDir` and asserts the corresponding `.js`/`.d.ts` exists under
+   `outDir`, failing loudly with the exact list of missing files if not. This
+   is the actual safety net for the failure mode above: including
+   `tsbuildinfo` in Turborepo's outputs does not stop `tsc`'s own incremental
+   engine from making this mistake during a genuine build (cache miss or
+   `--force`) -- only re-running `tsc` from a clean slate does. This script
+   turns that silent, truncated "success" into a hard build failure instead,
+   so Turborepo never caches it as a good build in the first place.
+
+If you ever hit this locally, the fix is: delete the affected package's
+`tsconfig.tsbuildinfo` (forces a full rebuild) and re-run `pnpm build`. If the
+build still fails afterwards, the source itself has a real compile error, not
+a stale cache.
+
 ## API Documentation
 
 When the API is running, Swagger UI is available at:
