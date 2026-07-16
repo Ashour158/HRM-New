@@ -935,6 +935,10 @@ export function AdminAccessGovernance() {
         />
       ) : null}
 
+      {/* Establishes the h2 level between the page h1 and the card titles (h3),
+          so the heading order is valid (a11y: heading-order). */}
+      <h2 className="sr-only">Access governance workspace</h2>
+
       <section className="grid gap-4 py-6 md:grid-cols-2 xl:grid-cols-7">
         {isLoading ? (
           <>
@@ -983,17 +987,17 @@ export function AdminAccessGovernance() {
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="grid gap-2">
-                <Label>Code</Label>
-                <Input value={roleForm.code} onChange={(event) => setRoleForm({ ...roleForm, code: event.target.value })} placeholder="PAYROLL_VIEWER" />
+                <Label htmlFor="role-code">Code</Label>
+                <Input id="role-code" value={roleForm.code} onChange={(event) => setRoleForm({ ...roleForm, code: event.target.value })} placeholder="PAYROLL_VIEWER" />
               </div>
               <div className="grid gap-2">
-                <Label>Name</Label>
-                <Input value={roleForm.name} onChange={(event) => setRoleForm({ ...roleForm, name: event.target.value })} placeholder="Payroll Viewer" />
+                <Label htmlFor="role-name">Name</Label>
+                <Input id="role-name" value={roleForm.name} onChange={(event) => setRoleForm({ ...roleForm, name: event.target.value })} placeholder="Payroll Viewer" />
               </div>
               <div className="grid gap-2">
-                <Label>Tier</Label>
+                <Label htmlFor="role-tier">Tier</Label>
                 <Select value={roleForm.tier} onValueChange={(value) => setRoleForm({ ...roleForm, tier: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger id="role-tier">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1004,8 +1008,8 @@ export function AdminAccessGovernance() {
                 </Select>
               </div>
               <div className="grid gap-2">
-                <Label>Description</Label>
-                <Input value={roleForm.description} onChange={(event) => setRoleForm({ ...roleForm, description: event.target.value })} />
+                <Label htmlFor="role-description">Description</Label>
+                <Input id="role-description" value={roleForm.description} onChange={(event) => setRoleForm({ ...roleForm, description: event.target.value })} />
               </div>
               <Button type="button" onClick={submitRole} disabled={roleMutation.isPending}>
                 <Save className="mr-2 size-4" />

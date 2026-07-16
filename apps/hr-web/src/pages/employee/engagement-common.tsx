@@ -141,7 +141,7 @@ export function EmployeeSurveyWorkspace({ mode }: { mode: 'SURVEYS' | 'PULSE' })
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
       <header>
-        <h1 className="font-headline text-3xl font-bold text-slate-950">{title}</h1>
+        <h2 className="font-headline text-3xl font-bold text-slate-950">{title}</h2>
         <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
       </header>
 
@@ -265,7 +265,7 @@ export function EmployeeRecognitionWorkspace() {
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
       <header>
-        <h1 className="font-headline text-3xl font-bold text-slate-950">{t('engagement.recognition.title')}</h1>
+        <h2 className="font-headline text-3xl font-bold text-slate-950">{t('engagement.recognition.title')}</h2>
         <p className="mt-1 text-sm text-slate-500">{t('engagement.recognition.subtitle')}</p>
       </header>
 
