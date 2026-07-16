@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hcm-platform
+spec:
+  # Distinct host so staging never shares a TLS cert or DNS record with production.
+  # staging.hcm.example.com is a placeholder — point real staging DNS at it
+  # (see docs/staging-environment-setup.md) before this is reachable.
+  tls:
+    - hosts:
+        - staging.hcm.example.com
+      secretName: hcm-platform-tls
+  rules:
+    - host: staging.hcm.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: hcm-api
+                port:
+                  number: 3001
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hcm-web
+                port:
+                  number: 80
