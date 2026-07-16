@@ -66,18 +66,20 @@ function OptionRows({
             <Input
               value={item.code}
               placeholder="CODE"
+              aria-label={`${title} code, row ${index + 1}`}
               onChange={(event) => onChange(items.map((row, rowIndex) => rowIndex === index ? { ...row, code: event.target.value.toUpperCase().replace(/\s+/g, '_') } : row))}
             />
             <Input
               value={item.label}
               placeholder="Display name"
+              aria-label={`${title} display name, row ${index + 1}`}
               onChange={(event) => onChange(items.map((row, rowIndex) => rowIndex === index ? { ...row, label: event.target.value } : row))}
             />
             <Select
               value={item.active ? 'ACTIVE' : 'INACTIVE'}
               onValueChange={(value) => onChange(items.map((row, rowIndex) => rowIndex === index ? { ...row, active: value === 'ACTIVE' } : row))}
             >
-              <SelectTrigger>
+              <SelectTrigger aria-label={`${title} status, row ${index + 1}`}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -194,12 +196,12 @@ export function AdminSettings() {
         </div>
         <div className="grid gap-4 md:grid-cols-3">
           <div className="grid gap-2">
-            <Label>Mode</Label>
+            <Label htmlFor="employee-id-mode">Mode</Label>
             <Select
               value={setup.employeeIdPolicy.mode}
               onValueChange={(value) => updateSetup('employeeIdPolicy', { ...setup.employeeIdPolicy, mode: value as HcmSetupConfig['employeeIdPolicy']['mode'] })}
             >
-              <SelectTrigger>
+              <SelectTrigger id="employee-id-mode">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -210,8 +212,9 @@ export function AdminSettings() {
             </Select>
           </div>
           <div className="grid gap-2">
-            <Label>Prefix</Label>
+            <Label htmlFor="employee-id-prefix">Prefix</Label>
             <Input
+              id="employee-id-prefix"
               value={setup.employeeIdPolicy.prefix ?? ''}
               placeholder="EMP"
               disabled={setup.employeeIdPolicy.mode === 'MANUAL_ONLY'}
@@ -219,8 +222,9 @@ export function AdminSettings() {
             />
           </div>
           <div className="grid gap-2">
-            <Label>Next Number</Label>
+            <Label htmlFor="employee-id-next-number">Next Number</Label>
             <Input
+              id="employee-id-next-number"
               type="number"
               value={setup.employeeIdPolicy.nextNumber ?? ''}
               disabled={setup.employeeIdPolicy.mode === 'MANUAL_ONLY'}
@@ -255,11 +259,11 @@ export function AdminSettings() {
         <div className="divide-y border-y">
           {setup.fieldRules.map((rule, index) => (
             <div key={`${rule.fieldKey}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1.2fr_1.4fr_1fr_.8fr_.8fr_3rem]">
-              <Input value={rule.fieldKey} placeholder="fieldKey" onChange={(event) => updateFieldRule(index, { fieldKey: event.target.value })} />
-              <Input value={rule.label} placeholder="Label" onChange={(event) => updateFieldRule(index, { label: event.target.value })} />
-              <Input value={rule.section} placeholder="Section" onChange={(event) => updateFieldRule(index, { section: event.target.value })} />
+              <Input value={rule.fieldKey} placeholder="fieldKey" aria-label={`Field key, row ${index + 1}`} onChange={(event) => updateFieldRule(index, { fieldKey: event.target.value })} />
+              <Input value={rule.label} placeholder="Label" aria-label={`Field label, row ${index + 1}`} onChange={(event) => updateFieldRule(index, { label: event.target.value })} />
+              <Input value={rule.section} placeholder="Section" aria-label={`Field section, row ${index + 1}`} onChange={(event) => updateFieldRule(index, { section: event.target.value })} />
               <Select value={rule.required ? 'REQUIRED' : 'OPTIONAL'} onValueChange={(value) => updateFieldRule(index, { required: value === 'REQUIRED' })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Field required setting, row ${index + 1}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -268,7 +272,7 @@ export function AdminSettings() {
                 </SelectContent>
               </Select>
               <Select value={rule.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updateFieldRule(index, { active: value === 'ACTIVE' })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Field active status, row ${index + 1}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -311,12 +315,12 @@ export function AdminSettings() {
         <div className="divide-y border-y">
           {(setup.attendancePolicy.holidayCalendars ?? []).map((holiday, index) => (
             <div key={`${holiday.date}-${holiday.name}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.5fr_.7fr_1.2fr_.8fr_3rem]">
-              <Input type="date" value={holiday.date} onChange={(event) => updateHolidayCalendar(index, { date: event.target.value })} />
+              <Input type="date" value={holiday.date} aria-label={`Holiday date, row ${index + 1}`} onChange={(event) => updateHolidayCalendar(index, { date: event.target.value })} />
               <Input value={holiday.name} placeholder="Holiday name" onChange={(event) => updateHolidayCalendar(index, { name: event.target.value })} />
               <Input value={holiday.countryCode ?? ''} placeholder="Country" maxLength={2} onChange={(event) => updateHolidayCalendar(index, { countryCode: event.target.value.toUpperCase() || undefined })} />
               <Input value={(holiday.locationCodes ?? []).join(', ')} placeholder="Workplace codes" onChange={(event) => updateHolidayCalendar(index, { locationCodes: splitCsv(event.target.value) })} />
               <Select value={holiday.paid === false ? 'UNPAID' : 'PAID'} onValueChange={(value) => updateHolidayCalendar(index, { paid: value === 'PAID' })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Holiday paid status, row ${index + 1}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -390,15 +394,15 @@ export function AdminSettings() {
         <div className="divide-y border-y">
           {setup.locations.map((location, index) => (
             <div key={`${location.code}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.2fr_.55fr_1fr_1fr_.6fr_.8fr_.8fr_3rem]">
-              <Input value={location.code} onChange={(event) => updateLocation(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
+              <Input value={location.code} aria-label={`Location code, row ${index + 1}`} onChange={(event) => updateLocation(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
               <Input value={location.label} placeholder="Location name" onChange={(event) => updateLocation(index, { label: event.target.value })} />
-              <Input value={location.countryCode} maxLength={2} onChange={(event) => {
+              <Input value={location.countryCode} maxLength={2} aria-label={`Location country code, row ${index + 1}`} onChange={(event) => {
                 const code = event.target.value.toUpperCase().slice(0, 2);
                 updateLocation(index, { countryCode: code, flag: code });
               }} />
               <Input value={location.countryName} placeholder="Country" onChange={(event) => updateLocation(index, { countryName: event.target.value })} />
               <Input value={location.city} placeholder="City" onChange={(event) => updateLocation(index, { city: event.target.value })} />
-              <Input value={location.currency} maxLength={3} onChange={(event) => updateLocation(index, { currency: event.target.value.toUpperCase().slice(0, 3) })} />
+              <Input value={location.currency} maxLength={3} aria-label={`Location currency, row ${index + 1}`} onChange={(event) => updateLocation(index, { currency: event.target.value.toUpperCase().slice(0, 3) })} />
               <Input type="number" value={location.latitude ?? ''} placeholder="Lat" onChange={(event) => updateLocation(index, { latitude: event.target.value ? Number(event.target.value) : undefined })} />
               <Input type="number" value={location.longitude ?? ''} placeholder="Lng" onChange={(event) => updateLocation(index, { longitude: event.target.value ? Number(event.target.value) : undefined })} />
               <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('locations', setup.locations.filter((_, rowIndex) => rowIndex !== index))}>
@@ -428,14 +432,14 @@ export function AdminSettings() {
         <div className="divide-y border-y">
           {setup.cities.map((city, index) => (
             <div key={`${city.code}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_2fr_.7fr_.7fr_.7fr_3rem]">
-              <Input value={city.code} onChange={(event) => updateCity(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
+              <Input value={city.code} aria-label={`City code, row ${index + 1}`} onChange={(event) => updateCity(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
               <Input value={city.label} placeholder="City" onChange={(event) => updateCity(index, { label: event.target.value })} />
-              <Input value={city.countryCode} maxLength={2} onChange={(event) => {
+              <Input value={city.countryCode} maxLength={2} aria-label={`City country code, row ${index + 1}`} onChange={(event) => {
                 const code = event.target.value.toUpperCase().slice(0, 2);
                 updateCity(index, { countryCode: code, flag: code });
               }} />
               <div className="flex items-center justify-center text-lg">{flagEmoji(city.flag)}</div>
-              <Input value={city.currency} maxLength={3} onChange={(event) => updateCity(index, { currency: event.target.value.toUpperCase().slice(0, 3) })} />
+              <Input value={city.currency} maxLength={3} aria-label={`City currency, row ${index + 1}`} onChange={(event) => updateCity(index, { currency: event.target.value.toUpperCase().slice(0, 3) })} />
               <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('cities', setup.cities.filter((_, rowIndex) => rowIndex !== index))}>
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -470,10 +474,10 @@ export function AdminSettings() {
         <div className="divide-y border-y">
           {setup.documentRequirements.map((document, index) => (
             <div key={`${document.code}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.4fr_.8fr_.8fr_1.6fr_3rem]">
-              <Input value={document.code} onChange={(event) => updateDocument(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
+              <Input value={document.code} aria-label={`Document code, row ${index + 1}`} onChange={(event) => updateDocument(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })} />
               <Input value={document.label} placeholder="Document name" onChange={(event) => updateDocument(index, { label: event.target.value })} />
               <Select value={document.required ? 'REQUIRED' : 'OPTIONAL'} onValueChange={(value) => updateDocument(index, { required: value === 'REQUIRED' })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Document required setting, row ${index + 1}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -482,7 +486,7 @@ export function AdminSettings() {
                 </SelectContent>
               </Select>
               <Select value={document.allowMultiple ? 'MULTIPLE' : 'SINGLE'} onValueChange={(value) => updateDocument(index, { allowMultiple: value === 'MULTIPLE' })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Document multiplicity, row ${index + 1}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -492,6 +496,7 @@ export function AdminSettings() {
               </Select>
               <Input
                 value={document.acceptedMimeTypes.join(', ')}
+                aria-label={`Document accepted MIME types, row ${index + 1}`}
                 onChange={(event) => updateDocument(index, { acceptedMimeTypes: event.target.value.split(',').map((item) => item.trim()).filter(Boolean) })}
               />
               <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('documentRequirements', setup.documentRequirements.filter((_, rowIndex) => rowIndex !== index))}>

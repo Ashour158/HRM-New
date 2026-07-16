@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
@@ -705,8 +705,6 @@ export function AdminAttendance() {
     },
   ], []);
 
-  const tabClass = (tab: AttendanceTab) => activeTab === tab ? 'space-y-6' : 'hidden';
-
   return (
     <div className="-m-4 min-h-[calc(100vh-7rem)] px-6 py-6">
       <div className="flex flex-col gap-4 border-b pb-5 lg:flex-row lg:items-end lg:justify-between">
@@ -819,9 +817,8 @@ export function AdminAttendance() {
             </TabsTrigger>
           ))}
         </TabsList>
-      </Tabs>
 
-      <section className={tabClass('daily')}>
+      <TabsContent value="daily" className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold">Daily ledger</p>
@@ -860,9 +857,9 @@ export function AdminAttendance() {
             )}
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('scheduling')}>
+      <TabsContent value="scheduling" className="space-y-6">
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-2">
@@ -1058,9 +1055,9 @@ export function AdminAttendance() {
             </CardContent>
           </Card>
         </div>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('readiness')}>
+      <TabsContent value="readiness" className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Close Readiness</CardTitle>
@@ -1069,13 +1066,13 @@ export function AdminAttendance() {
           <CardContent className="space-y-5">
             <div className="grid gap-3 md:grid-cols-4">
               <div className="grid gap-2">
-                <Label>Year</Label>
-                <Input value={periodYear} onChange={(event) => setPeriodYear(event.target.value)} />
+                <Label htmlFor="attendance-readiness-year">Year</Label>
+                <Input id="attendance-readiness-year" value={periodYear} onChange={(event) => setPeriodYear(event.target.value)} />
               </div>
               <div className="grid gap-2">
                 <Label>Month</Label>
                 <Select value={periodMonth} onValueChange={setPeriodMonth}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Month"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Array.from({ length: 12 }, (_, index) => (
                       <SelectItem key={index + 1} value={String(index + 1)}>{new Date(2026, index, 1).toLocaleString(undefined, { month: 'long' })}</SelectItem>
@@ -1086,7 +1083,7 @@ export function AdminAttendance() {
               <div className="grid gap-2 md:col-span-2">
                 <Label>Workplace</Label>
                 <Select value={workplaceCode} onValueChange={setWorkplaceCode}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Workplace"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All workplaces</SelectItem>
                     {locations.map((location) => (
@@ -1134,9 +1131,9 @@ export function AdminAttendance() {
             </div>
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('corrections')}>
+      <TabsContent value="corrections" className="space-y-6">
         <div className="grid gap-6 xl:grid-cols-2">
           <Card>
             <CardHeader>
@@ -1226,9 +1223,9 @@ export function AdminAttendance() {
             </CardContent>
           </Card>
         </div>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('reminders')}>
+      <TabsContent value="reminders" className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -1252,9 +1249,9 @@ export function AdminAttendance() {
             ))}
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('reports')}>
+      <TabsContent value="reports" className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Attendance Reporting</CardTitle>
@@ -1307,9 +1304,9 @@ export function AdminAttendance() {
             </div>
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('policies')}>
+      <TabsContent value="policies" className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -1372,6 +1369,7 @@ export function AdminAttendance() {
                       type="button"
                       variant="ghost"
                       size="icon"
+                      aria-label={`Remove holiday ${holiday.name}`}
                       onClick={() => saveHolidays(holidayCalendars.filter((candidate) => candidate !== holiday))}
                       disabled={setupMutation.isPending}
                     >
@@ -1382,9 +1380,9 @@ export function AdminAttendance() {
             </div>
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('evidence')}>
+      <TabsContent value="evidence" className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
@@ -1440,9 +1438,9 @@ export function AdminAttendance() {
             </div>
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
 
-      <section className={tabClass('handoff')}>
+      <TabsContent value="handoff" className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Payroll Handoff</CardTitle>
@@ -1451,13 +1449,13 @@ export function AdminAttendance() {
           <CardContent className="space-y-5">
             <div className="flex flex-wrap items-end gap-3">
               <div className="grid gap-2">
-                <Label>Year</Label>
-                <Input value={periodYear} onChange={(event) => setPeriodYear(event.target.value)} />
+                <Label htmlFor="attendance-handoff-year">Year</Label>
+                <Input id="attendance-handoff-year" value={periodYear} onChange={(event) => setPeriodYear(event.target.value)} />
               </div>
               <div className="grid gap-2">
                 <Label>Month</Label>
                 <Select value={periodMonth} onValueChange={setPeriodMonth}>
-                  <SelectTrigger className="w-[12rem]"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-[12rem]" aria-label="Month"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {Array.from({ length: 12 }, (_, index) => (
                       <SelectItem key={index + 1} value={String(index + 1)}>{new Date(2026, index, 1).toLocaleString(undefined, { month: 'long' })}</SelectItem>
@@ -1468,7 +1466,7 @@ export function AdminAttendance() {
               <div className="grid min-w-[14rem] gap-2">
                 <Label>Workplace</Label>
                 <Select value={workplaceCode} onValueChange={setWorkplaceCode}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger aria-label="Workplace"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="ALL">All workplaces</SelectItem>
                     {locations.map((location) => <SelectItem key={location.code} value={location.code}>{location.label}</SelectItem>)}
@@ -1517,7 +1515,8 @@ export function AdminAttendance() {
             ) : null}
           </CardContent>
         </Card>
-      </section>
+      </TabsContent>
+      </Tabs>
     </div>
   );
 }

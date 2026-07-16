@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { parseNumeric } from '@hcm/database';
+import { roundMoney } from '@hcm/shared-kernel';
 import type {
   HcmSetupConfig,
   PayrollBlockingCondition,
@@ -248,9 +250,15 @@ function paymentBatchExceptionCount(paymentBatch: PayrollClosePaymentBatchEviden
 }
 
 function glPostingIsBalanced(glPosting: PayrollCloseGlPostingEvidence): boolean {
-  const totalDebits = Number(glPosting.totalDebits ?? 0);
-  const totalCredits = Number(glPosting.totalCredits ?? 0);
-  return Number(glPosting.lineCount ?? 0) > 0 && Math.abs(totalDebits - totalCredits) <= 0.01;
+  const totalDebits = parseNumeric(glPosting.totalDebits ?? 0);
+  const totalCredits = parseNumeric(glPosting.totalCredits ?? 0);
+  // Exact equality after rounding to cents, not a fixed epsilon tolerance:
+  // a hardcoded `<= 0.01` tolerance treats a genuine one-cent GL imbalance
+  // (e.g. totalDebits 100.10 vs totalCredits 100.09) as "balanced", which is
+  // wrong for a strict debit-must-equal-credit ledger invariant. Rounding
+  // both sides to cents (roundMoney) still absorbs harmless binary
+  // floating-point noise (e.g. 0.1 + 0.2 === 0.30000000000000004).
+  return Number(glPosting.lineCount ?? 0) > 0 && roundMoney(totalDebits) === roundMoney(totalCredits);
 }
 
 function payslipArtifactReady(artifact: PayrollClosePayslipArtifactEvidence): boolean {
