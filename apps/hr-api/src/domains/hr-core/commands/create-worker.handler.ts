@@ -3,6 +3,7 @@ import { CommandHandler } from '../../../platform/command-bus/command-handler.de
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { CreateWorkerPayload } from '@hcm/command-contracts';
 import { Uuid, Email, ValidationError, roundMoney } from '@hcm/shared-kernel';
+import { evaluateEmploymentEligibility } from '@hcm/policy-engines';
 import { FieldAccessDecision, FieldPolicyEngine, type AbacContext } from '@hcm/access-control';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { WorkerProfile } from '../aggregates/worker-profile.aggregate.js';
@@ -34,6 +35,76 @@ function hasValue(value: unknown): boolean {
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
   return true;
+}
+
+/** Minimum working age enforced by the employment-eligibility gate below. */
+const MINIMUM_WORKING_AGE = 18;
+
+/** Worker-profile-level eligibility flags a caller may set inside `workAuthorization`. */
+const ELIGIBILITY_PROFILE_FLAG_KEYS = [
+  'requiresWorkAuthorization',
+  'backgroundCheckRequired',
+  'backgroundCheckStatus',
+  'eligibilityStatus',
+  'eligible',
+] as const;
+
+function resolveMinimumWorkingAgeMet(dateOfBirth: Date | undefined, hireDate: Date): boolean | undefined {
+  if (!dateOfBirth) return undefined;
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return undefined;
+  let age = hireDate.getUTCFullYear() - dob.getUTCFullYear();
+  const hadBirthdayYet =
+    hireDate.getUTCMonth() > dob.getUTCMonth() ||
+    (hireDate.getUTCMonth() === dob.getUTCMonth() && hireDate.getUTCDate() >= dob.getUTCDate());
+  if (!hadBirthdayYet) age -= 1;
+  return age >= MINIMUM_WORKING_AGE;
+}
+
+/**
+ * Builds the input for `evaluateEmploymentEligibility` from whatever
+ * work-authorization/background-check/date-of-birth data is present on the
+ * CreateWorker payload. `CreateWorkerPayload` has no separate worker-profile
+ * eligibility fields, so profile-level flags (`requiresWorkAuthorization`,
+ * `backgroundCheckRequired`, `backgroundCheckStatus`, `eligibilityStatus`,
+ * `eligible`) are read from inside the same `workAuthorization` bag the caller
+ * already supplies. Deliberately does not invent a default for missing checks
+ * beyond what the engine itself already defines (e.g. it does not force
+ * `requiresWorkAuthorization: false` when the field is absent) - the engine's
+ * own, already-tested handling of missing/optional input is authoritative.
+ */
+function buildEmploymentEligibilityInput(
+  payload: CreateWorkerPayload,
+  hireDate: Date,
+): Parameters<typeof evaluateEmploymentEligibility>[0] {
+  const workAuthorization = payload.workAuthorization ?? {};
+  const workerProfile: Record<string, unknown> = {};
+
+  for (const key of ELIGIBILITY_PROFILE_FLAG_KEYS) {
+    if (key in workAuthorization) {
+      workerProfile[key] = workAuthorization[key];
+    }
+  }
+
+  const minimumWorkingAgeMet = resolveMinimumWorkingAgeMet(payload.dateOfBirth, hireDate);
+  if (minimumWorkingAgeMet !== undefined) {
+    workerProfile.minimumWorkingAgeMet = minimumWorkingAgeMet;
+  }
+
+  const address = payload.address as Record<string, unknown> | undefined;
+  const workLocation = payload.workLocation as Record<string, unknown> | undefined;
+  const countryCode =
+    (address?.country as string | undefined) ??
+    (workLocation?.countryCode as string | undefined) ??
+    (workLocation?.country as string | undefined) ??
+    'UNKNOWN';
+
+  return {
+    workerProfile,
+    workAuthorization,
+    countryCode,
+    legalEntityId: payload.legalEntityId ?? '',
+  };
 }
 
 
@@ -126,6 +197,13 @@ export class CreateWorkerHandler {
     const email = new Email(primaryEmail);
     const hireDate = payload.hireDate ?? command.effectiveDate ?? new Date();
     const compensation = this.calculateCompensation(payload, setup);
+
+    const eligibility = evaluateEmploymentEligibility(buildEmploymentEligibilityInput(payload, hireDate));
+    if (eligibility.decisionCode !== 'ELIGIBLE') {
+      throw new ValidationError(
+        `Employment eligibility check failed (${eligibility.decisionCode}): ${eligibility.reason}`,
+      );
+    }
 
     const worker = WorkerProfile.create(
       {
