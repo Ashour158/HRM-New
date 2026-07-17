@@ -1292,6 +1292,47 @@ export interface WorkAuthorizationCasesTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface I9FormsTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  start_date: Date;
+  status: string;
+  citizenship_status: string | null;
+  section1_completed_at: Date | null;
+  section1_late: boolean;
+  document_type: string | null;
+  document_descriptions: unknown;
+  document_expiration_date: Date | null;
+  reviewer_id: string | null;
+  section2_due_date: Date;
+  section2_completed_at: Date | null;
+  section2_late: boolean;
+  everify_case_id: string | null;
+  rejection_reason: string | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface EverifyCasesTable {
+  id: string;
+  tenant_id: string;
+  worker_id: string;
+  i9_case_id: string;
+  status: string;
+  case_number: string | null;
+  submitted_at: Date | null;
+  simulated_determination: string | null;
+  result: string | null;
+  result_recorded_at: Date | null;
+  result_recorded_by: string | null;
+  contested_at: Date | null;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface InternationalAssignmentsTable {
   id: string;
   tenant_id: string;
@@ -2420,6 +2461,8 @@ export interface Database {
   'hr_global_hr.works_council_consultations': WorksCouncilConsultationsTable;
   'hr_global_hr.work_authorization_cases': WorkAuthorizationCasesTable;
   'hr_global_hr.international_assignments': InternationalAssignmentsTable;
+  'hr_i9_everify.i9_forms': I9FormsTable;
+  'hr_i9_everify.everify_cases': EverifyCasesTable;
   'hr_country_policy.policy_packs': CountryPolicyPacksTable;
   'hr_country_policy.validation_runs': CountryPolicyValidationRunsTable;
   'hr_country_policy.impact_simulations': CountryPolicyImpactSimulationsTable;

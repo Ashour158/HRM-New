@@ -41,3 +41,9 @@ export {
   type EmailNotificationPayload,
   type EmailNotificationResult,
 } from './email-notification.adapter.js';
+export {
+  EverifyAdapter,
+  type EverifyDetermination,
+  type EverifySubmissionPayload,
+  type EverifySubmissionResult,
+} from './everify.adapter.js';

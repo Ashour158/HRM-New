@@ -29,7 +29,7 @@ interface SagaState {
  *   3. Create JobAssignment
  *   4. Fill Position in Position Control
  *   5. Create OnboardingPlan
- *   6. Create I-9 Case (future)
+ *   6. Create I-9 Case
  *   7. Create Work Authorization Case (future)
  *   8. IAM Provisioning (future)
  *
@@ -177,8 +177,24 @@ export class OfferToHireSaga implements OnModuleInit {
       );
       state.stepsCompleted.push('CreateOnboardingPlan');
 
-      // 6-8. Future steps
-      state.stepsCompleted.push('I9Case_PENDING');
+      // 6. Create I-9 Case (real employment-eligibility-verification workflow;
+      // Section 1/2 completion and any E-Verify submission happen later, driven
+      // by HR admin/onboarding task action, not by this saga).
+      const i9CaseId = Uuid.generate();
+      await this.dispatchCommand(
+        tenantId,
+        correlationId,
+        'CreateI9Case',
+        'I9Case',
+        {
+          i9CaseId,
+          workerId,
+          startDate: offer.startDate,
+        },
+      );
+      state.stepsCompleted.push('CreateI9Case');
+
+      // 7-8. Future steps
       state.stepsCompleted.push('WorkAuthorization_PENDING');
       state.stepsCompleted.push('IAMProvisioning_PENDING');
 

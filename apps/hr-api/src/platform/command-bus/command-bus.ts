@@ -143,6 +143,8 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   WorksCouncilConsultation: aggregateLoader('hr_global_hr.works_council_consultations'),
   WorkAuthorizationCase: aggregateLoader('hr_global_hr.work_authorization_cases'),
   InternationalAssignment: aggregateLoader('hr_global_hr.international_assignments'),
+  I9Case: aggregateLoader('hr_i9_everify.i9_forms'),
+  EverifyCase: aggregateLoader('hr_i9_everify.everify_cases'),
   CountryPolicyPack: aggregateLoader('hr_country_policy.policy_packs'),
   CountryPolicyValidationRun: aggregateLoader('hr_country_policy.validation_runs'),
   CountryPolicyImpactSimulation: aggregateLoader('hr_country_policy.impact_simulations'),
@@ -1342,7 +1344,7 @@ export class CommandBus implements OnModuleInit {
     if (normalized.includes('performance') || normalized.includes('objective') || normalized.includes('goal')) return 'PERFORMANCE';
     if (normalized.includes('relations') || normalized.includes('disciplinary') || normalized.includes('grievance')) return 'ER_CASE';
     if (normalized.includes('medical') || normalized.includes('wellness') || normalized.includes('eap')) return 'MEDICAL';
-    if (normalized.includes('authorization') || normalized.includes('visa') || normalized.includes('immigration')) return 'IMMIGRATION';
+    if (normalized.includes('authorization') || normalized.includes('visa') || normalized.includes('immigration') || normalized.includes('i9case') || normalized.includes('everify')) return 'IMMIGRATION';
     if (normalized.includes('survey')) return 'SURVEY';
     return 'PROFILE';
   }

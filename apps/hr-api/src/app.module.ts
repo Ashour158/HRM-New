@@ -14,6 +14,7 @@ import { CompensationModule } from './domains/compensation/compensation.module.j
 import { BenefitsModule } from './domains/benefits/benefits.module.js';
 import { ComplianceModule } from './domains/compliance/compliance.module.js';
 import { GlobalHrModule } from './domains/global-hr/global-hr.module.js';
+import { I9EverifyModule } from './domains/i9-everify/i9-everify.module.js';
 import { CountryPolicyModule } from './domains/country-policy/country-policy.module.js';
 import { TimeAttendanceModule } from './domains/time-attendance/time-attendance.module.js';
 import { AbsenceLeaveModule } from './domains/absence-leave/absence-leave.module.js';
@@ -74,7 +75,7 @@ import { DomainExceptionFilter } from './filters/domain-exception.filter.js';
       const path = ctx.switchToHttp().getRequest<Request>().path ?? '';
       return path.includes('/observability') || path.endsWith('/health') || path.endsWith('/metrics');
     },
-  }), ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntelligenceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule, SavedViewsModule],
+  }), ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, I9EverifyModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntelligenceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule, SavedViewsModule],
   controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController],
   providers: [
     AppService,
