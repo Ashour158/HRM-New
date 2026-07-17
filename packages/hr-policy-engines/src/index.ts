@@ -116,6 +116,24 @@ export type {
 
 export { OfferCompensationEngine, evaluateOfferCompensation } from './engines/offer-compensation.engine.js';
 
+export type {
+  RecruitingFairnessDecisionCode,
+  EeoDemographicDimension,
+  FunnelStageGroupCounts,
+  FunnelStageInput,
+  AdverseImpactAnalysisInput,
+  FunnelStageGroupResult,
+  FunnelStageResult,
+  AdverseImpactAnalysisResult,
+} from './engines/recruiting-fairness-compliance.engine.js';
+
+export {
+  RecruitingFairnessComplianceEngine,
+  evaluateRequisitionAdverseImpact,
+  evaluateFunnelStageAdverseImpact,
+  DEFAULT_SMALL_CELL_THRESHOLD,
+} from './engines/recruiting-fairness-compliance.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -124,4 +142,5 @@ export {
   fieldAccessPolicyEngine,
   countryPolicyValidationEngine,
   offerCompensationEngine,
+  recruitingFairnessComplianceEngine,
 } from './engines/registered-engines.js';

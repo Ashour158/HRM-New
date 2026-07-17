@@ -114,6 +114,7 @@ const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   Candidate: aggregateLoader('hr_recruiting.candidates'),
   InterviewPlan: aggregateLoader('hr_recruiting.interview_plans'),
   Offer: aggregateLoader('hr_recruiting.offers'),
+  RequisitionAdverseImpactAnalysis: aggregateLoader('hr_recruiting.requisition_adverse_impact_analyses'),
   OnboardingPlan: aggregateLoader('hr_onboarding.onboarding_plans'),
   OnboardingTask: aggregateLoader('hr_onboarding.onboarding_tasks'),
 
@@ -345,6 +346,18 @@ const SENSITIVE_FIELD_RULES: Array<{
     dataClassification: 'SPECIAL_CATEGORY',
     allowedWriterRoles: ['COMPLIANCE_OFFICER', 'HR_ADMIN', 'SUPER_ADMIN'],
     patterns: [/gender/i, /diversity/i, /ethnicity/i, /religion/i],
+  },
+  {
+    // Voluntary candidate EEO self-identification (race/ethnicity, gender
+    // identity, veteran status, disability status). RECRUITER is
+    // deliberately excluded — this data must be self-reported by the
+    // candidate (voluntarily), never entered by a hiring decision-maker.
+    // System/service-account intake (e.g. a public careers-site self-ID
+    // form) bypasses this whole check per the actorType guard above.
+    policyField: 'candidate.eeoSelfIdentification',
+    dataClassification: 'SPECIAL_CATEGORY',
+    allowedWriterRoles: ['COMPLIANCE_OFFICER', 'DEI_ANALYTICS_ADMIN', 'HR_ADMIN', 'SUPER_ADMIN'],
+    patterns: [/raceEthnicity/i, /genderIdentity/i, /veteranStatus/i, /disabilityStatus/i, /declinedToSelfIdentify/i, /eeoSelfIdentification/i],
   },
   {
     policyField: 'worker.legalHoldNotes',

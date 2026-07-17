@@ -5,10 +5,12 @@ import { JobRequisitionFsmRegistrar } from './fsm/job-requisition.fsm.js';
 import { CandidateFsmRegistrar } from './fsm/candidate.fsm.js';
 import { InterviewPlanFsmRegistrar } from './fsm/interview-plan.fsm.js';
 import { OfferFsmRegistrar } from './fsm/offer.fsm.js';
+import { RequisitionAdverseImpactAnalysisFsmRegistrar } from './fsm/requisition-adverse-impact-analysis.fsm.js';
 import { JobRequisitionRepository } from './repositories/job-requisition.repository.js';
 import { CandidateRepository } from './repositories/candidate.repository.js';
 import { InterviewPlanRepository } from './repositories/interview-plan.repository.js';
 import { OfferRepository } from './repositories/offer.repository.js';
+import { RequisitionAdverseImpactAnalysisRepository } from './repositories/requisition-adverse-impact-analysis.repository.js';
 import { CreateJobRequisitionHandler } from './commands/create-job-requisition.handler.js';
 import { ApproveJobRequisitionHandler } from './commands/approve-job-requisition.handler.js';
 import { PublishJobRequisitionHandler } from './commands/publish-job-requisition.handler.js';
@@ -22,6 +24,9 @@ import { CreateOfferHandler } from './commands/create-offer.handler.js';
 import { ApproveOfferHandler } from './commands/approve-offer.handler.js';
 import { SendOfferHandler } from './commands/send-offer.handler.js';
 import { AcceptOfferHandler } from './commands/accept-offer.handler.js';
+import { RecordCandidateEeoSelfIdentificationHandler } from './commands/record-candidate-eeo-self-identification.handler.js';
+import { AnalyzeRequisitionAdverseImpactHandler } from './commands/analyze-requisition-adverse-impact.handler.js';
+import { ReviewRequisitionAdverseImpactAnalysisHandler } from './commands/review-requisition-adverse-impact-analysis.handler.js';
 import { RecruitingEventsPublisher } from './events/recruiting-events.publisher.js';
 import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
 
@@ -41,11 +46,13 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     CandidateFsmRegistrar,
     InterviewPlanFsmRegistrar,
     OfferFsmRegistrar,
+    RequisitionAdverseImpactAnalysisFsmRegistrar,
     // Repositories
     JobRequisitionRepository,
     CandidateRepository,
     InterviewPlanRepository,
     OfferRepository,
+    RequisitionAdverseImpactAnalysisRepository,
     // Command handlers
     CreateJobRequisitionHandler,
     ApproveJobRequisitionHandler,
@@ -60,11 +67,20 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     ApproveOfferHandler,
     SendOfferHandler,
     AcceptOfferHandler,
+    RecordCandidateEeoSelfIdentificationHandler,
+    AnalyzeRequisitionAdverseImpactHandler,
+    ReviewRequisitionAdverseImpactAnalysisHandler,
     // Event publisher
     RecruitingEventsPublisher,
     // Saga
     OfferToHireSaga,
   ],
-  exports: [JobRequisitionRepository, CandidateRepository, InterviewPlanRepository, OfferRepository],
+  exports: [
+    JobRequisitionRepository,
+    CandidateRepository,
+    InterviewPlanRepository,
+    OfferRepository,
+    RequisitionAdverseImpactAnalysisRepository,
+  ],
 })
 export class RecruitingModule {}

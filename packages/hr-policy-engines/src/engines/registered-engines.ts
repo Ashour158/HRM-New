@@ -5,6 +5,7 @@ import { PayrollValidationEngine } from './payroll-validation.engine.js';
 import { SelfServiceAuthorityEngine } from './self-service.engine.js';
 import { CountryPolicyValidationEngine } from './country-policy-validation.engine.js';
 import { OfferCompensationEngine } from './offer-compensation.engine.js';
+import { RecruitingFairnessComplianceEngine } from './recruiting-fairness-compliance.engine.js';
 
 /**
  * Singleton registry holding the declarative definitions for every
@@ -57,9 +58,10 @@ engineRegistry.register({
   engineVersion: '1.4.0',
   description:
     'Ensures recruiting workflows comply with diversity, equal-opportunity, '
-    + 'and local labor-market regulations.',
+    + 'and local labor-market regulations. Implements EEOC 4/5ths-rule adverse-impact '
+    + 'screening of funnel-stage selection rates (see RecruitingFairnessComplianceEngine).',
   inputTypes: ['Requisition', 'CandidatePool', 'InterviewPlan'],
-  outputDecisionCodes: ['COMPLIANT', 'NON_COMPLIANT', 'REQUIRES_REVIEW'],
+  outputDecisionCodes: ['COMPLIANT', 'REQUIRES_REVIEW'],
   associatedRulePacks: ['recruiting-compliance-rules'],
   associatedTables: ['requisitions', 'candidates', 'interviews'],
   invocationPattern: 'ASYNC',
@@ -497,3 +499,7 @@ export const countryPolicyValidationEngine = new CountryPolicyValidationEngine()
 // offer-compensation is registered as a definition above; this binds the concrete
 // executable engine (compa-ratio / range-penetration / statutory + pay-equity checks).
 export const offerCompensationEngine = new OfferCompensationEngine();
+
+// recruiting-fairness-compliance is registered as a definition above; this binds the
+// concrete executable engine (EEOC 4/5ths-rule adverse-impact screening).
+export const recruitingFairnessComplianceEngine = new RecruitingFairnessComplianceEngine();
