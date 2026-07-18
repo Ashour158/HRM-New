@@ -93,6 +93,22 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('requisitions/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a job requisition' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async rejectRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RejectJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'PENDING_APPROVAL',
+      reason: 'Reject job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('requisitions/:id/commands/publish')
   @ApiOperation({ summary: 'Publish a job requisition' })
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
@@ -105,6 +121,38 @@ export class RecruitingController {
       aggregateId: id,
       expectedState: 'APPROVED',
       reason: 'Publish job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('requisitions/:id/commands/open')
+  @ApiOperation({ summary: 'Open a job requisition for applications' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async openRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('OpenJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'PUBLISHED',
+      reason: 'Open job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('requisitions/:id/commands/fill')
+  @ApiOperation({ summary: 'Mark a job requisition as filled' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async fillRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('FillJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'OPEN',
+      reason: 'Fill job requisition via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -216,6 +264,68 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('candidates/:id/commands/make-offer-pending')
+  @ApiOperation({ summary: 'Move a candidate to offer-pending' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async makeCandidateOfferPending(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('MakeOfferPending', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      expectedState: 'INTERVIEWING',
+      reason: 'Move candidate to offer-pending via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/hire')
+  @ApiOperation({ summary: 'Hire a candidate' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async hireCandidate(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('HireCandidate', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      expectedState: 'OFFER_PENDING',
+      reason: 'Hire candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a candidate' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async rejectCandidate(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RejectCandidate', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Reject candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw a candidate application' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async withdrawCandidate(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('WithdrawCandidate', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Withdraw candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Get('candidates')
   @ApiOperation({ summary: 'List candidates with optional filters' })
   @ApiQuery({ name: 'requisition', required: false })
@@ -263,6 +373,24 @@ export class RecruitingController {
     const envelope = this.buildCommand('ScheduleInterview', req, dto, {
       aggregateType: 'InterviewPlan',
       reason: 'Schedule interview via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('interviews/:id/commands/start')
+  @ApiOperation({ summary: 'Start an interview' })
+  @ApiParam({ name: 'id', description: 'Interview UUID' })
+  async startInterview(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const plan = await this.interviewPlanRepo.findById(new Uuid(id));
+    if (!plan) throw new BadRequestException('Interview plan not found');
+    const envelope = this.buildCommand('StartInterview', req, { interviewId: id }, {
+      aggregateType: 'InterviewPlan',
+      aggregateId: id,
+      expectedState: plan.status,
+      reason: 'Start interview via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -364,6 +492,53 @@ export class RecruitingController {
       aggregateId: id,
       expectedState: 'SENT',
       reason: 'Accept offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/decline')
+  @ApiOperation({ summary: 'Decline an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async declineOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('DeclineOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      expectedState: 'SENT',
+      reason: 'Decline offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/expire')
+  @ApiOperation({ summary: 'Expire an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async expireOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('ExpireOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      expectedState: 'SENT',
+      reason: 'Expire offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async withdrawOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('WithdrawOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      reason: 'Withdraw offer via API',
     });
     return this.commandBus.execute(envelope);
   }
