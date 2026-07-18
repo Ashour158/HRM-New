@@ -2,11 +2,13 @@ import { z } from 'zod';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
+const CASE_SEVERITY_ENUM = z.enum(['LOW', 'MEDIUM', 'HIGH']);
+
 export const CreateEmployeeRelationsCaseDtoSchema = z.object({
   caseNumber: z.string().min(1),
   subjectWorkerId: z.string().uuid(),
   caseType: z.string().min(1),
-  severity: z.string().min(1),
+  severity: CASE_SEVERITY_ENUM,
   description: z.string().min(1),
   openedBy: z.string().uuid(),
   assignedTo: z.string().uuid().optional(),
@@ -16,7 +18,7 @@ export class CreateEmployeeRelationsCaseDto {
   @ApiProperty() caseNumber!: string;
   @ApiProperty() subjectWorkerId!: string;
   @ApiProperty() caseType!: string;
-  @ApiProperty() severity!: string;
+  @ApiProperty({ enum: ['LOW', 'MEDIUM', 'HIGH'] }) severity!: string;
   @ApiProperty() description!: string;
   @ApiProperty() openedBy!: string;
   @ApiPropertyOptional() assignedTo?: string;
@@ -36,7 +38,7 @@ export const DraftDisciplinaryActionDtoSchema = z.object({
   workerId: z.string().uuid(),
   erCaseId: z.string().uuid(),
   actionType: z.string().min(1),
-  severity: z.string().min(1),
+  severity: CASE_SEVERITY_ENUM,
   description: z.string().min(1),
   effectiveDate: z.coerce.date(),
 });
@@ -45,7 +47,7 @@ export class DraftDisciplinaryActionDto {
   @ApiProperty() workerId!: string;
   @ApiProperty() erCaseId!: string;
   @ApiProperty() actionType!: string;
-  @ApiProperty() severity!: string;
+  @ApiProperty({ enum: ['LOW', 'MEDIUM', 'HIGH'] }) severity!: string;
   @ApiProperty() description!: string;
   @ApiProperty() effectiveDate!: Date;
 }

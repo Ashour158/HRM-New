@@ -116,6 +116,20 @@ export type {
 
 export { OfferCompensationEngine, evaluateOfferCompensation } from './engines/offer-compensation.engine.js';
 
+export type {
+  CaseSeverity,
+  DisciplinaryEscalationDecisionCode,
+  DisciplinaryEscalationInput,
+  DisciplinaryEscalationResult,
+} from './engines/employee-relations-escalation.engine.js';
+
+export {
+  EmployeeRelationsDisciplinaryEscalationEngine,
+  evaluateDisciplinaryEscalation,
+  CASE_SEVERITIES,
+  DEFAULT_LEGAL_REVIEW_SEVERITY_THRESHOLD,
+} from './engines/employee-relations-escalation.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -124,4 +138,5 @@ export {
   fieldAccessPolicyEngine,
   countryPolicyValidationEngine,
   offerCompensationEngine,
+  employeeRelationsDisciplinaryEngine,
 } from './engines/registered-engines.js';

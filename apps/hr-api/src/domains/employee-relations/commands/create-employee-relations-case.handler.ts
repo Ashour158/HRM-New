@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
+import type { CaseSeverity } from '@hcm/policy-engines';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { toOptionalUuid, toUuid } from '../../common/uuid-normalizer.js';
 import { EmployeeRelationsCase } from '../aggregates/employee-relations-case.aggregate.js';
@@ -22,7 +23,7 @@ export class CreateEmployeeRelationsCaseHandler {
       caseNumber: string;
       subjectWorkerId: Uuid | string;
       caseType: string;
-      severity: string;
+      severity: CaseSeverity;
       description: string;
       openedBy: Uuid | string;
       assignedTo?: Uuid | string;

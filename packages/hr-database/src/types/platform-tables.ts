@@ -1882,6 +1882,9 @@ export interface DisciplinaryActionsTable {
   description: string | null;
   effective_date: Date;
   expiry_date: Date | null;
+  /** Severity-driven legal-review escalation gate (see @hcm/policy-engines). */
+  legal_review_completed_at: Date | null;
+  legal_review_completed_by: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
