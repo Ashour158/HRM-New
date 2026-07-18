@@ -22,6 +22,15 @@ const allowedTestSecretPattern = /(?:change-me-in-production|dev-secret-change-m
 // Postgres credentials (e.g. hcm_ci_password, rls_ci_password). Any such suffix is allowed here;
 // a real-looking secret without this naming convention is still flagged.
 const ciFixturePasswordPattern = /:[a-z0-9_]+_ci_password@/i;
+// Angle-bracket placeholder credentials in Terraform/docs examples, e.g.
+// `postgresql://hcm_app:<hcm_app-password>@<output.rds_endpoint>/<output.rds_db_name>`
+// (deploy/terraform/rds.tf, docs/production-infrastructure-setup.md). A real leaked
+// credential is never literally wrapped in `<...>` — unescaped `<`/`>` aren't valid in a
+// URI's userinfo component, and the charset here excludes spaces, so a real password
+// (or someone pasting a live value between angle brackets as a note) still won't match
+// this shape and stays flagged. Matches the placeholder token itself, not a file path,
+// so it isn't tied to these two files and can't bit-rot into hiding a future real leak.
+const placeholderCredentialPattern = /:<[A-Za-z0-9_.-]+>@/;
 
 function isAllowedFinding(file, line, findingName) {
   const normalized = file.replaceAll('\\', '/');
@@ -39,6 +48,12 @@ function isAllowedFinding(file, line, findingName) {
     findingName === 'Database URL with embedded credentials'
     && normalized === 'deploy/docker-compose.production.yml'
     && line.includes('${POSTGRES_PASSWORD}')
+  ) {
+    return true;
+  }
+  if (
+    findingName === 'Database URL with embedded credentials'
+    && placeholderCredentialPattern.test(line)
   ) {
     return true;
   }
