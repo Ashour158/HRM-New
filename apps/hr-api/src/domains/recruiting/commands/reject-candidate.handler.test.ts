@@ -58,7 +58,7 @@ describe('RejectCandidateHandler', () => {
       idempotencyKey: 'test-key',
       correlationId: Uuid.generate(),
       reason: 'test',
-      payload: { candidateId, reason: 'Not a fit' },
+      payload: { applicationId: candidateId, reason: 'Not a fit' },
       metadata: { requestHash: 'hash', clientType: 'HR_ADMIN' },
     };
   }

@@ -10,10 +10,12 @@ import { CandidateRepository } from './repositories/candidate.repository.js';
 import { InterviewPlanRepository } from './repositories/interview-plan.repository.js';
 import { OfferRepository } from './repositories/offer.repository.js';
 import { CreateJobRequisitionHandler } from './commands/create-job-requisition.handler.js';
+import { SubmitJobRequisitionForApprovalHandler } from './commands/submit-job-requisition-for-approval.handler.js';
 import { ApproveJobRequisitionHandler } from './commands/approve-job-requisition.handler.js';
 import { RejectJobRequisitionHandler } from './commands/reject-job-requisition.handler.js';
 import { PublishJobRequisitionHandler } from './commands/publish-job-requisition.handler.js';
 import { OpenJobRequisitionHandler } from './commands/open-job-requisition.handler.js';
+import { FillJobRequisitionHandler } from './commands/fill-job-requisition.handler.js';
 import { CloseJobRequisitionHandler } from './commands/close-job-requisition.handler.js';
 import { SubmitCandidateApplicationHandler } from './commands/submit-candidate-application.handler.js';
 import { ScreenCandidateHandler } from './commands/screen-candidate.handler.js';
@@ -23,6 +25,8 @@ import { ScheduleInterviewHandler } from './commands/schedule-interview.handler.
 import { StartInterviewHandler } from './commands/start-interview.handler.js';
 import { CompleteInterviewHandler } from './commands/complete-interview.handler.js';
 import { CancelInterviewHandler } from './commands/cancel-interview.handler.js';
+import { MakeOfferPendingHandler } from './commands/make-offer-pending.handler.js';
+import { HireCandidateHandler } from './commands/hire-candidate.handler.js';
 import { CreateOfferHandler } from './commands/create-offer.handler.js';
 import { ApproveOfferHandler } from './commands/approve-offer.handler.js';
 import { SendOfferHandler } from './commands/send-offer.handler.js';
@@ -56,10 +60,12 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     OfferRepository,
     // Command handlers
     CreateJobRequisitionHandler,
+    SubmitJobRequisitionForApprovalHandler,
     ApproveJobRequisitionHandler,
     RejectJobRequisitionHandler,
     PublishJobRequisitionHandler,
     OpenJobRequisitionHandler,
+    FillJobRequisitionHandler,
     CloseJobRequisitionHandler,
     SubmitCandidateApplicationHandler,
     ScreenCandidateHandler,
@@ -69,6 +75,8 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     StartInterviewHandler,
     CompleteInterviewHandler,
     CancelInterviewHandler,
+    MakeOfferPendingHandler,
+    HireCandidateHandler,
     CreateOfferHandler,
     ApproveOfferHandler,
     SendOfferHandler,

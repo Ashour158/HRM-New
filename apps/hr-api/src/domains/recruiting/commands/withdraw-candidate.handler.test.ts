@@ -58,7 +58,7 @@ describe('WithdrawCandidateHandler', () => {
       idempotencyKey: 'test-key',
       correlationId: Uuid.generate(),
       reason: 'test',
-      payload: { candidateId, reason: 'Accepted another offer' },
+      payload: { applicationId: candidateId, reason: 'Accepted another offer' },
       metadata: { requestHash: 'hash', clientType: 'HR_ADMIN' },
     };
   }

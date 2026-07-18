@@ -231,7 +231,7 @@ describe('OfferToHireSaga', () => {
     // and already-withdrawn candidates must be left alone.
     expect(rejectCalls).toHaveLength(2);
     const rejectedCandidateIds = rejectCalls.map(
-      ([cmd]) => (cmd as { payload: { candidateId: Uuid } }).payload.candidateId.value,
+      ([cmd]) => (cmd as { payload: { applicationId: Uuid } }).payload.applicationId.value,
     );
     expect(rejectedCandidateIds).toEqual(
       expect.arrayContaining([stillInterviewing.id.value, stillScreening.id.value]),

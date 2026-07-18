@@ -8,7 +8,7 @@ import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 
 export interface WithdrawCandidateCommandPayload {
-  candidateId: Uuid;
+  applicationId: Uuid;
   reason?: string;
 }
 
@@ -33,7 +33,7 @@ export class WithdrawCandidateHandler implements ICommandHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as WithdrawCandidateCommandPayload;
-    const candidate = await this.candidateRepo.findById(payload.candidateId);
+    const candidate = await this.candidateRepo.findById(payload.applicationId);
     if (!candidate) {
       throw new NotFoundException('Candidate not found');
     }

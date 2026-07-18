@@ -7,23 +7,19 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 
-export interface RejectCandidateCommandPayload {
+export interface MakeOfferPendingCommandPayload {
   applicationId: Uuid;
-  reason?: string;
 }
 
 /**
- * Handler for the RejectCandidate command.
+ * Handler for the MakeOfferPending command.
  *
- * Moves a candidate to the REJECTED terminal state. Valid from NEW,
- * SCREENING, INTERVIEWING, or OFFER_PENDING (enforced by the aggregate).
- * No fixed `expectedState` is asserted here because the action is valid
- * from multiple states, matching the CloseJobRequisition convention.
+ * Transitions a candidate from INTERVIEWING to OFFER_PENDING.
  */
 @Injectable()
-@CommandHandler('RejectCandidate')
-export class RejectCandidateHandler implements ICommandHandler {
-  readonly commandName = 'RejectCandidate';
+@CommandHandler('MakeOfferPending')
+export class MakeOfferPendingHandler implements ICommandHandler {
+  readonly commandName = 'MakeOfferPending';
 
   constructor(
     private readonly candidateRepo: CandidateRepository,
@@ -32,19 +28,19 @@ export class RejectCandidateHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as RejectCandidateCommandPayload;
+    const payload = command.payload as MakeOfferPendingCommandPayload;
     const candidate = await this.candidateRepo.findById(payload.applicationId);
     if (!candidate) {
       throw new NotFoundException('Candidate not found');
     }
 
-    candidate.reject(command.correlationId);
+    candidate.makeOfferPending(command.correlationId);
     await this.candidateRepo.save(candidate);
     await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
 
     return {
       success: true,
-      data: { candidateId: candidate.id.value, status: candidate.status, reason: payload.reason },
+      data: { candidateId: candidate.id.value, status: candidate.status },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: candidate.id,
@@ -52,7 +48,7 @@ export class RejectCandidateHandler implements ICommandHandler {
       newVersion: candidate.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
       fieldAccessDecisions: {},
-      eventsEmitted: ['CandidateRejected'],
+      eventsEmitted: ['CandidateOfferPending'],
       auditRecordId: Uuid.generate(),
     };
   }

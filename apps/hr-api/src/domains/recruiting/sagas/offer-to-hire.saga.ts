@@ -258,7 +258,7 @@ export class OfferToHireSaga implements OnModuleInit {
           correlationId,
           'RejectCandidate',
           'Candidate',
-          { candidateId: candidate.id, reason: 'Requisition filled by another candidate' },
+          { applicationId: candidate.id, reason: 'Requisition filled by another candidate' },
           candidate.id,
         );
       } catch (err) {
