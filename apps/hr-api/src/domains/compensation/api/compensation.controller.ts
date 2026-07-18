@@ -227,6 +227,14 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('changes/:id/commands/submit')
+  async submitChange(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'SubmitCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Post('changes/:id/commands/approve')
   async approveChange(@Param('id') id: string, @Body() dto: ApproveCompensationChangeDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'ApproveCompensationChange', 'CompensationChange', id, {

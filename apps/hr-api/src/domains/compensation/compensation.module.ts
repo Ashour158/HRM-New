@@ -26,6 +26,7 @@ import { CreateCompensationPlanHandler } from './commands/create-compensation-pl
 import { ActivateCompensationPlanHandler } from './commands/activate-compensation-plan.handler.js';
 import { CreateCompensationBandHandler } from './commands/create-compensation-band.handler.js';
 import { CreateCompensationChangeHandler } from './commands/create-compensation-change.handler.js';
+import { SubmitCompensationChangeHandler } from './commands/submit-compensation-change.handler.js';
 import { ApproveCompensationChangeHandler } from './commands/approve-compensation-change.handler.js';
 import { CreateBonusCycleHandler } from './commands/create-bonus-cycle.handler.js';
 import { CreateEquityGrantHandler } from './commands/create-equity-grant.handler.js';
@@ -64,6 +65,7 @@ import { CreateTotalCompensationStatementHandler } from './commands/create-total
     ActivateCompensationPlanHandler,
     CreateCompensationBandHandler,
     CreateCompensationChangeHandler,
+    SubmitCompensationChangeHandler,
     ApproveCompensationChangeHandler,
     CreateBonusCycleHandler,
     CreateEquityGrantHandler,
