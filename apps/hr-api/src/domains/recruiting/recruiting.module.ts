@@ -10,6 +10,7 @@ import { CandidateRepository } from './repositories/candidate.repository.js';
 import { InterviewPlanRepository } from './repositories/interview-plan.repository.js';
 import { OfferRepository } from './repositories/offer.repository.js';
 import { CreateJobRequisitionHandler } from './commands/create-job-requisition.handler.js';
+import { SubmitJobRequisitionForApprovalHandler } from './commands/submit-job-requisition-for-approval.handler.js';
 import { ApproveJobRequisitionHandler } from './commands/approve-job-requisition.handler.js';
 import { PublishJobRequisitionHandler } from './commands/publish-job-requisition.handler.js';
 import { CloseJobRequisitionHandler } from './commands/close-job-requisition.handler.js';
@@ -48,6 +49,7 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     OfferRepository,
     // Command handlers
     CreateJobRequisitionHandler,
+    SubmitJobRequisitionForApprovalHandler,
     ApproveJobRequisitionHandler,
     PublishJobRequisitionHandler,
     CloseJobRequisitionHandler,

@@ -61,6 +61,22 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('requisitions/:id/commands/submit-for-approval')
+  @ApiOperation({ summary: 'Submit a job requisition for approval' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async submitJobRequisitionForApproval(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('SubmitJobRequisitionForApproval', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'DRAFT',
+      reason: 'Submit job requisition for approval via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('requisitions/:id/commands/approve')
   @ApiOperation({ summary: 'Approve a job requisition' })
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
