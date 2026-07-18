@@ -43,6 +43,12 @@ export interface LifeEventPayload {
   effectiveDate: string;
 }
 
+export interface SpendingAccountClosurePayload {
+  accountId: Uuid;
+  workerId: Uuid;
+  accountType: string;
+}
+
 @Injectable()
 export class BenefitsCarrierAdapter implements IntegrationAdapter {
   readonly name = 'benefits-carrier';
@@ -100,6 +106,21 @@ export class BenefitsCarrierAdapter implements IntegrationAdapter {
     return sendIntegrationHttpPayload(this.name, this.readiness, {
       operation: 'SEND_LIFE_EVENT_UPDATE',
       ...event,
+    }) as Promise<CarrierResult>;
+  }
+
+  /**
+   * Notify the carrier/administrator that a spending account (FSA/HSA) has
+   * closed, so any recurring carrier-side contribution stops. The payroll-side
+   * recurring deduction is stopped separately (tracked as a follow-up).
+   * @param account Spending account payload
+   */
+  async sendSpendingAccountClosure(account: SpendingAccountClosurePayload): Promise<CarrierResult> {
+    this.logger.log({ type: 'CARRIER_SEND_SPENDING_ACCOUNT_CLOSURE', accountId: account.accountId.value, workerId: account.workerId.value });
+
+    return sendIntegrationHttpPayload(this.name, this.readiness, {
+      operation: 'SEND_SPENDING_ACCOUNT_CLOSURE',
+      ...account,
     }) as Promise<CarrierResult>;
   }
 
