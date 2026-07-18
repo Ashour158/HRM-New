@@ -41,8 +41,10 @@ import {
   UpdateWorkerDtoSchema,
   TerminateWorkerDtoSchema,
   CreateJobAssignmentDtoSchema,
+  UpdateJobAssignmentDtoSchema,
   CreateEmploymentRelationshipDtoSchema,
   CreateEmploymentContractDtoSchema,
+  TerminateEmploymentContractDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
 
@@ -1370,6 +1372,28 @@ export class HrCoreController {
     return this.executeCommand(command);
   }
 
+  @Post('job-assignments/:id/commands/update')
+  async updateJobAssignment(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateJobAssignmentDtoSchema)) dto: dtos.UpdateJobAssignmentDto,
+    @Req() req: Request,
+  ) {
+    const assignment = await this.jobAssignmentRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!assignment) throw new BadRequestException('Job assignment not found');
+    const command = this.buildCommand(
+      'UpdateJobAssignment',
+      'JobAssignment',
+      { assignmentId: new Uuid(id), ...dto },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.state,
+        expectedVersion: assignment.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
   @Get('job-assignments/worker/:workerId')
   async getJobAssignments(@Param('workerId') workerId: string, @Req() req: Request) {
     const tenantId = this.getTenantId(req);
@@ -1399,6 +1423,64 @@ export class HrCoreController {
       'SignEmploymentContract',
       'EmploymentContract',
       { contractId: new Uuid(id), signedAt: new Date() },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: contract.state,
+        expectedVersion: contract.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-contracts/:id/commands/activate')
+  async activateEmploymentContract(@Param('id') id: string, @Req() req: Request) {
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!contract) throw new BadRequestException('Contract not found');
+    const command = this.buildCommand(
+      'ActivateEmploymentContract',
+      'EmploymentContract',
+      { contractId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: contract.state,
+        expectedVersion: contract.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-contracts/:id/commands/terminate')
+  async terminateEmploymentContract(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(TerminateEmploymentContractDtoSchema)) dto: dtos.TerminateEmploymentContractDto,
+    @Req() req: Request,
+  ) {
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!contract) throw new BadRequestException('Contract not found');
+    const command = this.buildCommand(
+      'TerminateEmploymentContract',
+      'EmploymentContract',
+      { contractId: new Uuid(id), ...dto },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: contract.state,
+        expectedVersion: contract.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-contracts/:id/commands/expire')
+  async expireEmploymentContract(@Param('id') id: string, @Req() req: Request) {
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!contract) throw new BadRequestException('Contract not found');
+    const command = this.buildCommand(
+      'ExpireEmploymentContract',
+      'EmploymentContract',
+      { contractId: new Uuid(id) },
       req,
       {
         aggregateId: new Uuid(id),

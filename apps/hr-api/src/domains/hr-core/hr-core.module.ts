@@ -22,12 +22,17 @@ import { ApplyWorkerMassUpdateHandler } from './commands/apply-worker-mass-updat
 import { CreateJobAssignmentHandler } from './commands/create-job-assignment.handler.js';
 import { ActivateJobAssignmentHandler } from './commands/activate-job-assignment.handler.js';
 import { EndJobAssignmentHandler } from './commands/end-job-assignment.handler.js';
+import { UpdateJobAssignmentHandler } from './commands/update-job-assignment.handler.js';
 import { CreateEmploymentRelationshipHandler } from './commands/create-employment-relationship.handler.js';
 import { ActivateEmploymentRelationshipHandler } from './commands/activate-employment-relationship.handler.js';
 import { EndEmploymentRelationshipHandler } from './commands/end-employment-relationship.handler.js';
 import { CreateEmploymentContractHandler } from './commands/create-employment-contract.handler.js';
 import { SignEmploymentContractHandler } from './commands/sign-employment-contract.handler.js';
+import { ActivateEmploymentContractHandler } from './commands/activate-employment-contract.handler.js';
+import { TerminateEmploymentContractHandler } from './commands/terminate-employment-contract.handler.js';
+import { ExpireEmploymentContractHandler } from './commands/expire-employment-contract.handler.js';
 import { WorkerEventsPublisher } from './events/worker-events.publisher.js';
+import { ManagerRelationshipSyncConsumer } from './consumers/manager-relationship-sync.consumer.js';
 import { WorkerViewProjectionBuilder } from './projections/worker-view.projection.js';
 import { registerWorkerProfileFsm } from './fsm/worker-profile.fsm.js';
 import { registerEmploymentRelationshipFsm } from './fsm/employment-relationship.fsm.js';
@@ -56,12 +61,17 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     CreateJobAssignmentHandler,
     ActivateJobAssignmentHandler,
     EndJobAssignmentHandler,
+    UpdateJobAssignmentHandler,
     CreateEmploymentRelationshipHandler,
     ActivateEmploymentRelationshipHandler,
     EndEmploymentRelationshipHandler,
     CreateEmploymentContractHandler,
     SignEmploymentContractHandler,
+    ActivateEmploymentContractHandler,
+    TerminateEmploymentContractHandler,
+    ExpireEmploymentContractHandler,
     WorkerEventsPublisher,
+    ManagerRelationshipSyncConsumer,
     WorkerViewProjectionBuilder,
   ],
   exports: [WorkerRepository, EmploymentRelationshipRepository, JobAssignmentRepository, PersonalDataRecordRepository],
