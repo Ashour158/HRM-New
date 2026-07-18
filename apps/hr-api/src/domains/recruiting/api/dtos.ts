@@ -27,6 +27,14 @@ export class CloseJobRequisitionDto {
   @ApiProperty() reason!: string;
 }
 
+export const RejectJobRequisitionDtoSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export class RejectJobRequisitionDto {
+  @ApiPropertyOptional() reason?: string;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Candidate DTOs                                                     */
 /* ------------------------------------------------------------------ */
@@ -63,6 +71,22 @@ export const ScreenCandidateDtoSchema = z.object({
 export class ScreenCandidateDto {
   @ApiProperty() screenedByWorkerId!: string;
   @ApiProperty() outcome!: string;
+}
+
+export const RejectCandidateDtoSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export class RejectCandidateDto {
+  @ApiPropertyOptional() reason?: string;
+}
+
+export const WithdrawCandidateDtoSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export class WithdrawCandidateDto {
+  @ApiPropertyOptional() reason?: string;
 }
 
 export const ScheduleInterviewDtoSchema = z.object({
@@ -117,4 +141,24 @@ export const AcceptOfferDtoSchema = z.object({
 
 export class AcceptOfferDto {
   @ApiPropertyOptional() acceptedAt?: Date;
+}
+
+export const DeclineOfferDtoSchema = z.object({
+  reason: z.string().min(1),
+});
+
+export class DeclineOfferDto {
+  @ApiProperty() reason!: string;
+}
+
+export const ExpireOfferDtoSchema = z.object({});
+
+export class ExpireOfferDto {}
+
+export const WithdrawOfferDtoSchema = z.object({
+  reason: z.string().optional(),
+});
+
+export class WithdrawOfferDto {
+  @ApiPropertyOptional() reason?: string;
 }

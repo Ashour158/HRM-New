@@ -53,6 +53,28 @@ export const CloseJobRequisitionPayloadSchema = z.object({
   reason: z.string().min(1),
 });
 
+export const RejectJobRequisitionCommandName = 'RejectJobRequisition' as const;
+
+export interface RejectJobRequisitionPayload {
+  requisitionId: Uuid;
+  reason?: string;
+}
+
+export const RejectJobRequisitionPayloadSchema = z.object({
+  requisitionId: z.string().uuid(),
+  reason: z.string().optional(),
+});
+
+export const OpenJobRequisitionCommandName = 'OpenJobRequisition' as const;
+
+export interface OpenJobRequisitionPayload {
+  requisitionId: Uuid;
+}
+
+export const OpenJobRequisitionPayloadSchema = z.object({
+  requisitionId: z.string().uuid(),
+});
+
 /* ------------------------------------------------------------------ */
 /*  Candidate commands                                                 */
 /* ------------------------------------------------------------------ */
@@ -87,6 +109,30 @@ export const ScreenCandidatePayloadSchema = z.object({
   outcome: z.string().min(1),
 });
 
+export const RejectCandidateCommandName = 'RejectCandidate' as const;
+
+export interface RejectCandidatePayload {
+  candidateId: Uuid;
+  reason?: string;
+}
+
+export const RejectCandidatePayloadSchema = z.object({
+  candidateId: z.string().uuid(),
+  reason: z.string().optional(),
+});
+
+export const WithdrawCandidateCommandName = 'WithdrawCandidate' as const;
+
+export interface WithdrawCandidatePayload {
+  candidateId: Uuid;
+  reason?: string;
+}
+
+export const WithdrawCandidatePayloadSchema = z.object({
+  candidateId: z.string().uuid(),
+  reason: z.string().optional(),
+});
+
 export const ScheduleInterviewCommandName = 'ScheduleInterview' as const;
 
 export interface ScheduleInterviewPayload {
@@ -101,6 +147,16 @@ export const ScheduleInterviewPayloadSchema = z.object({
   applicationId: z.string().uuid(),
   scheduledAt: z.coerce.date(),
   interviewerWorkerIds: z.array(z.string().uuid()).min(1),
+});
+
+export const StartInterviewCommandName = 'StartInterview' as const;
+
+export interface StartInterviewPayload {
+  interviewId: Uuid;
+}
+
+export const StartInterviewPayloadSchema = z.object({
+  interviewId: z.string().uuid(),
 });
 
 /* ------------------------------------------------------------------ */
@@ -157,4 +213,26 @@ export interface DeclineOfferPayload {
 export const DeclineOfferPayloadSchema = z.object({
   offerId: z.string().uuid(),
   reason: z.string().min(1),
+});
+
+export const ExpireOfferCommandName = 'ExpireOffer' as const;
+
+export interface ExpireOfferPayload {
+  offerId: Uuid;
+}
+
+export const ExpireOfferPayloadSchema = z.object({
+  offerId: z.string().uuid(),
+});
+
+export const WithdrawOfferCommandName = 'WithdrawOffer' as const;
+
+export interface WithdrawOfferPayload {
+  offerId: Uuid;
+  reason?: string;
+}
+
+export const WithdrawOfferPayloadSchema = z.object({
+  offerId: z.string().uuid(),
+  reason: z.string().optional(),
 });

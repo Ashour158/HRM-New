@@ -26,12 +26,17 @@ import { OfferRepository } from '../repositories/offer.repository.js';
 import {
   CreateJobRequisitionDto,
   CloseJobRequisitionDto,
+  RejectJobRequisitionDto,
   SubmitCandidateDto,
   ScreenCandidateDto,
+  RejectCandidateDto,
+  WithdrawCandidateDto,
   ScheduleInterviewDto,
   CreateOfferDto,
   SendOfferDto,
   AcceptOfferDto,
+  DeclineOfferDto,
+  WithdrawOfferDto,
 } from './dtos.js';
 
 @ApiTags('Recruiting')
@@ -77,6 +82,23 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('requisitions/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a job requisition' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async rejectRequisition(
+    @Param('id') id: string,
+    @Body() dto: RejectJobRequisitionDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RejectJobRequisition', req, { requisitionId: id, reason: dto.reason }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'PENDING_APPROVAL',
+      reason: 'Reject job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('requisitions/:id/commands/publish')
   @ApiOperation({ summary: 'Publish a job requisition' })
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
@@ -89,6 +111,22 @@ export class RecruitingController {
       aggregateId: id,
       expectedState: 'APPROVED',
       reason: 'Publish job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('requisitions/:id/commands/open')
+  @ApiOperation({ summary: 'Open a job requisition for applications' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async openRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('OpenJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'PUBLISHED',
+      reason: 'Open job requisition via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -185,6 +223,38 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('candidates/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a candidate' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async rejectCandidate(
+    @Param('id') id: string,
+    @Body() dto: RejectCandidateDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RejectCandidate', req, { candidateId: id, reason: dto.reason }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Reject candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw a candidate application' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async withdrawCandidate(
+    @Param('id') id: string,
+    @Body() dto: WithdrawCandidateDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('WithdrawCandidate', req, { candidateId: id, reason: dto.reason }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Withdraw candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('candidates/:id/commands/schedule-interview')
   @ApiOperation({ summary: 'Schedule an interview for a candidate' })
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
@@ -247,6 +317,22 @@ export class RecruitingController {
     const envelope = this.buildCommand('ScheduleInterview', req, dto, {
       aggregateType: 'InterviewPlan',
       reason: 'Schedule interview via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('interviews/:id/commands/start')
+  @ApiOperation({ summary: 'Start an interview' })
+  @ApiParam({ name: 'id', description: 'Interview UUID' })
+  async startInterview(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('StartInterview', req, { interviewId: id }, {
+      aggregateType: 'InterviewPlan',
+      aggregateId: id,
+      expectedState: 'SCHEDULED',
+      reason: 'Start interview via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -348,6 +434,55 @@ export class RecruitingController {
       aggregateId: id,
       expectedState: 'SENT',
       reason: 'Accept offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/decline')
+  @ApiOperation({ summary: 'Decline an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async declineOffer(
+    @Param('id') id: string,
+    @Body() dto: DeclineOfferDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('DeclineOffer', req, { offerId: id, reason: dto.reason }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      expectedState: 'SENT',
+      reason: 'Decline offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/expire')
+  @ApiOperation({ summary: 'Expire an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async expireOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('ExpireOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      expectedState: 'SENT',
+      reason: 'Expire offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async withdrawOffer(
+    @Param('id') id: string,
+    @Body() dto: WithdrawOfferDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('WithdrawOffer', req, { offerId: id, reason: dto.reason }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      reason: 'Withdraw offer via API',
     });
     return this.commandBus.execute(envelope);
   }
