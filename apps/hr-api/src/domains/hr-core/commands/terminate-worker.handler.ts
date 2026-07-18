@@ -35,11 +35,14 @@ export class TerminateWorkerHandler {
     worker.terminate(payload.terminationDate, payload.reason, command.correlationId);
     await this.workerRepo.save(worker);
 
+    const eventsEmitted = worker.domainEvents.map((e) => e.eventName);
+
     const assignments = await this.jobAssignmentRepo.findByWorkerForTenant(worker.id, command.tenantId);
     for (const assignment of assignments) {
       if (assignment.state === 'ACTIVE') {
         assignment.end(payload.terminationDate, command.correlationId);
         await this.jobAssignmentRepo.save(assignment);
+        eventsEmitted.push(...assignment.domainEvents.map((e) => e.eventName));
       }
     }
 
@@ -48,6 +51,7 @@ export class TerminateWorkerHandler {
       if (relationship.state !== 'ENDED') {
         relationship.end(payload.terminationDate, command.correlationId);
         await this.employmentRelationshipRepo.save(relationship);
+        eventsEmitted.push(...relationship.domainEvents.map((e) => e.eventName));
       }
     }
 
@@ -63,7 +67,7 @@ export class TerminateWorkerHandler {
       newVersion: worker.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(worker.status, 'WorkerProfile'),
       fieldAccessDecisions: {},
-      eventsEmitted: worker.domainEvents.map((e) => e.eventName),
+      eventsEmitted,
       auditRecordId: command.commandId,
     } as CommandResult<unknown>;
   }
