@@ -47,6 +47,8 @@ describe('BenefitsEventsPublisher', () => {
       tenantId,
       programName: 'Medical',
       programType: 'HEALTH',
+      monthlyPremium: 350,
+      currency: 'USD',
       correlationId,
     });
 

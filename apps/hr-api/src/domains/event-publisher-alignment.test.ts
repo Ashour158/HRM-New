@@ -121,6 +121,8 @@ describe('domain event publisher schema alignment', () => {
       coverageLevel: 'FAMILY',
       dependents: [],
       effectiveDate: new Date('2026-05-01T00:00:00.000Z'),
+      premiumAmount: 600,
+      currency: 'USD',
       correlationId,
     });
     enrollment.submit(correlationId);

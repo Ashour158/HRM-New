@@ -3,6 +3,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 import { BenefitsEnrollment } from '../aggregates/benefits-enrollment.aggregate.js';
+import { BenefitsProgram } from '../aggregates/benefits-program.aggregate.js';
 import { BenefitsLifeEvent } from '../aggregates/benefits-life-event.aggregate.js';
 import { CreateBenefitsEnrollmentHandler } from './create-benefits-enrollment.handler.js';
 import { ApproveBenefitsEnrollmentHandler } from './approve-benefits-enrollment.handler.js';
@@ -57,7 +58,22 @@ function enrollment(status: BenefitsEnrollment['status']) {
     coverageLevel: 'EMPLOYEE',
     dependents: [],
     effectiveDate: new Date('2026-01-01T00:00:00.000Z'),
+    premiumAmount: 450,
+    currency: 'USD',
     status,
+    aggregateVersion: 1,
+  });
+}
+
+function program() {
+  return new BenefitsProgram({
+    id: programId,
+    tenantId,
+    programName: 'Premium PPO',
+    programType: 'MEDICAL',
+    monthlyPremium: 450,
+    currency: 'USD',
+    status: 'ACTIVE',
     aggregateVersion: 1,
   });
 }
@@ -77,8 +93,10 @@ function lifeEvent(status: BenefitsLifeEvent['status']) {
 describe('Benefits lifecycle command handlers', () => {
   it('creates and submits an enrollment so employee requests are persisted as actionable domain work', async () => {
     const repo = { save: vi.fn(async () => undefined) };
+    const programRepo = { findById: vi.fn(async () => program()) };
     const handler = new CreateBenefitsEnrollmentHandler(
       repo as never,
+      programRepo as never,
       new BenefitsEventsPublisher(),
       { getAllowedActions: vi.fn(() => ['SendForApproval']) } as never,
     );
@@ -94,6 +112,12 @@ describe('Benefits lifecycle command handlers', () => {
 
     const saved = repo.save.mock.calls[0]?.[0] as BenefitsEnrollment;
     expect(saved.status).toBe('SUBMITTED');
+    expect(programRepo.findById).toHaveBeenCalledWith(programId);
+    // The enrollment must snapshot the program's premium rate at creation time,
+    // not defer to a live lookup later, so the employee's contracted rate stays
+    // stable even if the program's rate changes.
+    expect(saved.premiumAmount).toBe(450);
+    expect(saved.currency).toBe('USD');
     expect(result).toEqual(expect.objectContaining({
       success: true,
       aggregateId: enrollmentId,
@@ -103,8 +127,31 @@ describe('Benefits lifecycle command handlers', () => {
     expect(result.data).toEqual(expect.objectContaining({
       enrollmentId: enrollmentId.value,
       workerId: workerId.value,
+      premiumAmount: 450,
+      currency: 'USD',
       status: 'SUBMITTED',
     }));
+  });
+
+  it('rejects enrollment creation when the referenced program does not exist', async () => {
+    const repo = { save: vi.fn(async () => undefined) };
+    const programRepo = { findById: vi.fn(async () => undefined) };
+    const handler = new CreateBenefitsEnrollmentHandler(
+      repo as never,
+      programRepo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    await expect(handler.handle(command('CreateBenefitsEnrollment', 'BenefitsEnrollment', {
+      enrollmentId,
+      workerId,
+      programId,
+      coverageLevel: 'EMPLOYEE',
+      dependents: [],
+      effectiveDate: new Date('2026-01-01T00:00:00.000Z'),
+    }))).rejects.toThrow('BenefitsProgram not found');
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('approves a submitted enrollment through the canonical aggregate and persists the new state', async () => {
@@ -192,10 +239,18 @@ describe('Benefits lifecycle command handlers', () => {
       newState: 'EFFECTIVE',
       eventsEmitted: ['BenefitsEnrollmentEffective'],
     }));
+    // Tier-0 fix: BenefitsCarrierConsumer requires coverageStartDate, and
+    // PayrollInputBuilderSaga requires a non-zero `amount` -- both were
+    // previously missing from this handler's data return, so every real
+    // BenefitsEnrollmentEffective event threw in the consumer and created a
+    // $0 payroll deduction line.
     expect(result.data).toEqual(expect.objectContaining({
       enrollmentId: enrollmentId.value,
       workerId: workerId.value,
       programId: programId.value,
+      coverageStartDate: '2026-01-01T00:00:00.000Z',
+      amount: 450,
+      currency: 'USD',
       status: 'EFFECTIVE',
     }));
   });
@@ -251,10 +306,14 @@ describe('Benefits lifecycle command handlers', () => {
       newState: 'PROCESSED',
       eventsEmitted: ['LifeEventProcessed'],
     }));
+    // Tier-0 fix: BenefitsCarrierConsumer requires effectiveDate for
+    // LifeEventProcessed, which was previously missing from this handler's
+    // data return, causing every real event to throw in the consumer.
     expect(result.data).toEqual(expect.objectContaining({
       lifeEventId: lifeEventId.value,
       workerId: workerId.value,
       processedBy: actorId.value,
+      effectiveDate: '2026-02-14T00:00:00.000Z',
       status: 'PROCESSED',
     }));
   });
