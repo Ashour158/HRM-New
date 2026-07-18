@@ -26,6 +26,9 @@ import { CarrierReconciliationRunRepository } from '../repositories/carrier-reco
 
 import {
   CreateBenefitsProgramDto,
+  ActivateBenefitsProgramDto,
+  SuspendBenefitsProgramDto,
+  CloseBenefitsProgramDto,
   CreateBenefitsEnrollmentDto,
   CreateBenefitsLifeEventDto,
   ApproveBenefitsEnrollmentDto,
@@ -34,7 +37,12 @@ import {
   ProcessBenefitsLifeEventDto,
   RejectBenefitsLifeEventDto,
   CreateSpendingAccountDto,
+  RecordSpendingAccountUsageDto,
+  CloseSpendingAccountDto,
   CreateCarrierReconciliationRunDto,
+  DetectCarrierReconciliationVarianceDto,
+  ReconcileCarrierReconciliationRunDto,
+  FailCarrierReconciliationRunDto,
 } from './dtos.js';
 
 const BENEFITS_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP', 'BENEFITS_ADMIN']);
@@ -103,6 +111,8 @@ export class BenefitsController {
       carrierId: dto.carrierId ? new Uuid(dto.carrierId) : undefined,
       effectiveFrom: dto.effectiveFrom,
       effectiveUntil: dto.effectiveUntil,
+      monthlyPremium: dto.monthlyPremium,
+      currency: dto.currency,
     });
     return this.commandBus.execute(command);
   }
@@ -121,6 +131,35 @@ export class BenefitsController {
     const program = await this.programRepo.findById(new Uuid(id));
     if (!program) throw new NotFoundException('BenefitsProgram not found');
     return program;
+  }
+
+  @Post('programs/:id/commands/activate')
+  async activateProgram(@Param('id') id: string, @Body() _dto: ActivateBenefitsProgramDto = {}, @Req() req: Request) {
+    await this.getProgramForCommand(id);
+    const command = this.buildCommand(req, 'ActivateBenefitsProgram', 'BenefitsProgram', id, {
+      programId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('programs/:id/commands/suspend')
+  async suspendProgram(@Param('id') id: string, @Body() dto: SuspendBenefitsProgramDto = {}, @Req() req: Request) {
+    await this.getProgramForCommand(id);
+    const command = this.buildCommand(req, 'SuspendBenefitsProgram', 'BenefitsProgram', id, {
+      programId: new Uuid(id),
+      reason: dto.reason,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('programs/:id/commands/close')
+  async closeProgram(@Param('id') id: string, @Body() dto: CloseBenefitsProgramDto = {}, @Req() req: Request) {
+    await this.getProgramForCommand(id);
+    const command = this.buildCommand(req, 'CloseBenefitsProgram', 'BenefitsProgram', id, {
+      programId: new Uuid(id),
+      reason: dto.reason,
+    });
+    return this.commandBus.execute(command);
   }
 
   /* ---------------------------------------------------------------- */
@@ -299,6 +338,29 @@ export class BenefitsController {
     return this.spendingAccountRepo.findByWorker(new Uuid(workerId));
   }
 
+  @Post('spending-accounts/:id/commands/record-usage')
+  async recordSpendingAccountUsage(@Param('id') id: string, @Body() dto: RecordSpendingAccountUsageDto, @Req() req: Request) {
+    const account = await this.getSpendingAccountForCommand(id);
+    const command = this.buildCommand(req, 'RecordSpendingAccountUsage', 'SpendingAccount', id, {
+      accountId: new Uuid(id),
+      amount: dto.amount,
+    }, {
+      subjectWorkerId: account.workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('spending-accounts/:id/commands/close')
+  async closeSpendingAccount(@Param('id') id: string, @Body() _dto: CloseSpendingAccountDto = {}, @Req() req: Request) {
+    const account = await this.getSpendingAccountForCommand(id);
+    const command = this.buildCommand(req, 'CloseSpendingAccount', 'SpendingAccount', id, {
+      accountId: new Uuid(id),
+    }, {
+      subjectWorkerId: account.workerId,
+    });
+    return this.commandBus.execute(command);
+  }
+
   /* ---------------------------------------------------------------- */
   /*  Carrier Reconciliation Runs                                       */
   /* ---------------------------------------------------------------- */
@@ -324,6 +386,35 @@ export class BenefitsController {
     return this.reconciliationRunRepo.findByCarrier(new Uuid(carrierId));
   }
 
+  @Post('carrier-reconciliation-runs/:id/commands/detect-variance')
+  async detectReconciliationVariance(@Param('id') id: string, @Body() dto: DetectCarrierReconciliationVarianceDto, @Req() req: Request) {
+    await this.getReconciliationRunForCommand(id);
+    const command = this.buildCommand(req, 'DetectCarrierReconciliationVariance', 'CarrierReconciliationRun', id, {
+      runId: new Uuid(id),
+      varianceAmount: dto.varianceAmount,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('carrier-reconciliation-runs/:id/commands/reconcile')
+  async reconcileReconciliationRun(@Param('id') id: string, @Body() _dto: ReconcileCarrierReconciliationRunDto = {}, @Req() req: Request) {
+    await this.getReconciliationRunForCommand(id);
+    const command = this.buildCommand(req, 'ReconcileCarrierReconciliationRun', 'CarrierReconciliationRun', id, {
+      runId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('carrier-reconciliation-runs/:id/commands/fail')
+  async failReconciliationRun(@Param('id') id: string, @Body() dto: FailCarrierReconciliationRunDto = {}, @Req() req: Request) {
+    await this.getReconciliationRunForCommand(id);
+    const command = this.buildCommand(req, 'FailCarrierReconciliationRun', 'CarrierReconciliationRun', id, {
+      runId: new Uuid(id),
+      reason: dto.reason,
+    });
+    return this.commandBus.execute(command);
+  }
+
   private assertBenefitsAdminScope(req: Request): void {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => BENEFITS_ADMIN_ROLES.has(role))) return;
@@ -340,6 +431,24 @@ export class BenefitsController {
     const event = await this.lifeEventRepo.findById(new Uuid(id));
     if (!event) throw new NotFoundException('BenefitsLifeEvent not found');
     return event;
+  }
+
+  private async getProgramForCommand(id: string) {
+    const program = await this.programRepo.findById(new Uuid(id));
+    if (!program) throw new NotFoundException('BenefitsProgram not found');
+    return program;
+  }
+
+  private async getSpendingAccountForCommand(id: string) {
+    const account = await this.spendingAccountRepo.findById(new Uuid(id));
+    if (!account) throw new NotFoundException('SpendingAccount not found');
+    return account;
+  }
+
+  private async getReconciliationRunForCommand(id: string) {
+    const run = await this.reconciliationRunRepo.findById(new Uuid(id));
+    if (!run) throw new NotFoundException('CarrierReconciliationRun not found');
+    return run;
   }
 
   private actorId(req: Request): Uuid {

@@ -13,6 +13,8 @@ export class CreateBenefitsProgramDto {
     carrierId: z.string().uuid().optional(),
     effectiveFrom: z.coerce.date().optional(),
     effectiveUntil: z.coerce.date().optional(),
+    monthlyPremium: z.number().nonnegative().optional(),
+    currency: z.string().length(3).optional(),
   });
 
   @ApiProperty() programId!: string;
@@ -21,6 +23,28 @@ export class CreateBenefitsProgramDto {
   @ApiPropertyOptional() carrierId?: string;
   @ApiPropertyOptional() effectiveFrom?: Date;
   @ApiPropertyOptional() effectiveUntil?: Date;
+  @ApiPropertyOptional() monthlyPremium?: number;
+  @ApiPropertyOptional() currency?: string;
+}
+
+export class ActivateBenefitsProgramDto {
+  static zodSchema = z.object({});
+}
+
+export class SuspendBenefitsProgramDto {
+  static zodSchema = z.object({
+    reason: z.string().optional(),
+  });
+
+  @ApiPropertyOptional() reason?: string;
+}
+
+export class CloseBenefitsProgramDto {
+  static zodSchema = z.object({
+    reason: z.string().optional(),
+  });
+
+  @ApiPropertyOptional() reason?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -143,6 +167,18 @@ export class CreateSpendingAccountDto {
   @ApiProperty() currency!: string;
 }
 
+export class RecordSpendingAccountUsageDto {
+  static zodSchema = z.object({
+    amount: z.number().nonnegative(),
+  });
+
+  @ApiProperty() amount!: number;
+}
+
+export class CloseSpendingAccountDto {
+  static zodSchema = z.object({});
+}
+
 /* ------------------------------------------------------------------ */
 /*  CarrierReconciliationRun DTOs                                      */
 /* ------------------------------------------------------------------ */
@@ -167,4 +203,24 @@ export class CreateCarrierReconciliationRunDto {
   @ApiProperty() totalCollected!: number;
   @ApiProperty() varianceAmount!: number;
   @ApiProperty() currency!: string;
+}
+
+export class DetectCarrierReconciliationVarianceDto {
+  static zodSchema = z.object({
+    varianceAmount: z.number(),
+  });
+
+  @ApiProperty() varianceAmount!: number;
+}
+
+export class ReconcileCarrierReconciliationRunDto {
+  static zodSchema = z.object({});
+}
+
+export class FailCarrierReconciliationRunDto {
+  static zodSchema = z.object({
+    reason: z.string().optional(),
+  });
+
+  @ApiPropertyOptional() reason?: string;
 }

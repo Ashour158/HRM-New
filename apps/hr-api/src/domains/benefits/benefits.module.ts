@@ -17,6 +17,9 @@ import { CarrierReconciliationRunFsm } from './fsm/carrier-reconciliation-run.fs
 import { BenefitsEventsPublisher } from './events/benefits-events.publisher.js';
 
 import { CreateBenefitsProgramHandler } from './commands/create-benefits-program.handler.js';
+import { ActivateBenefitsProgramHandler } from './commands/activate-benefits-program.handler.js';
+import { SuspendBenefitsProgramHandler } from './commands/suspend-benefits-program.handler.js';
+import { CloseBenefitsProgramHandler } from './commands/close-benefits-program.handler.js';
 import { CreateBenefitsEnrollmentHandler } from './commands/create-benefits-enrollment.handler.js';
 import { CreateBenefitsLifeEventHandler } from './commands/create-benefits-life-event.handler.js';
 import { ApproveBenefitsEnrollmentHandler } from './commands/approve-benefits-enrollment.handler.js';
@@ -26,7 +29,12 @@ import { TerminateBenefitsEnrollmentHandler } from './commands/terminate-benefit
 import { ProcessBenefitsLifeEventHandler } from './commands/process-benefits-life-event.handler.js';
 import { RejectBenefitsLifeEventHandler } from './commands/reject-benefits-life-event.handler.js';
 import { CreateSpendingAccountHandler } from './commands/create-spending-account.handler.js';
+import { RecordSpendingAccountUsageHandler } from './commands/record-spending-account-usage.handler.js';
+import { CloseSpendingAccountHandler } from './commands/close-spending-account.handler.js';
 import { CreateCarrierReconciliationRunHandler } from './commands/create-carrier-reconciliation-run.handler.js';
+import { DetectCarrierReconciliationVarianceHandler } from './commands/detect-carrier-reconciliation-variance.handler.js';
+import { ReconcileCarrierReconciliationRunHandler } from './commands/reconcile-carrier-reconciliation-run.handler.js';
+import { FailCarrierReconciliationRunHandler } from './commands/fail-carrier-reconciliation-run.handler.js';
 
 /**
  * Benefits domain module.
@@ -50,6 +58,9 @@ import { CreateCarrierReconciliationRunHandler } from './commands/create-carrier
     CarrierReconciliationRunFsm,
     BenefitsEventsPublisher,
     CreateBenefitsProgramHandler,
+    ActivateBenefitsProgramHandler,
+    SuspendBenefitsProgramHandler,
+    CloseBenefitsProgramHandler,
     CreateBenefitsEnrollmentHandler,
     CreateBenefitsLifeEventHandler,
     ApproveBenefitsEnrollmentHandler,
@@ -59,7 +70,12 @@ import { CreateCarrierReconciliationRunHandler } from './commands/create-carrier
     ProcessBenefitsLifeEventHandler,
     RejectBenefitsLifeEventHandler,
     CreateSpendingAccountHandler,
+    RecordSpendingAccountUsageHandler,
+    CloseSpendingAccountHandler,
     CreateCarrierReconciliationRunHandler,
+    DetectCarrierReconciliationVarianceHandler,
+    ReconcileCarrierReconciliationRunHandler,
+    FailCarrierReconciliationRunHandler,
   ],
   exports: [
     BenefitsProgramRepository,
