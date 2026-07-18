@@ -1,5 +1,9 @@
 import { Module } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { CompensationModule } from '../compensation/compensation.module.js';
+import { OrganizationModule } from '../organization/organization.module.js';
+import { PositionControlModule } from '../position-control/position-control.module.js';
 import { DeiAnalyticsController } from './api/dei-analytics.controller.js';
 import { DeiReportFsmRegistrar } from './fsm/dei-report.fsm.js';
 import { PayGapReportFsmRegistrar } from './fsm/pay-gap-report.fsm.js';
@@ -26,9 +30,10 @@ import { CreateAttritionSegmentReportHandler } from './commands/create-attrition
 import { GenerateAttritionSegmentReportHandler } from './commands/generate-attrition-segment-report.handler.js';
 import { PublishAttritionSegmentReportHandler } from './commands/publish-attrition-segment-report.handler.js';
 import { DeiAnalyticsEventsPublisher } from './events/dei-analytics-events.publisher.js';
+import { PayGapCalculationService } from './services/pay-gap-calculation.service.js';
 
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HrCoreModule, CompensationModule, OrganizationModule, PositionControlModule],
   controllers: [DeiAnalyticsController],
   providers: [
     DeiReportFsmRegistrar, PayGapReportFsmRegistrar, PayEquityReviewFsmRegistrar, AttritionSegmentReportFsmRegistrar,
@@ -38,6 +43,7 @@ import { DeiAnalyticsEventsPublisher } from './events/dei-analytics-events.publi
     CreatePayEquityReviewHandler, StartPayEquityReviewHandler, RecordPayEquityFindingsHandler, StartPayEquityRemediationHandler, ClosePayEquityReviewHandler,
     CreateAttritionSegmentReportHandler, GenerateAttritionSegmentReportHandler, PublishAttritionSegmentReportHandler,
     DeiAnalyticsEventsPublisher,
+    PayGapCalculationService,
   ],
   exports: [DeiReportRepository, PayGapReportRepository, PayEquityReviewRepository, AttritionSegmentReportRepository],
 })
