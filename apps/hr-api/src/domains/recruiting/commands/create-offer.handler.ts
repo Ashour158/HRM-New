@@ -63,9 +63,18 @@ export class CreateOfferHandler implements ICommandHandler {
     await this.offerRepo.save(offer);
     await this.eventPublisher.publishUncommitted(offer, command.tenantId, command.correlationId);
 
+    // Move the candidate to OFFER_PENDING alongside offer creation. Without
+    // this transition the candidate remains stuck in INTERVIEWING and
+    // AcceptOffer's later `candidate.hire()` call (which requires
+    // OFFER_PENDING) can never succeed — mirrors the ScheduleInterview
+    // handler's pattern of driving the parallel candidate transition.
+    candidate.makeOfferPending(command.correlationId);
+    await this.candidateRepo.save(candidate);
+    await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
+
     return {
       success: true,
-      data: { offerId: offer.id.value, status: offer.status },
+      data: { offerId: offer.id.value, status: offer.status, candidateId: candidate.id.value },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: offer.id,
@@ -73,7 +82,7 @@ export class CreateOfferHandler implements ICommandHandler {
       newVersion: offer.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
-      eventsEmitted: ['OfferCreated'],
+      eventsEmitted: ['OfferCreated', 'CandidateOfferPending'],
       auditRecordId: Uuid.generate(),
     };
   }

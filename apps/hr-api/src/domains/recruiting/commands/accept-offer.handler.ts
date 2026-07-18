@@ -64,7 +64,22 @@ export class AcceptOfferHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { offerId: offer.id.value, status: offer.status },
+      // NOTE: this single `data` object becomes the outbox payload for every
+      // event name listed in `eventsEmitted` below (see
+      // CommandBus.stepWriteOutbox). The offer-to-hire saga's
+      // `isOfferAcceptedEvent` guard requires `offerId` + `acceptedBy` to be
+      // present here — without `acceptedBy` the guard fails validation and
+      // the saga silently never fires, even though an `OfferAccepted` row is
+      // written. `requisitionId` is included so a JobRequisitionFilled
+      // consumer (see offer-to-hire.saga.ts's onJobRequisitionFilled) can
+      // resolve which requisition's remaining candidates to bulk-reject.
+      data: {
+        offerId: offer.id.value,
+        status: offer.status,
+        acceptedBy: command.actor.actorId.value,
+        candidateId: offer.candidateId.value,
+        requisitionId: offer.requisitionId.value,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: offer.id,

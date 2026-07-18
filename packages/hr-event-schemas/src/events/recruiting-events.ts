@@ -241,8 +241,14 @@ export function isOfferApprovedEvent(event: unknown): event is OfferApprovedEven
 // ------------------------------------------------------------------
 
 export interface OfferAcceptedPayload {
-  offerId: Uuid;
-  acceptedBy: Uuid;
+  // NOTE: these are plain UUID strings at runtime, not `Uuid` instances --
+  // `OfferAcceptedPayloadSchema` validates `z.string().uuid()`, and the
+  // producer (AcceptOfferHandler's CommandResult.data) sends `.value`
+  // strings. A consumer that treats these as `Uuid` objects (e.g. calling
+  // `.value` on them, or passing them straight into a repository's
+  // `findById(id: Uuid)`) will silently get `undefined` back.
+  offerId: string;
+  acceptedBy: string;
 }
 
 export const OfferAcceptedPayloadSchema = z.object({
@@ -303,4 +309,30 @@ export type OfferExpiredEvent = HrEventEnvelope<OfferExpiredPayload>;
 export function isOfferExpiredEvent(event: unknown): event is OfferExpiredEvent {
   const parsed = HrEventEnvelopeSchema(OfferExpiredPayloadSchema).safeParse(event);
   return parsed.success && parsed.data.eventName === OFFER_EXPIRED;
+}
+
+// ------------------------------------------------------------------
+// JobRequisitionFilled
+// ------------------------------------------------------------------
+
+export interface JobRequisitionFilledPayload {
+  // Plain UUID strings at runtime -- see the note on OfferAcceptedPayload
+  // above; `JobRequisitionFilledPayloadSchema` validates `z.string().uuid()`
+  // and the producer sends `.value` strings.
+  requisitionId: string;
+  offerId?: string;
+}
+
+export const JobRequisitionFilledPayloadSchema = z.object({
+  requisitionId: z.string().uuid(),
+  offerId: z.string().uuid().optional(),
+});
+
+export const JOB_REQUISITION_FILLED = 'JobRequisitionFilled';
+
+export type JobRequisitionFilledEvent = HrEventEnvelope<JobRequisitionFilledPayload>;
+
+export function isJobRequisitionFilledEvent(event: unknown): event is JobRequisitionFilledEvent {
+  const parsed = HrEventEnvelopeSchema(JobRequisitionFilledPayloadSchema).safeParse(event);
+  return parsed.success && parsed.data.eventName === JOB_REQUISITION_FILLED;
 }
