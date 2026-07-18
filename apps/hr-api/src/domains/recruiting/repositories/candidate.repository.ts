@@ -110,23 +110,23 @@ export class CandidateRepository {
   }
 
   private toAggregate(row: Record<string, unknown>): Candidate {
-    return Candidate.create(
-      {
-        id: new Uuid(row.id as string),
-        tenantId: new Uuid(row.tenant_id as string),
-        firstName: row.first_name as string,
-        lastName: row.last_name as string,
-        email: row.email as string,
-        phone: (row.phone as string) ?? undefined,
-        resumeUrl: (row.resume_url as string) ?? undefined,
-        source: (row.source as string) ?? undefined,
-        status: (row.status as CandidateStatus) ?? undefined,
-        requisitionId: new Uuid(row.requisition_id as string),
-        aggregateVersion: (row.aggregate_version as number) ?? undefined,
-        createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
-        updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
-      },
-      Uuid.generate(),
-    );
+    // Uses `rehydrate`, not `create` — `create` unconditionally resets
+    // status to NEW and re-emits CandidateCreated, which would silently
+    // discard the persisted status on every read.
+    return Candidate.rehydrate({
+      id: new Uuid(row.id as string),
+      tenantId: new Uuid(row.tenant_id as string),
+      firstName: row.first_name as string,
+      lastName: row.last_name as string,
+      email: row.email as string,
+      phone: (row.phone as string) ?? undefined,
+      resumeUrl: (row.resume_url as string) ?? undefined,
+      source: (row.source as string) ?? undefined,
+      status: (row.status as CandidateStatus) ?? undefined,
+      requisitionId: new Uuid(row.requisition_id as string),
+      aggregateVersion: (row.aggregate_version as number) ?? undefined,
+      createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
+      updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
+    });
   }
 }

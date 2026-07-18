@@ -127,26 +127,26 @@ export class JobRequisitionRepository {
   }
 
   private toAggregate(row: Record<string, unknown>): JobRequisition {
-    return JobRequisition.create(
-      {
-        id: new Uuid(row.id as string),
-        tenantId: new Uuid(row.tenant_id as string),
-        requisitionNumber: row.requisition_number as string,
-        positionId: new Uuid(row.position_id as string),
-        departmentId: row.department_id ? new Uuid(row.department_id as string) : undefined,
-        hiringManagerId: row.hiring_manager_id ? new Uuid(row.hiring_manager_id as string) : undefined,
-        recruiterId: row.recruiter_id ? new Uuid(row.recruiter_id as string) : undefined,
-        title: row.title as string,
-        description: (row.description as string) ?? undefined,
-        status: (row.status as JobRequisitionStatus) ?? undefined,
-        publishedAt: row.published_at ? new Date(row.published_at as string) : undefined,
-        filledAt: row.filled_at ? new Date(row.filled_at as string) : undefined,
-        closedAt: row.closed_at ? new Date(row.closed_at as string) : undefined,
-        aggregateVersion: (row.aggregate_version as number) ?? undefined,
-        createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
-        updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
-      },
-      Uuid.generate(),
-    );
+    // Uses `rehydrate`, not `create` — `create` unconditionally resets
+    // status to DRAFT and re-emits JobRequisitionCreated, which would
+    // silently discard the persisted status on every read.
+    return JobRequisition.rehydrate({
+      id: new Uuid(row.id as string),
+      tenantId: new Uuid(row.tenant_id as string),
+      requisitionNumber: row.requisition_number as string,
+      positionId: new Uuid(row.position_id as string),
+      departmentId: row.department_id ? new Uuid(row.department_id as string) : undefined,
+      hiringManagerId: row.hiring_manager_id ? new Uuid(row.hiring_manager_id as string) : undefined,
+      recruiterId: row.recruiter_id ? new Uuid(row.recruiter_id as string) : undefined,
+      title: row.title as string,
+      description: (row.description as string) ?? undefined,
+      status: (row.status as JobRequisitionStatus) ?? undefined,
+      publishedAt: row.published_at ? new Date(row.published_at as string) : undefined,
+      filledAt: row.filled_at ? new Date(row.filled_at as string) : undefined,
+      closedAt: row.closed_at ? new Date(row.closed_at as string) : undefined,
+      aggregateVersion: (row.aggregate_version as number) ?? undefined,
+      createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
+      updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
+    });
   }
 }

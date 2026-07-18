@@ -218,6 +218,21 @@ export class Candidate extends AggregateRoot {
   }
 
   /**
+   * Reconstructs an existing Candidate from persisted state.
+   *
+   * Unlike {@link create}, this preserves the persisted `status`,
+   * `createdAt`/`updatedAt`, and `aggregateVersion` exactly as given, runs
+   * no creation-time guards, and emits no domain event. Repositories must
+   * use this (not `create`) when loading an aggregate from the database —
+   * `create` unconditionally resets status to NEW and re-emits
+   * CandidateCreated, which would silently discard the real persisted
+   * state on every read.
+   */
+  static rehydrate(props: CandidateProps): Candidate {
+    return new Candidate(props);
+  }
+
+  /**
    * Move candidate to screening.
    * NEW → SCREENING
    */

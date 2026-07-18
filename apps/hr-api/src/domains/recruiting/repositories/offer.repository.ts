@@ -114,27 +114,27 @@ export class OfferRepository {
   }
 
   private toAggregate(row: Record<string, unknown>): Offer {
-    return Offer.create(
-      {
-        id: new Uuid(row.id as string),
-        tenantId: new Uuid(row.tenant_id as string),
-        candidateId: new Uuid(row.candidate_id as string),
-        requisitionId: new Uuid(row.requisition_id as string),
-        proposedSalary: parseNumeric(row.proposed_salary as string | number),
-        currency: row.currency as string,
-        startDate: new Date(row.start_date as string),
-        benefitsPackage: (row.benefits_package as Record<string, unknown>) ?? undefined,
-        status: (row.status as OfferStatus) ?? undefined,
-        sentAt: row.sent_at ? new Date(row.sent_at as string) : undefined,
-        acceptedAt: row.accepted_at ? new Date(row.accepted_at as string) : undefined,
-        declinedAt: row.declined_at ? new Date(row.declined_at as string) : undefined,
-        proposedBy: row.proposed_by ? new Uuid(row.proposed_by as string) : undefined,
-        approvedBy: row.approved_by ? new Uuid(row.approved_by as string) : undefined,
-        aggregateVersion: (row.aggregate_version as number) ?? undefined,
-        createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
-        updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
-      },
-      Uuid.generate(),
-    );
+    // Uses `rehydrate`, not `create` — `create` unconditionally resets
+    // status to DRAFT and re-emits OfferCreated, which would silently
+    // discard the persisted status on every read.
+    return Offer.rehydrate({
+      id: new Uuid(row.id as string),
+      tenantId: new Uuid(row.tenant_id as string),
+      candidateId: new Uuid(row.candidate_id as string),
+      requisitionId: new Uuid(row.requisition_id as string),
+      proposedSalary: parseNumeric(row.proposed_salary as string | number),
+      currency: row.currency as string,
+      startDate: new Date(row.start_date as string),
+      benefitsPackage: (row.benefits_package as Record<string, unknown>) ?? undefined,
+      status: (row.status as OfferStatus) ?? undefined,
+      sentAt: row.sent_at ? new Date(row.sent_at as string) : undefined,
+      acceptedAt: row.accepted_at ? new Date(row.accepted_at as string) : undefined,
+      declinedAt: row.declined_at ? new Date(row.declined_at as string) : undefined,
+      proposedBy: row.proposed_by ? new Uuid(row.proposed_by as string) : undefined,
+      approvedBy: row.approved_by ? new Uuid(row.approved_by as string) : undefined,
+      aggregateVersion: (row.aggregate_version as number) ?? undefined,
+      createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
+      updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
+    });
   }
 }
