@@ -82,6 +82,22 @@ export class ApproveCompensationChangeDto {
 }
 
 /* ------------------------------------------------------------------ */
+/*  CompensationBand revision DTO                                      */
+/* ------------------------------------------------------------------ */
+
+export class ReviseCompensationBandDto {
+  static zodSchema = z.object({
+    minSalary: z.number().nonnegative(),
+    midSalary: z.number().nonnegative(),
+    maxSalary: z.number().nonnegative(),
+  });
+
+  @ApiProperty() minSalary!: number;
+  @ApiProperty() midSalary!: number;
+  @ApiProperty() maxSalary!: number;
+}
+
+/* ------------------------------------------------------------------ */
 /*  BonusCycle DTOs                                                    */
 /* ------------------------------------------------------------------ */
 
@@ -135,6 +151,22 @@ export class CreateEquityGrantDto {
   @ApiPropertyOptional() strikePrice?: number;
 }
 
+export class RecordEquityGrantVestingDto {
+  static zodSchema = z.object({
+    units: z.number().nonnegative(),
+  });
+
+  @ApiProperty() units!: number;
+}
+
+export class ExerciseEquityGrantDto {
+  static zodSchema = z.object({
+    units: z.number().nonnegative(),
+  });
+
+  @ApiProperty() units!: number;
+}
+
 /* ------------------------------------------------------------------ */
 /*  VariableCompPlan DTOs                                              */
 /* ------------------------------------------------------------------ */
@@ -180,6 +212,14 @@ export class CreatePayScaleDto {
   @ApiProperty() grade!: string;
   @ApiProperty({ type: () => [PayScaleStepDto] }) steps!: PayScaleStepDto[];
   @ApiProperty() currency!: string;
+}
+
+export class RevisePayScaleDto {
+  static zodSchema = z.object({
+    steps: z.array(z.object({ stepNumber: z.number().int().positive(), amount: z.number().nonnegative() })),
+  });
+
+  @ApiProperty({ type: () => [PayScaleStepDto] }) steps!: PayScaleStepDto[];
 }
 
 /* ------------------------------------------------------------------ */

@@ -39,12 +39,16 @@ import { TotalCompensationStatementFsm } from '../fsm/total-compensation-stateme
 import {
   CreateCompensationPlanDto,
   CreateCompensationBandDto,
+  ReviseCompensationBandDto,
   CreateCompensationChangeDto,
   ApproveCompensationChangeDto,
   CreateBonusCycleDto,
   CreateEquityGrantDto,
+  RecordEquityGrantVestingDto,
+  ExerciseEquityGrantDto,
   CreateVariableCompPlanDto,
   CreatePayScaleDto,
+  RevisePayScaleDto,
   CreateTotalCompensationStatementDto,
 } from './dtos.js';
 
@@ -88,6 +92,7 @@ export class CompensationController {
     aggregateType: string,
     aggregateId: string | undefined,
     payload: TPayload,
+    options?: { subjectWorkerId?: Uuid; allowSelfService?: boolean },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -97,13 +102,18 @@ export class CompensationController {
     if (!actor) {
       throw new BadRequestException('Actor missing');
     }
-    this.assertCompensationAdminScope(req);
+    if (options?.allowSelfService && options.subjectWorkerId) {
+      this.assertCompensationAdminOrSelfScope(req, options.subjectWorkerId);
+    } else {
+      this.assertCompensationAdminScope(req);
+    }
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId: new Uuid(tenantId),
       actor,
+      subjectWorkerId: options?.subjectWorkerId,
       aggregateType,
       aggregateId: aggregateId ? new Uuid(aggregateId) : undefined,
       idempotencyKey: crypto.randomUUID(),
@@ -137,6 +147,22 @@ export class CompensationController {
   @Post('plans/:id/commands/activate')
   async activatePlan(@Param('id') id: string, @Req() req: Request) {
     const command = this.buildCommand(req, 'ActivateCompensationPlan', 'CompensationPlan', id, {
+      planId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('plans/:id/commands/suspend')
+  async suspendPlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'SuspendCompensationPlan', 'CompensationPlan', id, {
+      planId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('plans/:id/commands/close')
+  async closePlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseCompensationPlan', 'CompensationPlan', id, {
       planId: new Uuid(id),
     });
     return this.commandBus.execute(command);
@@ -181,6 +207,33 @@ export class CompensationController {
       midSalary: dto.midSalary,
       maxSalary: dto.maxSalary,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bands/:id/commands/activate')
+  async activateBand(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivateCompensationBand', 'CompensationBand', id, {
+      bandId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bands/:id/commands/revise')
+  async reviseBand(@Param('id') id: string, @Body() dto: ReviseCompensationBandDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ReviseCompensationBand', 'CompensationBand', id, {
+      bandId: new Uuid(id),
+      minSalary: dto.minSalary,
+      midSalary: dto.midSalary,
+      maxSalary: dto.maxSalary,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bands/:id/commands/close')
+  async closeBand(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseCompensationBand', 'CompensationBand', id, {
+      bandId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -236,6 +289,14 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('changes/:id/commands/make-effective')
+  async makeChangeEffective(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'MakeEffectiveCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('changes/worker/:workerId')
   async getChangesByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -264,6 +325,54 @@ export class CompensationController {
       paymentDate: dto.paymentDate,
       totalPoolAmount: dto.totalPoolAmount,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/activate')
+  async activateBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivateBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/start-calculation')
+  async startBonusCycleCalculation(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'StartBonusCycleCalculation', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/start-review')
+  async startBonusCycleReview(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'StartBonusCycleReview', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/approve')
+  async approveBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ApproveBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/mark-paid')
+  async markBonusCyclePaid(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'MarkBonusCyclePaid', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/close')
+  async closeBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -310,6 +419,48 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('equity-grants/:id/commands/start-vesting')
+  async startEquityGrantVesting(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'StartEquityGrantVesting', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/record-vesting')
+  async recordEquityGrantVesting(@Param('id') id: string, @Body() dto: RecordEquityGrantVestingDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'RecordEquityGrantVesting', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+      units: dto.units,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/exercise')
+  async exerciseEquityGrant(@Param('id') id: string, @Body() dto: ExerciseEquityGrantDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ExerciseEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+      units: dto.units,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/expire')
+  async expireEquityGrant(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ExpireEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/forfeit')
+  async forfeitEquityGrant(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ForfeitEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('equity-grants/worker/:workerId')
   async getEquityGrantsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -345,6 +496,22 @@ export class CompensationController {
       targetPercentage: dto.targetPercentage,
       maxPercentage: dto.maxPercentage,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('variable-comp-plans/:id/commands/activate')
+  async activateVariableCompPlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivateVariableCompPlan', 'VariableCompPlan', id, {
+      planId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('variable-comp-plans/:id/commands/close')
+  async closeVariableCompPlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseVariableCompPlan', 'VariableCompPlan', id, {
+      planId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -385,6 +552,31 @@ export class CompensationController {
       grade: dto.grade,
       steps: dto.steps,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('pay-scales/:id/commands/activate')
+  async activatePayScale(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivatePayScale', 'PayScale', id, {
+      scaleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('pay-scales/:id/commands/revise')
+  async revisePayScale(@Param('id') id: string, @Body() dto: RevisePayScaleDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'RevisePayScale', 'PayScale', id, {
+      scaleId: new Uuid(id),
+      steps: dto.steps,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('pay-scales/:id/commands/close')
+  async closePayScale(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ClosePayScale', 'PayScale', id, {
+      scaleId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -433,6 +625,26 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('total-comp-statements/:id/commands/deliver')
+  async deliverTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const statement = await this.totalCompStatementRepo.findById(new Uuid(id));
+    if (!statement) throw new NotFoundException('TotalCompensationStatement not found');
+    const command = this.buildCommand(req, 'DeliverTotalCompensationStatement', 'TotalCompensationStatement', id, {
+      statementId: new Uuid(id),
+    }, { subjectWorkerId: statement.workerId });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('total-comp-statements/:id/commands/acknowledge')
+  async acknowledgeTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const statement = await this.totalCompStatementRepo.findById(new Uuid(id));
+    if (!statement) throw new NotFoundException('TotalCompensationStatement not found');
+    const command = this.buildCommand(req, 'AcknowledgeTotalCompensationStatement', 'TotalCompensationStatement', id, {
+      statementId: new Uuid(id),
+    }, { subjectWorkerId: statement.workerId, allowSelfService: true });
+    return this.commandBus.execute(command);
+  }
+
   @Get('total-comp-statements/worker/:workerId')
   async getTotalCompStatementsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -459,5 +671,18 @@ export class CompensationController {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => COMPENSATION_ADMIN_ROLES.has(role))) return;
     throw new ForbiddenException('Only HR, payroll, or compensation administrators can access compensation administration');
+  }
+
+  /**
+   * Self-service gate: allows compensation administrators, or the worker who
+   * is the subject of the record, to proceed (e.g. acknowledging their own
+   * total compensation statement).
+   */
+  private assertCompensationAdminOrSelfScope(req: Request, subjectWorkerId: Uuid): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => COMPENSATION_ADMIN_ROLES.has(role))) return;
+    const actorId = req.actor?.actorId?.value;
+    if (actorId && actorId === subjectWorkerId.value) return;
+    throw new ForbiddenException('Only the record owner or compensation administrators may perform this action');
   }
 }
