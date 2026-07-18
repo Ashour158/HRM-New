@@ -51,7 +51,15 @@ export const commandPayloads = {
   scheduleReferral: () => ({ scheduledDate: todayOffset(1) }),
   completeModelRun: (record: DomainRecord) => ({ hrAiModelRunId: recordId(record), outputDataSnapshot: { result: 'completed' } }),
   failModelRun: (record: DomainRecord) => ({ hrAiModelRunId: recordId(record), reason: 'Marked from governance workspace' }),
-  completeBiasTest: (record: DomainRecord) => ({ hrAiBiasTestId: recordId(record), passed: true, metrics: { adverseImpactRatio: 0.92 } }),
+  // passed/metrics are no longer caller-supplied: the backend computes the
+  // four-fifths adverse-impact-ratio verdict from these raw outcome counts.
+  completeBiasTest: (record: DomainRecord) => ({
+    hrAiBiasTestId: recordId(record),
+    outcomeData: [
+      { group: 'group_a', selected: 46, totalConsidered: 100 },
+      { group: 'group_b', selected: 44, totalConsidered: 100 },
+    ],
+  }),
   failBiasTest: (record: DomainRecord) => ({ hrAiBiasTestId: recordId(record), reason: 'Marked from governance workspace' }),
   resolveKillSwitch: (record: DomainRecord) => ({ hrAiKillSwitchId: recordId(record), resolution: 'Resolved through governance review' }),
   generatedUseCaseId: () => generateUUID(),

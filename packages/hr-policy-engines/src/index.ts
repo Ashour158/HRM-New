@@ -116,6 +116,16 @@ export type {
 
 export { OfferCompensationEngine, evaluateOfferCompensation } from './engines/offer-compensation.engine.js';
 
+export type {
+  HrAiGovernanceDecisionCode,
+  HrAiGovernanceGroupOutcome,
+  HrAiGovernanceBiasAuditInput,
+  HrAiGovernanceGroupResult,
+  HrAiGovernanceBiasAuditResult,
+} from './engines/hr-ai-governance.engine.js';
+
+export { HrAiGovernanceEngine, evaluateHrAiGovernanceBiasAudit } from './engines/hr-ai-governance.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -124,4 +134,5 @@ export {
   fieldAccessPolicyEngine,
   countryPolicyValidationEngine,
   offerCompensationEngine,
+  hrAiGovernanceEngine,
 } from './engines/registered-engines.js';

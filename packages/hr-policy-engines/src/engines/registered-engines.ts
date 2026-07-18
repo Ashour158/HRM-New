@@ -5,6 +5,7 @@ import { PayrollValidationEngine } from './payroll-validation.engine.js';
 import { SelfServiceAuthorityEngine } from './self-service.engine.js';
 import { CountryPolicyValidationEngine } from './country-policy-validation.engine.js';
 import { OfferCompensationEngine } from './offer-compensation.engine.js';
+import { HrAiGovernanceEngine } from './hr-ai-governance.engine.js';
 
 /**
  * Singleton registry holding the declarative definitions for every
@@ -368,17 +369,24 @@ engineRegistry.register({
   engineName: 'hr-ai-governance',
   engineVersion: '1.4.0',
   description:
-    'Evaluates AI model cards, bias audits, and explainability requirements for HR ML pipelines.',
-  inputTypes: ['ModelCard', 'BiasAuditReport', 'ExplainabilityLog'],
+    'Computes the four-fifths adverse-impact-ratio bias screen for AI/ML use cases in HR decisions '
+    + '(resume screening, candidate ranking) from per-protected-class-group outcome counts.',
+  inputTypes: ['BiasAuditReport'],
   outputDecisionCodes: ['APPROVED', 'REJECTED', 'REQUIRES_REVIEW'],
   associatedRulePacks: ['ai-governance-rules'],
-  associatedTables: ['model_cards', 'bias_audits'],
+  associatedTables: ['hr_ai.hr_ai_use_cases', 'hr_ai.hr_ai_bias_tests'],
   invocationPattern: 'ASYNC',
   maxDurationMs: 5000,
   requiresCountryPolicyPack: false,
   requiresHumanReview: true,
   auditRequired: true,
 });
+
+// hr-ai-governance is registered as a definition above; this binds the concrete
+// executable engine (four-fifths adverse-impact-ratio bias screen). Mirrors the
+// authoritative computation in apps/hr-api's hr-ai-governance domain
+// (bias-metrics.ts), which the live CompleteHrAiBiasTest command handler runs.
+export const hrAiGovernanceEngine = new HrAiGovernanceEngine();
 
 /* ── 22. Offboarding & Settlement ── */
 engineRegistry.register({
