@@ -12,6 +12,7 @@ export type RoleCode =
   | 'HRBP'
   | 'ER_SPECIALIST'
   | 'PAYROLL_ADMIN'
+  | 'PAYROLL_APPROVER'
   | 'BENEFITS_ADMIN'
   | 'COMPENSATION_ADMIN'
   | 'RECRUITER'
@@ -308,6 +309,25 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'REPORT_EXPORT',
     ],
     mutableFields: ['payroll.cycle', 'payroll.input', 'payroll.export', 'tax.filing'],
+  },
+  PAYROLL_APPROVER: {
+    code: 'PAYROLL_APPROVER',
+    name: 'Payroll Approver',
+    tier: 3,
+    description:
+      'Approves and closes payroll cycles prepared by a distinct preparer. Deliberately holds PAYROLL_APPROVE ' +
+      'without PAYROLL_CREATE so the role satisfies the preparer/approver segregation-of-duties control ' +
+      '(HCM-P0-5) -- PAYROLL_ADMIN and HR_ADMIN both hold PAYROLL_CREATE too, so SoD unconditionally blocks ' +
+      'them from ever approving a cycle regardless of who created it.',
+    defaultPermissions: [
+      'WORKER_READ',
+      'PAYROLL_READ',
+      'PAYROLL_APPROVE',
+      'TIME_READ',
+      'ABSENCE_READ',
+      'REPORT_READ',
+    ],
+    mutableFields: ['payroll.cycle.approval'],
   },
   BENEFITS_ADMIN: {
     code: 'BENEFITS_ADMIN',
