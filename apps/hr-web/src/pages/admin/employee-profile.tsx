@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { ReactNode } from 'react';
 import {
   AlertTriangle,
   ArrowLeft,
@@ -32,7 +31,10 @@ import { TextReasonDialog } from '@/components/common/workflow-dialogs';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
-import type { EmployeeProfileData } from '@/types';
+import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
+import { hasCustomFieldValue, isCustomFieldRuleKey } from '@/lib/custom-fields';
+import { DynamicFieldInput } from '@/components/admin/dynamic-field-input';
+import type { EmployeeProfileData, HcmSetupConfig } from '@/types';
 
 function valueOrDash(value?: string | null) {
   return value && value.trim() ? value : '-';
@@ -164,6 +166,18 @@ export function AdminEmployeeProfile() {
     `/hr/core/workers/${id}/master-profile`,
     { enabled: Boolean(id), retry: false },
   );
+  const { data: setupConfig = DEFAULT_HCM_SETUP } = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
+  const activeCustomFieldRules = setupConfig.fieldRules.filter(
+    (rule) => rule.active && isCustomFieldRuleKey(rule.fieldKey),
+  );
+  const [editingCustomFields, setEditingCustomFields] = useState(false);
+  const [customFieldDraft, setCustomFieldDraft] = useState<Record<string, unknown>>({});
+
+  const customFieldsMutation = useApiMutation<Record<string, unknown>, Record<string, unknown>>(
+    `/hr/core/workers/${id}/profile-sections/custom`,
+    'patch',
+    [['admin-employee-master-profile', id]],
+  );
 
   const activateMutation = useApiMutation<void, { employeeId: string }>(
     (vars) => `/hr/core/workers/${vars.employeeId}/commands/activate`,
@@ -279,6 +293,33 @@ export function AdminEmployeeProfile() {
       type: 'error',
       read: false,
     });
+  };
+
+  const missingRequiredCustomFields = activeCustomFieldRules.filter(
+    (rule) => rule.required && !hasCustomFieldValue(customFieldDraft[rule.fieldKey]),
+  );
+
+  const openCustomFieldsEditor = () => {
+    setCustomFieldDraft({ ...customFields });
+    setEditingCustomFields(true);
+  };
+
+  const saveCustomFields = async () => {
+    if (missingRequiredCustomFields.length > 0) {
+      notifyError(
+        'Missing required custom fields',
+        new Error(`${missingRequiredCustomFields.map((rule) => rule.label || rule.fieldKey).join(', ')} required by Admin Settings`),
+      );
+      return;
+    }
+    try {
+      await customFieldsMutation.mutateAsync(customFieldDraft);
+      setEditingCustomFields(false);
+      refetchMaster();
+      addNotification({ title: 'Custom fields saved', message: 'Custom field values were updated.', type: 'success', read: false });
+    } catch (err) {
+      notifyError('Could not save custom fields', err);
+    }
   };
 
   const activate = async () => {
@@ -621,8 +662,40 @@ export function AdminEmployeeProfile() {
                 <EntryRows entries={retentionRows as Array<Record<string, unknown>>} />
               </div>
               <div>
-                <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold"><ClipboardList className="h-4 w-4" /> Custom and Local Fields</h4>
-                {Object.keys(customFields).length ? (
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h4 className="flex items-center gap-2 text-sm font-semibold"><ClipboardList className="h-4 w-4" /> Custom and Local Fields</h4>
+                  {!editingCustomFields ? (
+                    <Button type="button" variant="outline" size="sm" onClick={openCustomFieldsEditor}>
+                      Edit
+                    </Button>
+                  ) : null}
+                </div>
+                {editingCustomFields ? (
+                  <div className="space-y-4 border-t pt-4">
+                    {activeCustomFieldRules.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No custom fields are configured in Admin Settings.</p>
+                    ) : (
+                      <div className="grid gap-4 md:grid-cols-3">
+                        {activeCustomFieldRules.map((rule) => (
+                          <DynamicFieldInput
+                            key={rule.fieldKey}
+                            rule={rule}
+                            value={customFieldDraft[rule.fieldKey]}
+                            onChange={(value) => setCustomFieldDraft((current) => ({ ...current, [rule.fieldKey]: value }))}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <Button type="button" size="sm" onClick={saveCustomFields} disabled={customFieldsMutation.isPending}>
+                        {customFieldsMutation.isPending ? 'Saving...' : 'Save Custom Fields'}
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setEditingCustomFields(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : Object.keys(customFields).length ? (
                   <EntryRows entries={[customFields]} />
                 ) : (
                   <p className="border-t py-4 text-sm text-muted-foreground">No custom fields captured.</p>
