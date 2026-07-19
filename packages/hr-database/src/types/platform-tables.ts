@@ -1936,6 +1936,11 @@ export interface HrServiceCasesTable {
   assigned_to: string | null;
   sla_deadline: Date | null;
   resolved_at: Date | null;
+  catalog_item_id: string | null;
+  owner_group: string | null;
+  escalation_reason: string | null;
+  escalated_at: Date | null;
+  escalated_by: string | null;
   aggregate_version: number;
   created_at: Date;
   updated_at: Date;
@@ -1979,6 +1984,7 @@ export interface HrServiceCatalogItemsTable {
   category: string | null;
   sla_hours: number | null;
   fulfillment_process: string | null;
+  default_owner_group: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
