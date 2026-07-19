@@ -42,7 +42,8 @@ export class CarrierReconciliationRunRepository extends BaseRepository<'carrier_
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['carrier_reconciliation_runs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['carrier_reconciliation_runs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['carrier_reconciliation_runs']>);
     }

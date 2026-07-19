@@ -12,8 +12,23 @@ import { WorksCouncilConsultationRepository } from './repositories/works-council
 import { WorkAuthorizationCaseRepository } from './repositories/work-authorization-case.repository.js';
 import { InternationalAssignmentRepository } from './repositories/international-assignment.repository.js';
 import { CreateCountryRuleSetHandler } from './commands/create-country-rule-set.handler.js';
+import {
+  ActivateCountryRuleSetHandler,
+  SupersedeCountryRuleSetHandler,
+  RetireCountryRuleSetHandler,
+} from './commands/country-rule-set-lifecycle.handlers.js';
 import { CreateStatutoryLeaveTypeHandler } from './commands/create-statutory-leave-type.handler.js';
+import {
+  UpdateStatutoryLeaveTypeHandler,
+  SupersedeStatutoryLeaveTypeHandler,
+} from './commands/statutory-leave-type-lifecycle.handlers.js';
 import { CreateWorksCouncilConsultationHandler } from './commands/create-works-council-consultation.handler.js';
+import {
+  InitiateWorksCouncilConsultationHandler,
+  StartWorksCouncilProgressHandler,
+  CompleteWorksCouncilConsultationHandler,
+  BlockWorksCouncilActionHandler,
+} from './commands/works-council-consultation-lifecycle.handlers.js';
 import { CreateWorkAuthorizationCaseHandler } from './commands/create-work-authorization-case.handler.js';
 import {
   StartWorkAuthorizationReviewHandler,
@@ -33,6 +48,7 @@ import {
 } from './commands/international-assignment-lifecycle.handlers.js';
 import { GlobalHrEventsPublisher } from './events/global-hr-events.publisher.js';
 import { GlobalComplianceSaga } from './sagas/global-compliance-saga.js';
+import { WorksCouncilConsultationGuard } from './services/works-council-consultation-guard.service.js';
 
 /**
  * Global HR domain module.
@@ -58,8 +74,17 @@ import { GlobalComplianceSaga } from './sagas/global-compliance-saga.js';
     InternationalAssignmentRepository,
     // Command handlers
     CreateCountryRuleSetHandler,
+    ActivateCountryRuleSetHandler,
+    SupersedeCountryRuleSetHandler,
+    RetireCountryRuleSetHandler,
     CreateStatutoryLeaveTypeHandler,
+    UpdateStatutoryLeaveTypeHandler,
+    SupersedeStatutoryLeaveTypeHandler,
     CreateWorksCouncilConsultationHandler,
+    InitiateWorksCouncilConsultationHandler,
+    StartWorksCouncilProgressHandler,
+    CompleteWorksCouncilConsultationHandler,
+    BlockWorksCouncilActionHandler,
     CreateWorkAuthorizationCaseHandler,
     StartWorkAuthorizationReviewHandler,
     ApproveWorkAuthorizationCaseHandler,
@@ -77,7 +102,16 @@ import { GlobalComplianceSaga } from './sagas/global-compliance-saga.js';
     GlobalHrEventsPublisher,
     // Saga
     GlobalComplianceSaga,
+    // Guards
+    WorksCouncilConsultationGuard,
   ],
-  exports: [CountryRuleSetRepository, WorksCouncilConsultationRepository, WorkAuthorizationCaseRepository, InternationalAssignmentRepository],
+  exports: [
+    CountryRuleSetRepository,
+    StatutoryLeaveTypeRepository,
+    WorksCouncilConsultationRepository,
+    WorkAuthorizationCaseRepository,
+    InternationalAssignmentRepository,
+    WorksCouncilConsultationGuard,
+  ],
 })
 export class GlobalHrModule {}

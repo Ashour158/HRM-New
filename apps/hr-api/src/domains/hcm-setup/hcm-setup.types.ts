@@ -157,12 +157,46 @@ export type ApprovalWorkflowStepRule = SetupOption & {
   }>;
 };
 
+/**
+ * Operators supported by field-level approval routing conditions. Deliberately a small,
+ * structured set (not a full expression language) since this drives routing, not computation.
+ */
+export const APPROVAL_CONDITION_OPERATORS = [
+  'EQUALS',
+  'NOT_EQUALS',
+  'GREATER_THAN',
+  'LESS_THAN',
+  'GREATER_OR_EQUAL',
+  'LESS_OR_EQUAL',
+  'CONTAINS',
+] as const;
+
+export type ApprovalConditionOperator = (typeof APPROVAL_CONDITION_OPERATORS)[number];
+
+/** How multiple conditions on a rule combine: require all to match, or any one of them. */
+export type ApprovalConditionLogic = 'ALL' | 'ANY';
+
+export type ApprovalWorkflowCondition = {
+  /** Dot-separated path into the command payload, e.g. "compensationChange.newAnnualSalary". */
+  field: string;
+  operator: ApprovalConditionOperator;
+  value: unknown;
+};
+
 export type ApprovalWorkflowRule = SetupOption & {
   commandName: string;
   aggregateType?: string;
   minAmount?: number;
   minDurationDays?: number;
   slaHours?: number;
+  /**
+   * Optional field-level conditions evaluated against the command payload. When present,
+   * the rule only intercepts a command whose payload satisfies them (combined per
+   * `conditionLogic`, default ALL). When absent/empty, the rule matches purely on
+   * commandName/aggregateType — unchanged legacy behavior.
+   */
+  conditions?: ApprovalWorkflowCondition[];
+  conditionLogic?: ApprovalConditionLogic;
   steps: ApprovalWorkflowStepRule[];
 };
 

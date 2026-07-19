@@ -35,7 +35,24 @@ COPY --from=build /workspace/pnpm-workspace.yaml ./pnpm-workspace.yaml
 COPY --from=build /workspace/turbo.json ./turbo.json
 COPY --from=build /workspace/node_modules ./node_modules
 COPY --from=build /workspace/apps/hr-api ./apps/hr-api
-COPY --from=build /workspace/packages ./packages
+COPY --from=build /workspace/packages/hr-shared-kernel/dist ./packages/hr-shared-kernel/dist
+COPY --from=build /workspace/packages/hr-shared-kernel/package.json ./packages/hr-shared-kernel/package.json
+COPY --from=build /workspace/packages/hr-command-contracts/dist ./packages/hr-command-contracts/dist
+COPY --from=build /workspace/packages/hr-command-contracts/package.json ./packages/hr-command-contracts/package.json
+COPY --from=build /workspace/packages/hr-event-schemas/dist ./packages/hr-event-schemas/dist
+COPY --from=build /workspace/packages/hr-event-schemas/package.json ./packages/hr-event-schemas/package.json
+COPY --from=build /workspace/packages/hr-database/dist ./packages/hr-database/dist
+COPY --from=build /workspace/packages/hr-database/package.json ./packages/hr-database/package.json
+COPY --from=build /workspace/packages/hr-access-control/dist ./packages/hr-access-control/dist
+COPY --from=build /workspace/packages/hr-access-control/package.json ./packages/hr-access-control/package.json
+COPY --from=build /workspace/packages/hr-platform-core/dist ./packages/hr-platform-core/dist
+COPY --from=build /workspace/packages/hr-platform-core/package.json ./packages/hr-platform-core/package.json
+COPY --from=build /workspace/packages/hr-policy-engines/dist ./packages/hr-policy-engines/dist
+COPY --from=build /workspace/packages/hr-policy-engines/package.json ./packages/hr-policy-engines/package.json
+COPY --from=build /workspace/packages/hr-openapi-contracts/dist ./packages/hr-openapi-contracts/dist
+COPY --from=build /workspace/packages/hr-openapi-contracts/package.json ./packages/hr-openapi-contracts/package.json
+COPY --from=build /workspace/packages/hr-intelligence/dist ./packages/hr-intelligence/dist
+COPY --from=build /workspace/packages/hr-intelligence/package.json ./packages/hr-intelligence/package.json
 COPY --from=build /workspace/infra/migrations ./infra/migrations
 
 USER node

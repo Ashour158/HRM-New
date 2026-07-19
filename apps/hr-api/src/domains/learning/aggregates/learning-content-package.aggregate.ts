@@ -10,6 +10,10 @@ export interface LearningContentPackageProps {
   packageVersion?: string;
   fileUrl?: string;
   manifest?: Record<string, unknown>;
+  checksum?: string;
+  sizeBytes?: number;
+  mimeType?: string;
+  originalFileName?: string;
   status?: LearningContentPackageStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -46,6 +50,12 @@ export class ContentPackageDeprecated extends DomainEvent {
   }
 }
 
+export class ContentPackageFileAttached extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'ContentPackageFileAttached', tenantId: props.tenantId, aggregateType: 'LearningContentPackage', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
 /**
  * LearningContentPackage aggregate manages SCORM/xAPI content packages.
  */
@@ -57,6 +67,10 @@ export class LearningContentPackage extends AggregateRoot {
   packageVersion?: string;
   fileUrl?: string;
   manifest?: Record<string, unknown>;
+  checksum?: string;
+  sizeBytes?: number;
+  mimeType?: string;
+  originalFileName?: string;
   status: LearningContentPackageStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -73,6 +87,10 @@ export class LearningContentPackage extends AggregateRoot {
     this.packageVersion = props.packageVersion;
     this.fileUrl = props.fileUrl;
     this.manifest = props.manifest;
+    this.checksum = props.checksum;
+    this.sizeBytes = props.sizeBytes;
+    this.mimeType = props.mimeType;
+    this.originalFileName = props.originalFileName;
     this.status = props.status ?? 'UPLOADED';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
@@ -84,6 +102,25 @@ export class LearningContentPackage extends AggregateRoot {
     const ar = new LearningContentPackage({ ...props, status: 'UPLOADED', createdAt: new Date(), updatedAt: new Date() });
     ar.addDomainEvent(new ContentPackageUploaded({ tenantId: ar.tenantId, aggregateId: ar.id, correlationId }));
     return ar;
+  }
+
+  /**
+   * Attach a real uploaded binary (via the storage adapter) to this package.
+   * Only allowed while the package is still in its initial UPLOADED intake state —
+   * once parsing has consumed the declared fileUrl/manifest, swapping the file out
+   * from under it would desync the parsed/validated metadata from the actual bytes.
+   */
+  attachFile(props: { fileUrl: string; checksum: string; sizeBytes: number; mimeType: string; originalFileName: string }, correlationId: Uuid): void {
+    if (this.status !== 'UPLOADED') throw new ValidationError(`Cannot attach a file once the package has moved past intake (${this.status})`);
+    Guard.againstEmptyString(props.fileUrl, 'fileUrl');
+    this.fileUrl = props.fileUrl;
+    this.checksum = props.checksum;
+    this.sizeBytes = props.sizeBytes;
+    this.mimeType = props.mimeType;
+    this.originalFileName = props.originalFileName;
+    this.addDomainEvent(new ContentPackageFileAttached({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
+    this.incrementVersion();
+    this.updatedAt = new Date();
   }
 
   parse(correlationId: Uuid): void {

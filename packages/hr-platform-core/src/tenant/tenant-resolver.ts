@@ -131,9 +131,31 @@ export class JwtTenantResolver implements TenantResolver {
  */
 export class HeaderTenantResolver implements TenantResolver {
   async resolve(request: unknown): Promise<Result<Uuid, TenantResolutionError>> {
-    const headers = (request as Record<string, unknown>)?.headers as
-      | Record<string, string>
-      | undefined;
+    const req = request as Record<string, unknown>;
+    const headers = req?.headers as Record<string, string> | undefined;
+    const actor = req?.actor as { actorType?: string; tenantId?: string } | undefined;
+
+    // SYSTEM/INTEGRATION/SERVICE_ACCOUNT actors authenticate with an API key
+    // rather than a per-tenant JWT (HCM-P0-4). A caller-supplied X-Tenant-ID
+    // header must never be trusted for them: a single leaked/shared
+    // SYSTEM_API_KEY or INTEGRATION_API_KEY would otherwise let the holder
+    // read or write ANY tenant's data just by naming it. Only a credential
+    // that is itself bound to a tenant (a SERVICE_ACCOUNT credential --
+    // see AuthGuard.resolveServiceAccountActor) may resolve a tenant here,
+    // and that binding always wins over whatever header the client sent.
+    if (actor?.actorType === 'SYSTEM' || actor?.actorType === 'INTEGRATION' || actor?.actorType === 'SERVICE_ACCOUNT') {
+      if (actor.tenantId && Uuid.isValid(actor.tenantId)) {
+        return new Ok(new Uuid(actor.tenantId));
+      }
+      return new Err(
+        new TenantResolutionError(
+          'This credential is not bound to a tenant and cannot access tenant-scoped resources',
+          { actorType: actor.actorType },
+          true,
+        ),
+      );
+    }
+
     const headerValue = headers?.['x-tenant-id'] ?? headers?.['X-Tenant-ID'];
 
     if (!headerValue) {

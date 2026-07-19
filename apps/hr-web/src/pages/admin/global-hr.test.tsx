@@ -102,6 +102,12 @@ describe('AdminGlobalHr', () => {
     expect(await screen.findByText('WP-2026-001')).toBeInTheDocument();
     expect(screen.getByText('Expires soon')).toBeInTheDocument();
 
+    // Stat tiles render through the shared StatTile component with the computed metric values.
+    expect(screen.getByText('Work permits').closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Expiring soon').closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Assignments', { selector: 'p' }).closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Open reviews').closest('div')).toHaveTextContent('1');
+
     await userEvent.click(screen.getByRole('tab', { name: 'Assignments' }));
     expect(await screen.findByText('Regional rollout')).toBeInTheDocument();
     expect(screen.getByText('AE')).toBeInTheDocument();
