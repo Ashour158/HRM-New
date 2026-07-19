@@ -6,8 +6,8 @@ export { TenantFilterPlugin } from './plugins/tenant-plugin.js';
 export { isRlsEnabled, createTenantBoundPool, maybeTenantBoundPool, NIL_TENANT_ID } from './connection/rls-pool.js';
 export { BaseRepository } from './repository/base-repository.js';
 export { resolveTransactionAwareExecutor } from './repository/transaction-aware-executor.js';
-export { runMigrations } from './migration-runner.js';
 export { parseNumeric, parseNullableNumeric } from './util/numeric.js';
+export { runMigrations } from './migration-runner.js';
 export type { BaseTable, AuditTable } from './types/base-tables.js';
 export type {
   TenantsTable,

@@ -13,6 +13,8 @@ import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { TeamActivityCard } from '@/components/manager/team-activity-card';
+import { computeUpcomingTeamEvents } from '@/lib/team-activity';
 import { formatDate } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -185,6 +187,10 @@ export function ManagerTeam() {
     return attritionRiskRows.filter((row) => reportIds.has(row.workerId));
   }, [attritionRiskRows, directReports]);
   const riskChart = React.useMemo(() => teamRiskDistribution(teamRiskRows), [teamRiskRows]);
+  const teamActivity = React.useMemo(
+    () => computeUpcomingTeamEvents(directReports),
+    [directReports],
+  );
 
   const reportColumns = [
     {
@@ -567,6 +573,13 @@ export function ManagerTeam() {
             </CardContent>
           </Card>
           <BarChartPanel title="Team risk bands" data={riskChart} height={220} />
+        </div>
+        <div className="mb-6">
+          <TeamActivityCard
+            upcomingAnniversaries={teamActivity.upcomingAnniversaries}
+            recentJoins={teamActivity.recentJoins}
+            className="bg-white/70"
+          />
         </div>
         <div className="mb-1 text-lg font-bold">Direct Reports</div>
         <p className="mb-4 text-sm text-slate-500">

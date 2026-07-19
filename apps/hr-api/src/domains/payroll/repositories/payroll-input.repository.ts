@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -53,7 +53,7 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
       workerId: new Uuid(row.worker_id),
       payrollCycleId: new Uuid(row.payroll_cycle_id),
       inputType: row.input_type,
-      amount: row.amount,
+      amount: parseNumeric(row.amount),
       currency: row.currency,
       description: row.description ?? undefined,
       status: row.status as PayrollInputStatus,

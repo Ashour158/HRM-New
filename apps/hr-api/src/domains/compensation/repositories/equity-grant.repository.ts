@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric, parseNullableNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { EquityGrant, type VestingScheduleEntry } from '../aggregates/equity-grant.aggregate.js';
 
@@ -56,10 +56,10 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
       grantType: row.grant_type,
       grantDate: row.grant_date,
       vestingSchedule: (row.vesting_schedule as VestingScheduleEntry[]) ?? [],
-      totalUnits: row.total_units,
-      vestedUnits: row.vested_units,
-      exercisedUnits: row.exercised_units,
-      strikePrice: row.strike_price ?? undefined,
+      totalUnits: parseNumeric(row.total_units),
+      vestedUnits: parseNumeric(row.vested_units),
+      exercisedUnits: parseNumeric(row.exercised_units),
+      strikePrice: parseNullableNumeric(row.strike_price),
       status: row.status as 'GRANTED' | 'VESTING' | 'VESTED' | 'EXERCISED' | 'EXPIRED' | 'FORFEITED',
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at as unknown as Date,

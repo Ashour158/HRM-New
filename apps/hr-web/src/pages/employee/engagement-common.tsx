@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import type { ApiResponse } from '@/types';
 
 export interface EngagementSurvey {
@@ -286,7 +287,7 @@ export function EmployeeRecognitionWorkspace() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="recognition-recipient">{t('engagement.recognition.recipient')}</Label>
-                <Input id="recognition-recipient" value={recipientWorkerId} onChange={(event) => setRecipientWorkerId(event.target.value)} />
+                <WorkerPicker id="recognition-recipient" value={recipientWorkerId} onChange={(selectedWorkerId) => setRecipientWorkerId(selectedWorkerId)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="recognition-message">{t('engagement.recognition.message')}</Label>

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -53,7 +53,7 @@ export class SowEngagementRepository extends BaseRepository<'sow_engagements', S
       sowNumber: row.sow_number,
       vendorId: new Uuid(row.vendor_id),
       projectName: row.project_name,
-      totalValue: row.total_value,
+      totalValue: parseNumeric(row.total_value),
       currency: row.currency,
       startDate: row.start_date,
       endDate: row.end_date,

@@ -830,11 +830,35 @@ describe('AdminReporting analytics', () => {
       }),
     })));
 
+    expect(screen.getByText(/Formula is valid for/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /save metric/i }));
     await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith('/reporting/calculated-fields', expect.objectContaining({
-      fieldName: 'Custom metric',
-      expression: 'grossPay - deductionAmount',
-      dataType: 'currency',
+      fieldName: 'Attendance risk score',
+      expression: 'lateMinutes + exceptions',
+      dataType: 'number',
+      dataSource: 'ATTENDANCE',
+      sourceFields: ['lateMinutes', 'exceptions'],
     })));
+  });
+
+  it('shows real-time validation feedback for an invalid calculated field expression', async () => {
+    const user = userEvent.setup();
+    renderReporting();
+
+    await user.click(await screen.findByRole('tab', { name: /builder/i }));
+    expect(await screen.findByText('Calculated Fields')).toBeInTheDocument();
+
+    const expressionInput = screen.getByLabelText('Formula');
+    await user.clear(expressionInput);
+    await user.type(expressionInput, 'lateMinutes +');
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /save metric/i })).toBeDisabled();
+
+    await user.clear(expressionInput);
+    await user.type(expressionInput, 'grossPay - deductionAmount');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Unknown field "grossPay"/);
+    expect(screen.getByRole('button', { name: /save metric/i })).toBeDisabled();
   });
 });
