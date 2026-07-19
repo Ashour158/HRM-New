@@ -9,16 +9,15 @@
  * for update). Before the fix, `eventsEmitted` on the CommandResult only
  * included the PRIMARY aggregate's (WorkerProfile's) domain events, so every
  * cascading event computed and persisted for the other touched aggregates
- * was silently dropped before it ever reached the outbox-writing pipeline step --
+ * was silently dropped before it ever reached `CommandBus.stepWriteOutbox` --
  * meaning it never became an outbox row and no consumer (audit, IAM
  * provisioning, notifications, projections, ...) ever saw it.
  *
  * These tests exercise the real handlers against mocked repositories to get
- * a real `CommandResult`, then feed that result into the *real* `OutboxStep`
- * (the pipeline step `CommandBus` delegates outbox-row writing to) with a
- * fake `tx` that records every insert. This verifies actual outbox row
- * counts/event names end-to-end, not just that `domainEvents` was read on
- * some aggregate.
+ * a real `CommandResult`, then feed that result into the real `OutboxStep`
+ * (the same pattern used in command-bus.security.test.ts) with a fake `tx`
+ * that records every insert. This verifies actual outbox row counts/event
+ * names end-to-end, not just that `domainEvents` was read on some aggregate.
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
@@ -178,8 +177,8 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     // Now prove those events actually reach the outbox (not just that the
     // handler *computed* a bigger array).
     const { tx, inserted } = fakeOutboxTx();
-    const outboxStep = new OutboxStep();
-    await outboxStep.write(tx, cmd, result as never);
+    const step = new OutboxStep();
+    await step.write(tx as never, cmd, result as never);
 
     expect(inserted).toHaveLength(result.eventsEmitted!.length);
     expect(inserted.map((row) => row.row.event_name)).toEqual(result.eventsEmitted);
@@ -263,8 +262,8 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     ]);
 
     const { tx, inserted } = fakeOutboxTx();
-    const outboxStep = new OutboxStep();
-    await outboxStep.write(tx, cmd, result as never);
+    const step = new OutboxStep();
+    await step.write(tx as never, cmd, result as never);
 
     expect(inserted).toHaveLength(3);
     expect(inserted.map((row) => row.row.event_name)).toEqual([
@@ -323,8 +322,8 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     expect(result.eventsEmitted).toEqual(['PersonalDataUpdated', 'PersonalDataRecordUpdated']);
 
     const { tx, inserted } = fakeOutboxTx();
-    const outboxStep = new OutboxStep();
-    await outboxStep.write(tx, cmd, result as never);
+    const step = new OutboxStep();
+    await step.write(tx as never, cmd, result as never);
 
     expect(inserted).toHaveLength(2);
     expect(inserted.map((row) => row.row.event_name)).toEqual([
