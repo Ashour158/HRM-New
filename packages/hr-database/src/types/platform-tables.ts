@@ -805,6 +805,18 @@ export interface HeadcountRequestsTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface HeadcountBudgetsTable {
+  id: string;
+  tenant_id: string;
+  department_id: string;
+  fiscal_year: number;
+  ceiling: number;
+  set_by: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface LegalEntitiesTable {
   id: string;
   tenant_id: string;
@@ -2420,6 +2432,7 @@ export interface Database {
   personal_data_records: PersonalDataRecordsTable;
   'hr_position.positions': PositionsTable;
   'hr_position.headcount_requests': HeadcountRequestsTable;
+  'hr_position.headcount_budgets': HeadcountBudgetsTable;
   'hr_org.legal_entities': LegalEntitiesTable;
   'hr_org.org_units': OrgUnitsTable;
   'hr_org.manager_relationships': ManagerRelationshipsTable;
