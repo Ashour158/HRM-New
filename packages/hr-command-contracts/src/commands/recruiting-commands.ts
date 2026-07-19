@@ -111,25 +111,34 @@ export const ScreenCandidatePayloadSchema = z.object({
 
 export const RejectCandidateCommandName = 'RejectCandidate' as const;
 
+// NOTE: field is `applicationId`, not `candidateId` -- this matches what
+// RecruitingController, RejectCandidateHandler, and OfferToHireSaga's
+// bulk-reject dispatch actually send/read end-to-end. `applicationId` and
+// `candidateId` refer to the same aggregate (Candidate is keyed by
+// application id in this domain); the name was made consistent with the
+// real wiring rather than the other way around, since `applicationId` has
+// the broader existing call-site usage.
 export interface RejectCandidatePayload {
-  candidateId: Uuid;
+  applicationId: Uuid;
   reason?: string;
 }
 
 export const RejectCandidatePayloadSchema = z.object({
-  candidateId: z.string().uuid(),
+  applicationId: z.string().uuid(),
   reason: z.string().optional(),
 });
 
 export const WithdrawCandidateCommandName = 'WithdrawCandidate' as const;
 
+// NOTE: field is `applicationId`, not `candidateId` -- see the note on
+// RejectCandidatePayload above; the same rationale applies here.
 export interface WithdrawCandidatePayload {
-  candidateId: Uuid;
+  applicationId: Uuid;
   reason?: string;
 }
 
 export const WithdrawCandidatePayloadSchema = z.object({
-  candidateId: z.string().uuid(),
+  applicationId: z.string().uuid(),
   reason: z.string().optional(),
 });
 

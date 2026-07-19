@@ -154,6 +154,33 @@ describe('AcceptOfferHandler', () => {
     expect(offerRepo.save).not.toHaveBeenCalled();
   });
 
+  it('omits JobRequisitionFilled from eventsEmitted when the requisition is not OPEN (already filled by another offer)', async () => {
+    // Guards against falsely notifying the offer-to-hire saga's
+    // JobRequisitionFilled consumer (which bulk-rejects the rest of the
+    // pipeline) for a requisition that was never actually transitioned here.
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('SENT'));
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState('OFFER_PENDING'));
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisitionInState('FILLED'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.eventsEmitted).toEqual(['OfferAccepted', 'CandidateHired']);
+    expect(requisitionRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('omits CandidateHired from eventsEmitted when the candidate cannot be found', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('SENT'));
+    vi.mocked(candidateRepo.findById).mockResolvedValue(undefined);
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisitionInState('OPEN'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.eventsEmitted).toEqual(['OfferAccepted', 'JobRequisitionFilled']);
+    expect(candidateRepo.save).not.toHaveBeenCalled();
+  });
+
   it('produces a CommandResult.data shape that satisfies the offer-to-hire saga event guard', async () => {
     // This is the critical wiring check: CommandBus.stepWriteOutbox reuses
     // this handler's `result.data` as the `payload` for every event in

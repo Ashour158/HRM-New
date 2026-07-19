@@ -38,6 +38,25 @@ export class WithdrawCandidateHandler implements ICommandHandler {
       throw new NotFoundException('Candidate not found');
     }
 
+    if (candidate.status === 'WITHDRAWN') {
+      // Idempotent retry: the candidate is already in the target terminal
+      // state, so return the existing outcome instead of re-invoking
+      // `withdraw()`, which would throw ConflictError on a retried command.
+      return {
+        success: true,
+        data: { candidateId: candidate.id.value, status: candidate.status, reason: payload.reason },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: candidate.id,
+        newState: candidate.status,
+        newVersion: candidate.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     candidate.withdraw(command.correlationId);
     await this.candidateRepo.save(candidate);
     await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
@@ -53,7 +72,7 @@ export class WithdrawCandidateHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
       fieldAccessDecisions: {},
       eventsEmitted: ['CandidateWithdrew'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

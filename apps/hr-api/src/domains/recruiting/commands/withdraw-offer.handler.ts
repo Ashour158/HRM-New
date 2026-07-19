@@ -39,6 +39,25 @@ export class WithdrawOfferHandler implements ICommandHandler {
       throw new NotFoundException('Offer not found');
     }
 
+    if (offer.status === 'WITHDRAWN') {
+      // Idempotent retry: the offer is already in the target terminal
+      // state, so return the existing outcome instead of re-invoking
+      // `withdraw()`, which would throw ConflictError on a retried command.
+      return {
+        success: true,
+        data: { offerId: offer.id.value, status: offer.status, reason: payload.reason },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: offer.id,
+        newState: offer.status,
+        newVersion: offer.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     offer.withdraw(command.correlationId);
     await this.offerRepo.save(offer);
     await this.eventPublisher.publishUncommitted(offer, command.tenantId, command.correlationId);
@@ -54,7 +73,7 @@ export class WithdrawOfferHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
       eventsEmitted: ['OfferWithdrawn'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

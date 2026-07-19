@@ -48,6 +48,12 @@ export class OfferToHireSaga implements OnModuleInit {
   private readonly logger = new Logger(OfferToHireSaga.name);
   private readonly sagaStates = new Map<string, SagaState>();
   private readonly maxDurationMs = 7 * 24 * 60 * 60 * 1000;
+  // Keyed by requisitionId -> candidate ids whose RejectCandidate dispatch
+  // failed on the most recent JobRequisitionFilled bulk-reject run. Lets a
+  // retry (manual or scheduled) target just the failures instead of
+  // re-processing the whole requisition; the per-candidate error is only
+  // logged otherwise and would be lost.
+  private readonly bulkRejectFailures = new Map<string, string[]>();
 
   constructor(
     private readonly eventBus: EventBus,
@@ -251,6 +257,8 @@ export class OfferToHireSaga implements OnModuleInit {
       candidateCount: stillActive.length,
     });
 
+    const failedCandidateIds: string[] = [];
+
     for (const candidate of stillActive) {
       try {
         await this.dispatchCommand(
@@ -260,8 +268,17 @@ export class OfferToHireSaga implements OnModuleInit {
           'Candidate',
           { applicationId: candidate.id, reason: 'Requisition filled by another candidate' },
           candidate.id,
+          // Deterministic, not `crypto.randomUUID()`: derived from the
+          // triggering event and the target candidate, so a saga retry (or
+          // an at-least-once redelivery of the same JobRequisitionFilled
+          // event) reissues the *same* idempotency key per candidate
+          // instead of creating a fresh key that bypasses the command bus's
+          // idempotency dedupe and re-processes a candidate that was
+          // already rejected.
+          `${event.eventId.value}:reject-candidate:${candidate.id.value}`,
         );
       } catch (err) {
+        failedCandidateIds.push(candidate.id.value);
         this.logger.error({
           type: 'REQUISITION_FILLED_BULK_REJECT_STEP_FAILED',
           requisitionId: requisitionId.value,
@@ -270,6 +287,23 @@ export class OfferToHireSaga implements OnModuleInit {
         });
       }
     }
+
+    if (failedCandidateIds.length > 0) {
+      this.bulkRejectFailures.set(requisitionId.value, failedCandidateIds);
+    } else {
+      this.bulkRejectFailures.delete(requisitionId.value);
+    }
+  }
+
+  /**
+   * Candidate ids whose RejectCandidate dispatch failed on the most recent
+   * JobRequisitionFilled bulk-reject run for the given requisition. Empty if
+   * the run fully succeeded (or hasn't run yet). Intended for a retry path
+   * to target just the failures instead of re-scanning the whole
+   * requisition.
+   */
+  getBulkRejectFailures(requisitionId: Uuid): string[] {
+    return this.bulkRejectFailures.get(requisitionId.value) ?? [];
   }
 
   private async dispatchCommand(
@@ -279,6 +313,7 @@ export class OfferToHireSaga implements OnModuleInit {
     aggregateType: string,
     payload: unknown,
     aggregateId?: Uuid,
+    idempotencyKey?: string,
   ): Promise<void> {
     const command = createCommand(
       commandName,
@@ -294,7 +329,7 @@ export class OfferToHireSaga implements OnModuleInit {
       {
         aggregateType,
         aggregateId,
-        idempotencyKey: crypto.randomUUID(),
+        idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
         correlationId: new Uuid(correlationId),
         reason: `OfferToHireSaga: ${commandName}`,
       },

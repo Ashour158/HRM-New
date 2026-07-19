@@ -34,6 +34,26 @@ export class MakeOfferPendingHandler implements ICommandHandler {
       throw new NotFoundException('Candidate not found');
     }
 
+    if (candidate.status === 'OFFER_PENDING') {
+      // Idempotent retry: the candidate is already in the target state, so
+      // return the existing outcome instead of re-invoking
+      // `makeOfferPending()`, which would throw ConflictError on a retried
+      // command.
+      return {
+        success: true,
+        data: { candidateId: candidate.id.value, status: candidate.status },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: candidate.id,
+        newState: candidate.status,
+        newVersion: candidate.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     candidate.makeOfferPending(command.correlationId);
     await this.candidateRepo.save(candidate);
     await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
@@ -49,7 +69,7 @@ export class MakeOfferPendingHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
       fieldAccessDecisions: {},
       eventsEmitted: ['CandidateOfferPending'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

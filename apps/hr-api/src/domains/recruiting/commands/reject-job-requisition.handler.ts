@@ -35,6 +35,25 @@ export class RejectJobRequisitionHandler implements ICommandHandler {
       throw new NotFoundException('Job requisition not found');
     }
 
+    if (requisition.status === 'REJECTED') {
+      // Idempotent retry: the requisition is already in the target terminal
+      // state, so return the existing outcome instead of re-invoking
+      // `reject()`, which would throw ConflictError on a retried command.
+      return {
+        success: true,
+        data: { requisitionId: requisition.id.value, status: requisition.status, reason: payload.reason },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: requisition.id,
+        newState: requisition.status,
+        newVersion: requisition.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(requisition.status, 'JobRequisition'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     requisition.reject(command.correlationId);
     await this.requisitionRepo.save(requisition);
     await this.eventPublisher.publishUncommitted(requisition, command.tenantId, command.correlationId);
@@ -50,7 +69,7 @@ export class RejectJobRequisitionHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(requisition.status, 'JobRequisition'),
       fieldAccessDecisions: {},
       eventsEmitted: ['JobRequisitionRejected'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

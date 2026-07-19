@@ -88,6 +88,18 @@ describe('OpenJobRequisitionHandler', () => {
     expect(requisitionRepo.save).not.toHaveBeenCalled();
   });
 
+  it('is idempotent when the requisition is already OPEN (retried command)', async () => {
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisitionInState('OPEN'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('OPEN');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(requisitionRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
+
   it('throws NotFoundException when the requisition does not exist', async () => {
     vi.mocked(requisitionRepo.findById).mockResolvedValue(undefined);
 

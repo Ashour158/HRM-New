@@ -253,6 +253,45 @@ describe('OfferToHireSaga', () => {
     expect(commandBus.execute).toHaveBeenCalledTimes(2);
   });
 
+  it('surfaces failed candidate ids via getBulkRejectFailures so a retry can target just the failures', async () => {
+    const first = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    const second = candidateInState(new Uuid('00000000-0000-0000-0000-000000000309'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([first, second]);
+    vi.mocked(commandBus.execute)
+      .mockResolvedValueOnce({ success: false, errorMessage: 'concurrent update' } as never)
+      .mockResolvedValueOnce({ success: true, data: {} } as never);
+
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+
+    expect(saga.getBulkRejectFailures(requisitionId)).toEqual([first.id.value]);
+  });
+
+  it('clears previously recorded failures once a later run fully succeeds', async () => {
+    const candidate = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([candidate]);
+    vi.mocked(commandBus.execute).mockResolvedValueOnce({ success: false, errorMessage: 'concurrent update' } as never);
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+    expect(saga.getBulkRejectFailures(requisitionId)).toEqual([candidate.id.value]);
+
+    vi.mocked(commandBus.execute).mockResolvedValueOnce({ success: true, data: {} } as never);
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+
+    expect(saga.getBulkRejectFailures(requisitionId)).toEqual([]);
+  });
+
+  it('derives the bulk-reject idempotency key deterministically from the triggering event and candidate', async () => {
+    const first = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([first]);
+    const event = jobRequisitionFilledEvent();
+
+    await capturedHandler!.handle(event);
+
+    const [rejectCommand] = vi.mocked(commandBus.execute).mock.calls[0];
+    expect((rejectCommand as { idempotencyKey: string }).idempotencyKey).toBe(
+      `${event.eventId.value}:reject-candidate:${first.id.value}`,
+    );
+  });
+
   it('does nothing when every candidate in the pipeline is already terminal', async () => {
     vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([
       candidateInState(candidateId, 'HIRED'),

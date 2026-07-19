@@ -89,6 +89,18 @@ describe('DeclineOfferHandler', () => {
     expect(offerRepo.save).not.toHaveBeenCalled();
   });
 
+  it('is idempotent when the offer is already DECLINED (retried command)', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('DECLINED'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('DECLINED');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(offerRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
+
   it('throws NotFoundException when the offer does not exist', async () => {
     vi.mocked(offerRepo.findById).mockResolvedValue(undefined);
 

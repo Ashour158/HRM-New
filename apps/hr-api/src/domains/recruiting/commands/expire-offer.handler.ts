@@ -52,7 +52,7 @@ export class ExpireOfferHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
       eventsEmitted: ['OfferExpired'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

@@ -51,7 +51,7 @@ export class StartInterviewHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(plan.status, 'InterviewPlan'),
       fieldAccessDecisions: {},
       eventsEmitted: ['InterviewPlanStarted'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

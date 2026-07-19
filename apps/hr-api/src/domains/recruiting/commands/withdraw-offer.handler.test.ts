@@ -84,8 +84,8 @@ describe('WithdrawOfferHandler', () => {
     },
   );
 
-  it.each(['ACCEPTED', 'DECLINED', 'EXPIRED', 'WITHDRAWN'] as const)(
-    'rejects the transition when the offer is already terminal (%s)',
+  it.each(['ACCEPTED', 'DECLINED', 'EXPIRED'] as const)(
+    'rejects the transition when the offer is already terminal in a different state (%s)',
     async (fromStatus) => {
       vi.mocked(offerRepo.findById).mockResolvedValue(offerInState(fromStatus));
 
@@ -93,6 +93,18 @@ describe('WithdrawOfferHandler', () => {
       expect(offerRepo.save).not.toHaveBeenCalled();
     },
   );
+
+  it('is idempotent when the offer is already WITHDRAWN (retried command)', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('WITHDRAWN'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('WITHDRAWN');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(offerRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
 
   it('throws NotFoundException when the offer does not exist', async () => {
     vi.mocked(offerRepo.findById).mockResolvedValue(undefined);

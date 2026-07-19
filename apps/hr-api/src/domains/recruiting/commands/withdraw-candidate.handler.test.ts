@@ -79,11 +79,23 @@ describe('WithdrawCandidateHandler', () => {
     expect(result.eventsEmitted).toEqual(['CandidateWithdrew']);
   });
 
-  it('rejects the transition when the candidate is already terminal', async () => {
+  it('rejects the transition when the candidate is already terminal in a different state', async () => {
     vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState('HIRED'));
 
     await expect(handler.handle(command())).rejects.toThrow('Cannot withdraw candidate in terminal state');
     expect(candidateRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent when the candidate is already WITHDRAWN (retried command)', async () => {
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState('WITHDRAWN'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('WITHDRAWN');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(candidateRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when the candidate does not exist', async () => {

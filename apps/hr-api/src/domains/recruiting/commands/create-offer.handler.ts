@@ -34,6 +34,15 @@ export interface CreateOfferCommandPayload {
  * `Offer.approve`) before it becomes binding, which serves as the "requires
  * additional approval" escalation path for these cases. The decision is
  * re-verified at approval time by ApproveOfferHandler.
+ *
+ * The Offer save and the parallel Candidate transition below are two writes
+ * against two different aggregates in one handler. Both `OfferRepository`
+ * and `CandidateRepository` join the ambient command-bus transaction via
+ * `resolveTransactionAwareExecutor` (see the `executor` getter on each), so
+ * if the candidate transition/save fails, the whole command transaction —
+ * including the offer write already performed above it — rolls back instead
+ * of leaving a partially-completed workflow (an Offer with no matching
+ * OFFER_PENDING candidate).
  */
 @Injectable()
 @CommandHandler('CreateOffer')
@@ -113,7 +122,7 @@ export class CreateOfferHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
       eventsEmitted: ['OfferCreated', 'CandidateOfferPending'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

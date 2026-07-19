@@ -82,8 +82,8 @@ describe('RejectCandidateHandler', () => {
     },
   );
 
-  it.each(['HIRED', 'REJECTED', 'WITHDRAWN'] as const)(
-    'rejects the transition when the candidate is already terminal (%s)',
+  it.each(['HIRED', 'WITHDRAWN'] as const)(
+    'rejects the transition when the candidate is already terminal in a different state (%s)',
     async (fromStatus) => {
       vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState(fromStatus));
 
@@ -91,6 +91,18 @@ describe('RejectCandidateHandler', () => {
       expect(candidateRepo.save).not.toHaveBeenCalled();
     },
   );
+
+  it('is idempotent when the candidate is already REJECTED (retried command)', async () => {
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState('REJECTED'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('REJECTED');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(candidateRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
 
   it('throws NotFoundException when the candidate does not exist', async () => {
     vi.mocked(candidateRepo.findById).mockResolvedValue(undefined);

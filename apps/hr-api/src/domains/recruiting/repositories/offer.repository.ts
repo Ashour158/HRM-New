@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance, parseNumeric } from '@hcm/database';
+import { getPool, createKyselyInstance, parseNumeric, resolveTransactionAwareExecutor } from '@hcm/database';
 import { Offer, type OfferStatus } from '../aggregates/offer.aggregate.js';
 
 /**
@@ -19,10 +19,24 @@ export class OfferRepository {
   }
 
   /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection. Writes through this
+   * getter are atomic with the audit/outbox/idempotency rows the command bus
+   * writes in the same transaction, and with any other aggregate this
+   * repository is saved alongside within the same handler (e.g.
+   * CreateOfferHandler's Offer + Candidate writes, AcceptOfferHandler's
+   * Offer + Candidate + JobRequisition writes).
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
+  /**
    * Find an offer by its unique identifier.
    */
   async findById(id: Uuid): Promise<Offer | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom('hr_recruiting.offers')
       .selectAll()
       .where('id', '=', id.value)
@@ -35,7 +49,7 @@ export class OfferRepository {
    * Find all offers for a given candidate.
    */
   async findByCandidate(candidateId: Uuid): Promise<Offer[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_recruiting.offers')
       .selectAll()
       .where('candidate_id', '=', candidateId.value)
@@ -48,7 +62,7 @@ export class OfferRepository {
    * Find all offers for a given requisition.
    */
   async findByRequisition(requisitionId: Uuid): Promise<Offer[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_recruiting.offers')
       .selectAll()
       .where('requisition_id', '=', requisitionId.value)
@@ -61,7 +75,7 @@ export class OfferRepository {
    * Find all pending (non-terminal) offers.
    */
   async findPending(): Promise<Offer[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_recruiting.offers')
       .selectAll()
       .where('status', 'in', ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'])
@@ -74,7 +88,7 @@ export class OfferRepository {
    * Persist an Offer aggregate (insert or update).
    */
   async save(entity: Offer): Promise<void> {
-    const existing = await this.db
+    const existing = await this.executor
       .selectFrom('hr_recruiting.offers')
       .select('id')
       .where('id', '=', entity.id.value)
@@ -100,13 +114,13 @@ export class OfferRepository {
     };
 
     if (existing) {
-      await this.db
+      await this.executor
         .updateTable('hr_recruiting.offers')
         .set(row as never)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
-      await this.db
+      await this.executor
         .insertInto('hr_recruiting.offers')
         .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
