@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { z } from 'zod';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
 /**
  * DTO for creating a new LegalEntity.
@@ -195,4 +196,14 @@ export class WorkforceScenarioDto {
 
   @ApiProperty({ required: false, example: 36000 })
   averageCostPerFte?: number;
+}
+
+@Injectable()
+export class ZodValidationPipe implements PipeTransform {
+  constructor(private schema: z.ZodTypeAny) {}
+  transform(value: unknown): unknown {
+    const result = this.schema.safeParse(value);
+    if (!result.success) throw new BadRequestException(result.error.format());
+    return result.data;
+  }
 }
