@@ -2,17 +2,19 @@ import * as React from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
+import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { useUIStore } from '@/stores/ui-store';
-import { AlertCircle, CalendarCheck, CalendarDays, CheckCircle2, ClipboardList, History, Scale, Umbrella, XCircle } from 'lucide-react';
-import type { AbsenceRequest, AttendanceHolidayRule, LeavePolicy } from '@/types';
+import { AlertCircle, CalendarCheck, CalendarDays, CheckCircle2, ClipboardList, History, Plus, Save, Scale, Trash2, Umbrella, XCircle } from 'lucide-react';
+import type { AbsenceRequest, AttendanceHolidayRule, HcmSetupConfig, LeavePolicy } from '@/types';
 
 type Worker = {
   id: string;
@@ -139,6 +141,62 @@ export function AdminLeaveManagement() {
     queryKey: ['admin-leave-policies'],
     queryFn: async () => unwrap<LeavePolicyResponse>(await apiClient.get('/employee/absences/policies')),
   });
+
+  // Full leave policy editor (including inactive/system-managed policies), moved here
+  // from admin/settings.tsx so leave policy configuration lives on the leave admin page.
+  const setupQuery = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
+  const [policyDrafts, setPolicyDrafts] = React.useState<LeavePolicy[]>([]);
+  const hasHydratedPolicyDrafts = React.useRef(false);
+
+  React.useEffect(() => {
+    // Only hydrate drafts from the query on first load. Background refetches
+    // (e.g. React Query's refetch-on-window-focus) must not silently clobber
+    // in-progress, unsaved edits made in the editor below.
+    if (setupQuery.data && !hasHydratedPolicyDrafts.current) {
+      setPolicyDrafts(JSON.parse(JSON.stringify(setupQuery.data.leavePolicies)) as LeavePolicy[]);
+      hasHydratedPolicyDrafts.current = true;
+    }
+  }, [setupQuery.data]);
+
+  const savePoliciesMutation = useApiMutation<HcmSetupConfig, Partial<HcmSetupConfig>>(
+    '/admin/hcm-setup',
+    'patch',
+    [['hcm-setup'], ['admin-leave-policies']],
+    {
+      onSuccess: (result) => {
+        setPolicyDrafts(JSON.parse(JSON.stringify(result.leavePolicies)) as LeavePolicy[]);
+        addNotification({ title: 'Leave policies saved', message: 'The leave policy changes are now live.', type: 'success', read: false });
+      },
+      onError: (mutationError) => {
+        const message = mutationError instanceof Error ? mutationError.message : 'Unable to save leave policies.';
+        addNotification({ title: 'Something went wrong', message, type: 'error', read: false });
+      },
+    },
+  );
+
+  const updatePolicyDraft = (index: number, patch: Partial<LeavePolicy>) => {
+    setPolicyDrafts((current) => current.map((policy, rowIndex) => (rowIndex === index ? { ...policy, ...patch } : policy)));
+  };
+
+  const addPolicyDraft = () => {
+    setPolicyDrafts((current) => [...current, {
+      code: `LEAVE_${Date.now().toString().slice(-5)}`,
+      label: '',
+      active: true,
+      unit: 'DAYS',
+      paid: true,
+      deductFromBalance: true,
+      requestableByEmployee: true,
+      payrollImpact: 'PAID_LEAVE',
+      approvalWorkflow: 'MANAGER',
+    }]);
+  };
+
+  const removePolicyDraft = (index: number) => {
+    setPolicyDrafts((current) => current.filter((_, rowIndex) => rowIndex !== index));
+  };
+
+  const savePolicyDrafts = () => savePoliciesMutation.mutate({ leavePolicies: policyDrafts });
 
   const selectedPolicy = policyQuery.data?.policies.find((policy) => policy.code === requestForm.absenceType);
   const workers = workersQuery.data ?? emptyWorkers;
@@ -624,14 +682,141 @@ export function AdminLeaveManagement() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="policies">
+        <TabsContent value="policies" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Leave Policies</CardTitle>
-              <CardDescription>Policies are currently sourced from HCM setup and applied during request validation.</CardDescription>
+              <CardTitle className="text-lg">Active Request Policies</CardTitle>
+              <CardDescription>Policies currently requestable by employees, applied during request validation.</CardDescription>
             </CardHeader>
             <CardContent>
               <DataTable columns={policyColumns} data={policies} keyExtractor={(row) => row.code} isLoading={policyQuery.isLoading} emptyMessage="No leave policies configured" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-lg">Leave Policy Editor</CardTitle>
+                <CardDescription>
+                  Controls whether a leave type is day-based or hour-based, paid or unpaid, requestable, and payroll-impacting.
+                  Includes inactive and system-managed policies.
+                </CardDescription>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={addPolicyDraft}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={savePolicyDrafts}
+                  disabled={setupQuery.isLoading || savePoliciesMutation.isPending}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {savePoliciesMutation.isPending ? 'Saving...' : 'Save Leave Policies'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {setupQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading leave policy editor...</p>
+              ) : (
+                <div className="divide-y border-y">
+                  {policyDrafts.map((policy, index) => (
+                    <div key={index} className="grid gap-3 py-3 md:grid-cols-[1fr_1.4fr_.75fr_.75fr_.75fr_.75fr_.8fr_.8fr_.8fr_3rem]">
+                      <Input
+                        aria-label="Policy code"
+                        value={policy.code}
+                        onChange={(event) => updatePolicyDraft(index, { code: event.target.value.toUpperCase().replace(/\s+/g, '_') })}
+                      />
+                      <Input
+                        aria-label="Policy name"
+                        value={policy.label}
+                        placeholder="Policy name"
+                        onChange={(event) => updatePolicyDraft(index, { label: event.target.value })}
+                      />
+                      <Select value={policy.unit} onValueChange={(value) => updatePolicyDraft(index, { unit: value as LeavePolicy['unit'] })}>
+                        <SelectTrigger aria-label="Unit">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="DAYS">Days</SelectItem>
+                          <SelectItem value="HOURS">Hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        aria-label="Annual entitlement"
+                        type="number"
+                        value={policy.annualEntitlement ?? ''}
+                        placeholder="Entitlement"
+                        onChange={(event) => updatePolicyDraft(index, { annualEntitlement: event.target.value ? Number(event.target.value) : undefined })}
+                      />
+                      <Input
+                        aria-label="Max per request"
+                        type="number"
+                        value={policy.maxPerRequest ?? ''}
+                        placeholder="Max/request"
+                        onChange={(event) => updatePolicyDraft(index, { maxPerRequest: event.target.value ? Number(event.target.value) : undefined })}
+                      />
+                      <Select
+                        value={policy.paid ? 'PAID' : 'UNPAID'}
+                        onValueChange={(value) => updatePolicyDraft(index, {
+                          paid: value === 'PAID',
+                          payrollImpact: value === 'PAID' ? (policy.payrollImpact === 'UNPAID_LEAVE' ? 'PAID_LEAVE' : policy.payrollImpact) : 'UNPAID_LEAVE',
+                        })}
+                      >
+                        <SelectTrigger aria-label="Paid or unpaid">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PAID">Paid</SelectItem>
+                          <SelectItem value="UNPAID">Unpaid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={policy.requestableByEmployee ? 'YES' : 'NO'}
+                        onValueChange={(value) => updatePolicyDraft(index, { requestableByEmployee: value === 'YES' })}
+                      >
+                        <SelectTrigger aria-label="Requestable by employee">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="YES">Requestable</SelectItem>
+                          <SelectItem value="NO">Not requestable</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={policy.systemManaged ? 'YES' : 'NO'}
+                        onValueChange={(value) => updatePolicyDraft(index, { systemManaged: value === 'YES' })}
+                      >
+                        <SelectTrigger aria-label="System managed">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="YES">System managed</SelectItem>
+                          <SelectItem value="NO">Not system managed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={policy.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updatePolicyDraft(index, { active: value === 'ACTIVE' })}>
+                        <SelectTrigger aria-label="Active status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button type="button" variant="ghost" size="icon" aria-label={`Remove ${policy.label || policy.code}`} onClick={() => removePolicyDraft(index)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {policyDrafts.length === 0 ? (
+                    <p className="py-6 text-center text-sm text-muted-foreground">No leave policies configured yet. Use Add to create one.</p>
+                  ) : null}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

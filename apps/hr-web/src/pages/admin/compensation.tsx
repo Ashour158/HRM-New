@@ -17,6 +17,7 @@ import { DataTable, type DataTableColumn } from '@/components/common/data-table'
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { FormField } from '@/components/common/form-field';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { WorkerPicker } from '@/components/common/worker-picker';
 import { optionalNumericText, requiredNumericText, requiredText } from '@/components/forms/schema-helpers';
 import { apiClient } from '@/lib/api-client';
@@ -277,7 +278,7 @@ function RecordActions({
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((action) => {
-        const enabled = (selected.tab === 'plans' && action === 'Activate') || (selected.tab === 'changes' && action === 'Approve');
+        const enabled = (selected.tab === 'plans' && action === 'Activate') || (selected.tab === 'changes' && (action === 'Submit' || action === 'Approve'));
         return (
           <Button
             key={action}
@@ -492,6 +493,10 @@ export function AdminCompensation() {
       mutation.mutate({ url: `/hr/compensation/plans/${id}/commands/activate`, payload: {} });
       return;
     }
+    if (tab === 'changes' && action === 'Submit') {
+      mutation.mutate({ url: `/hr/compensation/changes/${id}/commands/submit`, payload: {} });
+      return;
+    }
     if (tab === 'changes' && action === 'Approve') {
       if (!user?.id) {
         addNotification({ title: 'Approval unavailable', message: 'A signed-in approver is required.', type: 'error', read: false });
@@ -576,6 +581,13 @@ export function AdminCompensation() {
         <BusinessMetric label="Bonus cycles" value={bonusCycles.length} />
         <BusinessMetric label="Equity grants" value={equityWorkerId ? equityGrants.length : 'Filter'} tone={equityWorkerId ? 'default' : 'warning'} />
       </div>
+
+      <ModuleConfigureLauncher
+        moduleName="Compensation"
+        policyArea="PAYROLL"
+        approvalCommandKeyword="Compensation"
+        fieldAccessEntity="compensation"
+      />
 
       <h2 className="sr-only">Compensation workspaces</h2>
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as CompensationTab)} className="space-y-4">

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2,
@@ -14,6 +14,7 @@ import {
   Trash2,
   UserCog,
   UsersRound,
+  X,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
@@ -425,7 +426,12 @@ export function AdminAccessGovernance() {
   const [selectedRoleId, setSelectedRoleId] = React.useState('');
   const [selectedPermissionId, setSelectedPermissionId] = React.useState('');
   const [abacForm, setAbacForm] = React.useState<AbacForm>(initialAbacForm);
-  const [fieldPolicyForm, setFieldPolicyForm] = React.useState<FieldPolicyForm>(initialFieldPolicyForm);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const entityFilter = searchParams.get('entity') ?? '';
+  const [activeTab, setActiveTab] = React.useState(() => (entityFilter.trim() ? 'fields' : 'roles'));
+  const [fieldPolicyForm, setFieldPolicyForm] = React.useState<FieldPolicyForm>(() => (
+    entityFilter.trim() ? { ...initialFieldPolicyForm, fieldPath: `${entityFilter.trim()}.` } : initialFieldPolicyForm
+  ));
   const [sodForm, setSodForm] = React.useState<SodForm>(initialSodForm);
   const [userRoleForm, setUserRoleForm] = React.useState<UserRoleForm>(initialUserRoleForm);
   const [serviceAccountForm, setServiceAccountForm] = React.useState<ServiceAccountForm>(initialServiceAccountForm);
@@ -707,6 +713,20 @@ export function AdminAccessGovernance() {
   const accessReviewCampaigns = React.useMemo(() => data?.accessReviewCampaigns ?? [], [data?.accessReviewCampaigns]);
   const accessReviewItems = React.useMemo(() => data?.accessReviewItems ?? [], [data?.accessReviewItems]);
   const accessReviewWorkflowEvents = React.useMemo(() => data?.accessReviewWorkflowEvents ?? [], [data?.accessReviewWorkflowEvents]);
+  const fieldAccessPolicies = React.useMemo(() => data?.fieldAccessPolicies ?? [], [data?.fieldAccessPolicies]);
+  const filteredFieldAccessPolicies = React.useMemo(() => {
+    if (!entityFilter.trim()) return fieldAccessPolicies;
+    const needle = entityFilter.trim().toLowerCase();
+    return fieldAccessPolicies.filter((policy) => policy.fieldPath.toLowerCase().includes(needle));
+  }, [fieldAccessPolicies, entityFilter]);
+
+  const clearEntityFilter = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('entity');
+      return next;
+    });
+  };
 
   React.useEffect(() => {
     if (!selectedRoleId && roles[0]) setSelectedRoleId(roles[0].id);
@@ -1017,7 +1037,7 @@ export function AdminAccessGovernance() {
         )}
       </section>
 
-      <Tabs defaultValue="roles" className="flex flex-col gap-5">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col gap-5">
         <TabsList className="grid h-auto grid-cols-2 gap-1 md:grid-cols-5 xl:grid-cols-9">
           <TabsTrigger value="roles">Roles</TabsTrigger>
           <TabsTrigger value="permissions">Permissions</TabsTrigger>
@@ -1885,6 +1905,15 @@ export function AdminAccessGovernance() {
         </TabsContent>
 
         <TabsContent value="fields" className="grid gap-4 xl:grid-cols-[25rem_1fr]">
+          {entityFilter.trim() ? (
+            <div className="flex flex-wrap items-center gap-2 xl:col-span-2">
+              <Badge variant="secondary">Filtered to fields matching &quot;{entityFilter}&quot;</Badge>
+              <Button type="button" variant="ghost" size="sm" onClick={clearEntityFilter}>
+                <X className="mr-1 size-4" />
+                Clear filter
+              </Button>
+            </div>
+          ) : null}
           <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Field Access Policy</CardTitle>
@@ -1915,7 +1944,10 @@ export function AdminAccessGovernance() {
           <Card className="fusion-glass rounded-2xl border-transparent">
             <CardHeader>
               <CardTitle>Field Access Policies</CardTitle>
-              <CardDescription>{data?.fieldAccessPolicies.length ?? 0} field-level controls.</CardDescription>
+              <CardDescription>
+                {filteredFieldAccessPolicies.length} field-level controls
+                {entityFilter.trim() ? ` matching "${entityFilter}" (${fieldAccessPolicies.length} total)` : ''}.
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Table>
@@ -1929,7 +1961,7 @@ export function AdminAccessGovernance() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(data?.fieldAccessPolicies ?? []).length > 0 ? data?.fieldAccessPolicies.map((policy) => (
+                  {filteredFieldAccessPolicies.length > 0 ? filteredFieldAccessPolicies.map((policy) => (
                     <TableRow key={policy.id}>
                       <TableCell className="font-mono text-xs">{policy.fieldPath}</TableCell>
                       <TableCell>{policy.dataClassification}</TableCell>
@@ -1937,7 +1969,12 @@ export function AdminAccessGovernance() {
                       <TableCell>{policy.managerDecision ?? '-'}</TableCell>
                       <TableCell><pre className="max-h-24 overflow-auto rounded-md bg-muted p-2 text-xs">{asJson(policy.roleDecisions)}</pre></TableCell>
                     </TableRow>
-                  )) : <EmptyRows colSpan={5} label="No field access policies have been created yet." />}
+                  )) : (
+                    <EmptyRows
+                      colSpan={5}
+                      label={entityFilter.trim() ? `No field access policies match "${entityFilter}" yet.` : 'No field access policies have been created yet.'}
+                    />
+                  )}
                 </TableBody>
               </Table>
             </CardContent>

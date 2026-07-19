@@ -8,7 +8,8 @@ import { EquityGrantFsm } from '../fsm/equity-grant.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for forfeiting an EquityGrant.
+ * Command handler for forfeiting an EquityGrant (e.g. on termination before vesting).
+ * GRANTED, VESTING, or VESTED → FORFEITED (terminal).
  */
 @Injectable()
 @CommandHandler('ForfeitEquityGrant')

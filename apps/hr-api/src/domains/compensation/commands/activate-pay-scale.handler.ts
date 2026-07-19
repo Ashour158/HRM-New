@@ -9,6 +9,7 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
 
 /**
  * Command handler for activating a PayScale.
+ * DRAFT → ACTIVE.
  */
 @Injectable()
 @CommandHandler('ActivatePayScale')

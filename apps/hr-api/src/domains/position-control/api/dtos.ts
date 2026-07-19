@@ -129,11 +129,36 @@ export class SubmitHeadcountRequestDto {
 
 export const ApproveHeadcountRequestDtoSchema = z.object({
   positionsApproved: z.number().int().positive(),
+  fiscalYear: z.number().int().min(1900).optional(),
 });
 
 export class ApproveHeadcountRequestDto {
   @ApiProperty({ description: 'Number of positions approved' })
   positionsApproved!: number;
+
+  @ApiPropertyOptional({ description: 'Fiscal year to check the org unit headcount budget against; defaults to the current calendar year' })
+  fiscalYear?: number;
+}
+
+/* ── Headcount Budget DTOs ─────────────────────────────────────── */
+
+export const ConfigureHeadcountBudgetDtoSchema = z.object({
+  departmentId: z.string().uuid(),
+  fiscalYear: z.number().int().min(1900),
+  ceiling: z.number().int().min(0),
+});
+
+export class ConfigureHeadcountBudgetDto {
+  static zodSchema = ConfigureHeadcountBudgetDtoSchema;
+
+  @ApiProperty({ description: 'Org unit (department) UUID the budget applies to' })
+  departmentId!: string;
+
+  @ApiProperty({ description: 'Fiscal year the budget applies to (e.g. 2026)' })
+  fiscalYear!: number;
+
+  @ApiProperty({ description: 'Budgeted FTE/headcount ceiling for the org unit and fiscal year' })
+  ceiling!: number;
 }
 
 export const RejectHeadcountRequestDtoSchema = z.object({

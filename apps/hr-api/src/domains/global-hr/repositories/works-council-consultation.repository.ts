@@ -46,6 +46,25 @@ export class WorksCouncilConsultationRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  /**
+   * Tenant-scoped variant of {@link findBlockingByLegalEntity}. Filters by
+   * tenant in the query itself rather than fetching every tenant's blocking
+   * consultations for the legal entity and filtering in memory.
+   */
+  async findBlockingByLegalEntityForTenant(
+    legalEntityId: Uuid,
+    tenantId: Uuid,
+  ): Promise<WorksCouncilConsultation[]> {
+    const rows = await this.db
+      .selectFrom('hr_global_hr.works_council_consultations')
+      .selectAll()
+      .where('legal_entity_id', '=', legalEntityId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .where('status', 'in', ['REQUIRED', 'INITIATED', 'IN_PROGRESS'])
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: WorksCouncilConsultation): Promise<void> {
     const existing = await this.db
       .selectFrom('hr_global_hr.works_council_consultations')

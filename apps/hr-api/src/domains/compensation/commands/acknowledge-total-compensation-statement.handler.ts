@@ -8,7 +8,15 @@ import { TotalCompensationStatementFsm } from '../fsm/total-compensation-stateme
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for acknowledging a TotalCompensationStatement.
+ * Command handler for a worker acknowledging their own TotalCompensationStatement.
+ * DELIVERED → ACKNOWLEDGED (terminal).
+ *
+ * Self-service: the controller allows this command for the statement's own
+ * worker (in addition to compensation administrators) and sets
+ * `subjectWorkerId` on the command envelope so the command bus's
+ * subject-worker-access guard and selfServiceAuthorityEngine independently
+ * authorize the self-acknowledgement, mirroring the compliance domain's
+ * RecordPolicyAcknowledgement self-service pattern.
  */
 @Injectable()
 @CommandHandler('AcknowledgeTotalCompensationStatement')
@@ -33,7 +41,7 @@ export class AcknowledgeTotalCompensationStatementHandler implements ICommandHan
 
     return {
       success: true,
-      data: { statementId: statement.id.value, status: statement.status },
+      data: { statementId: statement.id.value, status: statement.status, workerId: statement.workerId.value },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: statement.id,
