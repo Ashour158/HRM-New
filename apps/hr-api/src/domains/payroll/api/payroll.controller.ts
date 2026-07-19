@@ -12,6 +12,7 @@ import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import type { HcmSetupConfig } from '../../hcm-setup/hcm-setup.types.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
 import { AttendanceCalculationService, type AttendanceSession } from '../../time-attendance/services/attendance-calculation.service.js';
@@ -440,12 +441,9 @@ export class PayrollController {
 
   private async findWorkerByEmployeeId(employeeId: string, tenantId: Uuid) {
     // Resolve strictly within the request tenant so colliding employee numbers across
-    // tenants cannot leak/cross-apply another tenant's worker.
-    const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
-    const fallbackWorkers = activeWorkers.length > 0
-      ? activeWorkers
-      : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
-    return fallbackWorkers.find((worker) => worker.employeeNumber === employeeId);
+    // tenants cannot leak/cross-apply another tenant's worker. A direct lookup (not a
+    // capped page-then-scan) so it works regardless of tenant workforce size.
+    return this.workerRepo.findByEmployeeNumberForTenant(employeeId, tenantId);
   }
 
   private async resolvePayrollCurrencyForRequest(req: Request): Promise<string> {
@@ -473,13 +471,38 @@ export class PayrollController {
     return sessions;
   }
 
-  private async buildAttendanceSummary(workerId: Uuid, year: number, month: number, req: Request) {
-    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const periodEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-    const lockedSnapshots = await this.attendanceDailyLedgerRepo.findByWorker(this.getTenantId(req), workerId, {
-      dateFrom: periodStart,
-      dateTo: periodEnd,
-    });
+  /** Page size for internal workforce pagination loops (not client-controlled). */
+  private static readonly PAYROLL_WORKER_PAGE_SIZE = 500;
+
+  private async fetchAllPages<T>(fetchPage: (limit: number, offset: number) => Promise<T[]>): Promise<T[]> {
+    const pageSize = PayrollController.PAYROLL_WORKER_PAGE_SIZE;
+    const results: T[] = [];
+    let offset = 0;
+    for (;;) {
+      const page = await fetchPage(pageSize, offset);
+      results.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+    return results;
+  }
+
+  /** Fetches the full tenant workforce for payroll, not truncated to a single page. */
+  private async fetchAllPayrollWorkers(tenantId: Uuid) {
+    const activeWorkers = await this.fetchAllPages((limit, offset) =>
+      this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit, offset }));
+    if (activeWorkers.length > 0) return activeWorkers;
+    return this.fetchAllPages((limit, offset) =>
+      this.workerRepo.searchForTenant('', tenantId, { limit, offset }));
+  }
+
+  private buildAttendanceSummaryFromData(
+    year: number,
+    month: number,
+    setup: HcmSetupConfig,
+    lockedSnapshots: Awaited<ReturnType<AttendanceDailyLedgerRepository['findByWorker']>>,
+    workerEvents: Awaited<ReturnType<TimeClockEventRepository['findByWorkersBetween']>>,
+  ) {
     if (lockedSnapshots.some((snapshot) => snapshot.locked)) {
       const locked = lockedSnapshots.filter((snapshot) => snapshot.locked);
       return {
@@ -490,11 +513,8 @@ export class PayrollController {
       };
     }
 
-    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
-    const events = await this.timeClockEventRepo.findByWorker(workerId);
-    const days = new Map<string, typeof events>();
-
-    for (const event of events) {
+    const days = new Map<string, typeof workerEvents>();
+    for (const event of workerEvents) {
       if (event.timestamp.getUTCFullYear() !== year || event.timestamp.getUTCMonth() + 1 !== month) continue;
       const day = event.timestamp.toISOString().slice(0, 10);
       days.set(day, [...(days.get(day) ?? []), event]);
@@ -522,12 +542,36 @@ export class PayrollController {
   private async buildPayrollEmployees(year: number, month: number, req: Request): Promise<PayrollCycleEmployeeInput[]> {
     const tenantId = this.getTenantId(req);
     const setup = await this.hcmSetupService.getSetup(tenantId);
-    const activeWorkers = await this.workerRepo.findByStatusForTenant('ACTIVE', tenantId, { limit: 1000 });
-    const workers = activeWorkers.length > 0 ? activeWorkers : await this.workerRepo.searchForTenant('', tenantId, { limit: 1000 });
+    const workers = await this.fetchAllPayrollWorkers(tenantId);
     const tenantCurrency = resolveTenantCurrency(setup);
 
-    return Promise.all(workers.map(async (worker) => {
-      const records = await this.personalDataRepo.findByWorker(worker.id);
+    const workerIds = workers.map((worker) => worker.id);
+    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const periodEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    const monthStartAt = new Date(Date.UTC(year, month - 1, 1));
+    const monthEndAt = new Date(Date.UTC(year, month, 1));
+
+    // Batch-fetch per-worker data for the whole workforce in a handful of
+    // queries instead of fanning out one query per worker per data source.
+    const [personalDataRecords, ledgersByWorker, timeClockEvents] = await Promise.all([
+      this.personalDataRepo.findByWorkers(workerIds),
+      this.attendanceDailyLedgerRepo.findByWorkers(tenantId, workerIds, { dateFrom: periodStart, dateTo: periodEnd }),
+      this.timeClockEventRepo.findByWorkersBetween(workerIds, monthStartAt, monthEndAt),
+    ]);
+
+    const personalDataByWorker = new Map<string, typeof personalDataRecords>();
+    for (const record of personalDataRecords) {
+      const key = record.workerId.value;
+      personalDataByWorker.set(key, [...(personalDataByWorker.get(key) ?? []), record]);
+    }
+    const timeClockEventsByWorker = new Map<string, typeof timeClockEvents>();
+    for (const event of timeClockEvents) {
+      const key = event.workerId.value;
+      timeClockEventsByWorker.set(key, [...(timeClockEventsByWorker.get(key) ?? []), event]);
+    }
+
+    return workers.map((worker) => {
+      const records = personalDataByWorker.get(worker.id.value) ?? [];
       const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
       const compensation = payloadByCategory.COMPENSATION ?? {};
       const contact = payloadByCategory.CONTACT ?? {};
@@ -583,9 +627,15 @@ export class PayrollController {
             ?? tax.socialInsuranceNumber
             ?? tax.insuranceIdentifier,
         ),
-        attendanceSummary: await this.buildAttendanceSummary(worker.id, year, month, req),
+        attendanceSummary: this.buildAttendanceSummaryFromData(
+          year,
+          month,
+          setup,
+          ledgersByWorker.get(worker.id.value) ?? [],
+          timeClockEventsByWorker.get(worker.id.value) ?? [],
+        ),
       };
-    }));
+    });
   }
 
   private async buildMonthlyPreview(req: Request, year: number, month: number, workLocationCode?: string): Promise<PayrollCyclePreview> {

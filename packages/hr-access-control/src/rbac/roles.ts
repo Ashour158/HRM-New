@@ -423,6 +423,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'WORKER_READ',
       'PERFORMANCE_READ',
       'PERFORMANCE_CREATE',
+      'PERFORMANCE_WRITE',
       'ABSENCE_READ',
       'ABSENCE_APPROVE',
       'TIME_READ',

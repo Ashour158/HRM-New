@@ -22,8 +22,13 @@ Result: **LOAD SMOKE PASS** against SLO gates `LOAD_P95_MAX_MS=150`, `LOAD_MIN_R
 
 ## CI gate
 `.github/workflows/ci.yml` job **`load-smoke`** boots the built API against Postgres+Redis
-services, waits for readiness, and runs the harness with the SLO thresholds above. A
+services, waits for readiness, and runs the harness with the SLO thresholds above (kept in
+sync with the `LOAD_P95_MAX_MS`/`LOAD_MIN_RPS` env vars in that job — update both together). A
 regression that pushes p95 over the gate or drops RPS fails the build.
+
+Note: these gates are measured against `/api/v1/health`, a trivial static health check with
+no DB/Redis/auth work — passing this gate does not by itself prove a representative
+authenticated business endpoint meets these SLOs (see PERF-2 below).
 
 ## Not yet covered (tracked, P2/P3)
 - This is a **smoke** profile (fixed concurrency, health endpoint). Soak (sustained

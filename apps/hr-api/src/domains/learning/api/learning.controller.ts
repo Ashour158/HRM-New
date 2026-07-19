@@ -1,17 +1,26 @@
-import { Controller, Get, Post, Body, Param, Req, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Req, Res, BadRequestException, ForbiddenException, UseInterceptors, UploadedFile } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import type { Request } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
+import multer from 'multer';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
+import { LegalEntityRepository } from '../../organization/repositories/legal-entity.repository.js';
+import { DocumentExportService, EXPORT_CONTENT_TYPES } from '../../../platform/export/document-export.service.js';
 import { LearningCourseRepository } from '../repositories/learning-course.repository.js';
 import { LearningAssignmentRepository } from '../repositories/learning-assignment.repository.js';
 import { CertificationRepository } from '../repositories/certification.repository.js';
 import { LearningContentPackageRepository } from '../repositories/learning-content-package.repository.js';
+import {
+  LearningContentStorageService,
+  LearningContentStorageValidationError,
+  MAX_LEARNING_CONTENT_UPLOAD_BYTES,
+} from '../services/learning-content-storage.service.js';
 import type * as dtos from './dtos.js';
 import {
   CreateLearningCourseDtoSchema, CreateLearningAssignmentDtoSchema,
@@ -19,6 +28,13 @@ import {
   RenewCertificationDtoSchema, CreateLearningContentPackageDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
+
+const LEARNING_ADMIN_ROLES = new Set(['HR_ADMIN', 'HRBP', 'SUPER_ADMIN']);
+
+/** Strips characters that would break a Content-Disposition header value. */
+function contentDispositionFileName(name: string): string {
+  return name.replace(/["\r\n]/g, '_');
+}
 
 @ApiTags('Learning')
 @Controller('learning')
@@ -30,6 +46,9 @@ export class LearningController {
     private readonly certificationRepo: CertificationRepository,
     private readonly contentPackageRepo: LearningContentPackageRepository,
     private readonly workerRepo: WorkerRepository,
+    private readonly legalEntityRepo: LegalEntityRepository,
+    private readonly documentExport: DocumentExportService,
+    private readonly contentStorage: LearningContentStorageService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -66,6 +85,46 @@ export class LearningController {
       throw new BadRequestException('Tenant mismatch');
     }
     return requestTenantId;
+  }
+
+  private getActorId(req: Request): string {
+    const actorId = req.actor?.actorId;
+    if (actorId instanceof Uuid) return actorId.value;
+    const actorIdLike = actorId as { value?: unknown } | undefined;
+    if (typeof actorIdLike?.value === 'string') return actorIdLike.value;
+    throw new ForbiddenException('Authenticated actor is required');
+  }
+
+  private getActorEmail(req: Request): string | undefined {
+    return (req.actor as { email?: string } | undefined)?.email;
+  }
+
+  private hasLearningAdminScope(req: Request): boolean {
+    return (req.actor?.roles ?? []).some((role) => LEARNING_ADMIN_ROLES.has(role));
+  }
+
+  private async resolveSelfWorkerId(req: Request): Promise<string | undefined> {
+    const actorId = this.getActorId(req);
+    try {
+      const worker = await this.workerRepo.findById(new Uuid(actorId));
+      if (worker) return worker.id.value;
+    } catch {
+      // Actor IDs from identity providers may be user IDs rather than worker IDs.
+    }
+    const email = this.getActorEmail(req);
+    if (!email) return undefined;
+    const worker = await this.workerRepo.findByEmail(email);
+    return worker?.id.value;
+  }
+
+  /** Certificate access is limited to the certificate holder themself, or HR/admin scope. */
+  private async assertCanAccessCertificate(req: Request, workerId: string): Promise<void> {
+    if (this.hasLearningAdminScope(req)) return;
+    const actorId = this.getActorId(req);
+    if (actorId === workerId) return;
+    const selfWorkerId = await this.resolveSelfWorkerId(req);
+    if (selfWorkerId === workerId) return;
+    throw new ForbiddenException('Certificate access is limited to the certificate holder or HR/admin roles');
   }
 
   private isPrivilegedLearningActor(req: Request): boolean {
@@ -251,6 +310,41 @@ export class LearningController {
     return this.certificationRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
+  /**
+   * Generates and streams a certificate PDF on demand from the aggregate's scalar
+   * fields — there is no stored document (no certificateUrl/documentUrl column).
+   * Restricted to the certificate holder themself or HR/admin scope.
+   */
+  @Get('certifications/:id/certificate.pdf')
+  async getCertificatePdf(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const tenantId = requireTenantId(req, 'Learning');
+    const cert = await this.certificationRepo.findById(new Uuid(id));
+    if (!cert) throw new BadRequestException('Certification not found');
+    if (cert.tenantId.value !== tenantId.value) throw new ForbiddenException('Tenant mismatch');
+    await this.assertCanAccessCertificate(req, cert.workerId.value);
+
+    const worker = await this.workerRepo.findById(cert.workerId);
+    const recipientName = worker ? `${worker.firstName} ${worker.lastName}`.trim() : undefined;
+
+    const legalEntities = await this.legalEntityRepo.findByTenant(tenantId);
+    const organization = legalEntities.find((entity) => entity.status === 'ACTIVE') ?? legalEntities[0];
+
+    const buffer = await this.documentExport.toCertificatePdf({
+      recipientName: recipientName || cert.workerId.value,
+      certificationName: cert.certificationName,
+      issuingBody: cert.issuingBody,
+      issueDate: cert.issueDate?.toISOString(),
+      expiryDate: cert.expiryDate?.toISOString(),
+      credentialId: cert.credentialId,
+      organizationName: organization?.name,
+      statusLabel: cert.status,
+    });
+
+    res.setHeader('Content-Type', EXPORT_CONTENT_TYPES.pdf);
+    res.setHeader('Content-Disposition', `attachment; filename="certificate-${cert.id.value}.pdf"`);
+    res.send(buffer);
+  }
+
   /* Learning Content Packages */
   @Post('content-packages')
   async createContentPackage(@Body(new ZodValidationPipe(CreateLearningContentPackageDtoSchema)) dto: dtos.CreateLearningContentPackageDto, @Req() req: Request) {
@@ -293,5 +387,70 @@ export class LearningController {
   @Get('content-packages/tenant/:tenantId')
   async getContentPackagesByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
     return this.contentPackageRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
+  }
+
+  /**
+   * Stores an uploaded SCORM/xAPI binary via the storage adapter and attaches its
+   * fileUrl/checksum/size to the aggregate. Only allowed while the package is still
+   * in its initial UPLOADED intake state (before parse/validate has run against it).
+   */
+  @Post('content-packages/:id/upload')
+  @UseInterceptors(FileInterceptor('file', { storage: multer.memoryStorage(), limits: { fileSize: MAX_LEARNING_CONTENT_UPLOAD_BYTES } }))
+  async uploadContentPackageFile(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() req: Request,
+  ) {
+    const tenantId = requireTenantId(req, 'Learning');
+    if (!file) throw new BadRequestException('A file is required (multipart field "file")');
+    const ar = await this.contentPackageRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('Content package not found');
+    if (ar.tenantId.value !== tenantId.value) throw new ForbiddenException('Tenant mismatch');
+
+    let saved;
+    try {
+      saved = await this.contentStorage.save(file.buffer, {
+        tenantId: tenantId.value,
+        packageId: id,
+        packageType: ar.packageType,
+        originalFileName: file.originalname,
+        mimeType: file.mimetype,
+      });
+    } catch (error) {
+      if (error instanceof LearningContentStorageValidationError) throw new BadRequestException(error.message);
+      throw error;
+    }
+
+    return this.commandBus.execute(this.buildCommand('AttachLearningContentPackageFile', 'LearningContentPackage', {
+      learningContentPackageId: new Uuid(id),
+      fileUrl: saved.fileUrl,
+      checksum: saved.checksum,
+      sizeBytes: saved.sizeBytes,
+      mimeType: saved.mimeType,
+      originalFileName: saved.originalFileName,
+    }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+  }
+
+  /** Streams the stored binary for a content package back out through the storage adapter. */
+  @Get('content-packages/:id/download')
+  async downloadContentPackageFile(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const tenantId = requireTenantId(req, 'Learning');
+    const ar = await this.contentPackageRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('Content package not found');
+    if (ar.tenantId.value !== tenantId.value) throw new ForbiddenException('Tenant mismatch');
+    if (!ar.fileUrl) throw new BadRequestException('No file has been uploaded for this content package');
+
+    let buffer: Buffer;
+    try {
+      buffer = await this.contentStorage.read(ar.fileUrl);
+    } catch (error) {
+      if (error instanceof LearningContentStorageValidationError) throw new BadRequestException(error.message);
+      throw error;
+    }
+
+    const fileName = contentDispositionFileName(ar.originalFileName ?? `${ar.title || 'content-package'}`);
+    res.setHeader('Content-Type', ar.mimeType ?? 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.send(buffer);
   }
 }
