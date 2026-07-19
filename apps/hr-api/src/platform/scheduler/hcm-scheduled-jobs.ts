@@ -4589,6 +4589,15 @@ export class ScheduledReportGenerationJob implements ScheduledJob {
         escalationTier: escalationTier(0),
         now: ctx.now,
       });
+      // Advance next_run_at so this schedule doesn't stay "due" and re-fire on
+      // every subsequent tick of this job's 15-minute cron.
+      await ctx.runCommand({
+        commandName: 'RecordReportScheduleRun',
+        aggregateType: 'ReportSchedule',
+        aggregateId: row.reportScheduleId,
+        payload: { reportScheduleId: row.reportScheduleId.value, ranAt: ctx.now },
+        reason: this.name,
+      });
     }
     return { itemsProcessed: rows.length };
   }
