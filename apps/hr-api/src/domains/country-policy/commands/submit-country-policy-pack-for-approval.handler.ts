@@ -10,16 +10,22 @@ export interface SubmitCountryPolicyPackForApprovalPayload {
 }
 
 /**
- * Handler for the SubmitForApproval command.
+ * Handler for the SubmitCountryPolicyPackForApproval command.
  *
  * Delegates to {@link CountryPolicyPack.submitForApproval}, which is the
  * real review gate: it rejects the transition unless every entry in
  * `requiredApprovals` has a matching entry in `completedReviews`.
+ *
+ * NOTE: registered under the aggregate-qualified command name (not the bare
+ * `SubmitForApproval`) because `PolicyDocument`'s FSM also uses the bare name
+ * for its own submit-for-approval transition, and CommandBus's handler
+ * registry is a single global `commandName -> handler` map (see
+ * `country-policy-pack-fsm-command-names.test.ts`, HCM-P0-19).
  */
 @Injectable()
-@CommandHandler('SubmitForApproval')
+@CommandHandler('SubmitCountryPolicyPackForApproval')
 export class SubmitCountryPolicyPackForApprovalHandler implements ICommandHandler {
-  readonly commandName = 'SubmitForApproval';
+  readonly commandName = 'SubmitCountryPolicyPackForApproval';
 
   constructor(
     private readonly repo: CountryPolicyPackRepository,

@@ -5,48 +5,42 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import { Uuid, ValidationError } from '@hcm/shared-kernel';
 import { CountryPolicyPackRepository } from '../repositories/country-policy-pack.repository.js';
 
-export interface SubmitCountryPolicyPackForLegalReviewPayload {
+export interface RollbackCountryPolicyPackPayload {
   packId: string;
+  rollbackReason: string;
 }
 
 /**
- * Handler for the SubmitForLegalReview command.
+ * Handler for the RollbackCountryPolicyPack command.
  */
 @Injectable()
-@CommandHandler('SubmitForLegalReview')
-export class SubmitCountryPolicyPackForLegalReviewHandler implements ICommandHandler {
-  readonly commandName = 'SubmitForLegalReview';
+@CommandHandler('RollbackCountryPolicyPack')
+export class RollbackCountryPolicyPackHandler implements ICommandHandler {
+  readonly commandName = 'RollbackCountryPolicyPack';
 
   constructor(
     private readonly repo: CountryPolicyPackRepository,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as SubmitCountryPolicyPackForLegalReviewPayload;
+    const payload = command.payload as RollbackCountryPolicyPackPayload;
     const pack = await this.repo.findById(new Uuid(payload.packId));
     if (!pack) {
       throw new ValidationError('Country policy pack not found');
     }
 
-    pack.submitForLegalReview(command.correlationId);
+    pack.rollback(command.correlationId, payload.rollbackReason);
     await this.repo.save(pack);
 
     return {
       success: true,
-      data: { packId: pack.id.value, status: pack.status, completedReviews: pack.completedReviews },
+      data: { packId: pack.id.value, status: pack.status },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: pack.id,
       newState: pack.status,
       newVersion: pack.aggregateVersion,
-      allowedNextActions: [
-        'SubmitForPayrollTaxReview',
-        'SubmitForGlobalHRReview',
-        'SubmitForBenefitsReview',
-        'SubmitForAbsenceReview',
-        'SubmitForComplianceReview',
-        'SubmitCountryPolicyPackForApproval',
-      ],
+      allowedNextActions: ['RetireCountryPolicyPack'],
       fieldAccessDecisions: {},
       eventsEmitted: pack.domainEvents.map((e) => e.eventName),
       auditRecordId: Uuid.generate(),
