@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { VariableCompPlan } from '../aggregates/variable-comp-plan.aggregate.js';
 
@@ -46,8 +46,8 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
       tenantId: new Uuid(row.tenant_id),
       name: row.name,
       planType: row.plan_type,
-      targetPercentage: row.target_percentage,
-      maxPercentage: row.max_percentage,
+      targetPercentage: parseNumeric(row.target_percentage),
+      maxPercentage: parseNumeric(row.max_percentage),
       currency: row.currency,
       status: row.status as 'DRAFT' | 'ACTIVE' | 'CLOSED',
       aggregateVersion: row.aggregate_version,

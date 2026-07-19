@@ -7,7 +7,7 @@ import { OnboardingTask } from '../aggregates/onboarding-task.aggregate.js';
 import { OnboardingReadinessService } from '../services/onboarding-readiness.service.js';
 import { OnboardingTemplateService } from '../services/onboarding-template.service.js';
 import { OnboardingController } from './onboarding.controller.js';
-import { CreateOnboardingPlanDto, CreateOnboardingTaskDto } from './dtos.js';
+import { CreateOnboardingPlanDtoSchema, CreateOnboardingTaskDtoSchema } from './dtos.js';
 
 const tenantId = '00000000-0000-0000-0000-000000000001';
 const actorId = '00000000-0000-0000-0000-000000000010';
@@ -108,19 +108,32 @@ describe('OnboardingController', () => {
     vi.clearAllMocks();
   });
 
-  it('attaches zod schemas to onboarding DTOs so API payloads are validated', () => {
-    expect(CreateOnboardingPlanDto.zodSchema.safeParse({
+  it('validates onboarding DTO payloads against their Zod schemas', () => {
+    expect(CreateOnboardingPlanDtoSchema.safeParse({
       planId,
       workerId,
       startDate: '2026-07-01',
       roleTrack: 'STANDARD_EMPLOYEE',
     }).success).toBe(true);
-    expect(CreateOnboardingTaskDto.zodSchema.safeParse({
+    expect(CreateOnboardingTaskDtoSchema.safeParse({
       taskId,
       planId,
       title: 'Upload identity documents',
       ownerGroup: 'Finance',
     }).success).toBe(true);
+  });
+
+  it('rejects malformed onboarding DTO payloads', () => {
+    expect(CreateOnboardingPlanDtoSchema.safeParse({
+      planId,
+      workerId: 'not-a-uuid',
+      startDate: '2026-07-01',
+    }).success).toBe(false);
+    expect(CreateOnboardingTaskDtoSchema.safeParse({
+      taskId,
+      planId,
+      // title is required and missing
+    }).success).toBe(false);
   });
 
   it('lists all tenant onboarding plans with preboarding and probation fields', async () => {

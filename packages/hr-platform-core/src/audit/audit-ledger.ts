@@ -8,6 +8,7 @@ import type { Database } from '@hcm/database';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import type { CommandResult } from '@hcm/command-contracts';
 import type { HrActor } from '@hcm/command-contracts';
+import { redactSensitiveFields } from './redaction.js';
 
 /**
  * A single immutable audit record.
@@ -214,13 +215,10 @@ export class AuditLedgerService {
   private sanitizePayload(
     payload: Record<string, unknown>
   ): Record<string, unknown> {
-    // Deep-clone and strip known special-category keys.
+    // Deep-clone for JSON-safety, then recursively redact sensitive fields
+    // at any nesting depth (not just top-level keys).
     const clone = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
-    const sensitiveKeys = ['ssn', 'nationalId', 'sin', 'passportNumber', 'biometric'];
-    for (const key of sensitiveKeys) {
-      delete clone[key];
-    }
-    return clone;
+    return redactSensitiveFields(clone) as Record<string, unknown>;
   }
 
   private toRecord(row: {

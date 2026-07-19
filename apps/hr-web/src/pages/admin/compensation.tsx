@@ -14,6 +14,7 @@ import { DataTable, type DataTableColumn } from '@/components/common/data-table'
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency, formatDate, generateUUID } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -590,8 +591,8 @@ export function AdminCompensation() {
             <CardHeader><CardTitle className="flex items-center gap-2"><LineChart className="h-5 w-5" /> Compensation changes</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 md:max-w-xl">
-                <Label htmlFor="change-worker-filter">Worker ID</Label>
-                <Input id="change-worker-filter" placeholder="Enter worker UUID to load changes" value={changeWorkerId} onChange={(event) => setChangeWorkerId(event.target.value)} />
+                <Label htmlFor="change-worker-filter">Filter changes by worker</Label>
+                <WorkerPicker id="change-worker-filter" placeholder="Search by name or employee ID to load changes" value={changeWorkerId} onChange={(workerId) => setChangeWorkerId(workerId)} />
               </div>
               {changeWorkerId ? (
                 <DataTable columns={changeColumns} data={changes} keyExtractor={recordId} isLoading={changesQuery.isLoading} emptyMessage="No compensation changes for this worker" total={changes.length} listKey="admin.compensation.changes" viewFilters={{ workerId: changeWorkerId }} />
@@ -616,8 +617,8 @@ export function AdminCompensation() {
             <CardHeader><CardTitle className="flex items-center gap-2"><BadgeDollarSign className="h-5 w-5" /> Equity grants</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 md:max-w-xl">
-                <Label htmlFor="equity-worker-filter">Worker ID</Label>
-                <Input id="equity-worker-filter" placeholder="Enter worker UUID to load grants" value={equityWorkerId} onChange={(event) => setEquityWorkerId(event.target.value)} />
+                <Label htmlFor="equity-worker-filter">Filter grants by worker</Label>
+                <WorkerPicker id="equity-worker-filter" placeholder="Search by name or employee ID to load grants" value={equityWorkerId} onChange={(workerId) => setEquityWorkerId(workerId)} />
               </div>
               {equityWorkerId ? (
                 <DataTable columns={equityColumns} data={equityGrants} keyExtractor={recordId} isLoading={equityGrantsQuery.isLoading} emptyMessage="No equity grants for this worker" total={equityGrants.length} listKey="admin.compensation.equity-grants" viewFilters={{ workerId: equityWorkerId }} />
@@ -657,7 +658,7 @@ export function AdminCompensation() {
             ) : null}
             {activeTab === 'changes' ? (
               <>
-                <div className="space-y-2 md:col-span-2"><Label htmlFor="change-worker">Worker ID</Label><Input id="change-worker" value={changeForm.workerId} onChange={(event) => setChangeForm({ ...changeForm, workerId: event.target.value })} /></div>
+                <div className="space-y-2 md:col-span-2"><Label htmlFor="change-worker">Select worker</Label><WorkerPicker id="change-worker" value={changeForm.workerId} onChange={(workerId) => setChangeForm({ ...changeForm, workerId })} /></div>
                 <div className="space-y-2"><Label htmlFor="change-type">Change type</Label><Input id="change-type" value={changeForm.changeType} onChange={(event) => setChangeForm({ ...changeForm, changeType: event.target.value })} /></div>
                 <div className="space-y-2"><Label htmlFor="old-amount">Old amount</Label><Input id="old-amount" inputMode="numeric" value={changeForm.oldAmount} onChange={(event) => setChangeForm({ ...changeForm, oldAmount: event.target.value })} /></div>
                 <div className="space-y-2"><Label htmlFor="new-amount">New amount</Label><Input id="new-amount" inputMode="numeric" value={changeForm.newAmount} onChange={(event) => setChangeForm({ ...changeForm, newAmount: event.target.value })} /></div>
@@ -675,7 +676,7 @@ export function AdminCompensation() {
             ) : null}
             {activeTab === 'equity-grants' ? (
               <>
-                <div className="space-y-2 md:col-span-2"><Label htmlFor="equity-worker">Worker ID</Label><Input id="equity-worker" value={equityForm.workerId} onChange={(event) => setEquityForm({ ...equityForm, workerId: event.target.value })} /></div>
+                <div className="space-y-2 md:col-span-2"><Label htmlFor="equity-worker">Select worker</Label><WorkerPicker id="equity-worker" value={equityForm.workerId} onChange={(workerId) => setEquityForm({ ...equityForm, workerId })} /></div>
                 <div className="space-y-2"><Label htmlFor="grant-type">Grant type</Label><Input id="grant-type" value={equityForm.grantType} onChange={(event) => setEquityForm({ ...equityForm, grantType: event.target.value })} /></div>
                 <div className="space-y-2"><Label htmlFor="grant-date">Grant date</Label><Input id="grant-date" type="date" value={equityForm.grantDate} onChange={(event) => setEquityForm({ ...equityForm, grantDate: event.target.value })} /></div>
                 <div className="space-y-2"><Label htmlFor="total-units">Total units</Label><Input id="total-units" inputMode="numeric" value={equityForm.totalUnits} onChange={(event) => setEquityForm({ ...equityForm, totalUnits: event.target.value })} /></div>

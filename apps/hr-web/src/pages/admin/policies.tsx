@@ -18,6 +18,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DEFAULT_GENERIC_LEAVE_POLICY_CODE,
+  RULE_LEDGER_RETRO_BEHAVIORS,
+  buildDraftConfigFromGenericRules,
+  getRuleLedgerCategories,
+  isRuleLedgerSupportedArea,
+  type RuleLedgerRetroBehavior,
+} from '@/lib/policy-center-controls';
 
 type PolicyArea =
   | 'EMPLOYEE_SETUP'
@@ -102,6 +110,8 @@ type RuleRow = {
   condition: string;
   outcome: string;
   value: string;
+  category: string;
+  retroBehavior: RuleLedgerRetroBehavior;
 };
 
 type BuilderForm = {
@@ -119,6 +129,10 @@ type BuilderForm = {
   effectiveFrom: string;
   effectiveUntil: string;
   rules: RuleRow[];
+  /** Structured draftConfig picked up from a template; the generic rule ledger merges on top of this. */
+  baseDraftConfig: Record<string, unknown>;
+  /** Which leave policy (by code) the generic rule builder attaches ledger rules to, for LEAVE only. */
+  leavePolicyCode: string;
 };
 
 const policyAreas: PolicyArea[] = [
@@ -135,12 +149,17 @@ const policyAreas: PolicyArea[] = [
   'ENGAGEMENT',
 ];
 
-const initialRule: RuleRow = {
-  code: 'DEFAULT_RULE',
-  condition: 'All eligible workers',
-  outcome: 'ALLOW',
-  value: 'Standard control',
-};
+function createRuleRow(area: PolicyArea, code = 'DEFAULT_RULE'): RuleRow {
+  const categories = getRuleLedgerCategories(area);
+  return {
+    code,
+    condition: 'All eligible workers',
+    outcome: 'ALLOW',
+    value: '',
+    category: categories[0]?.key ?? '',
+    retroBehavior: 'FUTURE_ONLY',
+  };
+}
 
 const initialForm: BuilderForm = {
   title: '',
@@ -156,7 +175,9 @@ const initialForm: BuilderForm = {
   workers: '',
   effectiveFrom: '',
   effectiveUntil: '',
-  rules: [initialRule],
+  rules: [createRuleRow('LEAVE')],
+  baseDraftConfig: {},
+  leavePolicyCode: DEFAULT_GENERIC_LEAVE_POLICY_CODE,
 };
 
 function splitList(value: string): string[] | undefined {
@@ -182,22 +203,22 @@ function buildScope(form: BuilderForm, tenantId?: string): PolicyScope {
 }
 
 function buildDraftConfig(form: BuilderForm): Record<string, unknown> {
+  if (!isRuleLedgerSupportedArea(form.area)) {
+    // The generic condition/outcome rule builder is hidden for this area (see
+    // PolicyBuilderForm), so only the template-provided structured config applies.
+    return form.baseDraftConfig;
+  }
   const rules = form.rules.map((rule, index) => ({
     code: rule.code || `RULE_${index + 1}`,
-    label: rule.condition,
-    active: true,
-    conditions: [{ field: 'businessCondition', operator: 'EQUALS', value: rule.condition || 'All eligible workers' }],
-    outcomes: [{ action: rule.outcome || 'ALLOW', value: rule.value || 'Standard control' }],
+    label: rule.condition || 'All eligible workers',
+    category: rule.category,
+    action: rule.outcome || 'ALLOW',
+    value: rule.value,
+    retroBehavior: rule.retroBehavior,
   }));
-  return {
-    policyRuntime: {
-      area: form.area,
-      ruleLedgers: rules,
-    },
-    [`${form.area.toLowerCase()}PolicyRuntime`]: {
-      ruleLedgers: rules,
-    },
-  };
+  return buildDraftConfigFromGenericRules(form.area, form.baseDraftConfig, rules, {
+    leavePolicyCode: form.leavePolicyCode,
+  });
 }
 
 function statusVariant(status: PolicyStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -355,6 +376,10 @@ export function AdminPolicies() {
       workers: template.recommendedScope.workerIds?.join(', ') ?? '',
       effectiveFrom: template.recommendedScope.effectiveFrom ?? '',
       effectiveUntil: template.recommendedScope.effectiveUntil ?? '',
+      // The template's own structured draftConfig is the real base; any generic
+      // rules the admin adds afterward merge into it (see buildDraftConfig).
+      baseDraftConfig: template.draftConfig ?? {},
+      rules: [createRuleRow(template.area)],
     }));
   };
 
@@ -525,12 +550,8 @@ function PolicyBuilderForm({
   onApplyTemplate: (template: PolicyTemplate) => void;
 }) {
   const { t } = useTranslation();
-  const updateRule = (index: number, patch: Partial<RuleRow>) => {
-    onChange((current) => ({
-      ...current,
-      rules: current.rules.map((rule, currentIndex) => (currentIndex === index ? { ...rule, ...patch } : rule)),
-    }));
-  };
+  const ruleLedgerSupported = isRuleLedgerSupportedArea(form.area);
+  const categories = React.useMemo(() => getRuleLedgerCategories(form.area), [form.area]);
 
   return (
     <div className="space-y-5">
@@ -551,7 +572,14 @@ function PolicyBuilderForm({
         </div>
         <div className="grid gap-2">
           <Label>{t('lowCode.policies.form.area')}</Label>
-          <Select value={form.area} onValueChange={(area) => onChange((current) => ({ ...current, area: area as PolicyArea }))}>
+          <Select value={form.area} onValueChange={(area) => onChange((current) => ({
+            ...current,
+            area: area as PolicyArea,
+            // A structured base and rule rows only make sense for the area they
+            // were built for; switching areas starts the rule ledger fresh.
+            baseDraftConfig: {},
+            rules: [createRuleRow(area as PolicyArea)],
+          }))}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {policyAreas.map((area) => <SelectItem key={area} value={area}>{area.replace(/_/g, ' ')}</SelectItem>)}
@@ -596,19 +624,80 @@ function PolicyBuilderForm({
       </section>
 
       <section className="space-y-3">
-        <SectionHeading
-          title={t('lowCode.policies.form.rules')}
-          actions={<Button type="button" variant="outline" size="sm" onClick={() => onChange((current) => ({ ...current, rules: [...current.rules, { ...initialRule, code: `RULE_${current.rules.length + 1}` }] }))}>{t('lowCode.policies.form.addRule')}</Button>}
-        />
-        {form.rules.map((rule, index) => (
-          <div key={`${rule.code}-${index}`} className="grid gap-3 rounded-xl border p-3 md:grid-cols-4">
-            <Input aria-label={t('lowCode.policies.form.ruleCode')} value={rule.code} onChange={(event) => updateRule(index, { code: event.target.value })} />
-            <Input aria-label={t('lowCode.policies.form.condition')} value={rule.condition} onChange={(event) => updateRule(index, { condition: event.target.value })} />
-            <Input aria-label={t('lowCode.policies.form.outcome')} value={rule.outcome} onChange={(event) => updateRule(index, { outcome: event.target.value })} />
-            <Input aria-label={t('lowCode.policies.form.value')} value={rule.value} onChange={(event) => updateRule(index, { value: event.target.value })} />
-          </div>
-        ))}
+        <SectionHeading title={t('lowCode.policies.form.rules')} />
+        {ruleLedgerSupported ? (
+          <RuleLedgerBuilder form={form} onChange={onChange} categories={categories} />
+        ) : (
+          <EmptyState
+            icon={AlertTriangle}
+            title={t('lowCode.policies.form.unsupportedRuleBuilderTitle')}
+            description={t('lowCode.policies.form.unsupportedRuleBuilderMessage')}
+          />
+        )}
       </section>
+    </div>
+  );
+}
+
+function RuleLedgerBuilder({
+  form,
+  onChange,
+  categories,
+}: {
+  form: BuilderForm;
+  onChange: React.Dispatch<React.SetStateAction<BuilderForm>>;
+  categories: { key: string; label: string }[];
+}) {
+  const { t } = useTranslation();
+  const updateRule = (index: number, patch: Partial<RuleRow>) => {
+    onChange((current) => ({
+      ...current,
+      rules: current.rules.map((rule, currentIndex) => (currentIndex === index ? { ...rule, ...patch } : rule)),
+    }));
+  };
+
+  return (
+    <div className="space-y-3">
+      {form.area === 'LEAVE' && (
+        <div className="grid gap-2 md:max-w-xs">
+          <Label>{t('lowCode.policies.form.leavePolicyCode')}</Label>
+          <Input
+            value={form.leavePolicyCode}
+            onChange={(event) => onChange((current) => ({ ...current, leavePolicyCode: event.target.value.toUpperCase() }))}
+            placeholder={DEFAULT_GENERIC_LEAVE_POLICY_CODE}
+          />
+        </div>
+      )}
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => onChange((current) => ({ ...current, rules: [...current.rules, createRuleRow(current.area, `RULE_${current.rules.length + 1}`)] }))}
+        >
+          {t('lowCode.policies.form.addRule')}
+        </Button>
+      </div>
+      {form.rules.map((rule, index) => (
+        <div key={`${rule.code}-${index}`} className="grid gap-3 rounded-xl border p-3 md:grid-cols-3">
+          <Input aria-label={t('lowCode.policies.form.ruleCode')} placeholder={t('lowCode.policies.form.ruleCode')} value={rule.code} onChange={(event) => updateRule(index, { code: event.target.value })} />
+          <Select value={rule.category} onValueChange={(category) => updateRule(index, { category })}>
+            <SelectTrigger aria-label={t('lowCode.policies.form.category')}><SelectValue placeholder={t('lowCode.policies.form.category')} /></SelectTrigger>
+            <SelectContent>
+              {categories.map((category) => <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={rule.retroBehavior} onValueChange={(retroBehavior) => updateRule(index, { retroBehavior: retroBehavior as RuleLedgerRetroBehavior })}>
+            <SelectTrigger aria-label={t('lowCode.policies.form.retroBehavior')}><SelectValue placeholder={t('lowCode.policies.form.retroBehavior')} /></SelectTrigger>
+            <SelectContent>
+              {RULE_LEDGER_RETRO_BEHAVIORS.map((behavior) => <SelectItem key={behavior} value={behavior}>{behavior.replace(/_/g, ' ')}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Input aria-label={t('lowCode.policies.form.condition')} placeholder={t('lowCode.policies.form.condition')} value={rule.condition} onChange={(event) => updateRule(index, { condition: event.target.value })} />
+          <Input aria-label={t('lowCode.policies.form.outcome')} placeholder={t('lowCode.policies.form.outcome')} value={rule.outcome} onChange={(event) => updateRule(index, { outcome: event.target.value })} />
+          <Input aria-label={t('lowCode.policies.form.value')} placeholder={t('lowCode.policies.form.value')} value={rule.value} onChange={(event) => updateRule(index, { value: event.target.value })} />
+        </div>
+      ))}
     </div>
   );
 }
