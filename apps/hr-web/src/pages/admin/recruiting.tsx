@@ -12,6 +12,7 @@ import { BusinessMetric, BusinessPageHeader } from '@/components/common/business
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useTenant } from '@/hooks/use-tenant';
@@ -570,6 +571,12 @@ export function AdminRecruiting() {
         <BusinessMetric label={t('adminRecruiting.metrics.interviews')} value={pipelineCounts.INTERVIEWING ?? 0} tone="warning" />
         <BusinessMetric label={t('adminRecruiting.metrics.offers')} value={offers.length} tone="success" />
       </div>
+
+      <ModuleConfigureLauncher
+        moduleName="Recruiting"
+        approvalCommandKeyword="Recruit"
+        fieldAccessEntity="recruiting"
+      />
 
       {lastCommand ? (
         <div className="rounded-2xl border border-border bg-muted px-4 py-3 text-sm font-semibold text-foreground">

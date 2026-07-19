@@ -43,6 +43,12 @@ describe('AdminLeaveManagement accessibility', () => {
       if (url === '/employee/absences/policies') {
         return apiResponse({ policies: [], publicHolidays: [], standardDailyMinutes: 480, workDays: [1, 2, 3, 4, 5] });
       }
+      if (url === '/admin/hcm-setup') {
+        // AdminLeaveManagement's policy editor reads setupQuery.data.leavePolicies directly
+        // (see leave-management.tsx), so the mock must return an HcmSetupConfig-shaped object
+        // here rather than the generic [] fallback used for list endpoints below.
+        return apiResponse({ leavePolicies: [] });
+      }
       return apiResponse([]);
     });
   });
