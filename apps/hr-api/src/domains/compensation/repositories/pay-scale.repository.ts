@@ -22,7 +22,7 @@ export class PayScaleRepository extends BaseRepository<'pay_scales', PayScale> {
   }
 
   async findByTenant(tenantId: Uuid): Promise<PayScale[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -34,7 +34,8 @@ export class PayScaleRepository extends BaseRepository<'pay_scales', PayScale> {
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['pay_scales']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['pay_scales']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['pay_scales']>);
     }

@@ -27,6 +27,28 @@ function cell(value: string | number | null | undefined): string {
   return String(value);
 }
 
+/**
+ * Data rendered onto a generated certificate document. Dates are ISO strings
+ * (or undefined) so the caller doesn't have to reason about server locale.
+ */
+export interface CertificateData {
+  recipientName: string;
+  certificationName: string;
+  issuingBody?: string;
+  issueDate?: string;
+  expiryDate?: string;
+  credentialId?: string;
+  organizationName?: string;
+  statusLabel?: string;
+}
+
+function formatCertificateDate(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toISOString().slice(0, 10);
+}
+
 @Injectable()
 export class DocumentExportService {
   async render(table: ExportTable, format: ExportFormat): Promise<Buffer> {
@@ -109,6 +131,107 @@ export class DocumentExportService {
         page.drawText(truncate(cell(row[index])), { x: margin + index * colWidth + 2, y, size: fontSize, font, color: rgb(0.15, 0.15, 0.15) });
       });
       y -= rowHeight;
+    }
+
+    const bytes = await pdf.save();
+    return Buffer.from(bytes);
+  }
+
+  /**
+   * Renders a designed, single-page certificate — a decorative border, title,
+   * recipient name, certification name, dates, and credential ID — as opposed to
+   * `toPdf`'s tabular grid. Used for on-demand certificate generation where the
+   * Certification aggregate itself carries only scalar fields (no stored document).
+   */
+  async toCertificatePdf(data: CertificateData): Promise<Buffer> {
+    const pdf = await PDFDocument.create();
+    const font = await pdf.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold);
+    const italicFont = await pdf.embedFont(StandardFonts.HelveticaOblique);
+
+    const pageWidth = 792; // US Letter, landscape
+    const pageHeight = 612;
+    const page = pdf.addPage([pageWidth, pageHeight]);
+    const centerX = pageWidth / 2;
+
+    const ink = rgb(0.09, 0.11, 0.2);
+    const accent = rgb(0.11, 0.22, 0.47);
+    const muted = rgb(0.4, 0.42, 0.5);
+
+    const outerMargin = 24;
+    const innerMargin = 36;
+    page.drawRectangle({
+      x: outerMargin,
+      y: outerMargin,
+      width: pageWidth - outerMargin * 2,
+      height: pageHeight - outerMargin * 2,
+      borderColor: accent,
+      borderWidth: 3,
+    });
+    page.drawRectangle({
+      x: innerMargin,
+      y: innerMargin,
+      width: pageWidth - innerMargin * 2,
+      height: pageHeight - innerMargin * 2,
+      borderColor: rgb(0.6, 0.63, 0.74),
+      borderWidth: 1,
+    });
+
+    const drawCentered = (text: string, y: number, size: number, f = font, color = ink): void => {
+      const width = f.widthOfTextAtSize(text, size);
+      page.drawText(text, { x: centerX - width / 2, y, size, font: f, color });
+    };
+
+    let y = pageHeight - 118;
+    drawCentered((data.organizationName ?? 'Organization').toUpperCase(), y, 12, boldFont, muted);
+
+    y -= 38;
+    drawCentered('CERTIFICATE OF ACHIEVEMENT', y, 26, boldFont, accent);
+
+    y -= 36;
+    drawCentered('This certifies that', y, 12, italicFont, muted);
+
+    y -= 42;
+    drawCentered(data.recipientName, y, 30, boldFont, ink);
+    const nameWidth = boldFont.widthOfTextAtSize(data.recipientName, 30);
+    y -= 12;
+    page.drawLine({
+      start: { x: centerX - nameWidth / 2 - 12, y },
+      end: { x: centerX + nameWidth / 2 + 12, y },
+      thickness: 1,
+      color: rgb(0.65, 0.67, 0.76),
+    });
+
+    y -= 32;
+    drawCentered('has successfully completed the certification', y, 12, italicFont, muted);
+
+    y -= 32;
+    drawCentered(data.certificationName, y, 20, boldFont, accent);
+
+    y -= 30;
+    if (data.issuingBody) {
+      drawCentered(`Issued by ${data.issuingBody}`, y, 11, font, ink);
+      y -= 20;
+    }
+
+    const issueDate = formatCertificateDate(data.issueDate);
+    const expiryDate = formatCertificateDate(data.expiryDate);
+    const dateLine = [
+      issueDate ? `Issued: ${issueDate}` : undefined,
+      expiryDate ? `Expires: ${expiryDate}` : undefined,
+    ].filter((part): part is string => Boolean(part)).join('     •     ');
+    if (dateLine) {
+      drawCentered(dateLine, y, 10, font, muted);
+      y -= 18;
+    }
+
+    if (data.statusLabel) {
+      drawCentered(data.statusLabel.toUpperCase(), y, 9, boldFont, muted);
+    }
+
+    if (data.credentialId) {
+      const footer = `Credential ID: ${data.credentialId}`;
+      drawCentered(footer, outerMargin + 30, 9, font, muted);
     }
 
     const bytes = await pdf.save();

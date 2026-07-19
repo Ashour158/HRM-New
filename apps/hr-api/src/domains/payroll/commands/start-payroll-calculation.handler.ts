@@ -4,7 +4,6 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
-import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
 
 @CommandHandler('StartPayrollCalculation')
 @Injectable()
@@ -12,7 +11,6 @@ export class StartPayrollCalculationHandler {
   constructor(
     private readonly repo: PayrollCycleRepository,
     private readonly fsm: FsmFramework,
-    private readonly publisher: PayrollEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -21,7 +19,6 @@ export class StartPayrollCalculationHandler {
     if (!pc) throw new Error('Payroll cycle not found');
     pc.startCalculation(command.correlationId);
     await this.repo.save(pc);
-    await this.publisher.publishFromAggregate(pc);
     return {
       success: true,
       data: { payrollCycleId: pc.id.value, status: pc.status },

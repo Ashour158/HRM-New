@@ -226,6 +226,8 @@ export class CreateWorkerHandler {
 
     await this.workerRepo.save(worker);
 
+    const eventsEmitted = worker.domainEvents.map((e) => e.eventName);
+
     if (command.effectiveDate) {
       const relationship = EmploymentRelationship.create(
         {
@@ -239,81 +241,91 @@ export class CreateWorkerHandler {
         command.correlationId,
       );
       await this.employmentRelationshipRepo.save(relationship);
+      eventsEmitted.push(...relationship.domainEvents.map((e) => e.eventName));
     }
 
-    await this.saveProfileRecord(command, worker.id, 'BASIC', {
-      dateOfBirth: payload.dateOfBirth?.toISOString(),
-      gender: payload.gender,
-      personalEmail: payload.personalEmail,
-      workEmail: payload.workEmail,
-      phoneNumber: payload.phoneNumber,
-      workPhoneNumber: payload.workPhoneNumber,
-      photoUrl: payload.photoUrl,
-      photoAttachment: payload.photoAttachment,
-    });
-    await this.saveProfileRecord(command, worker.id, 'CONTACT', {
-      address: payload.address,
-      workLocation: payload.workLocation,
-      socialLinks: payload.socialLinks,
-      departmentName: payload.departmentName,
-      dottedLineManagerId: payload.dottedLineManagerId,
-      hrbpId: payload.hrbpId,
-      mentorId: payload.mentorId,
-      colleagueIds: payload.colleagueIds,
-    });
-    await this.saveProfileRecord(command, worker.id, 'EMERGENCY_CONTACT', {
-      emergencyContact: payload.emergencyContact,
-      emergencyContacts: payload.emergencyContacts,
-    });
-    await this.saveProfileRecord(command, worker.id, 'BACKGROUND', {
-      education: payload.education,
-      experience: payload.experience,
-      certifications: payload.certifications,
-    });
-    await this.saveProfileRecord(command, worker.id, 'WORK_AUTHORIZATION', {
-      workAuthorization: payload.workAuthorization,
-    });
-    await this.saveProfileRecord(command, worker.id, 'COMPENSATION', {
-      salaryAmount: compensation.salaryAmount,
-      grossSalaryAmount: compensation.grossSalaryAmount,
-      taxAmount: compensation.taxAmount,
-      insuranceAmount: compensation.insuranceAmount,
-      netSalaryAmount: compensation.netSalaryAmount,
-      medicalInsuranceAmount: payload.medicalInsuranceAmount,
-      otherBenefitsAmount: payload.otherBenefitsAmount,
-      salaryCurrency: payload.salaryCurrency,
-      salaryBasis: payload.salaryBasis,
-      payFrequency: payload.payFrequency,
-      benefitsPackage: payload.benefitsPackage,
-    });
-    await this.saveProfileRecord(command, worker.id, 'TAX', {
-      taxProfile: payload.taxProfile,
-    });
-    await this.saveProfileRecord(command, worker.id, 'BANKING', {
-      bankAccount: payload.bankAccount,
-    });
-    await this.saveProfileRecord(command, worker.id, 'DEPENDENT', {
-      dependents: payload.dependents,
-      beneficiaries: payload.beneficiaries,
-    });
-    await this.saveProfileRecord(command, worker.id, 'ASSET_ACCESS', {
-      assets: payload.assets,
-      accessBadges: payload.accessBadges,
-    });
-    await this.saveProfileRecord(command, worker.id, 'SKILLS', {
-      skills: payload.skills,
-      licenses: payload.licenses,
-      careerPreferences: payload.careerPreferences,
-    });
-    await this.saveProfileRecord(command, worker.id, 'CONSENT', {
-      consents: payload.consents,
-      privacyNotices: payload.privacyNotices,
-      retentionHolds: payload.retentionHolds,
-    });
-    await this.saveProfileRecord(command, worker.id, 'DOCUMENT', {
-      documents: payload.documents,
-      employmentContract: payload.employmentContract,
-    });
+    const profileSections: Array<[DataCategory, Record<string, unknown>]> = [
+      ['BASIC', {
+        dateOfBirth: payload.dateOfBirth?.toISOString(),
+        gender: payload.gender,
+        personalEmail: payload.personalEmail,
+        workEmail: payload.workEmail,
+        phoneNumber: payload.phoneNumber,
+        workPhoneNumber: payload.workPhoneNumber,
+        photoUrl: payload.photoUrl,
+        photoAttachment: payload.photoAttachment,
+      }],
+      ['CONTACT', {
+        address: payload.address,
+        workLocation: payload.workLocation,
+        socialLinks: payload.socialLinks,
+        departmentName: payload.departmentName,
+        dottedLineManagerId: payload.dottedLineManagerId,
+        hrbpId: payload.hrbpId,
+        mentorId: payload.mentorId,
+        colleagueIds: payload.colleagueIds,
+      }],
+      ['EMERGENCY_CONTACT', {
+        emergencyContact: payload.emergencyContact,
+        emergencyContacts: payload.emergencyContacts,
+      }],
+      ['BACKGROUND', {
+        education: payload.education,
+        experience: payload.experience,
+        certifications: payload.certifications,
+      }],
+      ['WORK_AUTHORIZATION', {
+        workAuthorization: payload.workAuthorization,
+      }],
+      ['COMPENSATION', {
+        salaryAmount: compensation.salaryAmount,
+        grossSalaryAmount: compensation.grossSalaryAmount,
+        taxAmount: compensation.taxAmount,
+        insuranceAmount: compensation.insuranceAmount,
+        netSalaryAmount: compensation.netSalaryAmount,
+        medicalInsuranceAmount: payload.medicalInsuranceAmount,
+        otherBenefitsAmount: payload.otherBenefitsAmount,
+        salaryCurrency: payload.salaryCurrency,
+        salaryBasis: payload.salaryBasis,
+        payFrequency: payload.payFrequency,
+        benefitsPackage: payload.benefitsPackage,
+      }],
+      ['TAX', {
+        taxProfile: payload.taxProfile,
+      }],
+      ['BANKING', {
+        bankAccount: payload.bankAccount,
+      }],
+      ['DEPENDENT', {
+        dependents: payload.dependents,
+        beneficiaries: payload.beneficiaries,
+      }],
+      ['ASSET_ACCESS', {
+        assets: payload.assets,
+        accessBadges: payload.accessBadges,
+      }],
+      ['SKILLS', {
+        skills: payload.skills,
+        licenses: payload.licenses,
+        careerPreferences: payload.careerPreferences,
+      }],
+      ['CONSENT', {
+        consents: payload.consents,
+        privacyNotices: payload.privacyNotices,
+        retentionHolds: payload.retentionHolds,
+      }],
+      ['DOCUMENT', {
+        documents: payload.documents,
+        employmentContract: payload.employmentContract,
+      }],
+    ];
+
+    for (const [dataCategory, sectionPayload] of profileSections) {
+      const record = await this.saveProfileRecord(command, worker.id, dataCategory, sectionPayload);
+      if (record) {
+        eventsEmitted.push(...record.domainEvents.map((e) => e.eventName));
+      }
+    }
 
     await this.eventPublisher.publishFromAggregate(worker);
 
@@ -342,7 +354,7 @@ export class CreateWorkerHandler {
       newVersion: worker.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(worker.status, 'WorkerProfile'),
       fieldAccessDecisions: buildFieldAccessDecisions(this.fieldPolicy, command.actor.roles, abacContext),
-      eventsEmitted: worker.domainEvents.map((e) => e.eventName),
+      eventsEmitted,
       auditRecordId: command.commandId,
     } as CommandResult<unknown>;
   }
@@ -352,7 +364,7 @@ export class CreateWorkerHandler {
     workerId: Uuid,
     dataCategory: DataCategory,
     payload: Record<string, unknown>,
-  ): Promise<void> {
+  ): Promise<PersonalDataRecord | undefined> {
     const cleaned = Object.fromEntries(
       Object.entries(payload).filter(([, value]) => {
         if (value === undefined || value === null || value === '') return false;
@@ -361,7 +373,7 @@ export class CreateWorkerHandler {
         return true;
       }),
     );
-    if (Object.keys(cleaned).length === 0) return;
+    if (Object.keys(cleaned).length === 0) return undefined;
 
     const record = PersonalDataRecord.create(
       {
@@ -377,6 +389,7 @@ export class CreateWorkerHandler {
       command.correlationId,
     );
     await this.personalDataRepo.save(record);
+    return record;
   }
 
   private validateSetupGovernedFields(payload: CreateWorkerPayload, setup: HcmSetupConfig): void {

@@ -115,6 +115,7 @@ describe('reporting repository tenant isolation', () => {
       field_name: 'netPay',
       expression: 'grossPay - tax',
       data_type: 'number',
+      data_source: 'PAYROLL',
       source_fields: ['grossPay', 'tax'],
       status: 'DRAFT',
       aggregate_version: 1,
@@ -129,6 +130,7 @@ describe('reporting repository tenant isolation', () => {
       fieldName: 'netPay',
       expression: 'grossPay - tax',
       dataType: 'number',
+      dataSource: 'PAYROLL',
       sourceFields: ['grossPay', 'tax'],
     }));
 

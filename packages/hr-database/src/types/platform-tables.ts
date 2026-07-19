@@ -901,7 +901,7 @@ export interface OffersTable {
   tenant_id: string;
   candidate_id: string;
   requisition_id: string;
-  proposed_salary: number;
+  proposed_salary: string;
   currency: string;
   start_date: Date;
   benefits_package: unknown;
@@ -993,9 +993,9 @@ export interface CompensationBandsTable {
   band_code: string;
   job_level: string;
   job_family: string;
-  min_salary: number;
-  mid_salary: number;
-  max_salary: number;
+  min_salary: string;
+  mid_salary: string;
+  max_salary: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1008,8 +1008,8 @@ export interface CompensationChangesTable {
   tenant_id: string;
   worker_id: string;
   change_type: string;
-  old_amount: number | null;
-  new_amount: number;
+  old_amount: string | null;
+  new_amount: string;
   currency: string;
   effective_date: Date;
   approved_by: string | null;
@@ -1026,7 +1026,7 @@ export interface BonusCyclesTable {
   cycle_year: number;
   eligibility_date: Date;
   payment_date: Date;
-  total_pool_amount: number;
+  total_pool_amount: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1041,10 +1041,10 @@ export interface EquityGrantsTable {
   grant_type: string;
   grant_date: Date;
   vesting_schedule: unknown;
-  total_units: number;
-  vested_units: number;
-  exercised_units: number;
-  strike_price: number | null;
+  total_units: string;
+  vested_units: string;
+  exercised_units: string;
+  strike_price: string | null;
   status: string;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
@@ -1056,8 +1056,8 @@ export interface VariableCompPlansTable {
   tenant_id: string;
   name: string;
   plan_type: string;
-  target_percentage: number;
-  max_percentage: number;
+  target_percentage: string;
+  max_percentage: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1083,11 +1083,11 @@ export interface TotalCompensationStatementsTable {
   tenant_id: string;
   worker_id: string;
   statement_year: number;
-  base_salary: number;
-  bonus_amount: number;
-  equity_value: number;
-  benefits_value: number;
-  total_comp: number;
+  base_salary: string;
+  bonus_amount: string;
+  equity_value: string;
+  benefits_value: string;
+  total_comp: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1141,9 +1141,9 @@ export interface SpendingAccountsTable {
   tenant_id: string;
   worker_id: string;
   account_type: string;
-  annual_election: number;
-  used_amount: number;
-  available_amount: number;
+  annual_election: string;
+  used_amount: string;
+  available_amount: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1157,9 +1157,9 @@ export interface CarrierReconciliationRunsTable {
   carrier_id: string;
   period_start: Date;
   period_end: Date;
-  total_premium: number;
-  total_collected: number;
-  variance_amount: number;
+  total_premium: string;
+  total_collected: string;
+  variance_amount: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1249,10 +1249,10 @@ export interface StatutoryLeaveTypesTable {
   country_code: string;
   leave_type_code: string;
   leave_type_name: string;
-  minimum_entitlement: number;
+  minimum_entitlement: string;
   unit: string;
   carryover_allowed: boolean;
-  max_carryover: number;
+  max_carryover: string;
   effective_from: Date | null;
   status: string;
   aggregate_version: number;
@@ -1416,7 +1416,7 @@ export interface WorkSchedulesTable {
   start_date: Date;
   end_date: Date | null;
   days_of_week: unknown;
-  hours_per_day: number;
+  hours_per_day: string;
   timezone: string;
   status: string;
   aggregate_version: number;
@@ -1431,7 +1431,7 @@ export interface TimesheetsTable {
   period_start: Date;
   period_end: Date;
   entries: unknown;
-  total_hours: number;
+  total_hours: string;
   status: string;
   submitted_at: Date | null;
   approved_by: string | null;
@@ -1448,17 +1448,17 @@ export interface TimeClockEventsTable {
   event_type: string;
   timestamp: Date;
   location: string | null;
-  latitude: number | null;
-  longitude: number | null;
-  accuracy_meters: number | null;
+  latitude: string | null;
+  longitude: string | null;
+  accuracy_meters: string | null;
   workplace_code: string | null;
-  distance_meters: number | null;
-  geofence_radius_meters: number | null;
+  distance_meters: string | null;
+  geofence_radius_meters: string | null;
   geofence_profile_code: string | null;
   location_status: string | null;
   device_trust_level: string | null;
   trust_level: string | null;
-  trust_score: number | null;
+  trust_score: string | null;
   trust_requires_approval: boolean | null;
   trust_reasons: string[] | null;
   device_id: string | null;
@@ -1550,7 +1550,7 @@ export interface OvertimeApprovalsTable {
   id: string;
   tenant_id: string;
   worker_id: string;
-  requested_hours: number;
+  requested_hours: string;
   reason: string;
   requested_at: Date;
   approved_by: string | null;
@@ -1570,14 +1570,14 @@ export interface AbsenceRequestsTable {
   start_date: Date;
   end_date: Date;
   duration_unit: string;
-  duration_amount: number;
+  duration_amount: string;
   start_time: string | null;
   end_time: string | null;
   paid: boolean;
   deduct_from_balance: boolean;
   payroll_impact: string;
   calendar_days: number;
-  working_days: number;
+  working_days: string;
   excluded_holiday_dates: unknown;
   reason: string | null;
   status: string;
@@ -1608,10 +1608,10 @@ export interface AbsenceAccrualBalancesTable {
   tenant_id: string;
   worker_id: string;
   leave_type: string;
-  balance_hours: number;
-  accrued_hours: number;
-  used_hours: number;
-  carried_over_hours: number;
+  balance_hours: string;
+  accrued_hours: string;
+  used_hours: string;
+  carried_over_hours: string;
   effective_date: Date;
   status: string;
   aggregate_version: number;
@@ -1624,9 +1624,9 @@ export interface LeaveEntitlementCalculationsTable {
   tenant_id: string;
   worker_id: string;
   leave_type: string;
-  calculated_entitlement: number;
-  used_entitlement: number;
-  remaining_entitlement: number;
+  calculated_entitlement: string;
+  used_entitlement: string;
+  remaining_entitlement: string;
   calculation_date: Date;
   status: string;
   aggregate_version: number;
@@ -1646,6 +1646,7 @@ export interface PayrollCyclesTable {
   closed_at: Date | null;
   approved_by: string | null;
   approved_at: Date | null;
+  created_by: string | null;
   aggregate_version: number;
   created_at: Date;
   updated_at: Date;
@@ -1657,7 +1658,7 @@ export interface PayrollInputsTable {
   worker_id: string;
   payroll_cycle_id: string;
   input_type: string;
-  amount: number;
+  amount: string;
   currency: string;
   description: string | null;
   status: string;
@@ -1673,8 +1674,8 @@ export interface PayrollCalculationRunsTable {
   started_at: Date | null;
   completed_at: Date | null;
   total_workers: number;
-  total_gross_pay: number;
-  total_net_pay: number;
+  total_gross_pay: string;
+  total_net_pay: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -1690,7 +1691,7 @@ export interface PayrollResultLinesTable {
   calculation_run_id: string;
   line_type: string;
   description: string;
-  amount: number;
+  amount: string;
   currency: string;
   rule_set_id: string | null;
   rule_id: string | null;
@@ -1713,7 +1714,7 @@ export interface PayrollPaymentBatchesTable {
   currency: string;
   ready_count: number;
   blocked_count: number;
-  total_net: number;
+  total_net: string;
   file_hash: string;
   payload: unknown;
   created_by: string | null;
@@ -1737,8 +1738,8 @@ export interface PayrollPayslipArtifactsTable {
   employee_id: string;
   artifact_format: string;
   status: string;
-  gross_pay: number;
-  net_pay: number;
+  gross_pay: string;
+  net_pay: string;
   currency: string;
   content_hash: string;
   html_content: string;
@@ -1775,8 +1776,8 @@ export interface PayrollGlPostingsTable {
   payroll_cycle_id: string;
   posting_number: string;
   status: string;
-  total_debits: number;
-  total_credits: number;
+  total_debits: string;
+  total_credits: string;
   currency: string;
   lines: unknown;
   source_hash: string;
@@ -1788,7 +1789,30 @@ export interface PayrollGlPostingsTable {
   updated_at: Date;
 }
 
-
+export interface PayrollCycleCloseJobsTable {
+  id: string;
+  tenant_id: string;
+  status: string;
+  year: number;
+  month: number;
+  work_location_code: string | null;
+  close_cycle: boolean;
+  batch_size: number;
+  total_employees: number;
+  processed_employees: number;
+  total_batches: number;
+  current_batch: number;
+  payroll_cycle_id: string | null;
+  payroll_calculation_run_id: string | null;
+  errors: unknown;
+  error_message: string | null;
+  result: unknown;
+  requested_by: string | null;
+  started_at: ColumnType<Date, string | Date | undefined, string | Date | undefined>;
+  finished_at: ColumnType<Date | null, string | Date | null | undefined, string | Date | null | undefined>;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
 
 export interface ShiftSchedulesTable {
   id: string;
@@ -1856,7 +1880,7 @@ export interface WfmOvertimeApprovalsTable {
   id: string;
   tenant_id: string;
   worker_id: string;
-  requested_hours: number;
+  requested_hours: string;
   reason: string;
   shift_date: Date | null;
   requested_at: Date;
@@ -1954,6 +1978,11 @@ export interface HrServiceCasesTable {
   assigned_to: string | null;
   sla_deadline: Date | null;
   resolved_at: Date | null;
+  catalog_item_id: string | null;
+  owner_group: string | null;
+  escalation_reason: string | null;
+  escalated_at: Date | null;
+  escalated_by: string | null;
   aggregate_version: number;
   created_at: Date;
   updated_at: Date;
@@ -1997,6 +2026,7 @@ export interface HrServiceCatalogItemsTable {
   category: string | null;
   sla_hours: number | null;
   fulfillment_process: string | null;
+  default_owner_group: string | null;
   status: string;
   aggregate_version: number;
   created_at: Date;
@@ -2025,7 +2055,7 @@ export interface ContingentWorkerAssignmentsTable {
   project_id: string;
   start_date: Date;
   end_date: Date;
-  rate: number;
+  rate: string;
   currency: string;
   status: string;
   aggregate_version: number;
@@ -2039,7 +2069,7 @@ export interface SowEngagementsTable {
   sow_number: string;
   vendor_id: string;
   project_name: string;
-  total_value: number;
+  total_value: string;
   currency: string;
   start_date: Date;
   end_date: Date;
@@ -2055,7 +2085,7 @@ export interface ContractorRateCardsTable {
   tenant_id: string;
   vendor_id: string;
   job_title: string;
-  rate: number;
+  rate: string;
   currency: string;
   effective_from: Date;
   effective_until: Date | null;
@@ -2070,7 +2100,7 @@ export interface MisclassificationAssessmentsTable {
   tenant_id: string;
   worker_id: string;
   assessment_date: Date;
-  risk_score: number | null;
+  risk_score: string | null;
   risk_factors: unknown;
   status: string;
   aggregate_version: number;
@@ -2214,6 +2244,7 @@ export interface CalculatedFieldsTable {
   field_name: string;
   expression: string;
   data_type: string;
+  data_source: string;
   source_fields: unknown;
   status: string;
   aggregate_version: number;
@@ -2243,8 +2274,8 @@ export interface PayGapReportsTable {
   report_type: string;
   reporting_year: number;
   country_code: string;
-  mean_hourly_gap: number | null;
-  median_hourly_gap: number | null;
+  mean_hourly_gap: string | null;
+  median_hourly_gap: string | null;
   quartile_distribution: unknown;
   action_plan: unknown;
   status: string;
@@ -2287,7 +2318,7 @@ export interface AttritionRiskSnapshotsTable {
   period_key: string;
   model_key: string;
   model_version: string;
-  score: number;
+  score: string;
   band: string;
   factors: unknown;
   feature_snapshot: unknown;
@@ -2304,7 +2335,7 @@ export interface AttendancePayrollAnomalySnapshotsTable {
   period_key: string;
   model_key: string;
   model_version: string;
-  score: number;
+  score: string;
   band: string;
   anomaly_type: string;
   factors: unknown;
@@ -2353,7 +2384,7 @@ export interface HrAiBiasTestsTable {
   test_type: string;
   test_data: unknown;
   metrics: unknown;
-  threshold: number;
+  threshold: string;
   passed: boolean | null;
   executed_at: Date | null;
   status: string;
@@ -2485,6 +2516,7 @@ export interface Database {
   payroll_payslip_artifacts: PayrollPayslipArtifactsTable;
   payroll_export_jobs: PayrollExportJobsTable;
   payroll_gl_postings: PayrollGlPostingsTable;
+  payroll_cycle_close_jobs: PayrollCycleCloseJobsTable;
 
   shift_schedules: ShiftSchedulesTable;
   open_shifts: OpenShiftsTable;

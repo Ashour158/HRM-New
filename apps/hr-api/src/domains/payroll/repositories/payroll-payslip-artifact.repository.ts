@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { createKyselyInstance, getCurrentTenantId, getPool, parseNumeric, resolveTransactionAwareExecutor } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -51,9 +51,18 @@ export class PayrollPayslipArtifactRepository {
   private readonly db = createKyselyInstance(getPool());
   private readonly tableName = 'payroll_payslip_artifacts' as const;
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async save(record: PayrollPayslipArtifactRecord): Promise<void> {
     const row = this.toRow(record);
-    await this.db
+    await this.executor
       .insertInto(this.tableName)
       .values(row)
       .onConflict((oc: any) => oc
@@ -83,7 +92,7 @@ export class PayrollPayslipArtifactRepository {
   }
 
   async findByPayrollCycle(tenantId: Uuid, payrollCycleId: Uuid): Promise<PayrollPayslipArtifactRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -94,7 +103,7 @@ export class PayrollPayslipArtifactRepository {
   }
 
   async findByCycleAndWorker(tenantId: Uuid, payrollCycleId: Uuid, workerId: Uuid): Promise<PayrollPayslipArtifactRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -117,8 +126,8 @@ export class PayrollPayslipArtifactRepository {
       employee_id: record.employeeId,
       artifact_format: record.artifactFormat,
       status: record.status,
-      gross_pay: record.grossPay,
-      net_pay: record.netPay,
+      gross_pay: String(record.grossPay),
+      net_pay: String(record.netPay),
       currency: record.currency,
       content_hash: record.contentHash,
       html_content: record.htmlContent,
@@ -141,8 +150,8 @@ export class PayrollPayslipArtifactRepository {
       employeeId: row.employee_id,
       artifactFormat: row.artifact_format as PayrollPayslipArtifactRecord['artifactFormat'],
       status: row.status as PayrollPayslipArtifactRecord['status'],
-      grossPay: row.gross_pay,
-      netPay: row.net_pay,
+      grossPay: parseNumeric(row.gross_pay),
+      netPay: parseNumeric(row.net_pay),
       currency: row.currency,
       contentHash: row.content_hash,
       htmlContent: row.html_content,

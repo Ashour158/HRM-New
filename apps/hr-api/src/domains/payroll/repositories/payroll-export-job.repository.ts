@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getPool, resolveTransactionAwareExecutor } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -10,12 +10,23 @@ export class PayrollExportJobRepository {
   private readonly db = createKyselyInstance(getPool());
   private readonly tableName = 'payroll_export_jobs' as const;
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection. Writes through this
+   * getter are atomic with the audit/outbox/idempotency rows the command bus
+   * writes in the same transaction.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async save(record: PayrollExportJobRecord): Promise<void> {
-    await this.db.insertInto(this.tableName).values(this.toRow(record)).execute();
+    await this.executor.insertInto(this.tableName).values(this.toRow(record)).execute();
   }
 
   async findByTenant(tenantId: Uuid, limit = 20): Promise<PayrollExportJobRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -26,7 +37,7 @@ export class PayrollExportJobRepository {
   }
 
   async findByPayrollCycle(tenantId: Uuid, payrollCycleId: Uuid): Promise<PayrollExportJobRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
