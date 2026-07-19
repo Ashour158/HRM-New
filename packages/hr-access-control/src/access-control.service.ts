@@ -446,6 +446,8 @@ export class AccessControlService {
       StatutoryLeaveType: 'GLOBAL_HR',
       WorkAuthorizationCase: 'GLOBAL_HR',
       WorksCouncilConsultation: 'GLOBAL_HR',
+      I9Case: 'GLOBAL_HR',
+      EverifyCase: 'GLOBAL_HR',
       // Employee relations
       EmployeeRelationsCase: 'EMPLOYEE_RELATIONS',
       ErInvestigation: 'EMPLOYEE_RELATIONS',
