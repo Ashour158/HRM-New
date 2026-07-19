@@ -117,14 +117,14 @@ export class GlobalHrController {
     return requestTenantId;
   }
 
-  private async getWorkAuthorizationForCommand(id: string) {
-    const authCase = await this.workAuthorizationCaseRepo.findById(new Uuid(id));
+  private async getWorkAuthorizationForCommand(id: string, tenantId: Uuid) {
+    const authCase = await this.workAuthorizationCaseRepo.findByIdForTenant(new Uuid(id), tenantId);
     if (!authCase) throw new BadRequestException('Work authorization case not found');
     return authCase;
   }
 
-  private async getInternationalAssignmentForCommand(id: string) {
-    const assignment = await this.internationalAssignmentRepo.findById(new Uuid(id));
+  private async getInternationalAssignmentForCommand(id: string, tenantId: Uuid) {
+    const assignment = await this.internationalAssignmentRepo.findByIdForTenant(new Uuid(id), tenantId);
     if (!assignment) throw new BadRequestException('International assignment not found');
     return assignment;
   }
@@ -224,7 +224,7 @@ export class GlobalHrController {
 
   @Post('work-authorization-cases/:id/commands/start-review')
   async startWorkAuthorizationReview(@Param('id') id: string, @Req() req: Request) {
-    const authCase = await this.getWorkAuthorizationForCommand(id);
+    const authCase = await this.getWorkAuthorizationForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'StartWorkAuthorizationReview',
       'WorkAuthorizationCase',
@@ -245,7 +245,7 @@ export class GlobalHrController {
     @Body(new ZodValidationPipe(ApproveWorkAuthorizationCaseDtoSchema)) dto: dtos.ApproveWorkAuthorizationCaseDto,
     @Req() req: Request,
   ) {
-    const authCase = await this.getWorkAuthorizationForCommand(id);
+    const authCase = await this.getWorkAuthorizationForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'ApproveWorkAuthorizationCase',
       'WorkAuthorizationCase',
@@ -267,7 +267,7 @@ export class GlobalHrController {
 
   @Post('work-authorization-cases/:id/commands/expire')
   async expireWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
-    const authCase = await this.getWorkAuthorizationForCommand(id);
+    const authCase = await this.getWorkAuthorizationForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'ExpireWorkAuthorizationCase',
       'WorkAuthorizationCase',
@@ -288,7 +288,7 @@ export class GlobalHrController {
     @Body(new ZodValidationPipe(RenewWorkAuthorizationCaseDtoSchema)) dto: dtos.RenewWorkAuthorizationCaseDto,
     @Req() req: Request,
   ) {
-    const authCase = await this.getWorkAuthorizationForCommand(id);
+    const authCase = await this.getWorkAuthorizationForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'RenewWorkAuthorizationCase',
       'WorkAuthorizationCase',
@@ -305,7 +305,7 @@ export class GlobalHrController {
 
   @Post('work-authorization-cases/:id/commands/close')
   async closeWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
-    const authCase = await this.getWorkAuthorizationForCommand(id);
+    const authCase = await this.getWorkAuthorizationForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'CloseWorkAuthorizationCase',
       'WorkAuthorizationCase',
@@ -322,7 +322,7 @@ export class GlobalHrController {
 
   @Post('work-authorization-cases/:id/commands/reject')
   async rejectWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
-    const authCase = await this.getWorkAuthorizationForCommand(id);
+    const authCase = await this.getWorkAuthorizationForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'RejectWorkAuthorizationCase',
       'WorkAuthorizationCase',
@@ -373,7 +373,7 @@ export class GlobalHrController {
 
   @Post('international-assignments/:id/commands/approve')
   async approveInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.getInternationalAssignmentForCommand(id);
+    const assignment = await this.getInternationalAssignmentForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'ApproveInternationalAssignment',
       'InternationalAssignment',
@@ -390,7 +390,7 @@ export class GlobalHrController {
 
   @Post('international-assignments/:id/commands/activate')
   async activateInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.getInternationalAssignmentForCommand(id);
+    const assignment = await this.getInternationalAssignmentForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'ActivateInternationalAssignment',
       'InternationalAssignment',
@@ -407,7 +407,7 @@ export class GlobalHrController {
 
   @Post('international-assignments/:id/commands/complete')
   async completeInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.getInternationalAssignmentForCommand(id);
+    const assignment = await this.getInternationalAssignmentForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'CompleteInternationalAssignment',
       'InternationalAssignment',
@@ -424,7 +424,7 @@ export class GlobalHrController {
 
   @Post('international-assignments/:id/commands/expire')
   async expireInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.getInternationalAssignmentForCommand(id);
+    const assignment = await this.getInternationalAssignmentForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'ExpireInternationalAssignment',
       'InternationalAssignment',
@@ -441,7 +441,7 @@ export class GlobalHrController {
 
   @Post('international-assignments/:id/commands/cancel')
   async cancelInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
-    const assignment = await this.getInternationalAssignmentForCommand(id);
+    const assignment = await this.getInternationalAssignmentForCommand(id, requireTenantId(req, 'Global HR'));
     return this.commandBus.execute(this.buildCommand(
       'CancelInternationalAssignment',
       'InternationalAssignment',

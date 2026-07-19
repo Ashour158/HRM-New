@@ -96,7 +96,7 @@ describe('GlobalHrController', () => {
 
   it('routes work authorization cases through lifecycle command envelopes', async () => {
     const { controller, commandBus, workAuthorizationCaseRepo } = makeController();
-    (workAuthorizationCaseRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (workAuthorizationCaseRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: new Uuid(caseId),
       workerId: new Uuid(workerId),
       status: 'UNDER_REVIEW',
@@ -145,7 +145,7 @@ describe('GlobalHrController', () => {
 
   it('creates and advances international assignments through approval and activation', async () => {
     const { controller, commandBus, internationalAssignmentRepo } = makeController();
-    (internationalAssignmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+    (internationalAssignmentRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: new Uuid(assignmentId),
       workerId: new Uuid(workerId),
       status: 'APPROVED',
