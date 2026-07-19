@@ -513,193 +513,170 @@ export class PolicyCenterRepository implements PolicyCenterRepositoryPort {
     }
   }
 
+  // NOTE: these 7 impact-record queries deliberately do NOT catch/swallow errors.
+  // Their combined output drives the high-risk-apply confirmation gate in
+  // PolicyCenterService#applyRevision (via impactRiskSummary()) — a query failure
+  // must propagate as a thrown error so the gate fails closed (blocks the apply),
+  // not silently read as "zero impacted records" (fail open). See C-5.
   private async listImpactedWorkerRecords(tenantId: string, scope: PolicyScope): Promise<PolicyImpactRecords['workers']> {
-    try {
-      const workerIds = scope.workerIds ?? [];
-      const result = await sql<{
-        id: string;
-        employee_number: string | null;
-        first_name: string | null;
-        last_name: string | null;
-        manager_id: string | null;
-        department_id: string | null;
-        legal_entity_id: string | null;
-        country_code: string | null;
-      }>`
-        SELECT w.id, w.employee_number, w.first_name, w.last_name, w.manager_id,
-          w.department_id, w.legal_entity_id, le.country_code
-        FROM hr_core.workers w
-        LEFT JOIN hr_org.legal_entities le ON le.id = w.legal_entity_id
-        WHERE w.tenant_id = ${tenantId}
-          AND w.status IN ('ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED')
-          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR w.id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
-          AND (jsonb_array_length(${scopeToSqlArray(scope.departmentIds)}::jsonb) = 0 OR w.department_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.departmentIds)}::jsonb)))
-          AND (jsonb_array_length(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb) = 0 OR w.manager_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb)))
-          AND (jsonb_array_length(${scopeToSqlArray(scope.jobCodes)}::jsonb) = 0 OR w.job_title IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.jobCodes)}::jsonb)))
-          AND (jsonb_array_length(${scopeToSqlArray(scope.legalEntityIds)}::jsonb) = 0 OR w.legal_entity_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.legalEntityIds)}::jsonb)))
-          AND (jsonb_array_length(${scopeToSqlArray(scope.employeeTypes)}::jsonb) = 0 OR w.employment_type IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.employeeTypes)}::jsonb)))
-          AND (jsonb_array_length(${scopeToSqlArray(scope.countryCodes)}::jsonb) = 0 OR le.country_code IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.countryCodes)}::jsonb)))
-        ORDER BY w.created_at DESC
-        LIMIT 250
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        workerId: row.id,
-        employeeNumber: row.employee_number ?? undefined,
-        displayName: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.employee_number || row.id,
-        managerWorkerId: row.manager_id ?? undefined,
-        departmentId: row.department_id ?? undefined,
-        legalEntityId: row.legal_entity_id ?? undefined,
-        countryCode: row.country_code ?? undefined,
-        beforeDecision: 'Uses currently applied runtime policy.',
-        afterDecision: 'Will be re-evaluated using this policy revision when it is applied.',
-        risk: 'SAFE',
-      }));
-    } catch {
-      return [];
-    }
+    const workerIds = scope.workerIds ?? [];
+    const result = await sql<{
+      id: string;
+      employee_number: string | null;
+      first_name: string | null;
+      last_name: string | null;
+      manager_id: string | null;
+      department_id: string | null;
+      legal_entity_id: string | null;
+      country_code: string | null;
+    }>`
+      SELECT w.id, w.employee_number, w.first_name, w.last_name, w.manager_id,
+        w.department_id, w.legal_entity_id, le.country_code
+      FROM hr_core.workers w
+      LEFT JOIN hr_org.legal_entities le ON le.id = w.legal_entity_id
+      WHERE w.tenant_id = ${tenantId}
+        AND w.status IN ('ACTIVE', 'PENDING_ACTIVATION', 'SUSPENDED')
+        AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR w.id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+        AND (jsonb_array_length(${scopeToSqlArray(scope.departmentIds)}::jsonb) = 0 OR w.department_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.departmentIds)}::jsonb)))
+        AND (jsonb_array_length(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb) = 0 OR w.manager_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.managerWorkerIds)}::jsonb)))
+        AND (jsonb_array_length(${scopeToSqlArray(scope.jobCodes)}::jsonb) = 0 OR w.job_title IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.jobCodes)}::jsonb)))
+        AND (jsonb_array_length(${scopeToSqlArray(scope.legalEntityIds)}::jsonb) = 0 OR w.legal_entity_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.legalEntityIds)}::jsonb)))
+        AND (jsonb_array_length(${scopeToSqlArray(scope.employeeTypes)}::jsonb) = 0 OR w.employment_type IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.employeeTypes)}::jsonb)))
+        AND (jsonb_array_length(${scopeToSqlArray(scope.countryCodes)}::jsonb) = 0 OR le.country_code IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(scope.countryCodes)}::jsonb)))
+      ORDER BY w.created_at DESC
+      LIMIT 250
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      workerId: row.id,
+      employeeNumber: row.employee_number ?? undefined,
+      displayName: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.employee_number || row.id,
+      managerWorkerId: row.manager_id ?? undefined,
+      departmentId: row.department_id ?? undefined,
+      legalEntityId: row.legal_entity_id ?? undefined,
+      countryCode: row.country_code ?? undefined,
+      beforeDecision: 'Uses currently applied runtime policy.',
+      afterDecision: 'Will be re-evaluated using this policy revision when it is applied.',
+      risk: 'SAFE',
+    }));
   }
 
   private async listPendingLeaveImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['leaveRequests']> {
-    try {
-      const result = await sql<{ id: string; worker_id: string; status: string }>`
-        SELECT id, worker_id, status
-        FROM hr_absence.absence_requests
-        WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_MANAGER_APPROVAL', 'PENDING_HR_APPROVAL')
-          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
-        ORDER BY updated_at DESC
-        LIMIT 100
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        recordId: row.id,
-        workerId: row.worker_id,
-        status: row.status,
-        beforeDecision: 'Pending leave request follows current policy evidence.',
-        afterDecision: 'Pending leave request will be revalidated after policy apply.',
-        risk: 'WARNING',
-      }));
-    } catch {
-      return [];
-    }
+    const result = await sql<{ id: string; worker_id: string; status: string }>`
+      SELECT id, worker_id, status
+      FROM hr_absence.absence_requests
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_MANAGER_APPROVAL', 'PENDING_HR_APPROVAL')
+        AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+      ORDER BY updated_at DESC
+      LIMIT 100
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      recordId: row.id,
+      workerId: row.worker_id,
+      status: row.status,
+      beforeDecision: 'Pending leave request follows current policy evidence.',
+      afterDecision: 'Pending leave request will be revalidated after policy apply.',
+      risk: 'WARNING',
+    }));
   }
 
   private async listOpenAttendanceImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['attendanceDays']> {
-    try {
-      const result = await sql<{ id: string; worker_id: string; status: string }>`
-        SELECT id, worker_id, status
-        FROM hr_time.attendance_daily_ledgers
-        WHERE tenant_id = ${tenantId}
-          AND status IN ('OPEN', 'EXCEPTION', 'PENDING_APPROVAL')
-          AND locked = false
-          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
-        ORDER BY work_date DESC
-        LIMIT 100
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        recordId: row.id,
-        workerId: row.worker_id,
-        status: row.status,
-        beforeDecision: 'Open attendance day follows current attendance policy.',
-        afterDecision: 'Open attendance day may need recalculation before payroll.',
-        risk: 'WARNING',
-      }));
-    } catch {
-      return [];
-    }
+    const result = await sql<{ id: string; worker_id: string; status: string }>`
+      SELECT id, worker_id, status
+      FROM hr_time.attendance_daily_ledgers
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('OPEN', 'EXCEPTION', 'PENDING_APPROVAL')
+        AND locked = false
+        AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+      ORDER BY work_date DESC
+      LIMIT 100
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      recordId: row.id,
+      workerId: row.worker_id,
+      status: row.status,
+      beforeDecision: 'Open attendance day follows current attendance policy.',
+      afterDecision: 'Open attendance day may need recalculation before payroll.',
+      risk: 'WARNING',
+    }));
   }
 
   private async listOpenPayrollImpactRecords(tenantId: string): Promise<PolicyImpactRecords['payrollCycles']> {
-    try {
-      const result = await sql<{ id: string; status: string }>`
-        SELECT id, status
-        FROM hr_payroll.payroll_cycles
-        WHERE tenant_id = ${tenantId}
-          AND status IN ('OPEN', 'INPUT_COLLECTION', 'CALCULATING', 'REVIEW')
-        ORDER BY updated_at DESC
-        LIMIT 100
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        recordId: row.id,
-        status: row.status,
-        beforeDecision: 'Open payroll cycle uses current payroll policy.',
-        afterDecision: 'Open payroll cycle must be revalidated before close.',
-        risk: 'BLOCKED',
-      }));
-    } catch {
-      return [];
-    }
+    const result = await sql<{ id: string; status: string }>`
+      SELECT id, status
+      FROM hr_payroll.payroll_cycles
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('OPEN', 'INPUT_COLLECTION', 'CALCULATING', 'REVIEW')
+      ORDER BY updated_at DESC
+      LIMIT 100
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      recordId: row.id,
+      status: row.status,
+      beforeDecision: 'Open payroll cycle uses current payroll policy.',
+      afterDecision: 'Open payroll cycle must be revalidated before close.',
+      risk: 'BLOCKED',
+    }));
   }
 
   private async listComplianceAcknowledgementImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['complianceAcknowledgements']> {
-    try {
-      const result = await sql<{ id: string; worker_id: string; status: string }>`
-        SELECT id, worker_id, status
-        FROM hr_compliance.policy_acknowledgements
-        WHERE tenant_id = ${tenantId}
-          AND status IN ('PENDING', 'OVERDUE')
-          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
-        ORDER BY due_date ASC NULLS LAST
-        LIMIT 100
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        recordId: row.id,
-        workerId: row.worker_id,
-        status: row.status,
-        beforeDecision: 'Acknowledgement follows current compliance policy.',
-        afterDecision: 'Acknowledgement may be regenerated or re-notified after apply.',
-        risk: 'WARNING',
-      }));
-    } catch {
-      return [];
-    }
+    const result = await sql<{ id: string; worker_id: string; status: string }>`
+      SELECT id, worker_id, status
+      FROM hr_compliance.policy_acknowledgements
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('PENDING', 'OVERDUE')
+        AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+      ORDER BY due_date ASC NULLS LAST
+      LIMIT 100
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      recordId: row.id,
+      workerId: row.worker_id,
+      status: row.status,
+      beforeDecision: 'Acknowledgement follows current compliance policy.',
+      afterDecision: 'Acknowledgement may be regenerated or re-notified after apply.',
+      risk: 'WARNING',
+    }));
   }
 
   private async listBenefitsEnrollmentImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['benefitsEnrollments']> {
-    try {
-      const result = await sql<{ id: string; worker_id: string; status: string }>`
-        SELECT id, worker_id, status
-        FROM hr_benefits.benefits_enrollments
-        WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
-          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
-        ORDER BY updated_at DESC
-        LIMIT 100
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        recordId: row.id,
-        workerId: row.worker_id,
-        status: row.status,
-        beforeDecision: 'Enrollment follows current benefits policy.',
-        afterDecision: 'Enrollment may need revalidation after benefits policy apply.',
-        risk: 'WARNING',
-      }));
-    } catch {
-      return [];
-    }
+    const result = await sql<{ id: string; worker_id: string; status: string }>`
+      SELECT id, worker_id, status
+      FROM hr_benefits.benefits_enrollments
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+        AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+      ORDER BY updated_at DESC
+      LIMIT 100
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      recordId: row.id,
+      workerId: row.worker_id,
+      status: row.status,
+      beforeDecision: 'Enrollment follows current benefits policy.',
+      afterDecision: 'Enrollment may need revalidation after benefits policy apply.',
+      risk: 'WARNING',
+    }));
   }
 
   private async listBenefitsLifeEventImpactRecords(tenantId: string, workerIds: string[]): Promise<PolicyImpactRecords['benefitsLifeEvents']> {
-    try {
-      const result = await sql<{ id: string; worker_id: string; status: string }>`
-        SELECT id, worker_id, status
-        FROM hr_benefits.benefits_life_events
-        WHERE tenant_id = ${tenantId}
-          AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
-          AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
-        ORDER BY updated_at DESC
-        LIMIT 100
-      `.execute(this.db);
-      return result.rows.map((row) => ({
-        recordId: row.id,
-        workerId: row.worker_id,
-        status: row.status,
-        beforeDecision: 'Life event follows current benefits policy.',
-        afterDecision: 'Life event may need revalidation after benefits policy apply.',
-        risk: 'WARNING',
-      }));
-    } catch {
-      return [];
-    }
+    const result = await sql<{ id: string; worker_id: string; status: string }>`
+      SELECT id, worker_id, status
+      FROM hr_benefits.benefits_life_events
+      WHERE tenant_id = ${tenantId}
+        AND status IN ('DRAFT', 'SUBMITTED', 'PENDING_APPROVAL')
+        AND (jsonb_array_length(${scopeToSqlArray(workerIds)}::jsonb) = 0 OR worker_id::text IN (SELECT jsonb_array_elements_text(${scopeToSqlArray(workerIds)}::jsonb)))
+      ORDER BY updated_at DESC
+      LIMIT 100
+    `.execute(this.db);
+    return result.rows.map((row) => ({
+      recordId: row.id,
+      workerId: row.worker_id,
+      status: row.status,
+      beforeDecision: 'Life event follows current benefits policy.',
+      afterDecision: 'Life event may need revalidation after benefits policy apply.',
+      risk: 'WARNING',
+    }));
   }
 
   private toRevision(row: PolicyRevisionRow): PolicyRevisionRecord {
