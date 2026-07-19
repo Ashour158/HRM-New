@@ -3,11 +3,21 @@ import { Uuid } from '@hcm/shared-kernel';
 import { isOfferAcceptedEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { createCommand } from '@hcm/command-contracts';
+import { runWithTenant } from '@hcm/platform-core';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { EventBus } from '../../../platform/event-bus/event-bus.js';
 import { OfferRepository } from '../repositories/offer.repository.js';
 import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { JobRequisitionRepository } from '../repositories/job-requisition.repository.js';
+import { uuidV5 } from './deterministic-uuid.js';
+
+/**
+ * Fixed RFC-4122-shaped namespace used to derive a deterministic I9Case id
+ * from a worker id (see `uuidV5`). Arbitrary but must stay stable forever
+ * once deployed - changing it would stop retries from matching previously
+ * issued ids, defeating the whole point of deriving the id deterministically.
+ */
+const I9_CASE_ID_NAMESPACE = '9b1c9e2a-2f7a-5e3b-8f5a-6c2b7e4a1d90';
 
 interface SagaState {
   sagaId: string;
@@ -180,7 +190,11 @@ export class OfferToHireSaga implements OnModuleInit {
       // 6. Create I-9 Case (real employment-eligibility-verification workflow;
       // Section 1/2 completion and any E-Verify submission happen later, driven
       // by HR admin/onboarding task action, not by this saga).
-      const i9CaseId = Uuid.generate();
+      // The id is derived deterministically from the worker id (not
+      // Uuid.generate()) so a retry of this step - after the CreateI9Case
+      // command already succeeded but before it was recorded as complete -
+      // targets the same aggregate instead of creating a duplicate I9 case.
+      const i9CaseId = new Uuid(uuidV5(workerId.value, I9_CASE_ID_NAMESPACE));
       await this.dispatchCommand(
         tenantId,
         correlationId,
@@ -244,7 +258,12 @@ export class OfferToHireSaga implements OnModuleInit {
       },
     );
 
-    const outcome = await this.commandBus.execute(command);
+    // CommandBus.execute does not itself establish tenant AsyncLocalStorage
+    // context (only TenantInterceptor, for HTTP requests, and explicit
+    // scheduler wraps do) - repositories that source tenant_id from that
+    // context (see e.g. I9CaseRepository) would otherwise throw "Tenant
+    // context required" when invoked from this saga.
+    const outcome = await runWithTenant(new Uuid(tenantId), () => this.commandBus.execute(command));
     if (!outcome.success) {
       throw new Error(`Command ${commandName} failed: ${(outcome as { errorMessage: string }).errorMessage}`);
     }

@@ -3,6 +3,7 @@
  */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
 import type { EverifyResult } from './i9-case.aggregate.js';
+import { assertValidEverifyResult } from './everify-result-transition.js';
 
 export type { EverifyResult } from './i9-case.aggregate.js';
 
@@ -28,12 +29,18 @@ export interface EverifyCaseProps {
   workerId: Uuid;
   i9CaseId: Uuid;
   status?: EverifyCaseStatus;
+  /** @hrDataClassification HIGH_SENSITIVITY - federal E-Verify case number. */
   caseNumber?: string;
   submittedAt?: Date;
-  /** Advisory determination returned synchronously by the submission adapter (real or mock). */
+  /**
+   * @hrDataClassification HIGH_SENSITIVITY - advisory work-authorization determination.
+   * Advisory determination returned synchronously by the submission adapter (real or mock).
+   */
   simulatedDetermination?: EverifyResult;
+  /** @hrDataClassification HIGH_SENSITIVITY - authoritative federal work-authorization determination. */
   result?: EverifyResult;
   resultRecordedAt?: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY - identity of the reviewer who recorded the E-Verify determination. */
   resultRecordedBy?: Uuid;
   contestedAt?: Date;
   aggregateVersion?: number;
@@ -128,11 +135,15 @@ export class EverifyCase extends AggregateRoot {
   workerId: Uuid;
   i9CaseId: Uuid;
   status: EverifyCaseStatus;
+  /** @hrDataClassification HIGH_SENSITIVITY - federal E-Verify case number. */
   caseNumber?: string;
   submittedAt?: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY - advisory work-authorization determination. */
   simulatedDetermination?: EverifyResult;
+  /** @hrDataClassification HIGH_SENSITIVITY - authoritative federal work-authorization determination. */
   result?: EverifyResult;
   resultRecordedAt?: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY - identity of the reviewer who recorded the E-Verify determination. */
   resultRecordedBy?: Uuid;
   contestedAt?: Date;
   createdAt: Date;
@@ -242,16 +253,16 @@ export class EverifyCase extends AggregateRoot {
 
   private resolveResultTransition(result: EverifyResult): EverifyCaseStatus {
     if (this.status === 'SUBMITTED') {
-      if (result === 'CONFIRMED' || result === 'TENTATIVE_NONCONFIRMATION') return result;
-      throw new ValidationError('A first E-Verify determination must be CONFIRMED or TENTATIVE_NONCONFIRMATION');
+      assertValidEverifyResult('AWAITING_FIRST_DETERMINATION', result);
+      return result;
     }
     if (this.status === 'TENTATIVE_NONCONFIRMATION') {
-      if (result === 'FINAL_NONCONFIRMATION') return 'FINAL_NONCONFIRMATION';
-      throw new ValidationError('An uncontested tentative nonconfirmation can only resolve to FINAL_NONCONFIRMATION');
+      assertValidEverifyResult('UNCONTESTED_TNC', result);
+      return 'FINAL_NONCONFIRMATION';
     }
     if (this.status === 'CONTESTED') {
-      if (result === 'CONFIRMED' || result === 'FINAL_NONCONFIRMATION') return result;
-      throw new ValidationError('A contested tentative nonconfirmation must resolve to CONFIRMED or FINAL_NONCONFIRMATION');
+      assertValidEverifyResult('CONTESTED_TNC', result);
+      return result;
     }
     throw new ValidationError(`Cannot record an E-Verify result from state ${this.status}`);
   }

@@ -2,6 +2,7 @@
  * @hrDataClassification HIGH_SENSITIVITY - immigration/work-authorization attestation and E-Verify eligibility fields.
  */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
+import { assertValidEverifyResult } from './everify-result-transition.js';
 
 /**
  * Status values for the {@link I9Case} lifecycle.
@@ -57,17 +58,22 @@ export interface I9CaseProps {
   workerId: Uuid;
   startDate: Date;
   status?: I9CaseStatus;
+  /** @hrDataClassification HIGH_SENSITIVITY - immigration/citizenship attestation category. */
   citizenshipStatus?: I9CitizenshipStatus;
   section1CompletedAt?: Date;
   section1LateFlag?: boolean;
+  /** @hrDataClassification HIGH_SENSITIVITY - Section 2 identity/work-authorization document category. */
   documentType?: I9DocumentType;
+  /** @hrDataClassification HIGH_SENSITIVITY - free-text Section 2 document descriptions. */
   documentDescriptions?: string[];
+  /** @hrDataClassification HIGH_SENSITIVITY - Section 2 document expiration date. */
   documentExpirationDate?: Date;
   reviewerId?: Uuid;
   section2DueDate?: Date;
   section2CompletedAt?: Date;
   section2LateFlag?: boolean;
   everifyCaseId?: Uuid;
+  /** @hrDataClassification HIGH_SENSITIVITY - reason a worker's work-authorization documents were rejected. */
   rejectionReason?: string;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -232,17 +238,22 @@ export class I9Case extends AggregateRoot {
   workerId: Uuid;
   startDate: Date;
   status: I9CaseStatus;
+  /** @hrDataClassification HIGH_SENSITIVITY - immigration/citizenship attestation category. */
   citizenshipStatus?: I9CitizenshipStatus;
   section1CompletedAt?: Date;
   section1LateFlag: boolean;
+  /** @hrDataClassification HIGH_SENSITIVITY - Section 2 identity/work-authorization document category. */
   documentType?: I9DocumentType;
+  /** @hrDataClassification HIGH_SENSITIVITY - free-text Section 2 document descriptions. */
   documentDescriptions: string[];
+  /** @hrDataClassification HIGH_SENSITIVITY - Section 2 document expiration date. */
   documentExpirationDate?: Date;
   reviewerId?: Uuid;
   section2DueDate: Date;
   section2CompletedAt?: Date;
   section2LateFlag: boolean;
   everifyCaseId?: Uuid;
+  /** @hrDataClassification HIGH_SENSITIVITY - reason a worker's work-authorization documents were rejected. */
   rejectionReason?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -444,23 +455,16 @@ export class I9Case extends AggregateRoot {
 
   private resolveEverifyResultTransition(result: EverifyResult): I9CaseStatus {
     if (this.status === 'EVERIFY_SUBMITTED') {
-      if (result === 'CONFIRMED') return 'EVERIFY_CONFIRMED';
-      if (result === 'TENTATIVE_NONCONFIRMATION') return 'EVERIFY_TNC';
-      throw new ValidationError(
-        'A first E-Verify determination must be CONFIRMED or TENTATIVE_NONCONFIRMATION',
-      );
+      assertValidEverifyResult('AWAITING_FIRST_DETERMINATION', result);
+      return result === 'CONFIRMED' ? 'EVERIFY_CONFIRMED' : 'EVERIFY_TNC';
     }
     if (this.status === 'EVERIFY_TNC') {
-      if (result === 'FINAL_NONCONFIRMATION') return 'EVERIFY_FINAL_NONCONFIRMATION';
-      throw new ValidationError(
-        'An uncontested tentative nonconfirmation can only resolve to FINAL_NONCONFIRMATION',
-      );
+      assertValidEverifyResult('UNCONTESTED_TNC', result);
+      return 'EVERIFY_FINAL_NONCONFIRMATION';
     }
     if (this.status === 'EVERIFY_TNC_CONTESTED') {
-      if (result === 'CONFIRMED' || result === 'FINAL_NONCONFIRMATION') return result === 'CONFIRMED' ? 'EVERIFY_CONFIRMED' : 'EVERIFY_FINAL_NONCONFIRMATION';
-      throw new ValidationError(
-        'A contested tentative nonconfirmation must resolve to CONFIRMED or FINAL_NONCONFIRMATION',
-      );
+      assertValidEverifyResult('CONTESTED_TNC', result);
+      return result === 'CONFIRMED' ? 'EVERIFY_CONFIRMED' : 'EVERIFY_FINAL_NONCONFIRMATION';
     }
     throw new ValidationError(`Cannot record an E-Verify result from state ${this.status}`);
   }

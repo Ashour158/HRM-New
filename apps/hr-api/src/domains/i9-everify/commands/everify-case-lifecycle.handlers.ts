@@ -76,6 +76,19 @@ export class SubmitEverifyCaseHandler {
     const i9Case = await this.i9CaseRepo.findById(coerceUuid(payload.i9CaseId));
     if (!i9Case) throw new ValidationError('I9 case not found');
 
+    if (!payload.everifyCaseId) {
+      // A retry that omits an explicit everifyCaseId (network blip, redelivery,
+      // saga retry) must never blindly create a new case and resubmit: E-Verify
+      // is a real federal system once configured, and a duplicate submission
+      // for the same I9 case is a real-world compliance incident, not just a
+      // wasted write. If a case was already submitted for this I9 case, return
+      // it as-is instead of calling the adapter (and the federal system) again.
+      const [existingEverifyCase] = await this.everifyCaseRepo.findByI9Case(i9Case.id);
+      if (existingEverifyCase) {
+        return everifyResult(command, this.fsm, i9Case, existingEverifyCase);
+      }
+    }
+
     const everifyCaseId = payload.everifyCaseId ? coerceUuid(payload.everifyCaseId) : Uuid.generate();
     const everifyCase = EverifyCase.create(
       {

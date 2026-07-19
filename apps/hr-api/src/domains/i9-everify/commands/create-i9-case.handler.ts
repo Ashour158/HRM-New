@@ -60,7 +60,7 @@ export class CreateI9CaseHandler implements ICommandHandler {
       allowedNextActions: ['CompleteI9CaseSection1'],
       fieldAccessDecisions: {},
       eventsEmitted: i9Case.domainEvents.map((e) => e.eventName),
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }
