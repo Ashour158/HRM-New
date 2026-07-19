@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   POLICY_CONTROL_LENSES,
+  RULE_LEDGER_AREAS,
   SYSTEM_POLICY_SURFACES,
+  appendGenericPolicyRule,
   applyGuidedPolicyChange,
+  buildDraftConfigFromGenericRules,
   getControlledApplyCommands,
   getPolicyControlLens,
+  getRuleLedgerCategories,
+  isRuleLedgerSupportedArea,
   normalizePolicyDraftForRuntime,
+  type GenericPolicyRule,
   type PolicyArea,
 } from './policy-center-controls';
 
@@ -277,6 +283,159 @@ describe('policy center controls', () => {
         acknowledgementDueDays: 14,
         acknowledgementRequired: true,
       },
+    });
+  });
+
+  describe('generic policy rule ledger builder', () => {
+    const supportedAreas: PolicyArea[] = [
+      'LEAVE',
+      'ATTENDANCE',
+      'ACCESS_GOVERNANCE',
+      'COMPLIANCE',
+      'BENEFITS',
+      'GLOBAL_HR',
+      'DEI_ANALYTICS',
+      'ENGAGEMENT',
+    ];
+    const unsupportedAreas: PolicyArea[] = ['PAYROLL', 'COUNTRY_POLICY', 'EMPLOYEE_SETUP'];
+
+    it('supports the generic rule builder only for areas with a real condition/outcome ledger shape', () => {
+      for (const area of supportedAreas) {
+        expect(isRuleLedgerSupportedArea(area), area).toBe(true);
+        expect(getRuleLedgerCategories(area).length, area).toBeGreaterThan(0);
+      }
+      for (const area of unsupportedAreas) {
+        expect(isRuleLedgerSupportedArea(area), area).toBe(false);
+        expect(getRuleLedgerCategories(area), area).toEqual([]);
+      }
+      expect(Object.keys(RULE_LEDGER_AREAS).sort()).toEqual([...supportedAreas].sort());
+    });
+
+    it('appends a generic rule into the real attendance rule ledger the engine reads (RUNTIME_ROOT nesting)', () => {
+      const rule: GenericPolicyRule = {
+        code: 'MOBILE_GEOFENCE_REQUIRED',
+        label: 'Mobile geofence required',
+        category: 'exceptionRules',
+        action: 'BLOCK',
+        reason: 'Check-in must include valid geolocation evidence.',
+        retroBehavior: 'REVALIDATE_PENDING',
+      };
+
+      const next = appendGenericPolicyRule('ATTENDANCE', { attendancePolicy: { geofenceEnabled: true } }, rule);
+
+      expect(next.attendancePolicy).toEqual({
+        geofenceEnabled: true,
+        exceptionRules: [{
+          code: 'MOBILE_GEOFENCE_REQUIRED',
+          label: 'Mobile geofence required',
+          active: true,
+          outcomes: [{ action: 'BLOCK', reason: 'Check-in must include valid geolocation evidence.' }],
+          retroBehavior: 'REVALIDATE_PENDING',
+        }],
+      });
+    });
+
+    it('preserves an existing ledger array in the runtime root and appends rather than overwriting', () => {
+      const draft = {
+        globalHrPolicyRuntime: {
+          workAuthorizationRules: [{ code: 'EXISTING_RULE', label: 'Existing', active: true, outcomes: [{ action: 'ALLOW' }] }],
+        },
+      };
+
+      const next = appendGenericPolicyRule('GLOBAL_HR', draft, {
+        code: 'NEW_RULE',
+        label: 'New rule',
+        category: 'workAuthorizationRules',
+        action: 'REQUIRE_EVIDENCE',
+      });
+
+      expect((next.globalHrPolicyRuntime as { workAuthorizationRules: unknown[] }).workAuthorizationRules).toHaveLength(2);
+      expect((next.globalHrPolicyRuntime as { workAuthorizationRules: Array<{ code: string }> }).workAuthorizationRules.map((rule) => rule.code)).toEqual(['EXISTING_RULE', 'NEW_RULE']);
+    });
+
+    it('falls back to the first real category when an unknown category is supplied', () => {
+      const next = appendGenericPolicyRule('COMPLIANCE', {}, {
+        code: 'BOGUS_CATEGORY_RULE',
+        label: 'Bogus category',
+        category: 'notARealLedgerKey',
+        action: 'ALLOW',
+      });
+
+      const runtime = next.compliancePolicyRuntime as Record<string, unknown>;
+      expect(Object.keys(runtime)).toEqual([getRuleLedgerCategories('COMPLIANCE')[0]!.key]);
+    });
+
+    it('creates and reuses a leave policy shell keyed by leave policy code (LEAVE_POLICY nesting)', () => {
+      let draft = appendGenericPolicyRule('LEAVE', {}, {
+        code: 'MONTHLY_ACCRUAL',
+        label: 'Monthly accrual',
+        category: 'accrualRules',
+        action: 'CREATE_REVALIDATION',
+        retroBehavior: 'REVALIDATE_PENDING',
+      }, { leavePolicyCode: 'ANNUAL' });
+
+      draft = appendGenericPolicyRule('LEAVE', draft, {
+        code: 'CARRYOVER_EXPIRY',
+        label: 'Carryover expiry',
+        category: 'carryoverRules',
+        action: 'CREATE_NOTIFICATION',
+        retroBehavior: 'FUTURE_ONLY',
+      }, { leavePolicyCode: 'ANNUAL' });
+
+      const leavePolicies = draft.leavePolicies as Array<Record<string, unknown>>;
+      expect(leavePolicies).toHaveLength(1);
+      expect(leavePolicies[0]).toEqual(expect.objectContaining({
+        code: 'ANNUAL',
+        unit: 'DAYS',
+        paid: true,
+        deductFromBalance: true,
+        requestableByEmployee: true,
+        payrollImpact: 'NO_PAYROLL_IMPACT',
+        approvalWorkflow: 'MANAGER',
+        accrualRules: [expect.objectContaining({ code: 'MONTHLY_ACCRUAL' })],
+        carryoverRules: [expect.objectContaining({ code: 'CARRYOVER_EXPIRY' })],
+      }));
+    });
+
+    it('does not disturb other leave policies when attaching a ledger rule to one leave policy code', () => {
+      const draft = {
+        leavePolicies: [
+          { code: 'SICK', label: 'Sick leave', active: true, unit: 'DAYS', paid: true, deductFromBalance: true, requestableByEmployee: true, payrollImpact: 'PAID_LEAVE', approvalWorkflow: 'MANAGER' },
+        ],
+      };
+
+      const next = appendGenericPolicyRule('LEAVE', draft, {
+        code: 'BLACKOUT_YEAR_END',
+        label: 'Year-end blackout',
+        category: 'blackoutRules',
+        action: 'BLOCK',
+      }, { leavePolicyCode: 'ANNUAL' });
+
+      const leavePolicies = next.leavePolicies as Array<Record<string, unknown>>;
+      expect(leavePolicies).toHaveLength(2);
+      expect(leavePolicies[0]).toEqual(draft.leavePolicies[0]);
+      expect(leavePolicies[1]).toEqual(expect.objectContaining({ code: 'ANNUAL', blackoutRules: [expect.objectContaining({ code: 'BLACKOUT_YEAR_END' })] }));
+    });
+
+    it('folds multiple generic rule rows into a base draftConfig, skipping rows with a blank code', () => {
+      const rules: GenericPolicyRule[] = [
+        { code: '', label: 'skipped', category: 'sodRules', action: 'BLOCK' },
+        { code: 'NO_SELF_APPROVAL', label: 'No self approval', category: 'sodRules', action: 'BLOCK', retroBehavior: 'REVALIDATE_PENDING' },
+      ];
+
+      const draftConfig = buildDraftConfigFromGenericRules('ACCESS_GOVERNANCE', {}, rules);
+
+      const governance = draftConfig.policyGovernance as { sodRules: Array<{ code: string }> };
+      expect(governance.sodRules.map((rule) => rule.code)).toEqual(['NO_SELF_APPROVAL']);
+    });
+
+    it('leaves the base draftConfig untouched for areas the generic builder does not support', () => {
+      const base = { fieldRules: [{ fieldKey: 'workEmail', required: true, sensitivity: 'CONFIDENTIAL' }] };
+      const rules: GenericPolicyRule[] = [{ code: 'IGNORED', label: 'Ignored', category: 'anything', action: 'ALLOW' }];
+
+      expect(buildDraftConfigFromGenericRules('EMPLOYEE_SETUP', base, rules)).toEqual(base);
+      expect(buildDraftConfigFromGenericRules('PAYROLL', base, rules)).toEqual(base);
+      expect(buildDraftConfigFromGenericRules('COUNTRY_POLICY', base, rules)).toEqual(base);
     });
   });
 });

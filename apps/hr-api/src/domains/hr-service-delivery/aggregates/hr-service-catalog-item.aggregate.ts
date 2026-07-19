@@ -11,6 +11,7 @@ export interface HrServiceCatalogItemProps {
   category: string;
   slaHours: number;
   fulfillmentProcess: string;
+  defaultOwnerGroup?: string;
   status?: HrServiceCatalogItemStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -50,6 +51,7 @@ export class HrServiceCatalogItem extends AggregateRoot {
   category: string;
   slaHours: number;
   fulfillmentProcess: string;
+  defaultOwnerGroup?: string;
   status: HrServiceCatalogItemStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -67,6 +69,7 @@ export class HrServiceCatalogItem extends AggregateRoot {
     this.category = props.category;
     this.slaHours = props.slaHours;
     this.fulfillmentProcess = props.fulfillmentProcess;
+    this.defaultOwnerGroup = props.defaultOwnerGroup;
     this.status = props.status ?? 'ACTIVE';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
