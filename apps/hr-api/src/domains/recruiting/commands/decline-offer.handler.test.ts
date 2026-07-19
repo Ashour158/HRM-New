@@ -1,19 +1,31 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { DeclineOfferHandler } from './decline-offer.handler.js';
+import { Offer } from '../aggregates/offer.aggregate.js';
 import type { OfferRepository } from '../repositories/offer.repository.js';
 import type { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import type { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
-import { Offer } from '../aggregates/offer.aggregate.js';
 
 describe('DeclineOfferHandler', () => {
   const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
-  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000002');
-  const candidateId = new Uuid('00000000-0000-0000-0000-000000000003');
-  const offerId = new Uuid('00000000-0000-0000-0000-000000000004');
-  const proposedById = new Uuid('00000000-0000-0000-0000-000000000005');
-  const approvedById = new Uuid('00000000-0000-0000-0000-000000000006');
+  const offerId = new Uuid('00000000-0000-0000-0000-000000000601');
+  const candidateId = new Uuid('00000000-0000-0000-0000-000000000301');
+  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000101');
+
+  function offerInState(status: Offer['status']): Offer {
+    return Offer.rehydrate({
+      id: offerId,
+      tenantId,
+      candidateId,
+      requisitionId,
+      proposedSalary: 150000,
+      currency: 'USD',
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      status,
+      aggregateVersion: 3,
+    });
+  }
 
   const offerRepo = {
     findById: vi.fn(),
@@ -30,25 +42,6 @@ describe('DeclineOfferHandler', () => {
 
   const handler = new DeclineOfferHandler(offerRepo, fsm, eventPublisher);
 
-  function sentOffer(): Offer {
-    const offer = Offer.create(
-      {
-        id: offerId,
-        tenantId,
-        candidateId,
-        requisitionId,
-        proposedSalary: 100_000,
-        currency: 'USD',
-        startDate: new Date('2026-08-01'),
-      },
-      Uuid.generate(),
-    );
-    offer.submitForApproval(proposedById, Uuid.generate());
-    offer.approve(approvedById, Uuid.generate());
-    offer.send(Uuid.generate());
-    return offer;
-  }
-
   function command(): HrCommandEnvelope<unknown> {
     return {
       commandId: Uuid.generate(),
@@ -57,17 +50,19 @@ describe('DeclineOfferHandler', () => {
       tenantId,
       actor: {
         actorType: 'USER',
-        actorId: proposedById,
+        actorId: Uuid.generate(),
         roles: ['RECRUITER'],
-        permissions: ['OFFER_DECLINE'],
+        permissions: ['*'],
         mfaAuthenticated: true,
       },
       aggregateType: 'Offer',
+      aggregateId: offerId,
+      expectedState: 'SENT',
       idempotencyKey: 'test-key',
       correlationId: Uuid.generate(),
       reason: 'test',
-      payload: { offerId },
-      metadata: { requestHash: 'hash', clientType: 'RECRUITER' },
+      payload: { offerId, reason: 'Chose a competing offer' },
+      metadata: { requestHash: 'hash', clientType: 'HR_ADMIN' },
     };
   }
 
@@ -75,43 +70,40 @@ describe('DeclineOfferHandler', () => {
     vi.clearAllMocks();
   });
 
-  it('declines a SENT offer', async () => {
-    vi.mocked(offerRepo.findById).mockResolvedValue(sentOffer());
+  it('transitions a SENT offer to DECLINED', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('SENT'));
 
     const result = await handler.handle(command());
 
     expect(result.success).toBe(true);
     expect(result.newState).toBe('DECLINED');
-    expect(offerRepo.save).toHaveBeenCalled();
-    expect(eventPublisher.publishUncommitted).toHaveBeenCalled();
+    const saved = vi.mocked(offerRepo.save).mock.calls[0][0] as Offer;
+    expect(saved.status).toBe('DECLINED');
     expect(result.eventsEmitted).toEqual(['OfferDeclined']);
   });
 
-  it('rejects when the offer cannot be found', async () => {
-    vi.mocked(offerRepo.findById).mockResolvedValue(undefined);
+  it('rejects the transition when the offer is not SENT', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('APPROVED'));
 
-    await expect(handler.handle(command())).rejects.toThrow('Offer not found');
+    await expect(handler.handle(command())).rejects.toThrow('Offer can only be declined from SENT state');
     expect(offerRepo.save).not.toHaveBeenCalled();
   });
 
-  it('rejects when the offer is not in SENT state', async () => {
-    const offer = Offer.create(
-      {
-        id: offerId,
-        tenantId,
-        candidateId,
-        requisitionId,
-        proposedSalary: 100_000,
-        currency: 'USD',
-        startDate: new Date('2026-08-01'),
-      },
-      Uuid.generate(),
-    );
-    vi.mocked(offerRepo.findById).mockResolvedValue(offer);
+  it('is idempotent when the offer is already DECLINED (retried command)', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('DECLINED'));
 
-    await expect(handler.handle(command())).rejects.toThrow(
-      'Offer can only be declined from SENT state',
-    );
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('DECLINED');
+    expect(result.eventsEmitted).toEqual([]);
     expect(offerRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when the offer does not exist', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(undefined);
+
+    await expect(handler.handle(command())).rejects.toThrow('Offer not found');
   });
 });

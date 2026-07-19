@@ -22,14 +22,14 @@ import { FillJobRequisitionHandler } from './commands/fill-job-requisition.handl
 import { CloseJobRequisitionHandler } from './commands/close-job-requisition.handler.js';
 import { SubmitCandidateApplicationHandler } from './commands/submit-candidate-application.handler.js';
 import { ScreenCandidateHandler } from './commands/screen-candidate.handler.js';
+import { RejectCandidateHandler } from './commands/reject-candidate.handler.js';
+import { WithdrawCandidateHandler } from './commands/withdraw-candidate.handler.js';
 import { ScheduleInterviewHandler } from './commands/schedule-interview.handler.js';
 import { StartInterviewHandler } from './commands/start-interview.handler.js';
 import { CompleteInterviewHandler } from './commands/complete-interview.handler.js';
 import { CancelInterviewHandler } from './commands/cancel-interview.handler.js';
 import { MakeOfferPendingHandler } from './commands/make-offer-pending.handler.js';
 import { HireCandidateHandler } from './commands/hire-candidate.handler.js';
-import { RejectCandidateHandler } from './commands/reject-candidate.handler.js';
-import { WithdrawCandidateHandler } from './commands/withdraw-candidate.handler.js';
 import { CreateOfferHandler } from './commands/create-offer.handler.js';
 import { ApproveOfferHandler } from './commands/approve-offer.handler.js';
 import { SendOfferHandler } from './commands/send-offer.handler.js';
@@ -80,14 +80,14 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     CloseJobRequisitionHandler,
     SubmitCandidateApplicationHandler,
     ScreenCandidateHandler,
+    RejectCandidateHandler,
+    WithdrawCandidateHandler,
     ScheduleInterviewHandler,
     StartInterviewHandler,
     CompleteInterviewHandler,
     CancelInterviewHandler,
     MakeOfferPendingHandler,
     HireCandidateHandler,
-    RejectCandidateHandler,
-    WithdrawCandidateHandler,
     CreateOfferHandler,
     ApproveOfferHandler,
     SendOfferHandler,

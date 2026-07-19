@@ -34,6 +34,15 @@ export interface CreateOfferCommandPayload {
  * `Offer.approve`) before it becomes binding, which serves as the "requires
  * additional approval" escalation path for these cases. The decision is
  * re-verified at approval time by ApproveOfferHandler.
+ *
+ * The Offer save and the parallel Candidate transition below are two writes
+ * against two different aggregates in one handler. Both `OfferRepository`
+ * and `CandidateRepository` join the ambient command-bus transaction via
+ * `resolveTransactionAwareExecutor` (see the `executor` getter on each), so
+ * if the candidate transition/save fails, the whole command transaction —
+ * including the offer write already performed above it — rolls back instead
+ * of leaving a partially-completed workflow (an Offer with no matching
+ * OFFER_PENDING candidate).
  */
 @Injectable()
 @CommandHandler('CreateOffer')
@@ -88,9 +97,23 @@ export class CreateOfferHandler implements ICommandHandler {
     await this.offerRepo.save(offer);
     await this.eventPublisher.publishUncommitted(offer, command.tenantId, command.correlationId);
 
+    // Move the candidate to OFFER_PENDING alongside offer creation. Without
+    // this transition the candidate remains stuck in INTERVIEWING and
+    // AcceptOffer's later `candidate.hire()` call (which requires
+    // OFFER_PENDING) can never succeed — mirrors the ScheduleInterview
+    // handler's pattern of driving the parallel candidate transition.
+    candidate.makeOfferPending(command.correlationId);
+    await this.candidateRepo.save(candidate);
+    await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
+
     return {
       success: true,
-      data: { offerId: offer.id.value, status: offer.status, compensationDecision },
+      data: {
+        offerId: offer.id.value,
+        status: offer.status,
+        candidateId: candidate.id.value,
+        compensationDecision,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: offer.id,
@@ -98,8 +121,8 @@ export class CreateOfferHandler implements ICommandHandler {
       newVersion: offer.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
-      eventsEmitted: ['OfferCreated'],
-      auditRecordId: Uuid.generate(),
+      eventsEmitted: ['OfferCreated', 'CandidateOfferPending'],
+      auditRecordId: command.commandId,
     };
   }
 }

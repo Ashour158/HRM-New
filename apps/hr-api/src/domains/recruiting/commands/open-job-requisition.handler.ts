@@ -14,7 +14,8 @@ export interface OpenJobRequisitionCommandPayload {
 /**
  * Handler for the OpenJobRequisition command.
  *
- * Transitions a job requisition from PUBLISHED to OPEN.
+ * Transitions a requisition from PUBLISHED to OPEN, making it eligible to
+ * receive candidate applications via SubmitCandidateApplication.
  */
 @Injectable()
 @CommandHandler('OpenJobRequisition')
@@ -34,6 +35,25 @@ export class OpenJobRequisitionHandler implements ICommandHandler {
       throw new NotFoundException('Job requisition not found');
     }
 
+    if (requisition.status === 'OPEN') {
+      // Idempotent retry: the requisition is already in the target state,
+      // so return the existing outcome instead of re-invoking `open()`,
+      // which would throw ConflictError on a retried command.
+      return {
+        success: true,
+        data: { requisitionId: requisition.id.value, status: requisition.status },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: requisition.id,
+        newState: requisition.status,
+        newVersion: requisition.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(requisition.status, 'JobRequisition'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     requisition.open(command.correlationId);
     await this.requisitionRepo.save(requisition);
     await this.eventPublisher.publishUncommitted(requisition, command.tenantId, command.correlationId);
@@ -49,7 +69,7 @@ export class OpenJobRequisitionHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(requisition.status, 'JobRequisition'),
       fieldAccessDecisions: {},
       eventsEmitted: ['JobRequisitionOpened'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

@@ -109,4 +109,18 @@ describe('FillJobRequisitionHandler', () => {
     );
     expect(requisitionRepo.save).not.toHaveBeenCalled();
   });
+
+  it('is idempotent when the requisition is already FILLED (retried command)', async () => {
+    const filled = openRequisition();
+    filled.fill(Uuid.generate());
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(filled);
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('FILLED');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(requisitionRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
 });

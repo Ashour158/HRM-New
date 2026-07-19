@@ -95,23 +95,23 @@ export class InterviewPlanRepository {
   }
 
   private toAggregate(row: Record<string, unknown>): InterviewPlan {
-    return InterviewPlan.create(
-      {
-        id: new Uuid(row.id as string),
-        tenantId: new Uuid(row.tenant_id as string),
-        candidateId: new Uuid(row.candidate_id as string),
-        requisitionId: new Uuid(row.requisition_id as string),
-        interviewers: Array.isArray(row.interviewers)
-          ? (row.interviewers as string[]).map((id) => new Uuid(id))
-          : [],
-        scheduledAt: row.scheduled_at ? new Date(row.scheduled_at as string) : undefined,
-        format: (row.format as InterviewFormat) ?? undefined,
-        status: (row.status as InterviewPlanStatus) ?? undefined,
-        aggregateVersion: (row.aggregate_version as number) ?? undefined,
-        createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
-        updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
-      },
-      Uuid.generate(),
-    );
+    // Uses `rehydrate`, not `create` — `create` unconditionally resets
+    // status to DRAFT and re-emits InterviewPlanCreated, which would
+    // silently discard the persisted status on every read.
+    return InterviewPlan.rehydrate({
+      id: new Uuid(row.id as string),
+      tenantId: new Uuid(row.tenant_id as string),
+      candidateId: new Uuid(row.candidate_id as string),
+      requisitionId: new Uuid(row.requisition_id as string),
+      interviewers: Array.isArray(row.interviewers)
+        ? (row.interviewers as string[]).map((id) => new Uuid(id))
+        : [],
+      scheduledAt: row.scheduled_at ? new Date(row.scheduled_at as string) : undefined,
+      format: (row.format as InterviewFormat) ?? undefined,
+      status: (row.status as InterviewPlanStatus) ?? undefined,
+      aggregateVersion: (row.aggregate_version as number) ?? undefined,
+      createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
+      updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
+    });
   }
 }

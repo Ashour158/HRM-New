@@ -244,6 +244,21 @@ export class Offer extends AggregateRoot {
   }
 
   /**
+   * Reconstructs an existing Offer from persisted state.
+   *
+   * Unlike {@link create}, this preserves the persisted `status`,
+   * `createdAt`/`updatedAt`, and `aggregateVersion` exactly as given, runs
+   * no creation-time guards, and emits no domain event. Repositories must
+   * use this (not `create`) when loading an aggregate from the database —
+   * `create` unconditionally resets status to DRAFT and re-emits
+   * OfferCreated, which would silently discard the real persisted state
+   * on every read.
+   */
+  static rehydrate(props: OfferProps): Offer {
+    return new Offer(props);
+  }
+
+  /**
    * Submit the offer for approval.
    * DRAFT → PENDING_APPROVAL
    */
