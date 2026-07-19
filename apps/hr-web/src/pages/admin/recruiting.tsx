@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Briefcase, CheckCircle2, CircleDot, Clock3, Send, XCircle } from 'lucide-react';
+import { Briefcase, CheckCircle2, CircleDot, Clock3, Search, Send, X, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useTenant } from '@/hooks/use-tenant';
 import { useUIStore } from '@/stores/ui-store';
 import { formatCurrency, formatDate, generateUUID } from '@/lib/utils';
+import type { Worker } from '@/types';
 
 type RequisitionStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'PUBLISHED' | 'OPEN' | 'FILLED' | 'CLOSED' | 'REJECTED';
 type CandidateStatus = 'NEW' | 'SCREENING' | 'INTERVIEWING' | 'INTERVIEW' | 'OFFER_PENDING' | 'HIRED' | 'REJECTED' | 'WITHDRAWN';
@@ -139,6 +140,38 @@ function commandSummary(result: CommandResultView | null) {
   return `${result.newState ? `Now ${result.newState}. ` : ''}Next: ${nextActions}`;
 }
 
+const OFFER_CURRENCY_OPTIONS = ['USD', 'EUR', 'GBP', 'AED', 'SAR', 'INR', 'CAD', 'AUD'];
+
+function pad(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function toDateTimeLocalValue(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function toDateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function defaultScheduledAt() {
+  return toDateTimeLocalValue(new Date(Date.now() + 2 * 24 * 60 * 60 * 1000));
+}
+
+function defaultOfferStartDate() {
+  return toDateInputValue(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000));
+}
+
+function normalizeWorkerList(data: Worker[] | { items?: Worker[] } | undefined): Worker[] {
+  if (!data) return [];
+  return Array.isArray(data) ? data : data.items ?? [];
+}
+
+function workerDisplayName(worker: Worker): string {
+  const joined = [worker.firstName, worker.lastName].filter(Boolean).join(' ').trim();
+  return joined || worker.email || worker.id;
+}
+
 export function AdminRecruiting() {
   const { t } = useTranslation();
   const addNotification = useUIStore((state) => state.addNotification);
@@ -158,7 +191,21 @@ export function AdminRecruiting() {
   const [candidateEmail, setCandidateEmail] = React.useState('');
   const [candidateFullName, setCandidateFullName] = React.useState('');
   const [offerAmount, setOfferAmount] = React.useState('120000');
+  const [offerStartDate, setOfferStartDate] = React.useState(defaultOfferStartDate);
+  const [offerCurrency, setOfferCurrency] = React.useState(tenantCurrency);
+  const [offerBenefits, setOfferBenefits] = React.useState('');
+  const [interviewDialogOpen, setInterviewDialogOpen] = React.useState(false);
+  const [interviewerSearch, setInterviewerSearch] = React.useState('');
+  const [selectedInterviewers, setSelectedInterviewers] = React.useState<{ id: string; name: string }[]>([]);
+  const [scheduledAtLocal, setScheduledAtLocal] = React.useState(defaultScheduledAt);
   const [lastCommand, setLastCommand] = React.useState<CommandResultView | null>(null);
+
+  const currencyOptions = React.useMemo(
+    () => Array.from(new Set([tenantCurrency, ...OFFER_CURRENCY_OPTIONS])),
+    [tenantCurrency],
+  );
+  const minScheduledAt = toDateTimeLocalValue(new Date());
+  const minOfferStartDate = toDateInputValue(new Date());
 
   const requisitionsPath = React.useMemo(() => {
     const params = new URLSearchParams();
@@ -215,6 +262,19 @@ export function AdminRecruiting() {
     { enabled: Boolean(activeRequisitionId), retry: false },
   );
 
+  const trimmedInterviewerSearch = interviewerSearch.trim();
+  const interviewerSearchQuery = useApiQuery<Worker[] | { items?: Worker[] }>(
+    ['admin-recruiting-interviewer-search', trimmedInterviewerSearch],
+    `/hr/core/workers?search=${encodeURIComponent(trimmedInterviewerSearch)}&pageSize=10`,
+    { enabled: trimmedInterviewerSearch.length > 1, retry: false },
+  );
+  const interviewerResults = React.useMemo(
+    () => normalizeWorkerList(interviewerSearchQuery.data).filter(
+      (worker) => !selectedInterviewers.some((selected) => selected.id === worker.id),
+    ),
+    [interviewerSearchQuery.data, selectedInterviewers],
+  );
+
   const invalidateKeys = React.useMemo(
     () => [
       ['admin-recruiting-requisitions', requisitionsPath],
@@ -268,6 +328,19 @@ export function AdminRecruiting() {
     },
   );
 
+  const resetInterviewForm = React.useCallback(() => {
+    setInterviewerSearch('');
+    setSelectedInterviewers([]);
+    setScheduledAtLocal(defaultScheduledAt());
+  }, []);
+
+  const resetOfferForm = React.useCallback(() => {
+    setOfferAmount('120000');
+    setOfferStartDate(defaultOfferStartDate());
+    setOfferCurrency(tenantCurrency);
+    setOfferBenefits('');
+  }, [tenantCurrency]);
+
   const candidateCommandMutation = useApiMutation<CommandResultView, CandidateCommand>(
     (variables) => `/hr/recruiting/candidates/${variables.candidateId}/commands/${variables.command}`,
     'post',
@@ -275,6 +348,8 @@ export function AdminRecruiting() {
     {
       onSuccess: (result) => {
         setLastCommand(result);
+        setInterviewDialogOpen(false);
+        resetInterviewForm();
         addNotification({ title: t('adminRecruiting.notifications.candidateUpdatedTitle'), message: commandSummary(result), type: 'success', read: false });
       },
       onError: (error) => addNotification({ title: t('adminRecruiting.notifications.candidateActionFailedTitle'), message: error.message, type: 'error', read: false }),
@@ -289,6 +364,7 @@ export function AdminRecruiting() {
       onSuccess: (result) => {
         setLastCommand(result);
         setOfferDialogOpen(false);
+        resetOfferForm();
         addNotification({ title: t('adminRecruiting.notifications.offerCreatedTitle'), message: commandSummary(result), type: 'success', read: false });
       },
       onError: (error) => addNotification({ title: t('adminRecruiting.notifications.offerFailedTitle'), message: error.message, type: 'error', read: false }),
@@ -356,16 +432,22 @@ export function AdminRecruiting() {
     });
   }, [candidateCommandMutation, user?.id]);
 
-  const scheduleInterview = React.useCallback((candidate: Candidate) => {
+  const openScheduleInterview = React.useCallback((candidate: Candidate) => {
+    setSelectedCandidateId(candidate.id);
+    setInterviewDialogOpen(true);
+  }, []);
+
+  const submitScheduleInterview = () => {
+    if (!selectedCandidate || !scheduledAtLocal || selectedInterviewers.length === 0) return;
     candidateCommandMutation.mutate({
       command: 'schedule-interview',
-      candidateId: candidate.id,
+      candidateId: selectedCandidate.id,
       interviewId: generateUUID(),
-      scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-      interviewerWorkerIds: user?.id ? [user.id] : [],
+      scheduledAt: new Date(scheduledAtLocal).toISOString(),
+      interviewerWorkerIds: selectedInterviewers.map((interviewer) => interviewer.id),
       format: 'VIDEO',
     });
-  }, [candidateCommandMutation, user?.id]);
+  };
 
   const createOffer = () => {
     if (!selectedCandidate) return;
@@ -374,13 +456,17 @@ export function AdminRecruiting() {
       addNotification({ title: t('adminRecruiting.notifications.invalidSalaryTitle'), message: t('adminRecruiting.notifications.invalidSalaryMessage'), type: 'error', read: false });
       return;
     }
+    if (!offerStartDate) {
+      addNotification({ title: t('adminRecruiting.notifications.invalidStartDateTitle'), message: t('adminRecruiting.notifications.invalidStartDateMessage'), type: 'error', read: false });
+      return;
+    }
     createOfferMutation.mutate({
       offerId: generateUUID(),
       applicationId: selectedCandidate.id,
       proposedSalary: parsedSalary,
-      currency: tenantCurrency,
-      startDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      benefitsPackage: { packageName: 'Standard employment benefits' },
+      currency: offerCurrency,
+      startDate: offerStartDate,
+      benefitsPackage: offerBenefits.trim() ? { summary: offerBenefits.trim() } : undefined,
     });
   };
 
@@ -428,14 +514,14 @@ export function AdminRecruiting() {
       cell: (row) => {
         const status = normalizedCandidateStatus(row.status);
         if (status === 'NEW') return <Button size="sm" disabled={!user?.id} onClick={() => screenCandidate(row)}>{t('adminRecruiting.actions.screen')}</Button>;
-        if (status === 'SCREENING') return <Button size="sm" variant="outline" disabled={!user?.id} onClick={() => scheduleInterview(row)}>{t('adminRecruiting.actions.scheduleInterview')}</Button>;
+        if (status === 'SCREENING') return <Button size="sm" variant="outline" disabled={!user?.id} onClick={() => openScheduleInterview(row)}>{t('adminRecruiting.actions.scheduleInterview')}</Button>;
         if (status === 'INTERVIEWING') {
           return <Button size="sm" variant="outline" onClick={() => { setSelectedCandidateId(row.id); setOfferDialogOpen(true); }}>{t('adminRecruiting.actions.createOffer')}</Button>;
         }
         return <span className="text-sm text-muted-foreground">{t('adminRecruiting.empty.noAction')}</span>;
       },
     },
-  ], [scheduleInterview, screenCandidate, t, user?.id]);
+  ], [openScheduleInterview, screenCandidate, t, user?.id]);
 
   if (requisitionsQuery.isError) {
     return <ErrorState title={t('adminRecruiting.errors.loadTitle')} error={requisitionsQuery.error} onRetry={() => requisitionsQuery.refetch()} />;
@@ -575,15 +661,143 @@ export function AdminRecruiting() {
         </Card>
       </div>
 
-      <Dialog open={offerDialogOpen} onOpenChange={setOfferDialogOpen}>
+      <Dialog
+        open={interviewDialogOpen}
+        onOpenChange={(open) => {
+          setInterviewDialogOpen(open);
+          if (!open) resetInterviewForm();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('adminRecruiting.forms.interviewTitle', { candidate: selectedCandidate ? candidateName(selectedCandidate) : t('adminRecruiting.table.candidate') })}</DialogTitle>
+            <DialogDescription className="sr-only">{t('adminRecruiting.forms.interviewDescription')}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="interview-datetime">{t('adminRecruiting.forms.scheduledAtLabel')}</Label>
+              <Input
+                id="interview-datetime"
+                type="datetime-local"
+                min={minScheduledAt}
+                value={scheduledAtLocal}
+                onChange={(event) => setScheduledAtLocal(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="interviewer-search">{t('adminRecruiting.forms.interviewerSearchLabel')}</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="interviewer-search"
+                  className="ps-9"
+                  value={interviewerSearch}
+                  onChange={(event) => setInterviewerSearch(event.target.value)}
+                  placeholder={t('adminRecruiting.forms.interviewerSearchPlaceholder')}
+                />
+              </div>
+              {interviewerSearch.trim().length > 1 ? (
+                <div className="max-h-40 overflow-auto rounded-xl border border-border">
+                  {interviewerSearchQuery.isLoading ? (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">{t('adminRecruiting.forms.searching')}</p>
+                  ) : interviewerResults.length ? (
+                    interviewerResults.map((worker) => (
+                      <button
+                        key={worker.id}
+                        type="button"
+                        className="flex w-full items-center justify-between px-3 py-2 text-start text-sm hover:bg-muted"
+                        onClick={() => {
+                          setSelectedInterviewers((current) => [...current, { id: worker.id, name: workerDisplayName(worker) }]);
+                          setInterviewerSearch('');
+                        }}
+                      >
+                        <span>{workerDisplayName(worker)}</span>
+                        <span className="text-xs text-muted-foreground">{worker.email}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">{t('adminRecruiting.forms.noInterviewersFound')}</p>
+                  )}
+                </div>
+              ) : null}
+              {selectedInterviewers.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedInterviewers.map((interviewer) => (
+                    <Badge key={interviewer.id} variant="outline" className="flex items-center gap-1.5">
+                      {interviewer.name}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${interviewer.name}`}
+                        onClick={() => setSelectedInterviewers((current) => current.filter((item) => item.id !== interviewer.id))}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">{t('adminRecruiting.forms.selectInterviewerHint')}</p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={submitScheduleInterview}
+              disabled={candidateCommandMutation.isPending || !scheduledAtLocal || selectedInterviewers.length === 0}
+            >
+              {t('adminRecruiting.actions.confirmScheduleInterview')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={offerDialogOpen}
+        onOpenChange={(open) => {
+          setOfferDialogOpen(open);
+          if (!open) resetOfferForm();
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('adminRecruiting.forms.offerTitle', { candidate: selectedCandidate ? candidateName(selectedCandidate) : t('adminRecruiting.table.candidate') })}</DialogTitle>
             <DialogDescription className="sr-only">{t('adminRecruiting.forms.offerDescription')}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="offer-amount">{t('adminRecruiting.forms.proposedSalary')}</Label>
-            <Input id="offer-amount" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} inputMode="numeric" />
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="offer-amount">{t('adminRecruiting.forms.proposedSalary')}</Label>
+              <Input id="offer-amount" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} inputMode="numeric" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="offer-start-date">{t('adminRecruiting.forms.offerStartDateLabel')}</Label>
+                <Input
+                  id="offer-start-date"
+                  type="date"
+                  min={minOfferStartDate}
+                  value={offerStartDate}
+                  onChange={(event) => setOfferStartDate(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="offer-currency">{t('adminRecruiting.forms.offerCurrencyLabel')}</Label>
+                <Select value={offerCurrency} onValueChange={setOfferCurrency}>
+                  <SelectTrigger id="offer-currency" aria-label={t('adminRecruiting.forms.offerCurrencyLabel')}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {currencyOptions.map((code) => <SelectItem key={code} value={code}>{code}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="offer-benefits">{t('adminRecruiting.forms.offerBenefitsLabel')}</Label>
+              <Input
+                id="offer-benefits"
+                value={offerBenefits}
+                onChange={(event) => setOfferBenefits(event.target.value)}
+                placeholder={t('adminRecruiting.forms.offerBenefitsPlaceholder')}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button onClick={createOffer} disabled={createOfferMutation.isPending || !selectedCandidate}>
