@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { NextActions } from '@/components/common/next-actions';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import { useUIStore } from '@/stores/ui-store';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, RefreshCw, Users, Workflow, XCircle } from 'lucide-react';
 import type { AbsenceRequest } from '@/types';
@@ -96,130 +97,6 @@ interface ApprovalWorkflowChain {
 interface ApprovalWorkflowQueue {
   tenantId: string;
   chains: ApprovalWorkflowChain[];
-}
-
-interface DelegateWorkerSearchResult {
-  id: string;
-  employeeId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  jobTitle?: string;
-}
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = React.useState(value);
-  React.useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(timer);
-  }, [value, delayMs]);
-  return debounced;
-}
-
-function workerDisplayName(worker: DelegateWorkerSearchResult): string {
-  return `${worker.firstName} ${worker.lastName}`.trim() || worker.employeeId;
-}
-
-/**
- * Small, self-contained search-as-you-type worker picker for the "Delegate" action.
- * Scoped to this file - it hits the real GET /hr/core/workers?search= directory
- * endpoint directly rather than assuming a shared people-picker component exists.
- */
-function DelegateWorkerPicker({
-  id,
-  selectedWorkerId,
-  onSelect,
-}: {
-  id: string;
-  selectedWorkerId: string;
-  onSelect: (workerId: string | undefined) => void;
-}) {
-  const [query, setQuery] = React.useState('');
-  const [selectedLabel, setSelectedLabel] = React.useState('');
-  const [open, setOpen] = React.useState(false);
-  const debouncedQuery = useDebouncedValue(query, 250).trim();
-  const searchEnabled = debouncedQuery.length >= 2;
-
-  const { data, isFetching } = useApiQuery<DelegateWorkerSearchResult[]>(
-    ['manager-approvals-worker-search', debouncedQuery],
-    `/hr/core/workers?search=${encodeURIComponent(debouncedQuery)}&pageSize=8`,
-    { enabled: searchEnabled },
-  );
-  const results = Array.isArray(data) ? data : (data as { items?: DelegateWorkerSearchResult[] } | undefined)?.items ?? [];
-
-  const handlePick = (worker: DelegateWorkerSearchResult) => {
-    setSelectedLabel(`${workerDisplayName(worker)} (${worker.employeeId})`);
-    setQuery('');
-    setOpen(false);
-    onSelect(worker.id);
-  };
-
-  const handleClear = () => {
-    setSelectedLabel('');
-    setQuery('');
-    onSelect(undefined);
-  };
-
-  return (
-    <div className="relative grid flex-1 gap-2">
-      <Label htmlFor={id}>Delegate to worker</Label>
-      {selectedWorkerId && selectedLabel ? (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-white/70 px-3 py-2 text-sm">
-          <span className="font-medium text-slate-700">{selectedLabel}</span>
-          <button type="button" onClick={handleClear} className="text-xs font-medium text-slate-500 hover:text-slate-700">
-            Change
-          </button>
-        </div>
-      ) : (
-        <Input
-          id={id}
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setOpen(true);
-          }}
-          onFocus={() => setOpen(true)}
-          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setOpen(false);
-          }}
-          placeholder="Search by name or employee ID..."
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={`${id}-results`}
-        />
-      )}
-      {open && !selectedWorkerId ? (
-        <div
-          id={`${id}-results`}
-          role="listbox"
-          className="absolute top-full z-50 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 text-sm shadow-lg"
-        >
-          {!searchEnabled ? (
-            <p className="px-3 py-2 text-xs text-slate-500">Type at least 2 characters to search workers.</p>
-          ) : isFetching ? (
-            <p className="px-3 py-2 text-xs text-slate-500">Searching...</p>
-          ) : results.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-slate-500">No matching workers found.</p>
-          ) : results.map((worker) => (
-            <button
-              key={worker.id}
-              type="button"
-              role="option"
-              aria-selected={worker.id === selectedWorkerId}
-              className="flex w-full flex-col items-start rounded-lg px-3 py-2 text-left hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => handlePick(worker)}
-            >
-              <span className="font-medium text-slate-700">{workerDisplayName(worker)}</span>
-              <span className="text-xs text-slate-500">{worker.employeeId} - {worker.email}{worker.jobTitle ? ` - ${worker.jobTitle}` : ''}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function todayKey() {
@@ -550,16 +427,19 @@ export function ManagerApprovals() {
                   </div>
                   {pendingStep ? (
                     <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-3 sm:flex-row sm:items-end">
-                      <DelegateWorkerPicker
-                        id={`delegate-${pendingStep.id}`}
-                        selectedWorkerId={delegateTargets[delegateKey] ?? ''}
-                        onSelect={(workerId) => setDelegateTargets((current) => {
-                          const next = { ...current };
-                          if (workerId) next[delegateKey] = workerId;
-                          else delete next[delegateKey];
-                          return next;
-                        })}
-                      />
+                      <div className="grid flex-1 gap-2">
+                        <Label htmlFor={`delegate-${pendingStep.id}`}>Delegate to worker</Label>
+                        <WorkerPicker
+                          id={`delegate-${pendingStep.id}`}
+                          value={delegateTargets[delegateKey] ?? ''}
+                          onChange={(workerId) => setDelegateTargets((current) => {
+                            const next = { ...current };
+                            if (workerId) next[delegateKey] = workerId;
+                            else delete next[delegateKey];
+                            return next;
+                          })}
+                        />
+                      </div>
                       <Button
                         variant="outline"
                         onClick={() => handleWorkflowDelegate(chain.id, pendingStep.id)}

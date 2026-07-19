@@ -50,7 +50,6 @@ const matchingWorker = {
   employeeId: 'EMP-099',
   firstName: 'Alice',
   lastName: 'Nasser',
-  email: 'alice.nasser@example.com',
   jobTitle: 'Staff Engineer',
 };
 
@@ -90,16 +89,16 @@ function setupQueries() {
         refetch: vi.fn(),
       };
     }
-    if (key === 'manager-approvals-worker-search') {
+    if (key === 'worker-picker-search') {
       const search = typeof secondPart === 'string' ? secondPart : '';
-      if (options?.enabled === false || search.trim().length < 2) {
-        return { data: undefined, isFetching: false };
+      if (options?.enabled === false || search.trim().length === 0) {
+        return { data: undefined, isLoading: false, isError: false };
       }
       const results = matchingWorker.firstName.toLowerCase().includes(search.toLowerCase())
         || matchingWorker.lastName.toLowerCase().includes(search.toLowerCase())
         ? [matchingWorker]
         : [];
-      return { data: results, isFetching: false };
+      return { data: results, isLoading: false, isError: false };
     }
     return { data: undefined, isLoading: false, isError: false, error: null, refetch: vi.fn() };
   });
@@ -152,18 +151,13 @@ describe('ManagerApprovals workflow delegate picker', () => {
 
     const searchInput = screen.getByPlaceholderText('Search by name or employee ID...');
     await user.click(searchInput);
-    await user.type(searchInput, 'a');
+    await user.type(searchInput, 'alice');
 
-    expect(await screen.findByText('Type at least 2 characters to search workers.')).toBeInTheDocument();
-
-    await user.type(searchInput, 'lice');
-
-    const option = await screen.findByRole('option', { name: /Alice Nasser/ });
-    expect(option).toHaveTextContent('EMP-099');
+    const option = await screen.findByText('Alice Nasser');
+    expect(option.closest('button')).toHaveTextContent('EMP-099');
     await user.click(option);
 
-    expect(screen.getByText('Alice Nasser (EMP-099)')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('Search by name or employee ID...')).not.toBeInTheDocument();
+    expect(searchInput).toHaveValue('Alice Nasser');
 
     await waitFor(() => expect(delegateButton).toBeEnabled());
     await user.click(delegateButton);
@@ -180,21 +174,21 @@ describe('ManagerApprovals workflow delegate picker', () => {
     );
   });
 
-  it('lets the manager change a selection back to search after picking a worker', async () => {
+  it('lets the manager clear a selection and search again', async () => {
     const user = userEvent.setup();
     renderApprovals();
 
     const searchInput = screen.getByPlaceholderText('Search by name or employee ID...');
     await user.click(searchInput);
     await user.type(searchInput, 'alice');
-    const option = await screen.findByRole('option', { name: /Alice Nasser/ });
+    const option = await screen.findByText('Alice Nasser');
     await user.click(option);
 
-    expect(screen.getByText('Alice Nasser (EMP-099)')).toBeInTheDocument();
+    expect(searchInput).toHaveValue('Alice Nasser');
 
-    await user.click(screen.getByRole('button', { name: 'Change' }));
+    await user.click(screen.getByRole('button', { name: /clear selected worker/i }));
 
-    expect(screen.getByPlaceholderText('Search by name or employee ID...')).toBeInTheDocument();
+    expect(searchInput).toHaveValue('');
     expect(screen.getByRole('button', { name: 'Delegate' })).toBeDisabled();
   });
 });

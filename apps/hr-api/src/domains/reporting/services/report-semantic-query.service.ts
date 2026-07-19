@@ -1,6 +1,15 @@
 import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
-import { ReportBuilderCatalogService, type ReportingDataSourceCatalogItem, type ReportingFieldCatalogItem } from './report-builder-catalog.service.js';
+import { Uuid } from '@hcm/shared-kernel';
+import { ReportBuilderCatalogService, type ReportingDataSourceCatalogItem, type ReportingFieldCatalogItem, type ReportingFieldType } from './report-builder-catalog.service.js';
 import { SEMANTIC_REPORT_ROW_PROVIDER, type SemanticReportRowProvider } from './report-semantic-row-provider.service.js';
+import { CalculatedFieldRepository } from '../repositories/calculated-field.repository.js';
+import { knownFieldCodesForDataSource } from '../expression/calculated-field-catalog.util.js';
+import {
+  ExpressionEvaluationError,
+  evaluateExpression,
+  parseExpression,
+  type ExpressionAstNode,
+} from '../expression/calculated-field-expression.js';
 
 export interface SemanticReportQueryInput {
   dataSource: string;
@@ -175,6 +184,7 @@ export class ReportSemanticQueryService {
   constructor(
     private readonly catalogService: ReportBuilderCatalogService,
     @Optional() @Inject(SEMANTIC_REPORT_ROW_PROVIDER) private readonly rowProvider?: SemanticReportRowProvider,
+    @Optional() private readonly calculatedFieldRepo?: CalculatedFieldRepository,
   ) {}
 
   async getFilterOptions(input: SemanticFilterOptionsInput): Promise<SemanticFilterOptionsResult> {
@@ -233,17 +243,26 @@ export class ReportSemanticQueryService {
     const filteredRows = availableRows
       .filter((row) => matchesPopulation(row, scopeLevel, populationValue))
       .filter((row) => matchesFilters(row, filters, periodReferenceDate));
+
+    const calcFieldLoad = await this.loadActiveCalculatedFields(source, input.tenantId);
+    const calcFieldCodes = calcFieldLoad.fields.map((field) => field.fieldName);
+    const { rows: enrichedRows, warnings: calcFieldEvaluationWarnings } = attachCalculatedFields(filteredRows, calcFieldLoad.fields);
+    const metricsForAggregation = unique([...metrics, ...calcFieldCodes]);
+    const aggregationSource = calcFieldLoad.fields.length > 0 ? withCalculatedFieldMetrics(source, calcFieldLoad.fields) : source;
+
     const resultRows = groupBy.length > 0
-      ? aggregateRows(filteredRows, groupBy, metrics, source)
-      : filteredRows.map((row) => projectRow(row, [...fields, ...metrics]));
-    const drillThroughColumns = unique([...groupBy, ...fields, ...metrics]);
-    const drillThroughRows = filteredRows.slice(0, limit).map((row) => projectRow(row, drillThroughColumns));
+      ? aggregateRows(enrichedRows, groupBy, metricsForAggregation, aggregationSource)
+      : enrichedRows.map((row) => projectRow(row, [...fields, ...metrics, ...calcFieldCodes]));
+    const drillThroughColumns = unique([...groupBy, ...fields, ...metrics, ...calcFieldCodes]);
+    const drillThroughRows = enrichedRows.slice(0, limit).map((row) => projectRow(row, drillThroughColumns));
     const primaryMetric = metrics[0];
     const secondaryMetric = metrics[1];
     const primaryMetricMeta = source.metrics.find((item) => item.code === primaryMetric);
     const warnings = [
       ...filterWarnings(availableRows, filters),
       ...(filteredRows.length === 0 ? ['No records matched this semantic query. Adjust scope, population, or filters.'] : []),
+      ...calcFieldLoad.warnings,
+      ...calcFieldEvaluationWarnings,
     ];
 
     return {
@@ -252,7 +271,7 @@ export class ReportSemanticQueryService {
       generatedAt: new Date().toISOString(),
       scopeLevel,
       ...(populationValue ? { populationValue } : {}),
-      columns: groupBy.length > 0 ? [...groupBy, ...metrics] : unique([...fields, ...metrics]),
+      columns: groupBy.length > 0 ? [...groupBy, ...metrics, ...calcFieldCodes] : unique([...fields, ...metrics, ...calcFieldCodes]),
       metrics,
       groupBy,
       rowCount: resultRows.length,
@@ -332,6 +351,92 @@ export class ReportSemanticQueryService {
       };
     }
   }
+
+  /**
+   * Loads every ACTIVE calculated field scoped to this data source and parses its expression.
+   * Malformed expressions (should not occur — expressions are validated at creation/activation
+   * time) and field-name collisions with the data source's own catalog fields are skipped with
+   * a warning rather than breaking report execution.
+   */
+  private async loadActiveCalculatedFields(
+    source: ReportingDataSourceCatalogItem,
+    tenantId?: string,
+  ): Promise<{ fields: CalculatedFieldRuntime[]; warnings: string[] }> {
+    if (!this.calculatedFieldRepo || !tenantId) {
+      return { fields: [], warnings: [] };
+    }
+    try {
+      const entities = await this.calculatedFieldRepo.findActiveByDataSourceForTenant(source.code, new Uuid(tenantId));
+      const knownFieldCodes = new Set(knownFieldCodesForDataSource(source));
+      const warnings: string[] = [];
+      const fields: CalculatedFieldRuntime[] = [];
+      for (const entity of entities) {
+        if (knownFieldCodes.has(entity.fieldName)) {
+          warnings.push(`Calculated field "${entity.fieldName}" was skipped because it conflicts with an existing field name for ${source.code}.`);
+          continue;
+        }
+        try {
+          fields.push({ fieldName: entity.fieldName, dataType: entity.dataType, ast: parseExpression(entity.expression) });
+        } catch (error) {
+          warnings.push(`Calculated field "${entity.fieldName}" has an invalid expression and was skipped: ${errorMessage(error)}`);
+        }
+      }
+      return { fields, warnings };
+    } catch (error) {
+      return { fields: [], warnings: [`Active calculated fields for ${source.code} could not be loaded: ${errorMessage(error)}`] };
+    }
+  }
+}
+
+interface CalculatedFieldRuntime {
+  fieldName: string;
+  dataType: string;
+  ast: ExpressionAstNode;
+}
+
+/**
+ * Evaluates every active calculated field against each row's already-resolved field values and
+ * returns new row objects with the computed columns added (source rows are never mutated —
+ * they may be shared fixture data). Evaluation failures (e.g. division by zero) fall back to an
+ * empty value for that row and are surfaced as aggregated warnings instead of failing the report.
+ */
+function attachCalculatedFields(rows: SemanticRow[], calcFields: CalculatedFieldRuntime[]): { rows: SemanticRow[]; warnings: string[] } {
+  if (calcFields.length === 0) return { rows, warnings: [] };
+  const errorCounts = new Map<string, number>();
+  const enriched = rows.map((row) => {
+    const next: SemanticRow = { ...row };
+    for (const field of calcFields) {
+      try {
+        next[field.fieldName] = evaluateExpression(field.ast, row);
+      } catch (error) {
+        const message = error instanceof ExpressionEvaluationError ? error.message : errorMessage(error);
+        const key = `${field.fieldName}${message}`;
+        errorCounts.set(key, (errorCounts.get(key) ?? 0) + 1);
+        next[field.fieldName] = '';
+      }
+    }
+    return next;
+  });
+  const warnings = [...errorCounts.entries()].map(([key, count]) => {
+    const [fieldName, message] = key.split('');
+    return `Calculated field "${fieldName}" could not be evaluated for ${count} row(s): ${message}.`;
+  });
+  return { rows: enriched, warnings };
+}
+
+/** Returns a copy of the data source catalog item with active calculated fields registered as synthetic metrics, so `aggregateRows` sums/averages them per group exactly like a native metric. */
+function withCalculatedFieldMetrics(source: ReportingDataSourceCatalogItem, calcFields: CalculatedFieldRuntime[]): ReportingDataSourceCatalogItem {
+  return {
+    ...source,
+    metrics: [
+      ...source.metrics,
+      ...calcFields.map((field) => ({
+        code: field.fieldName,
+        label: field.fieldName,
+        type: (field.dataType === 'percentage' ? 'percentage' : 'number') as ReportingFieldType,
+      })),
+    ],
+  };
 }
 
 function stringArray(value: unknown): string[] {

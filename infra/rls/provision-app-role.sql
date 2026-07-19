@@ -10,13 +10,25 @@
 -- 1. Create both runtime roles up front.
 --    - hcm_app:    request path, SUBJECT to RLS (non-superuser, non-bypass).
 --    - hcm_system: cross-tenant background jobs (outbox/inbox/scheduler/onboarding),
---                  BYPASSRLS so they operate across tenants. Keep its use narrow + audited.
+--                  BYPASSRLS so they operate across tenants, plus CREATEDB so the
+--                  weekly restore-drill CronJob (deploy/k8s/base/restore-drill-cronjob.yaml),
+--                  which authenticates as hcm_system, can CREATE/DROP its own scratch
+--                  database for the backup-restore-and-verify check. CREATEDB is the
+--                  minimal grant for that pattern — it does not confer superuser or any
+--                  additional access to other roles' objects. Keep its use narrow + audited.
 -- (psql variables are NOT interpolated inside dollar-quoted DO blocks, so roles are
 -- created via generated statements + \gexec, which interpolate `:'app_password'`.)
 SELECT format('CREATE ROLE hcm_app LOGIN PASSWORD %L', :'app_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hcm_app')\gexec
-SELECT format('CREATE ROLE hcm_system LOGIN BYPASSRLS PASSWORD %L', :'app_password')
+SELECT format('CREATE ROLE hcm_system LOGIN BYPASSRLS CREATEDB PASSWORD %L', :'app_password')
 WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hcm_system')\gexec
+
+-- Idempotent safety net: if hcm_system already existed from a prior run of this
+-- script (e.g. provisioned before this CREATEDB grant was added), the CREATE ROLE
+-- guard above is skipped and the pre-existing role would keep lacking CREATEDB.
+-- ALTER ROLE is not conditional in Postgres, but re-applying it is a harmless no-op
+-- when the attribute is already set, so it's safe to run unconditionally here.
+ALTER ROLE hcm_system CREATEDB;
 
 -- 2. Grant BOTH roles DML on every hr_* schema. (BYPASSRLS skips RLS policies but
 --    still needs table-level privileges, so hcm_system is granted too.)

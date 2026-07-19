@@ -35,7 +35,6 @@ function handler(save = vi.fn()) {
   return new CalculatePayrollResultLineHandler(
     { save } as never,
     { getAllowedActionsFromState: vi.fn().mockReturnValue([]) } as never,
-    { publishFromAggregate: vi.fn() } as never,
     { getSetup: vi.fn().mockResolvedValue(DEFAULT_HCM_SETUP) } as never,
   );
 }
