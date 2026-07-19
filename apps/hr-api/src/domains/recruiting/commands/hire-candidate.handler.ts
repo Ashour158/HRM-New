@@ -34,6 +34,25 @@ export class HireCandidateHandler implements ICommandHandler {
       throw new NotFoundException('Candidate not found');
     }
 
+    if (candidate.status === 'HIRED') {
+      // Idempotent retry: the candidate is already in the target state, so
+      // return the existing outcome instead of re-invoking `hire()`, which
+      // would throw ConflictError on a retried command.
+      return {
+        success: true,
+        data: { candidateId: candidate.id.value, status: candidate.status },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: candidate.id,
+        newState: candidate.status,
+        newVersion: candidate.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     candidate.hire(command.correlationId);
     await this.candidateRepo.save(candidate);
     await this.eventPublisher.publishUncommitted(candidate, command.tenantId, command.correlationId);
@@ -49,7 +68,7 @@ export class HireCandidateHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(candidate.status, 'Candidate'),
       fieldAccessDecisions: {},
       eventsEmitted: ['CandidateHired'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

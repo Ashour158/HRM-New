@@ -1,17 +1,28 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { RejectJobRequisitionHandler } from './reject-job-requisition.handler.js';
+import { JobRequisition } from '../aggregates/job-requisition.aggregate.js';
 import type { JobRequisitionRepository } from '../repositories/job-requisition.repository.js';
 import type { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import type { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
-import { JobRequisition } from '../aggregates/job-requisition.aggregate.js';
 
 describe('RejectJobRequisitionHandler', () => {
   const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
-  const positionId = new Uuid('00000000-0000-0000-0000-000000000002');
-  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000003');
-  const approverId = new Uuid('00000000-0000-0000-0000-000000000004');
+  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000101');
+  const positionId = new Uuid('00000000-0000-0000-0000-000000000201');
+
+  function requisitionInState(status: JobRequisition['status']): JobRequisition {
+    return JobRequisition.rehydrate({
+      id: requisitionId,
+      tenantId,
+      requisitionNumber: 'REQ-001',
+      positionId,
+      title: 'Staff Engineer',
+      status,
+      aggregateVersion: 3,
+    });
+  }
 
   const requisitionRepo = {
     findById: vi.fn(),
@@ -28,22 +39,7 @@ describe('RejectJobRequisitionHandler', () => {
 
   const handler = new RejectJobRequisitionHandler(requisitionRepo, fsm, eventPublisher);
 
-  function pendingApprovalRequisition(): JobRequisition {
-    const requisition = JobRequisition.create(
-      {
-        id: requisitionId,
-        tenantId,
-        requisitionNumber: 'REQ-0001',
-        positionId,
-        title: 'Software Engineer',
-      },
-      Uuid.generate(),
-    );
-    requisition.submitForApproval(Uuid.generate());
-    return requisition;
-  }
-
-  function command(): HrCommandEnvelope<unknown> {
+  function command(overrides: Record<string, unknown> = {}): HrCommandEnvelope<unknown> {
     return {
       commandId: Uuid.generate(),
       commandName: 'RejectJobRequisition',
@@ -51,17 +47,19 @@ describe('RejectJobRequisitionHandler', () => {
       tenantId,
       actor: {
         actorType: 'USER',
-        actorId: approverId,
-        roles: ['HRBP'],
-        permissions: ['REQUISITION_APPROVE'],
+        actorId: Uuid.generate(),
+        roles: ['HR_ADMIN'],
+        permissions: ['*'],
         mfaAuthenticated: true,
       },
       aggregateType: 'JobRequisition',
+      aggregateId: requisitionId,
+      expectedState: 'PENDING_APPROVAL',
       idempotencyKey: 'test-key',
       correlationId: Uuid.generate(),
       reason: 'test',
-      payload: { requisitionId },
-      metadata: { requestHash: 'hash', clientType: 'HRBP' },
+      payload: { requisitionId, reason: 'Budget frozen', ...overrides },
+      metadata: { requestHash: 'hash', clientType: 'HR_ADMIN' },
     };
   }
 
@@ -69,41 +67,44 @@ describe('RejectJobRequisitionHandler', () => {
     vi.clearAllMocks();
   });
 
-  it('rejects a PENDING_APPROVAL job requisition', async () => {
-    vi.mocked(requisitionRepo.findById).mockResolvedValue(pendingApprovalRequisition());
+  it('transitions a PENDING_APPROVAL requisition to REJECTED', async () => {
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisitionInState('PENDING_APPROVAL'));
 
     const result = await handler.handle(command());
 
     expect(result.success).toBe(true);
     expect(result.newState).toBe('REJECTED');
-    expect(requisitionRepo.save).toHaveBeenCalled();
-    expect(eventPublisher.publishUncommitted).toHaveBeenCalled();
+    expect(requisitionRepo.save).toHaveBeenCalledTimes(1);
+    const saved = vi.mocked(requisitionRepo.save).mock.calls[0][0] as JobRequisition;
+    expect(saved.status).toBe('REJECTED');
     expect(result.eventsEmitted).toEqual(['JobRequisitionRejected']);
   });
 
-  it('rejects when the job requisition cannot be found', async () => {
-    vi.mocked(requisitionRepo.findById).mockResolvedValue(undefined);
-
-    await expect(handler.handle(command())).rejects.toThrow('Job requisition not found');
-    expect(requisitionRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('rejects when the job requisition is not in PENDING_APPROVAL state', async () => {
-    const requisition = JobRequisition.create(
-      {
-        id: requisitionId,
-        tenantId,
-        requisitionNumber: 'REQ-0001',
-        positionId,
-        title: 'Software Engineer',
-      },
-      Uuid.generate(),
-    );
-    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisition);
+  it('rejects the transition when the requisition is not in PENDING_APPROVAL', async () => {
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisitionInState('DRAFT'));
 
     await expect(handler.handle(command())).rejects.toThrow(
       'Requisition can only be rejected from PENDING_APPROVAL state',
     );
+    expect(requisitionRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent when the requisition is already REJECTED (retried command)', async () => {
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisitionInState('REJECTED'));
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('REJECTED');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(requisitionRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException when the requisition does not exist', async () => {
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(undefined);
+
+    await expect(handler.handle(command())).rejects.toThrow('Job requisition not found');
     expect(requisitionRepo.save).not.toHaveBeenCalled();
   });
 });

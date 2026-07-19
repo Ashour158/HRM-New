@@ -19,6 +19,7 @@
 
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../platform/platform.module.js';
+import { BenefitsModule } from '../domains/benefits/benefits.module.js';
 import { IntegrationOrchestrator } from './integration-orchestrator.service.js';
 import { IntegrationHealthService } from './integration-health.service.js';
 import { IntegrationsController } from './api/integrations.controller.js';
@@ -71,7 +72,7 @@ const CONSUMERS = [
 ];
 
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, BenefitsModule],
   controllers: [IntegrationsController],
   providers: [
     IntegrationOrchestrator,

@@ -14,7 +14,9 @@ export interface StartInterviewCommandPayload {
 /**
  * Handler for the StartInterview command.
  *
- * Transitions an interview plan from SCHEDULED to IN_PROGRESS.
+ * Transitions an interview plan from SCHEDULED to IN_PROGRESS. This is a
+ * required precondition for CompleteInterview, which only succeeds from
+ * IN_PROGRESS.
  */
 @Injectable()
 @CommandHandler('StartInterview')
@@ -49,7 +51,7 @@ export class StartInterviewHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(plan.status, 'InterviewPlan'),
       fieldAccessDecisions: {},
       eventsEmitted: ['InterviewPlanStarted'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

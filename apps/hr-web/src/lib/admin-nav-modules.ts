@@ -98,6 +98,7 @@ export const ADMIN_PRIMARY_MODULES: AdminNavModule[] = [
     links: [
       { label: 'Recruiting', path: '/admin/recruiting', page: 'recruiting' },
       { label: 'Onboarding', path: '/admin/onboarding', page: 'onboarding' },
+      { label: 'Offboarding', path: '/admin/offboarding', page: 'offboarding' },
       { label: 'Skills & Talent', path: '/admin/skills-talent', page: 'skills-talent' },
     ],
   },

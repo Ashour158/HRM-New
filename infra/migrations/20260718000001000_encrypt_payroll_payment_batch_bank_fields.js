@@ -35,11 +35,17 @@ const BANK_ROUTING_FIELDS = ['accountNumber', 'iban', 'routingNumber', 'swiftCod
 function resolveKey() {
   const configured = process.env.PII_DATA_ENCRYPTION_KEY;
   if (!configured) {
+    // Fail closed: the public development key is only ever safe to use when
+    // NODE_ENV is explicitly 'development' or 'test'. Any other value --
+    // including an absent or misspelled NODE_ENV -- must throw rather than
+    // silently encrypt real payroll banking data with a public key.
     const env = process.env.NODE_ENV;
-    if (env === 'production' || env === 'staging') {
-      throw new Error(`PII_DATA_ENCRYPTION_KEY must be configured in ${env}`);
+    if (env === 'development' || env === 'test') {
+      return Buffer.from('development-pii-data-key-32bytes!'.padEnd(32, '!')).subarray(0, 32);
     }
-    return Buffer.from('development-pii-data-key-32bytes!'.padEnd(32, '!')).subarray(0, 32);
+    throw new Error(
+      `PII_DATA_ENCRYPTION_KEY must be configured unless NODE_ENV is 'development' or 'test' (got ${JSON.stringify(env)})`,
+    );
   }
   const key = Buffer.from(configured, 'base64');
   if (key.length !== 32) {

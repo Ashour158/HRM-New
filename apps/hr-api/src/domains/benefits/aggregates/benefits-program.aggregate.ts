@@ -16,6 +16,9 @@ export interface BenefitsProgramProps {
   carrierId?: Uuid;
   effectiveFrom?: Date;
   effectiveUntil?: Date;
+  /** Base monthly premium cost of this program, snapshotted onto enrollments at creation time. */
+  monthlyPremium: number;
+  currency: string;
   status: BenefitsProgramStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -71,6 +74,8 @@ export class BenefitsProgram extends AggregateRoot {
   carrierId?: Uuid;
   effectiveFrom?: Date;
   effectiveUntil?: Date;
+  monthlyPremium: number;
+  currency: string;
   status: BenefitsProgramStatus;
   readonly createdAt: Date;
   updatedAt: Date;
@@ -87,6 +92,8 @@ export class BenefitsProgram extends AggregateRoot {
     this.carrierId = props.carrierId;
     this.effectiveFrom = props.effectiveFrom;
     this.effectiveUntil = props.effectiveUntil;
+    this.monthlyPremium = props.monthlyPremium;
+    this.currency = props.currency;
     this.status = props.status;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
@@ -98,6 +105,8 @@ export class BenefitsProgram extends AggregateRoot {
   static create(props: Omit<BenefitsProgramProps, 'status' | 'createdAt' | 'updatedAt' | 'aggregateVersion'> & { correlationId: Uuid }): BenefitsProgram {
     Guard.againstEmptyString(props.programName, 'programName');
     Guard.againstEmptyString(props.programType, 'programType');
+    Guard.againstNegativeNumber(props.monthlyPremium, 'monthlyPremium');
+    Guard.againstEmptyString(props.currency, 'currency');
 
     const program = new BenefitsProgram({
       ...props,

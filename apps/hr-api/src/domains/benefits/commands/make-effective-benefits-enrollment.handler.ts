@@ -34,6 +34,13 @@ export class MakeEffectiveBenefitsEnrollmentHandler implements ICommandHandler {
         enrollmentId: enrollment.id.value,
         workerId: enrollment.workerId.value,
         programId: enrollment.programId.value,
+        // Required by BenefitsCarrierConsumer for the BenefitsEnrollmentEffective event.
+        coverageStartDate: enrollment.effectiveDate.toISOString(),
+        // Required (as `amount`) by PayrollInputBuilderSaga to create a non-zero
+        // BENEFITS_DEDUCTION payroll input; sourced from the premium snapshotted
+        // onto the enrollment at creation time.
+        amount: enrollment.premiumAmount,
+        currency: enrollment.currency,
         status: enrollment.status,
       },
       commandId: command.commandId,

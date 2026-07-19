@@ -8,7 +8,8 @@ import { BenefitsProgramFsm } from '../fsm/benefits-program.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
 /**
- * Command handler for activating a BenefitsProgram (DRAFT|SUSPENDED -> ACTIVE).
+ * Command handler that activates a BenefitsProgram (DRAFT|SUSPENDED -> ACTIVE),
+ * making it eligible for worker enrollment.
  */
 @Injectable()
 @CommandHandler('ActivateBenefitsProgram')
@@ -35,7 +36,10 @@ export class ActivateBenefitsProgramHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { programId: program.id.value, status: program.status },
+      data: {
+        programId: program.id.value,
+        status: program.status,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: program.id,

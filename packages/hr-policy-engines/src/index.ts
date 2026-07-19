@@ -131,6 +131,16 @@ export {
 } from './engines/employee-relations-escalation.engine.js';
 
 export type {
+  HrAiGovernanceDecisionCode,
+  HrAiGovernanceGroupOutcome,
+  HrAiGovernanceBiasAuditInput,
+  HrAiGovernanceGroupResult,
+  HrAiGovernanceBiasAuditResult,
+} from './engines/hr-ai-governance.engine.js';
+
+export { HrAiGovernanceEngine, evaluateHrAiGovernanceBiasAudit } from './engines/hr-ai-governance.engine.js';
+
+export type {
   RecruitingFairnessDecisionCode,
   EeoDemographicDimension,
   FunnelStageGroupCounts,
@@ -166,6 +176,7 @@ export {
   countryPolicyValidationEngine,
   offerCompensationEngine,
   employeeRelationsDisciplinaryEngine,
+  hrAiGovernanceEngine,
   recruitingFairnessComplianceEngine,
   deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

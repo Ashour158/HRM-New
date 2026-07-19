@@ -1,18 +1,22 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useForm, type UseFormRegisterReturn } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { KeyRound, LockKeyhole, Plus, RefreshCcw, Save, ShieldCheck, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { BusinessPageHeader } from '@/components/common/business-page';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { FormField } from '@/components/common/form-field';
+import { jsonObjectText, requiredText } from '@/components/forms/schema-helpers';
 import { useUIStore } from '@/stores/ui-store';
 
 type SsoProtocol = 'OIDC' | 'SAML';
@@ -37,24 +41,44 @@ interface SsoConfigRecord {
   hasSamlSpPrivateKey: boolean;
 }
 
-interface SsoConfigForm {
-  id?: string;
-  protocol: SsoProtocol;
-  displayName: string;
-  enabled: boolean;
-  jitProvisioning: boolean;
-  defaultRoles: string;
-  attributeMapping: string;
-  groupRoleMapping: string;
-  oidcIssuerUrl: string;
-  oidcClientId: string;
-  oidcClientSecret: string;
-  oidcScopes: string;
-  samlIdpEntityId: string;
-  samlIdpSsoUrl: string;
-  samlIdpX509Cert: string;
-  samlSpPrivateKey: string;
-}
+const ssoConfigSchema = z
+  .object({
+    id: z.string().optional(),
+    protocol: z.enum(['OIDC', 'SAML']),
+    displayName: requiredText('Display name is required'),
+    enabled: z.boolean(),
+    jitProvisioning: z.boolean(),
+    defaultRoles: z.string(),
+    attributeMapping: jsonObjectText('Attribute mapping must be a valid JSON object'),
+    groupRoleMapping: jsonObjectText('Group role mapping must be a valid JSON object'),
+    oidcIssuerUrl: z.string(),
+    oidcClientId: z.string(),
+    oidcClientSecret: z.string(),
+    oidcScopes: z.string(),
+    samlIdpEntityId: z.string(),
+    samlIdpSsoUrl: z.string(),
+    samlIdpX509Cert: z.string(),
+    samlSpPrivateKey: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    if (values.protocol === 'OIDC') {
+      if (!values.oidcIssuerUrl.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Issuer URL is required', path: ['oidcIssuerUrl'] });
+      }
+      if (!values.oidcClientId.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Client ID is required', path: ['oidcClientId'] });
+      }
+    } else {
+      if (!values.samlIdpEntityId.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'IdP entity ID is required', path: ['samlIdpEntityId'] });
+      }
+      if (!values.samlIdpSsoUrl.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'IdP SSO URL is required', path: ['samlIdpSsoUrl'] });
+      }
+    }
+  });
+
+type SsoConfigForm = z.infer<typeof ssoConfigSchema>;
 
 function emptyForm(protocol: SsoProtocol = 'OIDC'): SsoConfigForm {
   return {
@@ -151,8 +175,14 @@ export function AdminSso() {
   const queryClient = useQueryClient();
   const addNotification = useUIStore((state) => state.addNotification);
   const { tenantId, tenantName } = useTenant();
-  const [form, setForm] = React.useState<SsoConfigForm>(() => emptyForm());
+  const form = useForm<SsoConfigForm>({
+    resolver: zodResolver(ssoConfigSchema),
+    defaultValues: emptyForm(),
+  });
   const [didAutoSelect, setDidAutoSelect] = React.useState(false);
+
+  const watchedProtocol = form.watch('protocol');
+  const watchedId = form.watch('id');
 
   const queryKey = React.useMemo(() => ['sso-config', tenantId], [tenantId]);
   const configsQuery = useQuery({
@@ -165,15 +195,15 @@ export function AdminSso() {
 
   React.useEffect(() => {
     setDidAutoSelect(false);
-    setForm(emptyForm());
-  }, [tenantId]);
+    form.reset(emptyForm());
+  }, [tenantId, form]);
 
   React.useEffect(() => {
     if (!didAutoSelect && records.length > 0) {
-      setForm(formFromRecord(records[0]));
+      form.reset(formFromRecord(records[0]));
       setDidAutoSelect(true);
     }
-  }, [didAutoSelect, records]);
+  }, [didAutoSelect, records, form]);
 
   const saveConfig = useMutation({
     mutationFn: async (draft: SsoConfigForm) => {
@@ -185,7 +215,7 @@ export function AdminSso() {
     },
     onSuccess: (record) => {
       queryClient.invalidateQueries({ queryKey });
-      setForm(formFromRecord(record));
+      form.reset(formFromRecord(record));
       addNotification({
         title: 'SSO provider saved',
         message: `${record.displayName} is ${record.enabled ? 'enabled' : 'saved as disabled'}.`,
@@ -207,7 +237,7 @@ export function AdminSso() {
     mutationFn: async (id: string) => unwrapApiData<{ ok: true }>(await apiClient.delete(`/auth/sso/config/${id}`)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey });
-      setForm(emptyForm());
+      form.reset(emptyForm());
       addNotification({
         title: 'SSO provider removed',
         message: 'The identity provider was removed from this tenant.',
@@ -225,6 +255,10 @@ export function AdminSso() {
     },
   });
 
+  const onSubmit = form.handleSubmit((values) => {
+    saveConfig.mutate(values);
+  });
+
   const columns = React.useMemo<DataTableColumn<SsoConfigRecord>[]>(() => [
     {
       key: 'provider',
@@ -233,7 +267,7 @@ export function AdminSso() {
         <button
           type="button"
           className="text-left font-semibold text-indigo-700 hover:underline"
-          onClick={() => setForm(formFromRecord(record))}
+          onClick={() => form.reset(formFromRecord(record))}
         >
           {record.displayName}
         </button>
@@ -251,7 +285,9 @@ export function AdminSso() {
           : (record.hasSamlSpPrivateKey ? 'Stored' : 'Optional')
       ),
     },
-  ], []);
+  ], [form]);
+
+  const errors = form.formState.errors;
 
   return (
     <main className="min-h-screen bg-slate-50 p-6 text-slate-950 md:p-8">
@@ -267,7 +303,7 @@ export function AdminSso() {
                 <RefreshCcw className={`mr-2 h-4 w-4 ${configsQuery.isFetching ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
-              <Button onClick={() => setForm(emptyForm())}>
+              <Button onClick={() => form.reset(emptyForm())}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Provider
               </Button>
@@ -309,20 +345,13 @@ export function AdminSso() {
               </h2>
             </CardHeader>
             <CardContent>
-              <form
-                className="space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  saveConfig.mutate(form);
-                }}
-              >
+              <form className="space-y-4" onSubmit={onSubmit} noValidate>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="sso-protocol">Protocol</Label>
+                  <FormField id="sso-protocol" label="Protocol">
                     <Select
-                      value={form.protocol}
-                      onValueChange={(value) => setForm((current) => ({ ...emptyForm(value as SsoProtocol), id: current.id }))}
-                      disabled={Boolean(form.id)}
+                      value={watchedProtocol}
+                      onValueChange={(value) => form.reset({ ...emptyForm(value as SsoProtocol), id: watchedId })}
+                      disabled={Boolean(watchedId)}
                     >
                       <SelectTrigger id="sso-protocol">
                         <SelectValue />
@@ -332,76 +361,58 @@ export function AdminSso() {
                         <SelectItem value="SAML">SAML</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sso-display-name">Display name</Label>
-                    <Input
-                      id="sso-display-name"
-                      value={form.displayName}
-                      onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))}
-                    />
-                  </div>
+                  </FormField>
+                  <FormField id="sso-display-name" label="Display name" error={errors.displayName?.message}>
+                    <Input {...form.register('displayName')} />
+                  </FormField>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={form.enabled}
-                      onChange={(event) => setForm((current) => ({ ...current, enabled: event.target.checked }))}
-                    />
+                    <input type="checkbox" {...form.register('enabled')} />
                     Enabled
                   </label>
                   <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm font-medium">
-                    <input
-                      type="checkbox"
-                      checked={form.jitProvisioning}
-                      onChange={(event) => setForm((current) => ({ ...current, jitProvisioning: event.target.checked }))}
-                    />
+                    <input type="checkbox" {...form.register('jitProvisioning')} />
                     JIT provisioning
                   </label>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="sso-default-roles">Default roles</Label>
-                  <Input
-                    id="sso-default-roles"
-                    value={form.defaultRoles}
-                    onChange={(event) => setForm((current) => ({ ...current, defaultRoles: event.target.value }))}
-                  />
-                </div>
+                <FormField id="sso-default-roles" label="Default roles">
+                  <Input {...form.register('defaultRoles')} />
+                </FormField>
 
-                {form.protocol === 'OIDC' ? (
+                {watchedProtocol === 'OIDC' ? (
                   <div className="space-y-3">
-                    <Field id="oidc-issuer" label="Issuer URL" value={form.oidcIssuerUrl} onChange={(value) => setForm((current) => ({ ...current, oidcIssuerUrl: value }))} />
-                    <Field id="oidc-client-id" label="Client ID" value={form.oidcClientId} onChange={(value) => setForm((current) => ({ ...current, oidcClientId: value }))} />
-                    <Field id="oidc-client-secret" label="Client secret" type="password" value={form.oidcClientSecret} placeholder={form.id ? 'Leave blank to keep stored secret' : ''} onChange={(value) => setForm((current) => ({ ...current, oidcClientSecret: value }))} />
-                    <Field id="oidc-scopes" label="Scopes" value={form.oidcScopes} onChange={(value) => setForm((current) => ({ ...current, oidcScopes: value }))} />
+                    <Field id="oidc-issuer" label="Issuer URL" registration={form.register('oidcIssuerUrl')} error={errors.oidcIssuerUrl?.message} />
+                    <Field id="oidc-client-id" label="Client ID" registration={form.register('oidcClientId')} error={errors.oidcClientId?.message} />
+                    <Field id="oidc-client-secret" label="Client secret" type="password" registration={form.register('oidcClientSecret')} placeholder={watchedId ? 'Leave blank to keep stored secret' : ''} />
+                    <Field id="oidc-scopes" label="Scopes" registration={form.register('oidcScopes')} />
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <Field id="saml-entity" label="IdP entity ID" value={form.samlIdpEntityId} onChange={(value) => setForm((current) => ({ ...current, samlIdpEntityId: value }))} />
-                    <Field id="saml-sso-url" label="IdP SSO URL" value={form.samlIdpSsoUrl} onChange={(value) => setForm((current) => ({ ...current, samlIdpSsoUrl: value }))} />
-                    <MultilineField id="saml-cert" label="IdP certificate" value={form.samlIdpX509Cert} onChange={(value) => setForm((current) => ({ ...current, samlIdpX509Cert: value }))} />
-                    <MultilineField id="saml-private-key" label="SP private key" value={form.samlSpPrivateKey} placeholder={form.id ? 'Leave blank to keep stored private key' : ''} onChange={(value) => setForm((current) => ({ ...current, samlSpPrivateKey: value }))} />
+                    <Field id="saml-entity" label="IdP entity ID" registration={form.register('samlIdpEntityId')} error={errors.samlIdpEntityId?.message} />
+                    <Field id="saml-sso-url" label="IdP SSO URL" registration={form.register('samlIdpSsoUrl')} error={errors.samlIdpSsoUrl?.message} />
+                    <MultilineField id="saml-cert" label="IdP certificate" registration={form.register('samlIdpX509Cert')} />
+                    <MultilineField id="saml-private-key" label="SP private key" registration={form.register('samlSpPrivateKey')} placeholder={watchedId ? 'Leave blank to keep stored private key' : ''} />
                   </div>
                 )}
 
-                <MultilineField id="attribute-mapping" label="Attribute mapping" value={form.attributeMapping} onChange={(value) => setForm((current) => ({ ...current, attributeMapping: value }))} />
-                <MultilineField id="group-role-mapping" label="Group role mapping" value={form.groupRoleMapping} onChange={(value) => setForm((current) => ({ ...current, groupRoleMapping: value }))} />
+                <MultilineField id="attribute-mapping" label="Attribute mapping" registration={form.register('attributeMapping')} error={errors.attributeMapping?.message} />
+                <MultilineField id="group-role-mapping" label="Group role mapping" registration={form.register('groupRoleMapping')} error={errors.groupRoleMapping?.message} />
 
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button className="flex-1" type="submit" disabled={!form.displayName.trim() || saveConfig.isPending}>
+                  <Button className="flex-1" type="submit" disabled={saveConfig.isPending}>
                     <Save className="mr-2 h-4 w-4" />
                     Save Provider
                   </Button>
-                  {form.id ? (
+                  {watchedId ? (
                     <Button
                       type="button"
                       variant="outline"
                       className="text-rose-700"
                       disabled={deleteConfig.isPending}
-                      onClick={() => form.id && deleteConfig.mutate(form.id)}
+                      onClick={() => watchedId && deleteConfig.mutate(watchedId)}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Remove
@@ -420,49 +431,47 @@ export function AdminSso() {
 function Field({
   id,
   label,
-  value,
-  onChange,
+  registration,
+  error,
   placeholder,
   type = 'text',
+  required,
 }: {
   id: string;
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  registration: UseFormRegisterReturn;
+  error?: string;
   placeholder?: string;
   type?: string;
+  required?: boolean;
 }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <Input id={id} type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-    </div>
+    <FormField id={id} label={label} error={error} required={required}>
+      <Input type={type} placeholder={placeholder} {...registration} />
+    </FormField>
   );
 }
 
 function MultilineField({
   id,
   label,
-  value,
-  onChange,
+  registration,
+  error,
   placeholder,
 }: {
   id: string;
   label: string;
-  value: string;
-  onChange: (value: string) => void;
+  registration: UseFormRegisterReturn;
+  error?: string;
   placeholder?: string;
 }) {
   return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
+    <FormField id={id} label={label} error={error}>
       <textarea
-        id={id}
         className="min-h-24 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        value={value}
         placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
+        {...registration}
       />
-    </div>
+    </FormField>
   );
 }

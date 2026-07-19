@@ -1,5 +1,8 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Controller, useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Award, BadgeDollarSign, Layers3, LineChart, WalletCards } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,8 +16,10 @@ import { BusinessMetric, BusinessPageHeader } from '@/components/common/business
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { FormField } from '@/components/common/form-field';
 import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { WorkerPicker } from '@/components/common/worker-picker';
+import { optionalNumericText, requiredNumericText, requiredText } from '@/components/forms/schema-helpers';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency, formatDate, generateUUID } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
@@ -101,45 +106,57 @@ interface AllowedActionsResponse {
   allowedActions?: string[];
 }
 
-interface PlanForm {
-  name: string;
-  planType: string;
-  effectiveFrom: string;
-}
+/**
+ * Zod schemas for the five create-record forms below. One `useForm` per tab
+ * (see `AdminCompensation`) instead of one big discriminated form, since each
+ * tab already had its own independent state shape. See
+ * @/components/forms/README.md for the general react-hook-form + zod
+ * pattern this follows.
+ */
+const planSchema = z.object({
+  name: requiredText('Plan name is required'),
+  planType: requiredText('Plan type is required'),
+  effectiveFrom: requiredText('Effective date is required'),
+});
+type PlanForm = z.infer<typeof planSchema>;
 
-interface BandForm {
-  bandCode: string;
-  jobLevel: string;
-  jobFamily: string;
-  minSalary: string;
-  midSalary: string;
-  maxSalary: string;
-}
+const bandSchema = z.object({
+  bandCode: requiredText('Band code is required'),
+  jobLevel: requiredText('Job level is required'),
+  jobFamily: requiredText('Job family is required'),
+  minSalary: requiredNumericText('Minimum salary is required'),
+  midSalary: requiredNumericText('Mid salary is required'),
+  maxSalary: requiredNumericText('Maximum salary is required'),
+});
+type BandForm = z.infer<typeof bandSchema>;
 
-interface ChangeForm {
-  workerId: string;
-  changeType: string;
-  oldAmount: string;
-  newAmount: string;
-  effectiveDate: string;
-}
+const changeSchema = z.object({
+  workerId: requiredText('Worker ID is required'),
+  changeType: requiredText('Change type is required'),
+  oldAmount: optionalNumericText('Old amount must be a number'),
+  newAmount: requiredNumericText('New amount is required'),
+  effectiveDate: requiredText('Effective date is required'),
+});
+type ChangeForm = z.infer<typeof changeSchema>;
 
-interface BonusCycleForm {
-  cycleName: string;
-  cycleYear: string;
-  eligibilityDate: string;
-  paymentDate: string;
-  totalPoolAmount: string;
-}
+const bonusCycleSchema = z.object({
+  cycleName: requiredText('Cycle name is required'),
+  cycleYear: requiredNumericText('Cycle year is required'),
+  eligibilityDate: requiredText('Eligibility date is required'),
+  paymentDate: requiredText('Payment date is required'),
+  totalPoolAmount: requiredNumericText('Pool amount is required'),
+});
+type BonusCycleForm = z.infer<typeof bonusCycleSchema>;
 
-interface EquityGrantForm {
-  workerId: string;
-  grantType: string;
-  grantDate: string;
-  totalUnits: string;
-  strikePrice: string;
-  vestingDate: string;
-}
+const equityGrantSchema = z.object({
+  workerId: requiredText('Worker ID is required'),
+  grantType: requiredText('Grant type is required'),
+  grantDate: requiredText('Grant date is required'),
+  totalUnits: requiredNumericText('Total units is required'),
+  strikePrice: optionalNumericText('Strike price must be a number'),
+  vestingDate: requiredText('Vesting date is required'),
+});
+type EquityGrantForm = z.infer<typeof equityGrantSchema>;
 
 const tabLabels: Record<CompensationTab, string> = {
   plans: 'Plans',
@@ -299,11 +316,11 @@ export function AdminCompensation() {
   const [selected, setSelected] = React.useState<SelectedRecord | null>(null);
   const [changeWorkerId, setChangeWorkerId] = React.useState('');
   const [equityWorkerId, setEquityWorkerId] = React.useState('');
-  const [planForm, setPlanForm] = React.useState<PlanForm>(() => createEmptyPlanForm());
-  const [bandForm, setBandForm] = React.useState<BandForm>(() => createEmptyBandForm());
-  const [changeForm, setChangeForm] = React.useState<ChangeForm>(() => createEmptyChangeForm());
-  const [bonusForm, setBonusForm] = React.useState<BonusCycleForm>(() => createEmptyBonusCycleForm());
-  const [equityForm, setEquityForm] = React.useState<EquityGrantForm>(() => createEmptyEquityGrantForm());
+  const planForm = useForm<PlanForm>({ resolver: zodResolver(planSchema), defaultValues: createEmptyPlanForm() });
+  const bandForm = useForm<BandForm>({ resolver: zodResolver(bandSchema), defaultValues: createEmptyBandForm() });
+  const changeForm = useForm<ChangeForm>({ resolver: zodResolver(changeSchema), defaultValues: createEmptyChangeForm() });
+  const bonusForm = useForm<BonusCycleForm>({ resolver: zodResolver(bonusCycleSchema), defaultValues: createEmptyBonusCycleForm() });
+  const equityForm = useForm<EquityGrantForm>({ resolver: zodResolver(equityGrantSchema), defaultValues: createEmptyEquityGrantForm() });
 
   const plansQuery = useQuery({
     queryKey: ['compensation-plans'],
@@ -380,85 +397,95 @@ export function AdminCompensation() {
     setDialogOpen(true);
   };
 
-  const createRecord = () => {
-    if (activeTab === 'plans') {
-      mutation.mutate({
-        url: '/hr/compensation/plans',
-        payload: {
-          planId: generateUUID(),
-          name: planForm.name,
-          planType: planForm.planType,
-          currency,
-          effectiveFrom: planForm.effectiveFrom,
-        },
-      });
-      return;
-    }
-    if (activeTab === 'bands') {
-      mutation.mutate({
-        url: '/hr/compensation/bands',
-        payload: {
-          bandId: generateUUID(),
-          bandCode: bandForm.bandCode,
-          jobLevel: bandForm.jobLevel,
-          jobFamily: bandForm.jobFamily,
-          minSalary: numberValue(bandForm.minSalary),
-          midSalary: numberValue(bandForm.midSalary),
-          maxSalary: numberValue(bandForm.maxSalary),
-          currency,
-        },
-      });
-      return;
-    }
-    if (activeTab === 'changes') {
-      mutation.mutate({
-        url: '/hr/compensation/changes',
-        payload: {
-          changeId: generateUUID(),
-          workerId: changeForm.workerId,
-          changeType: changeForm.changeType,
-          oldAmount: changeForm.oldAmount ? numberValue(changeForm.oldAmount) : undefined,
-          newAmount: numberValue(changeForm.newAmount),
-          currency,
-          effectiveDate: changeForm.effectiveDate,
-        },
-      });
-      return;
-    }
-    if (activeTab === 'bonus-cycles') {
-      mutation.mutate({
-        url: '/hr/compensation/bonus-cycles',
-        payload: {
-          cycleId: generateUUID(),
-          cycleName: bonusForm.cycleName,
-          cycleYear: numberValue(bonusForm.cycleYear),
-          eligibilityDate: bonusForm.eligibilityDate,
-          paymentDate: bonusForm.paymentDate,
-          totalPoolAmount: numberValue(bonusForm.totalPoolAmount),
-          currency,
-        },
-      });
-      return;
-    }
+  const submitPlan = planForm.handleSubmit((values) => {
+    mutation.mutate({
+      url: '/hr/compensation/plans',
+      payload: {
+        planId: generateUUID(),
+        name: values.name,
+        planType: values.planType,
+        currency,
+        effectiveFrom: values.effectiveFrom,
+      },
+    });
+  });
+
+  const submitBand = bandForm.handleSubmit((values) => {
+    mutation.mutate({
+      url: '/hr/compensation/bands',
+      payload: {
+        bandId: generateUUID(),
+        bandCode: values.bandCode,
+        jobLevel: values.jobLevel,
+        jobFamily: values.jobFamily,
+        minSalary: numberValue(values.minSalary),
+        midSalary: numberValue(values.midSalary),
+        maxSalary: numberValue(values.maxSalary),
+        currency,
+      },
+    });
+  });
+
+  const submitChange = changeForm.handleSubmit((values) => {
+    mutation.mutate({
+      url: '/hr/compensation/changes',
+      payload: {
+        changeId: generateUUID(),
+        workerId: values.workerId,
+        changeType: values.changeType,
+        oldAmount: values.oldAmount ? numberValue(values.oldAmount) : undefined,
+        newAmount: numberValue(values.newAmount),
+        currency,
+        effectiveDate: values.effectiveDate,
+      },
+    });
+  });
+
+  const submitBonusCycle = bonusForm.handleSubmit((values) => {
+    mutation.mutate({
+      url: '/hr/compensation/bonus-cycles',
+      payload: {
+        cycleId: generateUUID(),
+        cycleName: values.cycleName,
+        cycleYear: numberValue(values.cycleYear),
+        eligibilityDate: values.eligibilityDate,
+        paymentDate: values.paymentDate,
+        totalPoolAmount: numberValue(values.totalPoolAmount),
+        currency,
+      },
+    });
+  });
+
+  const submitEquityGrant = equityForm.handleSubmit((values) => {
     mutation.mutate({
       url: '/hr/compensation/equity-grants',
       payload: {
         grantId: generateUUID(),
-        workerId: equityForm.workerId,
-        grantType: equityForm.grantType,
-        grantDate: equityForm.grantDate,
-        totalUnits: numberValue(equityForm.totalUnits),
-        strikePrice: equityForm.strikePrice ? numberValue(equityForm.strikePrice) : undefined,
+        workerId: values.workerId,
+        grantType: values.grantType,
+        grantDate: values.grantDate,
+        totalUnits: numberValue(values.totalUnits),
+        strikePrice: values.strikePrice ? numberValue(values.strikePrice) : undefined,
         vestingSchedule: [
           {
-            date: equityForm.vestingDate,
+            date: values.vestingDate,
             percentage: 100,
-            units: numberValue(equityForm.totalUnits),
+            units: numberValue(values.totalUnits),
           },
         ],
       },
     });
+  });
+
+  const submitByTab: Record<CompensationTab, () => void> = {
+    plans: submitPlan,
+    bands: submitBand,
+    changes: submitChange,
+    'bonus-cycles': submitBonusCycle,
+    'equity-grants': submitEquityGrant,
   };
+
+  const createRecord = () => submitByTab[activeTab]();
 
   const runAction = (action: string, record: CompensationRecord, tab: CompensationTab) => {
     const id = recordId(record);
@@ -645,47 +672,109 @@ export function AdminCompensation() {
           <div className="grid gap-4 md:grid-cols-2">
             {activeTab === 'plans' ? (
               <>
-                <div className="space-y-2"><Label htmlFor="plan-name">Plan name</Label><Input id="plan-name" value={planForm.name} onChange={(event) => setPlanForm({ ...planForm, name: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="plan-type">Plan type</Label><Input id="plan-type" value={planForm.planType} onChange={(event) => setPlanForm({ ...planForm, planType: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="plan-effective">Effective from</Label><Input id="plan-effective" type="date" value={planForm.effectiveFrom} onChange={(event) => setPlanForm({ ...planForm, effectiveFrom: event.target.value })} /></div>
+                <FormField id="plan-name" label="Plan name" error={planForm.formState.errors.name?.message}>
+                  <Input {...planForm.register('name')} />
+                </FormField>
+                <FormField id="plan-type" label="Plan type" error={planForm.formState.errors.planType?.message}>
+                  <Input {...planForm.register('planType')} />
+                </FormField>
+                <FormField id="plan-effective" label="Effective from" error={planForm.formState.errors.effectiveFrom?.message}>
+                  <Input type="date" {...planForm.register('effectiveFrom')} />
+                </FormField>
               </>
             ) : null}
             {activeTab === 'bands' ? (
               <>
-                <div className="space-y-2"><Label htmlFor="band-code">Band code</Label><Input id="band-code" value={bandForm.bandCode} onChange={(event) => setBandForm({ ...bandForm, bandCode: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="job-level">Job level</Label><Input id="job-level" value={bandForm.jobLevel} onChange={(event) => setBandForm({ ...bandForm, jobLevel: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="job-family">Job family</Label><Input id="job-family" value={bandForm.jobFamily} onChange={(event) => setBandForm({ ...bandForm, jobFamily: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="min-salary">Minimum salary</Label><Input id="min-salary" inputMode="numeric" value={bandForm.minSalary} onChange={(event) => setBandForm({ ...bandForm, minSalary: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="mid-salary">Mid salary</Label><Input id="mid-salary" inputMode="numeric" value={bandForm.midSalary} onChange={(event) => setBandForm({ ...bandForm, midSalary: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="max-salary">Maximum salary</Label><Input id="max-salary" inputMode="numeric" value={bandForm.maxSalary} onChange={(event) => setBandForm({ ...bandForm, maxSalary: event.target.value })} /></div>
+                <FormField id="band-code" label="Band code" error={bandForm.formState.errors.bandCode?.message}>
+                  <Input {...bandForm.register('bandCode')} />
+                </FormField>
+                <FormField id="job-level" label="Job level" error={bandForm.formState.errors.jobLevel?.message}>
+                  <Input {...bandForm.register('jobLevel')} />
+                </FormField>
+                <FormField id="job-family" label="Job family" error={bandForm.formState.errors.jobFamily?.message}>
+                  <Input {...bandForm.register('jobFamily')} />
+                </FormField>
+                <FormField id="min-salary" label="Minimum salary" error={bandForm.formState.errors.minSalary?.message}>
+                  <Input inputMode="numeric" {...bandForm.register('minSalary')} />
+                </FormField>
+                <FormField id="mid-salary" label="Mid salary" error={bandForm.formState.errors.midSalary?.message}>
+                  <Input inputMode="numeric" {...bandForm.register('midSalary')} />
+                </FormField>
+                <FormField id="max-salary" label="Maximum salary" error={bandForm.formState.errors.maxSalary?.message}>
+                  <Input inputMode="numeric" {...bandForm.register('maxSalary')} />
+                </FormField>
               </>
             ) : null}
             {activeTab === 'changes' ? (
               <>
-                <div className="space-y-2 md:col-span-2"><Label htmlFor="change-worker">Select worker</Label><WorkerPicker id="change-worker" value={changeForm.workerId} onChange={(workerId) => setChangeForm({ ...changeForm, workerId })} /></div>
-                <div className="space-y-2"><Label htmlFor="change-type">Change type</Label><Input id="change-type" value={changeForm.changeType} onChange={(event) => setChangeForm({ ...changeForm, changeType: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="old-amount">Old amount</Label><Input id="old-amount" inputMode="numeric" value={changeForm.oldAmount} onChange={(event) => setChangeForm({ ...changeForm, oldAmount: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="new-amount">New amount</Label><Input id="new-amount" inputMode="numeric" value={changeForm.newAmount} onChange={(event) => setChangeForm({ ...changeForm, newAmount: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="change-effective">Effective date</Label><Input id="change-effective" type="date" value={changeForm.effectiveDate} onChange={(event) => setChangeForm({ ...changeForm, effectiveDate: event.target.value })} /></div>
+                <FormField id="change-worker" label="Select worker" error={changeForm.formState.errors.workerId?.message} className="md:col-span-2">
+                  <Controller
+                    control={changeForm.control}
+                    name="workerId"
+                    render={({ field }) => (
+                      <WorkerPicker id="change-worker" value={field.value} onChange={(workerId) => field.onChange(workerId)} />
+                    )}
+                  />
+                </FormField>
+                <FormField id="change-type" label="Change type" error={changeForm.formState.errors.changeType?.message}>
+                  <Input {...changeForm.register('changeType')} />
+                </FormField>
+                <FormField id="old-amount" label="Old amount" error={changeForm.formState.errors.oldAmount?.message}>
+                  <Input inputMode="numeric" {...changeForm.register('oldAmount')} />
+                </FormField>
+                <FormField id="new-amount" label="New amount" error={changeForm.formState.errors.newAmount?.message}>
+                  <Input inputMode="numeric" {...changeForm.register('newAmount')} />
+                </FormField>
+                <FormField id="change-effective" label="Effective date" error={changeForm.formState.errors.effectiveDate?.message}>
+                  <Input type="date" {...changeForm.register('effectiveDate')} />
+                </FormField>
               </>
             ) : null}
             {activeTab === 'bonus-cycles' ? (
               <>
-                <div className="space-y-2 md:col-span-2"><Label htmlFor="cycle-name">Cycle name</Label><Input id="cycle-name" value={bonusForm.cycleName} onChange={(event) => setBonusForm({ ...bonusForm, cycleName: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="cycle-year">Cycle year</Label><Input id="cycle-year" inputMode="numeric" value={bonusForm.cycleYear} onChange={(event) => setBonusForm({ ...bonusForm, cycleYear: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="pool-amount">Pool amount</Label><Input id="pool-amount" inputMode="numeric" value={bonusForm.totalPoolAmount} onChange={(event) => setBonusForm({ ...bonusForm, totalPoolAmount: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="eligibility-date">Eligibility date</Label><Input id="eligibility-date" type="date" value={bonusForm.eligibilityDate} onChange={(event) => setBonusForm({ ...bonusForm, eligibilityDate: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="payment-date">Payment date</Label><Input id="payment-date" type="date" value={bonusForm.paymentDate} onChange={(event) => setBonusForm({ ...bonusForm, paymentDate: event.target.value })} /></div>
+                <FormField id="cycle-name" label="Cycle name" error={bonusForm.formState.errors.cycleName?.message} className="md:col-span-2">
+                  <Input {...bonusForm.register('cycleName')} />
+                </FormField>
+                <FormField id="cycle-year" label="Cycle year" error={bonusForm.formState.errors.cycleYear?.message}>
+                  <Input inputMode="numeric" {...bonusForm.register('cycleYear')} />
+                </FormField>
+                <FormField id="pool-amount" label="Pool amount" error={bonusForm.formState.errors.totalPoolAmount?.message}>
+                  <Input inputMode="numeric" {...bonusForm.register('totalPoolAmount')} />
+                </FormField>
+                <FormField id="eligibility-date" label="Eligibility date" error={bonusForm.formState.errors.eligibilityDate?.message}>
+                  <Input type="date" {...bonusForm.register('eligibilityDate')} />
+                </FormField>
+                <FormField id="payment-date" label="Payment date" error={bonusForm.formState.errors.paymentDate?.message}>
+                  <Input type="date" {...bonusForm.register('paymentDate')} />
+                </FormField>
               </>
             ) : null}
             {activeTab === 'equity-grants' ? (
               <>
-                <div className="space-y-2 md:col-span-2"><Label htmlFor="equity-worker">Select worker</Label><WorkerPicker id="equity-worker" value={equityForm.workerId} onChange={(workerId) => setEquityForm({ ...equityForm, workerId })} /></div>
-                <div className="space-y-2"><Label htmlFor="grant-type">Grant type</Label><Input id="grant-type" value={equityForm.grantType} onChange={(event) => setEquityForm({ ...equityForm, grantType: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="grant-date">Grant date</Label><Input id="grant-date" type="date" value={equityForm.grantDate} onChange={(event) => setEquityForm({ ...equityForm, grantDate: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="total-units">Total units</Label><Input id="total-units" inputMode="numeric" value={equityForm.totalUnits} onChange={(event) => setEquityForm({ ...equityForm, totalUnits: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="strike-price">Strike price</Label><Input id="strike-price" inputMode="numeric" value={equityForm.strikePrice} onChange={(event) => setEquityForm({ ...equityForm, strikePrice: event.target.value })} /></div>
-                <div className="space-y-2"><Label htmlFor="vesting-date">Vesting date</Label><Input id="vesting-date" type="date" value={equityForm.vestingDate} onChange={(event) => setEquityForm({ ...equityForm, vestingDate: event.target.value })} /></div>
+                <FormField id="equity-worker" label="Select worker" error={equityForm.formState.errors.workerId?.message} className="md:col-span-2">
+                  <Controller
+                    control={equityForm.control}
+                    name="workerId"
+                    render={({ field }) => (
+                      <WorkerPicker id="equity-worker" value={field.value} onChange={(workerId) => field.onChange(workerId)} />
+                    )}
+                  />
+                </FormField>
+                <FormField id="grant-type" label="Grant type" error={equityForm.formState.errors.grantType?.message}>
+                  <Input {...equityForm.register('grantType')} />
+                </FormField>
+                <FormField id="grant-date" label="Grant date" error={equityForm.formState.errors.grantDate?.message}>
+                  <Input type="date" {...equityForm.register('grantDate')} />
+                </FormField>
+                <FormField id="total-units" label="Total units" error={equityForm.formState.errors.totalUnits?.message}>
+                  <Input inputMode="numeric" {...equityForm.register('totalUnits')} />
+                </FormField>
+                <FormField id="strike-price" label="Strike price" error={equityForm.formState.errors.strikePrice?.message}>
+                  <Input inputMode="numeric" {...equityForm.register('strikePrice')} />
+                </FormField>
+                <FormField id="vesting-date" label="Vesting date" error={equityForm.formState.errors.vestingDate?.message}>
+                  <Input type="date" {...equityForm.register('vestingDate')} />
+                </FormField>
               </>
             ) : null}
           </div>

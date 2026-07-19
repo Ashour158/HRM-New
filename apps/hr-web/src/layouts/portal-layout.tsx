@@ -37,6 +37,7 @@ import {
   Umbrella,
   UserCircle,
   UserRoundCheck,
+  UserRoundX,
   Users,
   X,
   Heart,
@@ -79,6 +80,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'My Payslips', path: '/employee/payslip' },
       { label: 'Benefits', path: '/employee/benefits' },
       { label: 'Onboarding', path: '/employee/onboarding' },
+      { label: 'Offboarding', path: '/employee/offboarding' },
       { label: 'Leave', path: '/employee/time-off' },
       { label: 'Performance', path: '/employee/performance' },
       { label: 'Feedback 360', path: '/employee/feedback-360' },
@@ -194,6 +196,7 @@ const employeeRailGroups: PortalRailGroup[] = [
     label: 'Growth & Engagement',
     items: [
       { label: 'Onboarding', path: '/employee/onboarding', icon: UserRoundCheck },
+      { label: 'Offboarding', path: '/employee/offboarding', icon: UserRoundX },
       { label: 'Performance', path: '/employee/performance', icon: TrendingUp },
       { label: 'Feedback 360', path: '/employee/feedback-360', icon: MessageSquare },
       { label: 'Surveys', path: '/employee/surveys', icon: MessageSquare },

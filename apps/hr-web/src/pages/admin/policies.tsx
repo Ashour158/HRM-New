@@ -2,6 +2,19 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  Controller,
+  useFieldArray,
+  useForm,
+  useWatch,
+  type Control,
+  type FieldErrors,
+  type UseFieldArrayReturn,
+  type UseFormRegister,
+  type UseFormSetValue,
+} from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { AlertTriangle, CheckCircle2, PlayCircle, Plus, Save, ShieldCheck, X } from 'lucide-react';
 import { useApiQuery } from '@/hooks/use-api';
 import { apiClient } from '@/lib/api-client';
@@ -11,12 +24,13 @@ import { BusinessMetric, BusinessPageHeader, SectionHeading } from '@/components
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { FormField } from '@/components/common/form-field';
+import { requiredText } from '@/components/forms/schema-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   DEFAULT_GENERIC_LEAVE_POLICY_CODE,
@@ -24,7 +38,6 @@ import {
   buildDraftConfigFromGenericRules,
   getRuleLedgerCategories,
   isRuleLedgerSupportedArea,
-  type RuleLedgerRetroBehavior,
 } from '@/lib/policy-center-controls';
 
 type PolicyArea =
@@ -105,37 +118,11 @@ type PolicySummary = {
   byArea: Record<string, number>;
 };
 
-type RuleRow = {
-  code: string;
-  condition: string;
-  outcome: string;
-  value: string;
-  category: string;
-  retroBehavior: RuleLedgerRetroBehavior;
-};
-
-type BuilderForm = {
-  title: string;
-  area: PolicyArea;
-  countries: string;
-  legalEntities: string;
-  orgUnits: string;
-  departments: string;
-  jobs: string;
-  grades: string;
-  locations: string;
-  employeeTypes: string;
-  workers: string;
-  effectiveFrom: string;
-  effectiveUntil: string;
-  rules: RuleRow[];
-  /** Structured draftConfig picked up from a template; the generic rule ledger merges on top of this. */
-  baseDraftConfig: Record<string, unknown>;
-  /** Which leave policy (by code) the generic rule builder attaches ledger rules to, for LEAVE only. */
-  leavePolicyCode: string;
-};
-
-const policyAreas: PolicyArea[] = [
+// RuleRow and BuilderForm are zod-inferred below (see ruleRowSchema /
+// createPolicyBuilderSchema) rather than declared as plain types here, so
+// the generic rule-ledger fields (category, retroBehavior, baseDraftConfig,
+// leavePolicyCode) participate in the same validation as every other field.
+const policyAreas = [
   'LEAVE',
   'ATTENDANCE',
   'PAYROLL',
@@ -147,7 +134,53 @@ const policyAreas: PolicyArea[] = [
   'GLOBAL_HR',
   'DEI_ANALYTICS',
   'ENGAGEMENT',
-];
+] as const satisfies readonly PolicyArea[];
+
+const ruleRowSchema = z.object({
+  code: z.string(),
+  condition: z.string(),
+  outcome: z.string(),
+  value: z.string(),
+  category: z.string(),
+  retroBehavior: z.enum(RULE_LEDGER_RETRO_BEHAVIORS),
+});
+
+type RuleRow = z.infer<typeof ruleRowSchema>;
+
+/**
+ * Schema factory (not a module-level constant) because the "title is
+ * required" error message is translated — see @/pages/login.tsx's
+ * `createLoginSchema` for the same pattern. `title` is the field this page
+ * was flagged for: `saveDraft()` used to mask a missing title with a
+ * fallback string instead of blocking submit. See
+ * @/components/forms/README.md for the general pattern.
+ */
+function createPolicyBuilderSchema(t: (key: string) => string) {
+  return z.object({
+    title: requiredText(t('lowCode.policies.form.titleRequired')),
+    area: z.enum(policyAreas),
+    countries: z.string(),
+    legalEntities: z.string(),
+    orgUnits: z.string(),
+    departments: z.string(),
+    jobs: z.string(),
+    grades: z.string(),
+    locations: z.string(),
+    employeeTypes: z.string(),
+    workers: z.string(),
+    effectiveFrom: z.string(),
+    effectiveUntil: z.string(),
+    rules: z.array(ruleRowSchema),
+    // Structured draftConfig picked up from a template; the generic rule
+    // ledger merges on top of this (see buildDraftConfig).
+    baseDraftConfig: z.record(z.string(), z.unknown()),
+    // Which leave policy (by code) the generic rule builder attaches ledger
+    // rules to, for LEAVE only.
+    leavePolicyCode: z.string(),
+  });
+}
+
+type BuilderForm = z.infer<ReturnType<typeof createPolicyBuilderSchema>>;
 
 function createRuleRow(area: PolicyArea, code = 'DEFAULT_RULE'): RuleRow {
   const categories = getRuleLedgerCategories(area);
@@ -238,7 +271,7 @@ function listSummary(scope: PolicyScope, labels: { tenantDefault: string; entiti
 }
 
 function isPolicyArea(value: string): value is PolicyArea {
-  return (policyAreas as string[]).includes(value);
+  return (policyAreas as readonly string[]).includes(value);
 }
 
 export function AdminPolicies() {
@@ -249,22 +282,23 @@ export function AdminPolicies() {
   const [searchParams, setSearchParams] = useSearchParams();
   const rawAreaParam = (searchParams.get('area') ?? '').toUpperCase();
   const scopedArea = isPolicyArea(rawAreaParam) ? rawAreaParam : undefined;
-  const [form, setForm] = React.useState<BuilderForm>(() => (
-    scopedArea ? { ...initialForm, area: scopedArea, rules: [createRuleRow(scopedArea)] } : initialForm
-  ));
+  const policyBuilderSchema = React.useMemo(() => createPolicyBuilderSchema(t), [t]);
+  const form = useForm<BuilderForm>({
+    resolver: zodResolver(policyBuilderSchema),
+    defaultValues: scopedArea ? { ...initialForm, area: scopedArea, rules: [createRuleRow(scopedArea)] } : initialForm,
+  });
+  const rulesArray = useFieldArray({ control: form.control, name: 'rules' });
   const [selectedRevisionId, setSelectedRevisionId] = React.useState<string>('');
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
   React.useEffect(() => {
-    if (scopedArea) {
-      setForm((current) => (current.area === scopedArea
-        ? current
-        // Regenerate the rule ledger's default row for the new area too --
-        // otherwise the builder keeps a stale rule row whose category came
-        // from the previous area's category set.
-        : { ...current, area: scopedArea, rules: [createRuleRow(scopedArea)] }));
+    if (scopedArea && form.getValues('area') !== scopedArea) {
+      // Regenerate the rule ledger's default row for the new area too --
+      // otherwise the builder keeps a stale rule row whose category came
+      // from the previous area's category set.
+      form.reset({ ...form.getValues(), area: scopedArea, rules: [createRuleRow(scopedArea)] });
     }
-  }, [scopedArea]);
+  }, [scopedArea, form]);
 
   const clearAreaFilter = () => {
     setSearchParams((current) => {
@@ -366,8 +400,8 @@ export function AdminPolicies() {
     });
 
   const applyTemplate = (template: PolicyTemplate) => {
-    setForm((current) => ({
-      ...current,
+    form.reset({
+      ...form.getValues(),
       title: template.title,
       area: template.area,
       countries: template.recommendedScope.countryCodes?.join(', ') ?? '',
@@ -385,22 +419,22 @@ export function AdminPolicies() {
       // rules the admin adds afterward merge into it (see buildDraftConfig).
       baseDraftConfig: template.draftConfig ?? {},
       rules: [createRuleRow(template.area)],
-    }));
+    });
   };
 
-  const saveDraft = () => {
+  const saveDraft = form.handleSubmit((values) => {
     const payload = {
-      area: form.area,
-      title: form.title || t('lowCode.policies.untitledPolicy'),
-      scope: buildScope(form, tenantId),
-      draftConfig: buildDraftConfig(form),
+      area: values.area,
+      title: values.title,
+      scope: buildScope(values, tenantId),
+      draftConfig: buildDraftConfig(values),
     };
     if (selectedRevision?.status === 'DRAFT') {
       updateMutation.mutate({ id: selectedRevision.id, payload });
       return;
     }
     createMutation.mutate(payload);
-  };
+  });
 
   const lifecycle = (action: string, body?: Record<string, unknown>) => {
     if (!selectedRevision) return;
@@ -446,7 +480,15 @@ export function AdminPolicies() {
               <DialogHeader>
                 <DialogTitle>{t('lowCode.policies.newPolicy')}</DialogTitle>
               </DialogHeader>
-              <PolicyBuilderForm form={form} onChange={setForm} templates={templates} onApplyTemplate={applyTemplate} />
+              <PolicyBuilderForm
+                control={form.control}
+                register={form.register}
+                setValue={form.setValue}
+                errors={form.formState.errors}
+                rulesArray={rulesArray}
+                templates={templates}
+                onApplyTemplate={applyTemplate}
+              />
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>{t('lowCode.common.cancel')}</Button>
                 <Button type="button" onClick={saveDraft} disabled={createMutation.isPending || updateMutation.isPending}>
@@ -543,95 +585,103 @@ export function AdminPolicies() {
   );
 }
 
+const scopeListFields = [
+  { key: 'countries', labelKey: 'countries' },
+  { key: 'legalEntities', labelKey: 'legalEntities' },
+  { key: 'orgUnits', labelKey: 'orgUnits' },
+  { key: 'departments', labelKey: 'departments' },
+  { key: 'jobs', labelKey: 'jobs' },
+  { key: 'grades', labelKey: 'grades' },
+  { key: 'locations', labelKey: 'locations' },
+  { key: 'employeeTypes', labelKey: 'employeeTypes' },
+  { key: 'workers', labelKey: 'workers' },
+] as const;
+
 function PolicyBuilderForm({
-  form,
-  onChange,
+  control,
+  register,
+  setValue,
+  errors,
+  rulesArray,
   templates,
   onApplyTemplate,
 }: {
-  form: BuilderForm;
-  onChange: React.Dispatch<React.SetStateAction<BuilderForm>>;
+  control: Control<BuilderForm>;
+  register: UseFormRegister<BuilderForm>;
+  setValue: UseFormSetValue<BuilderForm>;
+  errors: FieldErrors<BuilderForm>;
+  rulesArray: UseFieldArrayReturn<BuilderForm, 'rules'>;
   templates: PolicyTemplate[];
   onApplyTemplate: (template: PolicyTemplate) => void;
 }) {
   const { t } = useTranslation();
-  const ruleLedgerSupported = isRuleLedgerSupportedArea(form.area);
-  const categories = React.useMemo(() => getRuleLedgerCategories(form.area), [form.area]);
+  const area = useWatch({ control, name: 'area' });
+  const ruleLedgerSupported = isRuleLedgerSupportedArea(area);
+  const categories = React.useMemo(() => getRuleLedgerCategories(area), [area]);
 
   return (
     <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.template')}</Label>
+        <FormField id="policy-template" label={t('lowCode.policies.form.template')}>
           <Select onValueChange={(code) => {
             const template = templates.find((item) => item.code === code);
             if (template) onApplyTemplate(template);
           }}>
-            <SelectTrigger><SelectValue placeholder={t('lowCode.policies.form.templatePlaceholder')} /></SelectTrigger>
+            <SelectTrigger id="policy-template"><SelectValue placeholder={t('lowCode.policies.form.templatePlaceholder')} /></SelectTrigger>
             <SelectContent>
               {templates.map((template) => (
                 <SelectItem key={template.code} value={template.code}>{template.title}</SelectItem>
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.area')}</Label>
-          <Select value={form.area} onValueChange={(area) => onChange((current) => ({
-            ...current,
-            area: area as PolicyArea,
-            // A structured base and rule rows only make sense for the area they
-            // were built for; switching areas starts the rule ledger fresh.
-            baseDraftConfig: {},
-            rules: [createRuleRow(area as PolicyArea)],
-          }))}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {policyAreas.map((area) => <SelectItem key={area} value={area}>{area.replace(/_/g, ' ')}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2 md:col-span-2">
-          <Label>{t('lowCode.policies.form.title')}</Label>
-          <Input value={form.title} onChange={(event) => onChange((current) => ({ ...current, title: event.target.value }))} />
-        </div>
+        </FormField>
+        <FormField id="policy-area" label={t('lowCode.policies.form.area')}>
+          <Controller
+            control={control}
+            name="area"
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(area) => {
+                  field.onChange(area);
+                  // A structured base and rule rows only make sense for the
+                  // area they were built for; switching areas starts the
+                  // rule ledger fresh.
+                  setValue('baseDraftConfig', {});
+                  rulesArray.replace([createRuleRow(area as PolicyArea)]);
+                }}
+              >
+                <SelectTrigger id="policy-area"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {policyAreas.map((area) => <SelectItem key={area} value={area}>{area.replace(/_/g, ' ')}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
+        </FormField>
+        <FormField id="policy-title" label={t('lowCode.policies.form.title')} error={errors.title?.message} className="md:col-span-2">
+          <Input {...register('title')} />
+        </FormField>
       </div>
 
       <section className="grid gap-3 md:grid-cols-2">
-        {[
-          ['countries', 'countries'],
-          ['legalEntities', 'legalEntities'],
-          ['orgUnits', 'orgUnits'],
-          ['departments', 'departments'],
-          ['jobs', 'jobs'],
-          ['grades', 'grades'],
-          ['locations', 'locations'],
-          ['employeeTypes', 'employeeTypes'],
-          ['workers', 'workers'],
-        ].map(([field, label]) => (
-          <div key={field} className="grid gap-2">
-            <Label>{t(`lowCode.policies.form.${label}`)}</Label>
-            <Input
-              value={form[field as keyof BuilderForm] as string}
-              onChange={(event) => onChange((current) => ({ ...current, [field]: event.target.value }))}
-              placeholder={t('lowCode.policies.form.listPlaceholder')}
-            />
-          </div>
+        {scopeListFields.map(({ key, labelKey }) => (
+          <FormField key={key} id={`policy-${key}`} label={t(`lowCode.policies.form.${labelKey}`)}>
+            <Input {...register(key)} placeholder={t('lowCode.policies.form.listPlaceholder')} />
+          </FormField>
         ))}
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.effectiveFrom')}</Label>
-          <Input type="date" value={form.effectiveFrom} onChange={(event) => onChange((current) => ({ ...current, effectiveFrom: event.target.value }))} />
-        </div>
-        <div className="grid gap-2">
-          <Label>{t('lowCode.policies.form.effectiveUntil')}</Label>
-          <Input type="date" value={form.effectiveUntil} onChange={(event) => onChange((current) => ({ ...current, effectiveUntil: event.target.value }))} />
-        </div>
+        <FormField id="policy-effective-from" label={t('lowCode.policies.form.effectiveFrom')}>
+          <Input type="date" {...register('effectiveFrom')} />
+        </FormField>
+        <FormField id="policy-effective-until" label={t('lowCode.policies.form.effectiveUntil')}>
+          <Input type="date" {...register('effectiveUntil')} />
+        </FormField>
       </section>
 
       <section className="space-y-3">
         <SectionHeading title={t('lowCode.policies.form.rules')} />
         {ruleLedgerSupported ? (
-          <RuleLedgerBuilder form={form} onChange={onChange} categories={categories} />
+          <RuleLedgerBuilder control={control} register={register} rulesArray={rulesArray} area={area} categories={categories} />
         ) : (
           <EmptyState
             icon={AlertTriangle}
@@ -645,62 +695,77 @@ function PolicyBuilderForm({
 }
 
 function RuleLedgerBuilder({
-  form,
-  onChange,
+  control,
+  register,
+  rulesArray,
+  area,
   categories,
 }: {
-  form: BuilderForm;
-  onChange: React.Dispatch<React.SetStateAction<BuilderForm>>;
+  control: Control<BuilderForm>;
+  register: UseFormRegister<BuilderForm>;
+  rulesArray: UseFieldArrayReturn<BuilderForm, 'rules'>;
+  area: PolicyArea;
   categories: { key: string; label: string }[];
 }) {
   const { t } = useTranslation();
-  const updateRule = (index: number, patch: Partial<RuleRow>) => {
-    onChange((current) => ({
-      ...current,
-      rules: current.rules.map((rule, currentIndex) => (currentIndex === index ? { ...rule, ...patch } : rule)),
-    }));
-  };
 
   return (
     <div className="space-y-3">
-      {form.area === 'LEAVE' && (
-        <div className="grid gap-2 md:max-w-xs">
-          <Label>{t('lowCode.policies.form.leavePolicyCode')}</Label>
-          <Input
-            value={form.leavePolicyCode}
-            onChange={(event) => onChange((current) => ({ ...current, leavePolicyCode: event.target.value.toUpperCase() }))}
-            placeholder={DEFAULT_GENERIC_LEAVE_POLICY_CODE}
+      {area === 'LEAVE' && (
+        <FormField id="policy-leave-policy-code" label={t('lowCode.policies.form.leavePolicyCode')} className="md:max-w-xs">
+          <Controller
+            control={control}
+            name="leavePolicyCode"
+            render={({ field }) => (
+              <Input
+                value={field.value}
+                onChange={(event) => field.onChange(event.target.value.toUpperCase())}
+                placeholder={DEFAULT_GENERIC_LEAVE_POLICY_CODE}
+              />
+            )}
           />
-        </div>
+        </FormField>
       )}
       <div className="flex justify-end">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          onClick={() => onChange((current) => ({ ...current, rules: [...current.rules, createRuleRow(current.area, `RULE_${current.rules.length + 1}`)] }))}
+          onClick={() => rulesArray.append(createRuleRow(area, `RULE_${rulesArray.fields.length + 1}`))}
         >
           {t('lowCode.policies.form.addRule')}
         </Button>
       </div>
-      {form.rules.map((rule, index) => (
-        <div key={`${rule.code}-${index}`} className="grid gap-3 rounded-xl border p-3 md:grid-cols-3">
-          <Input aria-label={t('lowCode.policies.form.ruleCode')} placeholder={t('lowCode.policies.form.ruleCode')} value={rule.code} onChange={(event) => updateRule(index, { code: event.target.value })} />
-          <Select value={rule.category} onValueChange={(category) => updateRule(index, { category })}>
-            <SelectTrigger aria-label={t('lowCode.policies.form.category')}><SelectValue placeholder={t('lowCode.policies.form.category')} /></SelectTrigger>
-            <SelectContent>
-              {categories.map((category) => <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={rule.retroBehavior} onValueChange={(retroBehavior) => updateRule(index, { retroBehavior: retroBehavior as RuleLedgerRetroBehavior })}>
-            <SelectTrigger aria-label={t('lowCode.policies.form.retroBehavior')}><SelectValue placeholder={t('lowCode.policies.form.retroBehavior')} /></SelectTrigger>
-            <SelectContent>
-              {RULE_LEDGER_RETRO_BEHAVIORS.map((behavior) => <SelectItem key={behavior} value={behavior}>{behavior.replace(/_/g, ' ')}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input aria-label={t('lowCode.policies.form.condition')} placeholder={t('lowCode.policies.form.condition')} value={rule.condition} onChange={(event) => updateRule(index, { condition: event.target.value })} />
-          <Input aria-label={t('lowCode.policies.form.outcome')} placeholder={t('lowCode.policies.form.outcome')} value={rule.outcome} onChange={(event) => updateRule(index, { outcome: event.target.value })} />
-          <Input aria-label={t('lowCode.policies.form.value')} placeholder={t('lowCode.policies.form.value')} value={rule.value} onChange={(event) => updateRule(index, { value: event.target.value })} />
+      {rulesArray.fields.map((field, index) => (
+        <div key={field.id} className="grid gap-3 rounded-xl border p-3 md:grid-cols-3">
+          <Input aria-label={t('lowCode.policies.form.ruleCode')} placeholder={t('lowCode.policies.form.ruleCode')} {...register(`rules.${index}.code`)} />
+          <Controller
+            control={control}
+            name={`rules.${index}.category`}
+            render={({ field: categoryField }) => (
+              <Select value={categoryField.value} onValueChange={categoryField.onChange}>
+                <SelectTrigger aria-label={t('lowCode.policies.form.category')}><SelectValue placeholder={t('lowCode.policies.form.category')} /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <Controller
+            control={control}
+            name={`rules.${index}.retroBehavior`}
+            render={({ field: retroField }) => (
+              <Select value={retroField.value} onValueChange={retroField.onChange}>
+                <SelectTrigger aria-label={t('lowCode.policies.form.retroBehavior')}><SelectValue placeholder={t('lowCode.policies.form.retroBehavior')} /></SelectTrigger>
+                <SelectContent>
+                  {RULE_LEDGER_RETRO_BEHAVIORS.map((behavior) => <SelectItem key={behavior} value={behavior}>{behavior.replace(/_/g, ' ')}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <Input aria-label={t('lowCode.policies.form.condition')} placeholder={t('lowCode.policies.form.condition')} {...register(`rules.${index}.condition`)} />
+          <Input aria-label={t('lowCode.policies.form.outcome')} placeholder={t('lowCode.policies.form.outcome')} {...register(`rules.${index}.outcome`)} />
+          <Input aria-label={t('lowCode.policies.form.value')} placeholder={t('lowCode.policies.form.value')} {...register(`rules.${index}.value`)} />
         </div>
       ))}
     </div>

@@ -1,42 +1,20 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { CreateOfferHandler } from './create-offer.handler.js';
+import { Candidate } from '../aggregates/candidate.aggregate.js';
 import type { OfferRepository } from '../repositories/offer.repository.js';
 import type { CandidateRepository } from '../repositories/candidate.repository.js';
 import type { OfferCompensationGateService } from '../services/offer-compensation-gate.service.js';
+import type { OfferCompensationResult } from '@hcm/policy-engines';
 import type { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import type { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
-import { Candidate } from '../aggregates/candidate.aggregate.js';
-import type { OfferCompensationResult } from '@hcm/policy-engines';
 
-describe('CreateOfferHandler compensation gate wiring', () => {
+describe('CreateOfferHandler', () => {
   const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
   const requisitionId = new Uuid('00000000-0000-0000-0000-000000000002');
   const candidateId = new Uuid('00000000-0000-0000-0000-000000000003');
   const offerId = new Uuid('00000000-0000-0000-0000-000000000004');
-
-  const offerRepo = {
-    save: vi.fn(),
-  } as unknown as OfferRepository;
-
-  const candidateRepo = {
-    findById: vi.fn(),
-  } as unknown as CandidateRepository;
-
-  const compensationGate = {
-    evaluate: vi.fn(),
-  } as unknown as OfferCompensationGateService;
-
-  const fsm = {
-    getAllowedActionsFromState: vi.fn(() => ['SubmitForApproval']),
-  } as unknown as FsmFramework;
-
-  const eventPublisher = {
-    publishUncommitted: vi.fn(),
-  } as unknown as RecruitingEventsPublisher;
-
-  const handler = new CreateOfferHandler(offerRepo, candidateRepo, compensationGate, fsm, eventPublisher);
 
   function interviewingCandidate(): Candidate {
     const candidate = Candidate.create(
@@ -75,6 +53,29 @@ describe('CreateOfferHandler compensation gate wiring', () => {
     };
   }
 
+  const offerRepo = {
+    save: vi.fn(),
+  } as unknown as OfferRepository;
+
+  const candidateRepo = {
+    findById: vi.fn(),
+    save: vi.fn(),
+  } as unknown as CandidateRepository;
+
+  const compensationGate = {
+    evaluate: vi.fn(),
+  } as unknown as OfferCompensationGateService;
+
+  const fsm = {
+    getAllowedActionsFromState: vi.fn(() => ['SubmitForApproval']),
+  } as unknown as FsmFramework;
+
+  const eventPublisher = {
+    publishUncommitted: vi.fn(),
+  } as unknown as RecruitingEventsPublisher;
+
+  const handler = new CreateOfferHandler(offerRepo, candidateRepo, compensationGate, fsm, eventPublisher);
+
   function command(overrides: Record<string, unknown> = {}): HrCommandEnvelope<unknown> {
     return {
       commandId: Uuid.generate(),
@@ -109,6 +110,24 @@ describe('CreateOfferHandler compensation gate wiring', () => {
     vi.mocked(candidateRepo.findById).mockResolvedValue(interviewingCandidate());
   });
 
+  it('creates the offer and moves the candidate to OFFER_PENDING in the same command', async () => {
+    // This is the fix for the dead offer-to-hire path: without this
+    // candidate transition, AcceptOffer's later `candidate.hire()` call
+    // (which requires OFFER_PENDING) would always throw ConflictError
+    // because the candidate would still be stuck in INTERVIEWING.
+    vi.mocked(compensationGate.evaluate).mockResolvedValue(approvedDecision());
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(offerRepo.save).toHaveBeenCalledTimes(1);
+    expect(candidateRepo.save).toHaveBeenCalledTimes(1);
+
+    const savedCandidate = vi.mocked(candidateRepo.save).mock.calls[0][0] as Candidate;
+    expect(savedCandidate.status).toBe('OFFER_PENDING');
+    expect(result.eventsEmitted).toEqual(['OfferCreated', 'CandidateOfferPending']);
+  });
+
   it('creates the offer and returns the APPROVED decision for an in-band salary', async () => {
     vi.mocked(compensationGate.evaluate).mockResolvedValue(approvedDecision());
 
@@ -135,9 +154,10 @@ describe('CreateOfferHandler compensation gate wiring', () => {
     await expect(handler.handle(command())).rejects.toThrow('Offer compensation rejected');
 
     expect(offerRepo.save).not.toHaveBeenCalled();
+    expect(candidateRepo.save).not.toHaveBeenCalled();
   });
 
-  it('rejects when the candidate is not in INTERVIEWING state', async () => {
+  it('rejects offer creation when the candidate is not INTERVIEWING', async () => {
     const candidate = Candidate.create(
       {
         id: candidateId,
@@ -151,15 +171,19 @@ describe('CreateOfferHandler compensation gate wiring', () => {
     );
     vi.mocked(candidateRepo.findById).mockResolvedValue(candidate);
 
-    await expect(handler.handle(command())).rejects.toThrow('Candidate must be in INTERVIEWING state');
+    await expect(handler.handle(command())).rejects.toThrow(
+      'Candidate must be in INTERVIEWING state to create an offer',
+    );
     expect(compensationGate.evaluate).not.toHaveBeenCalled();
     expect(offerRepo.save).not.toHaveBeenCalled();
+    expect(candidateRepo.save).not.toHaveBeenCalled();
   });
 
-  it('rejects when the candidate cannot be found', async () => {
+  it('throws NotFoundException when the candidate does not exist', async () => {
     vi.mocked(candidateRepo.findById).mockResolvedValue(undefined);
 
     await expect(handler.handle(command())).rejects.toThrow('Candidate not found');
     expect(compensationGate.evaluate).not.toHaveBeenCalled();
+    expect(offerRepo.save).not.toHaveBeenCalled();
   });
 });

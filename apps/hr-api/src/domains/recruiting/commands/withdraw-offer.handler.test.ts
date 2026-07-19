@@ -1,18 +1,31 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { WithdrawOfferHandler } from './withdraw-offer.handler.js';
+import { Offer } from '../aggregates/offer.aggregate.js';
 import type { OfferRepository } from '../repositories/offer.repository.js';
 import type { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import type { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
-import { Offer } from '../aggregates/offer.aggregate.js';
 
 describe('WithdrawOfferHandler', () => {
   const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
-  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000002');
-  const candidateId = new Uuid('00000000-0000-0000-0000-000000000003');
-  const offerId = new Uuid('00000000-0000-0000-0000-000000000004');
-  const proposedById = new Uuid('00000000-0000-0000-0000-000000000005');
+  const offerId = new Uuid('00000000-0000-0000-0000-000000000603');
+  const candidateId = new Uuid('00000000-0000-0000-0000-000000000301');
+  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000101');
+
+  function offerInState(status: Offer['status']): Offer {
+    return Offer.rehydrate({
+      id: offerId,
+      tenantId,
+      candidateId,
+      requisitionId,
+      proposedSalary: 150000,
+      currency: 'USD',
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      status,
+      aggregateVersion: 1,
+    });
+  }
 
   const offerRepo = {
     findById: vi.fn(),
@@ -29,21 +42,6 @@ describe('WithdrawOfferHandler', () => {
 
   const handler = new WithdrawOfferHandler(offerRepo, fsm, eventPublisher);
 
-  function draftOffer(): Offer {
-    return Offer.create(
-      {
-        id: offerId,
-        tenantId,
-        candidateId,
-        requisitionId,
-        proposedSalary: 100_000,
-        currency: 'USD',
-        startDate: new Date('2026-08-01'),
-      },
-      Uuid.generate(),
-    );
-  }
-
   function command(): HrCommandEnvelope<unknown> {
     return {
       commandId: Uuid.generate(),
@@ -52,17 +50,18 @@ describe('WithdrawOfferHandler', () => {
       tenantId,
       actor: {
         actorType: 'USER',
-        actorId: proposedById,
-        roles: ['RECRUITER'],
-        permissions: ['OFFER_WITHDRAW'],
+        actorId: Uuid.generate(),
+        roles: ['HR_ADMIN'],
+        permissions: ['*'],
         mfaAuthenticated: true,
       },
       aggregateType: 'Offer',
+      aggregateId: offerId,
       idempotencyKey: 'test-key',
       correlationId: Uuid.generate(),
       reason: 'test',
-      payload: { offerId },
-      metadata: { requestHash: 'hash', clientType: 'RECRUITER' },
+      payload: { offerId, reason: 'Position eliminated' },
+      metadata: { requestHash: 'hash', clientType: 'HR_ADMIN' },
     };
   }
 
@@ -70,36 +69,46 @@ describe('WithdrawOfferHandler', () => {
     vi.clearAllMocks();
   });
 
-  it('withdraws a DRAFT offer', async () => {
-    vi.mocked(offerRepo.findById).mockResolvedValue(draftOffer());
+  it.each(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'] as const)(
+    'withdraws an offer from %s',
+    async (fromStatus) => {
+      vi.mocked(offerRepo.findById).mockResolvedValue(offerInState(fromStatus));
+
+      const result = await handler.handle(command());
+
+      expect(result.success).toBe(true);
+      expect(result.newState).toBe('WITHDRAWN');
+      const saved = vi.mocked(offerRepo.save).mock.calls[0][0] as Offer;
+      expect(saved.status).toBe('WITHDRAWN');
+      expect(result.eventsEmitted).toEqual(['OfferWithdrawn']);
+    },
+  );
+
+  it.each(['ACCEPTED', 'DECLINED', 'EXPIRED'] as const)(
+    'rejects the transition when the offer is already terminal in a different state (%s)',
+    async (fromStatus) => {
+      vi.mocked(offerRepo.findById).mockResolvedValue(offerInState(fromStatus));
+
+      await expect(handler.handle(command())).rejects.toThrow('Cannot withdraw offer in terminal state');
+      expect(offerRepo.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it('is idempotent when the offer is already WITHDRAWN (retried command)', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offerInState('WITHDRAWN'));
 
     const result = await handler.handle(command());
 
     expect(result.success).toBe(true);
     expect(result.newState).toBe('WITHDRAWN');
-    expect(offerRepo.save).toHaveBeenCalled();
-    expect(eventPublisher.publishUncommitted).toHaveBeenCalled();
-    expect(result.eventsEmitted).toEqual(['OfferWithdrawn']);
+    expect(result.eventsEmitted).toEqual([]);
+    expect(offerRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
   });
 
-  it('rejects when the offer cannot be found', async () => {
+  it('throws NotFoundException when the offer does not exist', async () => {
     vi.mocked(offerRepo.findById).mockResolvedValue(undefined);
 
     await expect(handler.handle(command())).rejects.toThrow('Offer not found');
-    expect(offerRepo.save).not.toHaveBeenCalled();
-  });
-
-  it('rejects when the offer is in a terminal state', async () => {
-    const offer = draftOffer();
-    offer.submitForApproval(proposedById, Uuid.generate());
-    offer.approve(Uuid.generate(), Uuid.generate());
-    offer.send(Uuid.generate());
-    offer.accept(Uuid.generate());
-    vi.mocked(offerRepo.findById).mockResolvedValue(offer);
-
-    await expect(handler.handle(command())).rejects.toThrow(
-      'Cannot withdraw offer in terminal state',
-    );
-    expect(offerRepo.save).not.toHaveBeenCalled();
   });
 });

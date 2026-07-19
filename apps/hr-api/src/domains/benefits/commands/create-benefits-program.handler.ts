@@ -7,6 +7,8 @@ import { BenefitsProgramRepository } from '../repositories/benefits-program.repo
 import { BenefitsProgram } from '../aggregates/benefits-program.aggregate.js';
 import { BenefitsProgramFsm } from '../fsm/benefits-program.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 
 /**
  * Command handler for creating a new BenefitsProgram.
@@ -20,6 +22,7 @@ export class CreateBenefitsProgramHandler implements ICommandHandler {
     private readonly repo: BenefitsProgramRepository,
     private readonly publisher: BenefitsEventsPublisher,
     private readonly fsm: BenefitsProgramFsm,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -30,6 +33,8 @@ export class CreateBenefitsProgramHandler implements ICommandHandler {
       carrierId?: Uuid;
       effectiveFrom?: Date;
       effectiveUntil?: Date;
+      monthlyPremium?: number;
+      currency?: string;
     };
 
     const program = BenefitsProgram.create({
@@ -40,6 +45,8 @@ export class CreateBenefitsProgramHandler implements ICommandHandler {
       carrierId: payload.carrierId,
       effectiveFrom: payload.effectiveFrom,
       effectiveUntil: payload.effectiveUntil,
+      monthlyPremium: payload.monthlyPremium ?? 0,
+      currency: payload.currency ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(command.tenantId)),
       correlationId: command.correlationId,
     });
 
@@ -49,7 +56,12 @@ export class CreateBenefitsProgramHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { programId: program.id.value, status: program.status },
+      data: {
+        programId: program.id.value,
+        monthlyPremium: program.monthlyPremium,
+        currency: program.currency,
+        status: program.status,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: program.id,

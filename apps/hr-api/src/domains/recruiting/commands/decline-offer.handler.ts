@@ -9,12 +9,16 @@ import { RecruitingEventsPublisher } from '../events/recruiting-events.publisher
 
 export interface DeclineOfferCommandPayload {
   offerId: Uuid;
+  reason: string;
 }
 
 /**
  * Handler for the DeclineOffer command.
  *
- * Transitions an offer from SENT to DECLINED.
+ * Transitions an offer from SENT to DECLINED (terminal). Candidate-facing
+ * flows (e.g. moving the candidate application forward) are intentionally
+ * out of scope here, matching the narrow, single-aggregate convention used
+ * by ApproveOffer and SendOffer.
  */
 @Injectable()
 @CommandHandler('DeclineOffer')
@@ -34,13 +38,32 @@ export class DeclineOfferHandler implements ICommandHandler {
       throw new NotFoundException('Offer not found');
     }
 
+    if (offer.status === 'DECLINED') {
+      // Idempotent retry: the offer is already in the target terminal
+      // state, so return the existing outcome instead of re-invoking
+      // `decline()`, which would throw ConflictError on a retried command.
+      return {
+        success: true,
+        data: { offerId: offer.id.value, status: offer.status, reason: payload.reason },
+        commandId: command.commandId,
+        correlationId: command.correlationId,
+        aggregateId: offer.id,
+        newState: offer.status,
+        newVersion: offer.aggregateVersion,
+        allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
+        fieldAccessDecisions: {},
+        eventsEmitted: [],
+        auditRecordId: command.commandId,
+      };
+    }
+
     offer.decline(command.correlationId);
     await this.offerRepo.save(offer);
     await this.eventPublisher.publishUncommitted(offer, command.tenantId, command.correlationId);
 
     return {
       success: true,
-      data: { offerId: offer.id.value, status: offer.status },
+      data: { offerId: offer.id.value, status: offer.status, reason: payload.reason },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: offer.id,
@@ -49,7 +72,7 @@ export class DeclineOfferHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
       eventsEmitted: ['OfferDeclined'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

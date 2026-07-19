@@ -27,10 +27,13 @@ import {
   CreateJobRequisitionDtoSchema,
   CloseJobRequisitionDto,
   CloseJobRequisitionDtoSchema,
+  RejectJobRequisitionDto,
   SubmitCandidateDto,
   SubmitCandidateDtoSchema,
   ScreenCandidateDto,
   ScreenCandidateDtoSchema,
+  RejectCandidateDto,
+  WithdrawCandidateDto,
   ScheduleInterviewDto,
   ScheduleInterviewDtoSchema,
   CreateOfferDto,
@@ -39,6 +42,8 @@ import {
   SendOfferDtoSchema,
   AcceptOfferDto,
   AcceptOfferDtoSchema,
+  DeclineOfferDto,
+  WithdrawOfferDto,
   ZodValidationPipe,
   RecordCandidateEeoSelfIdentificationDto,
   AnalyzeRequisitionAdverseImpactDto,
@@ -122,9 +127,14 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async rejectRequisition(
     @Param('id') id: string,
+    @Body() dto: RejectJobRequisitionDto,
     @Req() req: Request,
   ) {
-    const envelope = this.buildCommand('RejectJobRequisition', req, { requisitionId: id }, {
+    // Wrap the route-param id in a real Uuid before it reaches the command
+    // payload -- RejectJobRequisitionHandler reads `payload.requisitionId.value`
+    // directly, which would silently resolve to `undefined` (not a real
+    // crash, but a broken lookup) if a plain string leaked through here.
+    const envelope = this.buildCommand('RejectJobRequisition', req, { requisitionId: new Uuid(id), reason: dto.reason }, {
       aggregateType: 'JobRequisition',
       aggregateId: id,
       expectedState: 'PENDING_APPROVAL',
@@ -273,6 +283,58 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('candidates/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a candidate' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async rejectCandidate(
+    @Param('id') id: string,
+    @Body() dto: RejectCandidateDto,
+    @Req() req: Request,
+  ) {
+    // Load the candidate first so (a) the payload carries a real Uuid
+    // instance -- RejectCandidateHandler reads `payload.applicationId.value`
+    // directly, which would silently resolve to `undefined` for a plain
+    // string -- and (b) `expectedState` can be set to its current status,
+    // matching the StartInterview route's pattern. RejectCandidate is valid
+    // from multiple source states (NEW/SCREENING/INTERVIEWING/OFFER_PENDING),
+    // so a fixed literal expectedState (like RejectJobRequisition's) isn't
+    // possible here; without this, the FSM-evaluation pipeline step is
+    // skipped entirely and concurrent state changes go undetected.
+    const candidate = await this.candidateRepo.findById(new Uuid(id));
+    if (!candidate) {
+      throw new BadRequestException('Candidate not found');
+    }
+    const envelope = this.buildCommand('RejectCandidate', req, { applicationId: candidate.id, reason: dto.reason }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      expectedState: candidate.status,
+      reason: 'Reject candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw a candidate application' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async withdrawCandidate(
+    @Param('id') id: string,
+    @Body() dto: WithdrawCandidateDto,
+    @Req() req: Request,
+  ) {
+    // See rejectCandidate() above for why the aggregate is loaded first.
+    const candidate = await this.candidateRepo.findById(new Uuid(id));
+    if (!candidate) {
+      throw new BadRequestException('Candidate not found');
+    }
+    const envelope = this.buildCommand('WithdrawCandidate', req, { applicationId: candidate.id, reason: dto.reason }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      expectedState: candidate.status,
+      reason: 'Withdraw candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('candidates/:id/commands/schedule-interview')
   @ApiOperation({ summary: 'Schedule an interview for a candidate' })
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
@@ -316,36 +378,6 @@ export class RecruitingController {
       aggregateId: id,
       expectedState: 'OFFER_PENDING',
       reason: 'Hire candidate via API',
-    });
-    return this.commandBus.execute(envelope);
-  }
-
-  @Post('candidates/:id/commands/reject')
-  @ApiOperation({ summary: 'Reject a candidate' })
-  @ApiParam({ name: 'id', description: 'Candidate UUID' })
-  async rejectCandidate(
-    @Param('id') id: string,
-    @Req() req: Request,
-  ) {
-    const envelope = this.buildCommand('RejectCandidate', req, { applicationId: id }, {
-      aggregateType: 'Candidate',
-      aggregateId: id,
-      reason: 'Reject candidate via API',
-    });
-    return this.commandBus.execute(envelope);
-  }
-
-  @Post('candidates/:id/commands/withdraw')
-  @ApiOperation({ summary: 'Withdraw a candidate application' })
-  @ApiParam({ name: 'id', description: 'Candidate UUID' })
-  async withdrawCandidate(
-    @Param('id') id: string,
-    @Req() req: Request,
-  ) {
-    const envelope = this.buildCommand('WithdrawCandidate', req, { applicationId: id }, {
-      aggregateType: 'Candidate',
-      aggregateId: id,
-      reason: 'Withdraw candidate via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -543,9 +575,13 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async declineOffer(
     @Param('id') id: string,
+    @Body() dto: DeclineOfferDto,
     @Req() req: Request,
   ) {
-    const envelope = this.buildCommand('DeclineOffer', req, { offerId: id }, {
+    // Wrap the route-param id in a real Uuid before it reaches the command
+    // payload -- DeclineOfferHandler reads `payload.offerId.value` directly,
+    // which would silently resolve to `undefined` for a plain string.
+    const envelope = this.buildCommand('DeclineOffer', req, { offerId: new Uuid(id), reason: dto.reason }, {
       aggregateType: 'Offer',
       aggregateId: id,
       expectedState: 'SENT',
@@ -575,11 +611,26 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async withdrawOffer(
     @Param('id') id: string,
+    @Body() dto: WithdrawOfferDto,
     @Req() req: Request,
   ) {
-    const envelope = this.buildCommand('WithdrawOffer', req, { offerId: id }, {
+    // Load the offer first so (a) the payload carries a real Uuid instance
+    // -- WithdrawOfferHandler reads `payload.offerId.value` directly, which
+    // would silently resolve to `undefined` for a plain string -- and (b)
+    // `expectedState` can be set to its current status, matching the
+    // StartInterview route's pattern. WithdrawOffer is valid from multiple
+    // source states (DRAFT/PENDING_APPROVAL/APPROVED/SENT), so a fixed
+    // literal expectedState isn't possible here; without this, the
+    // FSM-evaluation pipeline step is skipped entirely and concurrent state
+    // changes go undetected.
+    const offer = await this.offerRepo.findById(new Uuid(id));
+    if (!offer) {
+      throw new BadRequestException('Offer not found');
+    }
+    const envelope = this.buildCommand('WithdrawOffer', req, { offerId: offer.id, reason: dto.reason }, {
       aggregateType: 'Offer',
       aggregateId: id,
+      expectedState: offer.status,
       reason: 'Withdraw offer via API',
     });
     return this.commandBus.execute(envelope);

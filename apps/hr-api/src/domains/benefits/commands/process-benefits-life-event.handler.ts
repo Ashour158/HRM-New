@@ -35,6 +35,8 @@ export class ProcessBenefitsLifeEventHandler implements ICommandHandler {
         workerId: event.workerId.value,
         eventType: event.eventType,
         processedBy: payload.processedBy?.value,
+        // Required by BenefitsCarrierConsumer for the LifeEventProcessed event.
+        effectiveDate: event.eventDate.toISOString(),
         status: event.status,
       },
       commandId: command.commandId,
