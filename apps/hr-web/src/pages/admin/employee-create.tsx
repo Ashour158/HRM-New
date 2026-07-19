@@ -26,6 +26,9 @@ import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useUIStore } from '@/stores/ui-store';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
+import { isCustomFieldRuleKey } from '@/lib/custom-fields';
+import { TextField } from '@/components/admin/text-field';
+import { DynamicFieldInput } from '@/components/admin/dynamic-field-input';
 import type {
   EmployeeDuplicateCheckResult,
   HcmSetupConfig,
@@ -140,6 +143,7 @@ interface EmployeeCreateForm {
   employmentContractEndDate: string;
   selectedDocumentRequirementCode: string;
   documents: AttachmentMeta[];
+  customFieldValues: Record<string, unknown>;
 }
 
 interface CreateEmployeeResult {
@@ -267,6 +271,7 @@ const initialForm: EmployeeCreateForm = {
   employmentContractEndDate: '',
   selectedDocumentRequirementCode: '',
   documents: [],
+  customFieldValues: {},
 };
 
 function cleanObject<T extends Record<string, unknown>>(value: T): Partial<T> | undefined {
@@ -315,42 +320,6 @@ function formatFileSize(bytes: number) {
 function flagEmoji(countryCode?: string) {
   if (!countryCode || !/^[A-Z]{2}$/.test(countryCode)) return countryCode ?? '';
   return String.fromCodePoint(...countryCode.split('').map((char) => char.charCodeAt(0) + 127397));
-}
-
-function TextField({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  placeholder,
-  required,
-  disabled,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-  disabled?: boolean;
-}) {
-  const id = React.useId();
-  return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>
-        {label}
-        {required ? <span className="text-destructive"> *</span> : null}
-      </Label>
-      <Input
-        id={id}
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </div>
-  );
 }
 
 function EntryList({
@@ -507,6 +476,10 @@ export function AdminEmployeeCreate() {
       ? 'Manual by app admin'
       : 'Manual employee ID';
   const isRequired = (fieldKey: string) => activeFieldRules.some((rule) => rule.fieldKey === fieldKey && rule.required);
+  const customFieldRules = React.useMemo(
+    () => activeFieldRules.filter((rule) => isCustomFieldRuleKey(rule.fieldKey)),
+    [activeFieldRules],
+  );
   const fieldRuleValue = (fieldKey: string) => {
     if (fieldKey === 'department') return form.departmentId !== 'none' ? form.departmentId : form.departmentName;
     if (fieldKey === 'workAuthorization') return cleanObject({
@@ -530,6 +503,7 @@ export function AdminEmployeeCreate() {
       startDate: form.employmentContractStartDate,
       endDate: form.employmentContractEndDate,
     });
+    if (isCustomFieldRuleKey(fieldKey)) return form.customFieldValues[fieldKey];
     return (form as unknown as Record<string, unknown>)[fieldKey];
   };
   const missingRequiredFieldRules = activeFieldRules.filter((rule) => {
@@ -889,6 +863,7 @@ export function AdminEmployeeCreate() {
       retentionHolds: cleanEntries(form.retentionHolds),
       employmentContract,
       documents: form.documents,
+      customFieldValues: cleanObject(form.customFieldValues),
     });
     addNotification({
       title: 'Employee created',
@@ -906,6 +881,7 @@ export function AdminEmployeeCreate() {
 
   const current = steps[activeStep];
   const displayName = `${form.firstName || 'New'} ${form.lastName || 'Employee'}`.trim();
+  const customFieldRulesForStep = customFieldRules.filter((rule) => stepIdForRuleSection(rule.section) === current.id);
 
   return (
     <div className="-m-4 min-h-[calc(100vh-7rem)] space-y-6 px-6 py-6">
@@ -1245,7 +1221,7 @@ export function AdminEmployeeCreate() {
                     });
                   }}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger aria-label="Department">
                     <SelectValue placeholder="Select from org chart" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1756,6 +1732,25 @@ export function AdminEmployeeCreate() {
             {error ? <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{error}</div> : null}
           </section>
         )}
+
+        {customFieldRulesForStep.length > 0 ? (
+          <section className="mt-6 max-w-6xl space-y-4 border-t pt-6">
+            <div>
+              <h3 className="text-base font-semibold">Custom Fields</h3>
+              <p className="text-sm text-muted-foreground">Admin-defined fields from Admin Settings for this section.</p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              {customFieldRulesForStep.map((rule) => (
+                <DynamicFieldInput
+                  key={rule.fieldKey}
+                  rule={rule}
+                  value={form.customFieldValues[rule.fieldKey]}
+                  onChange={(value) => update('customFieldValues', { ...form.customFieldValues, [rule.fieldKey]: value })}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
       </main>
 
       <div className="sticky bottom-0 flex items-center justify-between fusion-glass rounded-[2rem] px-6 py-4">

@@ -10,6 +10,7 @@ import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { ErrorState } from '@/components/common/error-state';
 import { useUIStore } from '@/stores/ui-store';
 import { DEFAULT_HCM_SETUP } from '@/lib/hcm-setup-defaults';
+import { isCustomFieldRuleKey } from '@/lib/custom-fields';
 import type {
   CityOption,
   DocumentRequirement,
@@ -250,6 +251,7 @@ export function AdminSettings() {
               section: 'Custom',
               required: false,
               active: true,
+              fieldType: 'TEXT',
             }])}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -257,34 +259,81 @@ export function AdminSettings() {
           </Button>
         </div>
         <div className="divide-y border-y">
-          {setup.fieldRules.map((rule, index) => (
-            <div key={`${rule.fieldKey}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1.2fr_1.4fr_1fr_.8fr_.8fr_3rem]">
-              <Input value={rule.fieldKey} placeholder="fieldKey" aria-label={`Field key, row ${index + 1}`} onChange={(event) => updateFieldRule(index, { fieldKey: event.target.value })} />
-              <Input value={rule.label} placeholder="Label" aria-label={`Field label, row ${index + 1}`} onChange={(event) => updateFieldRule(index, { label: event.target.value })} />
-              <Input value={rule.section} placeholder="Section" aria-label={`Field section, row ${index + 1}`} onChange={(event) => updateFieldRule(index, { section: event.target.value })} />
-              <Select value={rule.required ? 'REQUIRED' : 'OPTIONAL'} onValueChange={(value) => updateFieldRule(index, { required: value === 'REQUIRED' })}>
-                <SelectTrigger aria-label={`Field required setting, row ${index + 1}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="REQUIRED">Required</SelectItem>
-                  <SelectItem value="OPTIONAL">Optional</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={rule.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updateFieldRule(index, { active: value === 'ACTIVE' })}>
-                <SelectTrigger aria-label={`Field active status, row ${index + 1}`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="INACTIVE">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('fieldRules', setup.fieldRules.filter((_, rowIndex) => rowIndex !== index))}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+          {setup.fieldRules.map((rule, index) => {
+            const builtIn = !isCustomFieldRuleKey(rule.fieldKey);
+            const fieldType = rule.fieldType ?? 'TEXT';
+            return (
+              <div key={`${rule.fieldKey}-${index}`} className="space-y-2 py-3">
+                <div className="grid gap-3 md:grid-cols-[1fr_1.2fr_.9fr_1fr_.8fr_.8fr_3rem]">
+                  <Input
+                    value={rule.fieldKey}
+                    placeholder="fieldKey"
+                    aria-label={`Field key, row ${index + 1}`}
+                    onChange={(event) => updateFieldRule(index, { fieldKey: event.target.value })}
+                  />
+                  <Input
+                    value={rule.label}
+                    placeholder="Label"
+                    aria-label={`Field label, row ${index + 1}`}
+                    onChange={(event) => updateFieldRule(index, { label: event.target.value })}
+                  />
+                  <Input
+                    value={rule.section}
+                    placeholder="Section"
+                    aria-label={`Field section, row ${index + 1}`}
+                    onChange={(event) => updateFieldRule(index, { section: event.target.value })}
+                  />
+                  <Select
+                    value={fieldType}
+                    disabled={builtIn}
+                    onValueChange={(value) => updateFieldRule(index, { fieldType: value as FieldRule['fieldType'] })}
+                  >
+                    <SelectTrigger aria-label={`Field type, row ${index + 1}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TEXT">Text</SelectItem>
+                      <SelectItem value="NUMBER">Number</SelectItem>
+                      <SelectItem value="DATE">Date</SelectItem>
+                      <SelectItem value="BOOLEAN">Yes / No</SelectItem>
+                      <SelectItem value="SELECT">Dropdown</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={rule.required ? 'REQUIRED' : 'OPTIONAL'} onValueChange={(value) => updateFieldRule(index, { required: value === 'REQUIRED' })}>
+                    <SelectTrigger aria-label={`Field required setting, row ${index + 1}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="REQUIRED">Required</SelectItem>
+                      <SelectItem value="OPTIONAL">Optional</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={rule.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updateFieldRule(index, { active: value === 'ACTIVE' })}>
+                    <SelectTrigger aria-label={`Field active status, row ${index + 1}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ACTIVE">Active</SelectItem>
+                      <SelectItem value="INACTIVE">Inactive</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="ghost" size="icon" aria-label="Remove row" onClick={() => updateSetup('fieldRules', setup.fieldRules.filter((_, rowIndex) => rowIndex !== index))}>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+                {builtIn ? (
+                  <p className="text-xs text-muted-foreground">Built-in field — always rendered with its dedicated input; field type is ignored.</p>
+                ) : fieldType === 'SELECT' ? (
+                  <Input
+                    value={(rule.options ?? []).join(', ')}
+                    placeholder="Dropdown options, comma separated"
+                    aria-label={`Dropdown options, row ${index + 1}`}
+                    onChange={(event) => updateFieldRule(index, { options: splitCsv(event.target.value) })}
+                  />
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </section>
 

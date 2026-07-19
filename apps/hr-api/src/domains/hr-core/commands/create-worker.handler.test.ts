@@ -196,6 +196,84 @@ describe('CreateWorkerHandler profile intake validation', () => {
     expect(workerRepo.save).not.toHaveBeenCalled();
   });
 
+  it('rejects a required custom field that was left unfilled', async () => {
+    vi.mocked(hcmSetup.getSetup).mockResolvedValue({
+      employeeIdPolicy: { mode: 'MANUAL_ONLY' },
+      departments: [],
+      jobTitles: [],
+      documentRequirements: [],
+      genderOptions: [],
+      workPhoneEnabled: true,
+      locations: [],
+      cities: [],
+      socialMediaFields: [],
+      payrollCalculationPolicy: { taxRatePercent: 15, employeeInsuranceRatePercent: 7 },
+      fieldRules: [
+        { fieldKey: 'localUnionCode', label: 'Local Union Code', section: 'Custom', required: true, active: true, fieldType: 'TEXT' },
+      ],
+    });
+
+    await expect(handler.handle(command({ workEmail: 'amina.work@example.com' }))).rejects.toThrow(
+      'Local Union Code is required by Admin Settings',
+    );
+
+    expect(workerRepo.save).not.toHaveBeenCalled();
+    expect(personalDataRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects a custom field value that does not match its configured type', async () => {
+    vi.mocked(hcmSetup.getSetup).mockResolvedValue({
+      employeeIdPolicy: { mode: 'MANUAL_ONLY' },
+      departments: [],
+      jobTitles: [],
+      documentRequirements: [],
+      genderOptions: [],
+      workPhoneEnabled: true,
+      locations: [],
+      cities: [],
+      socialMediaFields: [],
+      payrollCalculationPolicy: { taxRatePercent: 15, employeeInsuranceRatePercent: 7 },
+      fieldRules: [
+        { fieldKey: 'shiftCount', label: 'Shift Count', section: 'Custom', required: false, active: true, fieldType: 'NUMBER' },
+      ],
+    });
+
+    await expect(
+      handler.handle(command({ workEmail: 'amina.work@example.com', customFieldValues: { shiftCount: 'three' } })),
+    ).rejects.toThrow('Shift Count must be a number');
+
+    expect(workerRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('persists a genuinely custom field value as a CUSTOM personal data record on create', async () => {
+    vi.mocked(hcmSetup.getSetup).mockResolvedValue({
+      employeeIdPolicy: { mode: 'MANUAL_ONLY' },
+      departments: [],
+      jobTitles: [],
+      documentRequirements: [],
+      genderOptions: [],
+      workPhoneEnabled: true,
+      locations: [],
+      cities: [],
+      socialMediaFields: [],
+      payrollCalculationPolicy: { taxRatePercent: 15, employeeInsuranceRatePercent: 7 },
+      fieldRules: [
+        { fieldKey: 'localUnionCode', label: 'Local Union Code', section: 'Custom', required: true, active: true, fieldType: 'TEXT' },
+      ],
+    });
+
+    await handler.handle(
+      command({
+        workEmail: 'amina.work@example.com',
+        customFieldValues: { localUnionCode: 'EG-CUSTOM-1', unconfiguredKey: 'should-be-dropped' },
+      }),
+    );
+
+    const records = vi.mocked(personalDataRepo.save).mock.calls.map(([record]) => record);
+    const customRecord = records.find((record) => record.dataCategory === 'CUSTOM');
+    expect(customRecord?.payload).toEqual({ localUnionCode: 'EG-CUSTOM-1' });
+  });
+
   it('calculates deductions from gross salary and stores extended governed profile records', async () => {
     await handler.handle(
       command({

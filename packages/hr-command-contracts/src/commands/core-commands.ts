@@ -66,6 +66,13 @@ export interface CreateWorkerPayload {
   privacyNotices?: Record<string, unknown>[];
   retentionHolds?: Record<string, unknown>[];
   employmentContract?: Record<string, unknown>;
+  /**
+   * Values for genuinely admin-defined custom fields (Admin Settings > Employee
+   * Field Rules) keyed by fieldKey, for any fieldKey that is not one of the
+   * fixed, built-in fields. Persisted as a PersonalDataRecord with
+   * dataCategory 'CUSTOM'.
+   */
+  customFieldValues?: Record<string, unknown>;
 }
 
 export const CreateWorkerPayloadSchema = z.object({
@@ -127,6 +134,7 @@ export const CreateWorkerPayloadSchema = z.object({
   privacyNotices: z.array(z.record(z.unknown())).optional(),
   retentionHolds: z.array(z.record(z.unknown())).optional(),
   employmentContract: z.record(z.unknown()).optional(),
+  customFieldValues: z.record(z.unknown()).optional(),
 });
 
 export const ActivateWorkerCommandName = 'ActivateWorker' as const;

@@ -15,7 +15,9 @@ import { PersonalDataRecordRepository } from '../repositories/personal-data-reco
 import { WorkerEventsPublisher } from '../events/worker-events.publisher.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import type { DataCategory } from '../aggregates/personal-data-record.aggregate.js';
+import { isCustomFieldRuleKey } from '../../hcm-setup/hcm-setup.types.js';
 import type { DocumentRequirement, HcmSetupConfig, SetupOption } from '../../hcm-setup/hcm-setup.types.js';
+import { filterAllowedCustomFieldValues, hasCustomFieldValue, validateCustomFieldValue } from '../custom-field-values.js';
 
 function mapFieldDecision(decision: FieldAccessDecision): 'VISIBLE' | 'MASKED' | 'HIDDEN' | 'DENIED' {
   switch (decision) {
@@ -30,12 +32,7 @@ function mapFieldDecision(decision: FieldAccessDecision): 'VISIBLE' | 'MASKED' |
   }
 }
 
-function hasValue(value: unknown): boolean {
-  if (value === undefined || value === null || value === '') return false;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length > 0;
-  return true;
-}
+const hasValue = hasCustomFieldValue;
 
 /** Minimum working age enforced by the employment-eligibility gate below. */
 const MINIMUM_WORKING_AGE = 18;
@@ -106,7 +103,6 @@ function buildEmploymentEligibilityInput(
     legalEntityId: payload.legalEntityId ?? '',
   };
 }
-
 
 export function buildFieldAccessDecisions(
   fieldPolicy: FieldPolicyEngine,
@@ -318,6 +314,7 @@ export class CreateWorkerHandler {
         documents: payload.documents,
         employmentContract: payload.employmentContract,
       }],
+      ['CUSTOM', filterAllowedCustomFieldValues(payload.customFieldValues, setup)],
     ];
 
     for (const [dataCategory, sectionPayload] of profileSections) {
@@ -407,9 +404,16 @@ export class CreateWorkerHandler {
   }
 
   private validateRequiredFieldRules(payload: CreateWorkerPayload, setup: HcmSetupConfig): void {
-    for (const rule of setup.fieldRules.filter((fieldRule) => fieldRule.active && fieldRule.required)) {
-      if (!hasValue(this.readFieldRuleValue(payload, rule.fieldKey))) {
+    for (const rule of setup.fieldRules.filter((fieldRule) => fieldRule.active)) {
+      const value = this.readFieldRuleValue(payload, rule.fieldKey);
+      if (rule.required && !hasValue(value)) {
         throw new ValidationError(`${rule.label} is required by Admin Settings`);
+      }
+      // Genuinely custom fields (not one of the fixed, built-in fields) are
+      // typed by the admin via fieldType, so validate their shape here. Known
+      // fields already have dedicated, correctly-typed inputs/payload shapes.
+      if (isCustomFieldRuleKey(rule.fieldKey) && hasValue(value)) {
+        validateCustomFieldValue(rule, value);
       }
     }
   }
@@ -417,6 +421,9 @@ export class CreateWorkerHandler {
   private readFieldRuleValue(payload: CreateWorkerPayload, fieldKey: string): unknown {
     if (fieldKey === 'department') {
       return payload.departmentId ?? payload.departmentName;
+    }
+    if (isCustomFieldRuleKey(fieldKey)) {
+      return (payload.customFieldValues as Record<string, unknown> | undefined)?.[fieldKey];
     }
     return (payload as unknown as Record<string, unknown>)[fieldKey];
   }

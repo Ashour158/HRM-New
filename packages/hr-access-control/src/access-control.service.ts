@@ -78,12 +78,17 @@ export class AccessControlService {
       selfServiceAllowed = this.selfService.isManagerAllowed(command.commandName);
     }
 
-    // SoD check
+    // SoD check -- actionPermission identifies which side of an
+    // incompatiblePermissionPairs entry this specific command exercises;
+    // actorEffectivePermissions is checked for the OTHER side, so a
+    // preparer/approver conflict blocks only the approval-side action, not
+    // every action gated by either permission (HCM-P0-5).
     const sodContext: SodContext = {
       actionName: command.commandName,
       actionPermission: this.inferPermissions(command)[0],
     };
-    const sodResult = this.sod.checkSoD(actor.roles, command.commandName, sodContext);
+    const actorEffectivePermissions = this.rbac.getEffectivePermissions(actor.roles);
+    const sodResult = this.sod.checkSoD(actor.roles, actorEffectivePermissions, sodContext);
 
     // Approval requirement
     const requiresApproval =
@@ -151,11 +156,16 @@ export class AccessControlService {
   }
 
   /**
-   * Check SoD for a command and actor roles.
+   * Check SoD for a command and actor roles. Requires the full command
+   * envelope (not just the command name) so the permission the command
+   * actually requires can be correctly inferred -- checkSoD can only ever
+   * detect a preparer/approver conflict when it knows which side of the
+   * pair the current action is on (HCM-P0-5).
    */
-  checkSoD(commandName: string, actorRoles: string[]): SodResult {
-    const context: SodContext = { actionName: commandName };
-    return this.sod.checkSoD(actorRoles, commandName, context);
+  checkSoD(command: HrCommandEnvelope, actorRoles: string[]): SodResult {
+    const context: SodContext = { actionName: command.commandName, actionPermission: this.inferPermissions(command)[0] };
+    const actorEffectivePermissions = this.rbac.getEffectivePermissions(actorRoles);
+    return this.sod.checkSoD(actorRoles, actorEffectivePermissions, context);
   }
 
   /**

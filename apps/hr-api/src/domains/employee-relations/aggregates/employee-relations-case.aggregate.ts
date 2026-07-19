@@ -2,6 +2,7 @@
  * @hrDataClassification SPECIAL_CATEGORY - ER allegations, investigation evidence, disciplinary outcomes, accommodation, and worker-linked case fields.
  */
 import { AggregateRoot, DomainEvent, Uuid, Guard, ValidationError } from '@hcm/shared-kernel';
+import { CASE_SEVERITIES, type CaseSeverity } from '@hcm/policy-engines';
 
 export type EmployeeRelationsCaseStatus = 'OPEN' | 'UNDER_REVIEW' | 'INVESTIGATION' | 'DISCIPLINARY' | 'RESOLVED' | 'CLOSED' | 'ESCALATED';
 
@@ -11,7 +12,15 @@ export interface EmployeeRelationsCaseProps {
   caseNumber: string;
   subjectWorkerId: Uuid;
   caseType: string;
-  severity: string;
+  /**
+   * NOTE: not currently persisted — the repository hardcodes 'LOW' on read and
+   * `toRow()` drops it on write (pre-existing gap, same class of bug the
+   * 20260620000001000_er_description_columns migration fixed for
+   * DisciplinaryAction/AccommodationCase). Typed here for consistency with the
+   * shared CaseSeverity taxonomy; wiring persistence + a case-level escalation
+   * gate is a documented follow-up (see PR description), not done in this change.
+   */
+  severity: CaseSeverity;
   description: string;
   openedBy: Uuid;
   assignedTo?: Uuid;
@@ -64,7 +73,7 @@ export class EmployeeRelationsCase extends AggregateRoot {
   caseNumber: string;
   subjectWorkerId: Uuid;
   caseType: string;
-  severity: string;
+  severity: CaseSeverity;
   description: string;
   openedBy: Uuid;
   assignedTo?: Uuid;
@@ -95,6 +104,7 @@ export class EmployeeRelationsCase extends AggregateRoot {
   static open(props: EmployeeRelationsCaseProps, correlationId: Uuid): EmployeeRelationsCase {
     Guard.againstEmptyString(props.caseNumber, 'caseNumber');
     Guard.againstEmptyString(props.caseType, 'caseType');
+    Guard.againstInvalidEnum(props.severity, CASE_SEVERITIES, 'severity');
     const erc = new EmployeeRelationsCase({ ...props, status: 'OPEN', createdAt: new Date(), updatedAt: new Date() });
     erc.addDomainEvent(new EmployeeRelationsCaseOpened({ tenantId: erc.tenantId, aggregateId: erc.id, correlationId }));
     return erc;

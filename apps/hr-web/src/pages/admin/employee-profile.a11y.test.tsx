@@ -129,6 +129,7 @@ describe('AdminEmployeeProfile accessibility', () => {
     apiClientGetMock.mockImplementation((url: string) => {
       if (url === `/hr/core/workers/${workerId}/profile`) return apiResponse(profile);
       if (url === `/hr/core/workers/${workerId}/master-profile`) return apiResponse({});
+      if (url === '/admin/hcm-setup') return apiResponse({ fieldRules: [] });
       if (url === '/policy/allowed-actions') return apiResponse([]);
       if (url === '/audit') return apiResponse([]);
       return apiResponse([]);

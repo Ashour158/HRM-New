@@ -228,12 +228,23 @@ export interface DocumentRequirement extends SetupOption {
   acceptedMimeTypes: string[];
 }
 
+export type FieldRuleType = 'TEXT' | 'NUMBER' | 'DATE' | 'BOOLEAN' | 'SELECT';
+
 export interface FieldRule {
   fieldKey: string;
   label: string;
   section: string;
   required: boolean;
   active: boolean;
+  /**
+   * Input type used to render a genuinely custom field (any fieldKey that is
+   * not one of the fixed, built-in fields — see KNOWN_FIELD_RULE_KEYS in
+   * @/lib/custom-fields). Defaults to 'TEXT' when omitted. Ignored for
+   * built-in fields, which always render their dedicated real input.
+   */
+  fieldType?: FieldRuleType;
+  /** Selectable values when fieldType is 'SELECT'. */
+  options?: string[];
 }
 
 export type LeaveDurationUnit = 'DAYS' | 'HOURS';

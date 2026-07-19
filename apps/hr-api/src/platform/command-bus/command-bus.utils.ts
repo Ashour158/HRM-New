@@ -167,6 +167,10 @@ export function mapActorType(
     default:
       if (roles.includes('HR_ADMIN')) return 'HR_ADMIN';
       if (roles.includes('WORKFORCE_PLANNING_ADMIN')) return 'HR_ADMIN';
+      // PAYROLL_APPROVER deliberately holds PAYROLL_APPROVE without
+      // PAYROLL_CREATE (HCM-P0-5) -- it must bypass EMPLOYEE self-service
+      // allowlisting like other admin-tier roles, not fall through to it.
+      if (roles.includes('PAYROLL_APPROVER')) return 'HR_ADMIN';
       if (roles.includes('MANAGER')) return 'MANAGER';
       if (roles.includes('HRBP')) return 'HRBP';
       if (roles.includes('EXECUTIVE')) return 'EXECUTIVE';

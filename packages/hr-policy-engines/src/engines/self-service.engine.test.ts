@@ -78,4 +78,27 @@ describe('SelfServiceAuthorityEngine', () => {
     expect(decision.decisionCode).toBe('FORBIDDEN');
     expect(decision.explanation).toContain('not allowed');
   });
+
+  it('allows a PAYROLL_APPROVER actor to approve a payroll cycle (HCM-P0-5)', async () => {
+    // PAYROLL_APPROVER (packages/hr-access-control/src/rbac/roles.ts) holds
+    // PAYROLL_APPROVE without PAYROLL_CREATE so it can pass the
+    // preparer/approver SoD gate that PAYROLL_ADMIN can never satisfy. This
+    // is an independent gate keyed off ADMIN_ROLES/actorRoles (not the
+    // mapped actorType), so it must recognize the role by name too -- or
+    // PayrollCycle, an ADMIN_ONLY_AGGREGATES entry, is forbidden to every
+    // role in the RBAC catalog that can legally approve a cycle.
+    const engine = new SelfServiceAuthorityEngine();
+
+    const decision = await engine.execute({
+      actorType: 'HR_ADMIN',
+      commandName: 'ApprovePayrollCycle',
+      actorRoles: ['PAYROLL_APPROVER'],
+      abacContext: {
+        aggregateType: 'PayrollCycle',
+        commandType: 'APPROVE',
+      },
+    }, context);
+
+    expect(decision.decisionCode).toBe('ALLOWED');
+  });
 });
