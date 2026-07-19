@@ -9,6 +9,7 @@ import { HrAiUseCaseRepository } from './repositories/hr-ai-use-case.repository.
 import { HrAiModelRunRepository } from './repositories/hr-ai-model-run.repository.js';
 import { HrAiBiasTestRepository } from './repositories/hr-ai-bias-test.repository.js';
 import { HrAiKillSwitchRepository } from './repositories/hr-ai-kill-switch.repository.js';
+import { HrAiUseCaseGuard } from './services/hr-ai-use-case-guard.service.js';
 import { RegisterHrAiUseCaseHandler } from './commands/register-hr-ai-use-case.handler.js';
 import { ReviewHrAiUseCaseHandler } from './commands/review-hr-ai-use-case.handler.js';
 import { ApproveHrAiUseCaseHandler } from './commands/approve-hr-ai-use-case.handler.js';
@@ -37,6 +38,7 @@ import { HrAiGovernanceEventsPublisher } from './events/hr-ai-governance-events.
   providers: [
     HrAiUseCaseFsmRegistrar, HrAiModelRunFsmRegistrar, HrAiBiasTestFsmRegistrar, HrAiKillSwitchFsmRegistrar,
     HrAiUseCaseRepository, HrAiModelRunRepository, HrAiBiasTestRepository, HrAiKillSwitchRepository,
+    HrAiUseCaseGuard,
     RegisterHrAiUseCaseHandler, ReviewHrAiUseCaseHandler, ApproveHrAiUseCaseHandler, ActivateHrAiUseCaseHandler, SuspendHrAiUseCaseHandler, RetireHrAiUseCaseHandler, RejectHrAiUseCaseHandler,
     CreateHrAiModelRunHandler, StartHrAiModelRunHandler, CompleteHrAiModelRunHandler, FailHrAiModelRunHandler,
     PlanHrAiBiasTestHandler, StartHrAiBiasTestHandler, CompleteHrAiBiasTestHandler, FailHrAiBiasTestHandler,
