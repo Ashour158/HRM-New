@@ -1001,6 +1001,30 @@ describe('CommandBus security gates', () => {
     });
   });
 
+  it('allows a PAYROLL_APPROVER actor through the self-service policy engine for payroll approval (HCM-P0-5)', async () => {
+    // PAYROLL_APPROVER (packages/hr-access-control/src/rbac/roles.ts) is
+    // deliberately not PAYROLL_ADMIN so it can pass the preparer/approver SoD
+    // gate -- but SelfServiceAuthorityEngine's ADMIN_ROLES allowlist is an
+    // independent, aggregate-type-keyed gate that must also recognize it, or
+    // ApprovePayrollCycle is unconditionally forbidden (PAYROLLCYCLE is an
+    // ADMIN_ONLY_AGGREGATES entry) for every actor in the RBAC catalog.
+    const step = new PolicyEngineStep();
+
+    await expect(step.evaluate(makeCommand({
+      commandName: 'ApprovePayrollCycle',
+      aggregateType: 'PayrollCycle',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440021'),
+        roles: ['PAYROLL_APPROVER'],
+        permissions: ['PAYROLL_APPROVE'],
+        mfaAuthenticated: true,
+      },
+      payload: { workerId },
+      metadata: { requestHash: 'hash', clientType: 'ADMIN_CONSOLE' },
+    }))).resolves.toBeUndefined();
+  });
+
   it('stores event privacy evidence in outbox metadata for notification targeting', async () => {
     const inserted: Array<{ table: string; row: Record<string, unknown> }> = [];
     const tx = {

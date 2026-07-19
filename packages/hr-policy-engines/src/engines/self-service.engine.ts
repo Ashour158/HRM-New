@@ -147,6 +147,13 @@ const ADMIN_ROLES = new Set([
   'HR_ADMIN',
   'HRBP',
   'PAYROLL_ADMIN',
+  // PAYROLL_APPROVER (HCM-P0-5) deliberately holds PAYROLL_APPROVE without
+  // PAYROLL_CREATE so it can pass the preparer/approver SoD check that
+  // PAYROLL_ADMIN can never satisfy -- it must be recognized here too, or
+  // this independent aggregate-type gate forbids it from ever approving a
+  // PayrollCycle (PAYROLLCYCLE is ADMIN_ONLY_AGGREGATES-gated below) even
+  // though mapActorType() already treats it as an HR_ADMIN-tier actor.
+  'PAYROLL_APPROVER',
   'COMPENSATION_ADMIN',
   'BENEFITS_ADMIN',
   'COMPLIANCE_OFFICER',
