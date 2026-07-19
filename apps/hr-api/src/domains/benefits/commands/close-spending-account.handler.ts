@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
@@ -27,10 +27,16 @@ export class CloseSpendingAccountHandler implements ICommandHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as { accountId: Uuid };
     const account = await this.repo.findById(payload.accountId);
-    if (!account) throw new Error('SpendingAccount not found');
+    if (!account) {
+      throw new NotFoundException('SpendingAccount not found');
+    }
 
-    account.close(command.correlationId);
-    await this.repo.save(account);
+    // Idempotent replay: a command retry (network blip, redelivery) must
+    // succeed rather than throw once the account is already CLOSED.
+    if (account.status !== 'CLOSED') {
+      account.close(command.correlationId);
+      await this.repo.save(account);
+    }
     const eventsEmitted = account.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(account, command);
 

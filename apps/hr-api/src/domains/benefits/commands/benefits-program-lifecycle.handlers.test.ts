@@ -55,7 +55,7 @@ function program(status: BenefitsProgram['status']) {
 }
 
 describe('BenefitsProgram lifecycle command handlers', () => {
-  it('creates a DRAFT program with a zero premium by default so activation is required before enrollment can price coverage', async () => {
+  it('rejects creating a program with no monthlyPremium, since an omitted value would silently generate $0 payroll deductions for every enrollee', async () => {
     const repo = { save: vi.fn(async () => undefined) };
     const handler = new CreateBenefitsProgramHandler(
       repo as never,
@@ -64,20 +64,12 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getSetup: vi.fn(async () => ({ locations: [{ active: true, currency: 'USD' }] })) } as never,
     );
 
-    const result = await handler.handle(command('CreateBenefitsProgram', {
+    await expect(handler.handle(command('CreateBenefitsProgram', {
       programId,
       programName: 'Premium PPO',
       programType: 'MEDICAL',
-    }));
-
-    const saved = repo.save.mock.calls[0]?.[0] as BenefitsProgram;
-    expect(saved.status).toBe('DRAFT');
-    expect(saved.monthlyPremium).toBe(0);
-    expect(saved.currency).toBe('USD');
-    expect(result).toEqual(expect.objectContaining({
-      newState: 'DRAFT',
-      eventsEmitted: ['BenefitsProgramCreated'],
-    }));
+    }))).rejects.toThrow();
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('creates a program with the given monthlyPremium/currency', async () => {
@@ -153,6 +145,25 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       eventsEmitted: ['BenefitsProgramSuspended'],
     }));
     expect(result.data).toEqual(expect.objectContaining({ reason: 'carrier renegotiation' }));
+  });
+
+  it('idempotently returns success (without re-invoking suspend or saving) for a command retry against an already-SUSPENDED program', async () => {
+    const existing = program('SUSPENDED');
+    const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
+    const handler = new SuspendBenefitsProgramHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => ['Activate', 'Close']) } as never,
+    );
+
+    const result = await handler.handle(command('SuspendBenefitsProgram', { benefitsProgramId: programId, reason: 'retry' }, programId));
+
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      newState: 'SUSPENDED',
+      eventsEmitted: [],
+    }));
   });
 
   it('closes an ACTIVE program permanently', async () => {

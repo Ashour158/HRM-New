@@ -65,7 +65,7 @@ function enrollment(status: BenefitsEnrollment['status']) {
   });
 }
 
-function program() {
+function program(status: BenefitsProgram['status'] = 'ACTIVE') {
   return new BenefitsProgram({
     id: programId,
     tenantId,
@@ -73,7 +73,7 @@ function program() {
     programType: 'MEDICAL',
     monthlyPremium: 450,
     currency: 'USD',
-    status: 'ACTIVE',
+    status,
     aggregateVersion: 1,
   });
 }
@@ -153,6 +153,30 @@ describe('Benefits lifecycle command handlers', () => {
     }))).rejects.toThrow('BenefitsProgram not found');
     expect(repo.save).not.toHaveBeenCalled();
   });
+
+  it.each(['DRAFT', 'SUSPENDED', 'CLOSED'] as const)(
+    'rejects enrollment creation when the referenced program is %s (not ACTIVE)',
+    async (status) => {
+      const repo = { save: vi.fn(async () => undefined) };
+      const programRepo = { findById: vi.fn(async () => program(status)) };
+      const handler = new CreateBenefitsEnrollmentHandler(
+        repo as never,
+        programRepo as never,
+        new BenefitsEventsPublisher(),
+        { getAllowedActions: vi.fn(() => []) } as never,
+      );
+
+      await expect(handler.handle(command('CreateBenefitsEnrollment', 'BenefitsEnrollment', {
+        enrollmentId,
+        workerId,
+        programId,
+        coverageLevel: 'EMPLOYEE',
+        dependents: [],
+        effectiveDate: new Date('2026-01-01T00:00:00.000Z'),
+      }))).rejects.toThrow(`Cannot enroll into a ${status} BenefitsProgram`);
+      expect(repo.save).not.toHaveBeenCalled();
+    },
+  );
 
   it('approves a submitted enrollment through the canonical aggregate and persists the new state', async () => {
     const existing = enrollment('SUBMITTED');

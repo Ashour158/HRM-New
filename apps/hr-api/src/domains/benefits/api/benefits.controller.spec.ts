@@ -134,6 +134,20 @@ describe('BenefitsController lifecycle commands', () => {
     }));
   });
 
+  it('builds a suspend program command carrying an optional reason', async () => {
+    const { controller, commandBus, programRepo } = makeController();
+
+    await controller.suspendProgram(programId.value, { reason: 'carrier renegotiation' }, request());
+
+    expect(programRepo.findById).toHaveBeenCalledWith(programId);
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'SuspendBenefitsProgram',
+      aggregateType: 'BenefitsProgram',
+      aggregateId: programId,
+      payload: { benefitsProgramId: programId, reason: 'carrier renegotiation' },
+    }));
+  });
+
   it('builds a record spending account usage command with worker context', async () => {
     const { controller, commandBus, spendingAccountRepo } = makeController();
 
@@ -175,6 +189,34 @@ describe('BenefitsController lifecycle commands', () => {
       aggregateType: 'CarrierReconciliationRun',
       aggregateId: runId,
       payload: { runId, varianceAmount: 500 },
+    }));
+  });
+
+  it('builds a reconcile carrier reconciliation run command', async () => {
+    const { controller, commandBus, reconciliationRunRepo } = makeController();
+
+    await controller.reconcileReconciliationRun(runId.value, {}, request());
+
+    expect(reconciliationRunRepo.findById).toHaveBeenCalledWith(runId);
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'ReconcileCarrierReconciliationRun',
+      aggregateType: 'CarrierReconciliationRun',
+      aggregateId: runId,
+      payload: { runId },
+    }));
+  });
+
+  it('builds a fail carrier reconciliation run command carrying an optional reason', async () => {
+    const { controller, commandBus, reconciliationRunRepo } = makeController();
+
+    await controller.failReconciliationRun(runId.value, { reason: 'carrier file unparseable' }, request());
+
+    expect(reconciliationRunRepo.findById).toHaveBeenCalledWith(runId);
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'FailCarrierReconciliationRun',
+      aggregateType: 'CarrierReconciliationRun',
+      aggregateId: runId,
+      payload: { runId, reason: 'carrier file unparseable' },
     }));
   });
 });

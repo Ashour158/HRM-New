@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification HIGH_SENSITIVITY - benefits enrollment premium and currency fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard } from '@hcm/shared-kernel';
 
 /**
@@ -32,8 +35,10 @@ export interface BenefitsEnrollmentProps {
    * BenefitsProgram's monthlyPremium at enrollment creation time so the
    * employee's contracted rate stays stable even if the program's rate
    * changes later. Flows through to payroll as the BENEFITS_DEDUCTION amount.
+   * @hrDataClassification HIGH_SENSITIVITY
    */
   premiumAmount: number;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   currency: string;
   status: BenefitsEnrollmentStatus;
   aggregateVersion?: number;
@@ -97,7 +102,9 @@ export class BenefitsEnrollment extends AggregateRoot {
   coverageLevel: string;
   dependents: DependentEntry[];
   effectiveDate: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   premiumAmount: number;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   currency: string;
   status: BenefitsEnrollmentStatus;
   readonly createdAt: Date;

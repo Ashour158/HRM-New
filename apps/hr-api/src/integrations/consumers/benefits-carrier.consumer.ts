@@ -151,6 +151,7 @@ export class BenefitsCarrierConsumer implements OnModuleInit {
     await runWithTenant(event.tenantId, async () => {
       const enrollments = await this.enrollmentRepo.findByProgram(programId);
       const actor = this.systemActorFactory.createForJob('benefits-carrier-consumer', ['benefits:write']);
+      const failures: string[] = [];
 
       for (const enrollment of enrollments) {
         if (!TERMINABLE_ENROLLMENT_STATES.has(enrollment.status)) continue;
@@ -176,13 +177,29 @@ export class BenefitsCarrierConsumer implements OnModuleInit {
 
         const outcome = await this.commandBus.execute(command);
         if (!outcome.success) {
+          const errorMessage = (outcome as { errorMessage: string }).errorMessage;
           this.logger.error({
             type: 'CONSUMER_PROGRAM_CLOSED_TERMINATION_FAILED',
             programId: programId.value,
             enrollmentId: enrollment.id.value,
-            errorMessage: (outcome as { errorMessage: string }).errorMessage,
+            errorMessage,
           });
+          failures.push(`${enrollment.id.value}: ${errorMessage}`);
         }
+      }
+
+      if (failures.length > 0) {
+        // Reject so the InboxConsumer records BenefitsProgramClosed as
+        // FAILED_RETRYABLE and retries/replays the whole event, instead of
+        // marking it processed while a failed per-enrollment termination is
+        // silently dropped and that enrollment stays EFFECTIVE forever. The
+        // per-enrollment idempotencyKey above makes replay safe: enrollments
+        // that already terminated on a prior pass are untouched (they're no
+        // longer in TERMINABLE_ENROLLMENT_STATES) and/or the command bus
+        // dedupes on the same idempotencyKey.
+        throw new Error(
+          `Failed to terminate ${failures.length} of ${enrollments.length} enrollment(s) for closed BenefitsProgram ${programId.value}: ${failures.join('; ')}`,
+        );
       }
     });
   }

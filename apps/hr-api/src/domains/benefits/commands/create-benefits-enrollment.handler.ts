@@ -36,6 +36,9 @@ export class CreateBenefitsEnrollmentHandler implements ICommandHandler {
 
     const program = await this.programRepo.findById(payload.programId);
     if (!program) throw new Error('BenefitsProgram not found');
+    if (program.status !== 'ACTIVE') {
+      throw new Error(`Cannot enroll into a ${program.status} BenefitsProgram`);
+    }
 
     // Snapshot the program's premium rate onto the enrollment at creation time so
     // the employee's contracted rate is stable even if the program's rate changes later.
