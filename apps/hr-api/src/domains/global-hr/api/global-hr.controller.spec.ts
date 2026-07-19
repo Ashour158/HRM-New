@@ -16,6 +16,8 @@ const actorId = '00000000-0000-0000-0000-000000000010';
 const workerId = '00000000-0000-0000-0000-000000000020';
 const caseId = '00000000-0000-0000-0000-000000000030';
 const assignmentId = '00000000-0000-0000-0000-000000000040';
+const ruleSetId = '00000000-0000-0000-0000-000000000050';
+const leaveTypeId = '00000000-0000-0000-0000-000000000060';
 
 function actor(): HrActor {
   return {
@@ -38,8 +40,16 @@ function request(): Request {
 
 function makeController() {
   const commandBus = { execute: vi.fn(async () => ({ success: true })) } as unknown as CommandBus;
-  const countryRuleSetRepo = { findByCountryCode: vi.fn(), findById: vi.fn() } as unknown as CountryRuleSetRepository;
-  const statutoryLeaveTypeRepo = { findByCountryCode: vi.fn(), findById: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+  const countryRuleSetRepo = {
+    findByCountryCode: vi.fn(),
+    findById: vi.fn(),
+    findByIdForTenant: vi.fn(),
+  } as unknown as CountryRuleSetRepository;
+  const statutoryLeaveTypeRepo = {
+    findByCountryCode: vi.fn(),
+    findById: vi.fn(),
+    findByIdForTenant: vi.fn(),
+  } as unknown as StatutoryLeaveTypeRepository;
   const worksCouncilConsultationRepo = { findByLegalEntity: vi.fn(), findById: vi.fn() } as unknown as WorksCouncilConsultationRepository;
   const workAuthorizationCaseRepo = {
     findById: vi.fn(),
@@ -61,7 +71,14 @@ function makeController() {
     internationalAssignmentRepo,
   );
 
-  return { controller, commandBus, workAuthorizationCaseRepo, internationalAssignmentRepo };
+  return {
+    controller,
+    commandBus,
+    countryRuleSetRepo,
+    statutoryLeaveTypeRepo,
+    workAuthorizationCaseRepo,
+    internationalAssignmentRepo,
+  };
 }
 
 describe('GlobalHrController', () => {
@@ -166,5 +183,45 @@ describe('GlobalHrController', () => {
     await expect(controller.getInternationalAssignmentsByTenant(otherTenantId, request())).rejects.toThrow('Tenant mismatch');
 
     expect(internationalAssignmentRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
+  });
+
+  it('looks up a country rule set scoped to the authenticated tenant', async () => {
+    const { controller, countryRuleSetRepo } = makeController();
+    (countryRuleSetRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(ruleSetId) });
+
+    await expect(controller.getCountryRuleSet(ruleSetId, request())).resolves.toEqual({ id: new Uuid(ruleSetId) });
+
+    expect(countryRuleSetRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(ruleSetId), new Uuid(tenantId));
+    expect(countryRuleSetRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not leak another tenant\'s country rule set across tenants', async () => {
+    const { controller, countryRuleSetRepo } = makeController();
+    // The repository enforces the tenant filter in SQL; a cross-tenant id simply
+    // yields no row rather than the other tenant's record.
+    (countryRuleSetRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await expect(controller.getCountryRuleSet(ruleSetId, request())).resolves.toBeUndefined();
+
+    expect(countryRuleSetRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(ruleSetId), new Uuid(tenantId));
+  });
+
+  it('looks up a statutory leave type scoped to the authenticated tenant', async () => {
+    const { controller, statutoryLeaveTypeRepo } = makeController();
+    (statutoryLeaveTypeRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(leaveTypeId) });
+
+    await expect(controller.getStatutoryLeaveType(leaveTypeId, request())).resolves.toEqual({ id: new Uuid(leaveTypeId) });
+
+    expect(statutoryLeaveTypeRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(leaveTypeId), new Uuid(tenantId));
+    expect(statutoryLeaveTypeRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not leak another tenant\'s statutory leave type across tenants', async () => {
+    const { controller, statutoryLeaveTypeRepo } = makeController();
+    (statutoryLeaveTypeRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await expect(controller.getStatutoryLeaveType(leaveTypeId, request())).resolves.toBeUndefined();
+
+    expect(statutoryLeaveTypeRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(leaveTypeId), new Uuid(tenantId));
   });
 });
