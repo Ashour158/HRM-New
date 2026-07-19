@@ -17,6 +17,7 @@ import {
   ContestEverifyTentativeNonconfirmationHandler,
 } from './commands/everify-case-lifecycle.handlers.js';
 import { I9EverifyEventsPublisher } from './events/i9-everify-events.publisher.js';
+import { I9EverifyController } from './api/i9-everify.controller.js';
 
 /**
  * I9/E-Verify domain module.
@@ -29,6 +30,7 @@ import { I9EverifyEventsPublisher } from './events/i9-everify-events.publisher.j
  */
 @Module({
   imports: [PlatformModule, IntegrationsModule],
+  controllers: [I9EverifyController],
   providers: [
     // FSM registrars
     I9CaseFsmRegistrar,
