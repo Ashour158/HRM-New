@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { BenefitsController } from './api/benefits.controller.js';
 
 import { BenefitsProgramRepository } from './repositories/benefits-program.repository.js';
@@ -43,7 +44,7 @@ import { FailCarrierReconciliationRunHandler } from './commands/fail-carrier-rec
  * SpendingAccount, and CarrierReconciliationRun aggregates.
  */
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HcmSetupModule],
   controllers: [BenefitsController],
   providers: [
     BenefitsProgramRepository,

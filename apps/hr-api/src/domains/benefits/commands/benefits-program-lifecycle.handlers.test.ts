@@ -61,6 +61,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       repo as never,
       new BenefitsEventsPublisher(),
       { getAllowedActions: vi.fn(() => ['Activate']) } as never,
+      { getSetup: vi.fn(async () => ({ locations: [{ active: true, currency: 'USD' }] })) } as never,
     );
 
     const result = await handler.handle(command('CreateBenefitsProgram', {
@@ -85,6 +86,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       repo as never,
       new BenefitsEventsPublisher(),
       { getAllowedActions: vi.fn(() => ['Activate']) } as never,
+      { getSetup: vi.fn(async () => ({ locations: [{ active: true, currency: 'USD' }] })) } as never,
     );
 
     const result = await handler.handle(command('CreateBenefitsProgram', {

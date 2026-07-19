@@ -62,7 +62,8 @@ describe('BenefitsEventsPublisher', () => {
     const repo = { save: vi.fn(async () => undefined) };
     const publisher = new BenefitsEventsPublisher();
     const fsm = { getAllowedActions: vi.fn(() => ['Activate']) };
-    const handler = new CreateBenefitsProgramHandler(repo as never, publisher, fsm as never);
+    const hcmSetupService = { getSetup: vi.fn(async () => ({ locations: [{ active: true, currency: 'USD' }] })) };
+    const handler = new CreateBenefitsProgramHandler(repo as never, publisher, fsm as never, hcmSetupService as never);
 
     const result = await handler.handle(command({
       programId,
