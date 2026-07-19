@@ -444,9 +444,12 @@ jobs:
             if curl -fsS http://localhost:3001/api/v1/health >/dev/null 2>&1; then echo "API up"; break; fi
             sleep 2
           done
+          # Thresholds must match docs/perf-baseline.md. /api/v1/health is a trivial
+          # static health check (no DB/Redis/auth work) — these gates prove that, not
+          # a representative authenticated business endpoint (see PERF-2).
           LOAD_URL=http://localhost:3001/api/v1/health \
           LOAD_CONCURRENCY=25 LOAD_DURATION_MS=12000 LOAD_WARMUP_MS=1500 \
-          LOAD_P95_MAX_MS=250 LOAD_MIN_RPS=150 LOAD_MAX_ERROR_RATE=0.01 \
+          LOAD_P95_MAX_MS=150 LOAD_MIN_RPS=200 LOAD_MAX_ERROR_RATE=0.01 \
           node scripts/load/smoke.mjs
           STATUS=$?
           kill $API_PID 2>/dev/null || true
