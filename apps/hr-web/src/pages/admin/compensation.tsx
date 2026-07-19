@@ -156,6 +156,27 @@ const tabCreateLabels: Record<CompensationTab, string> = {
   'equity-grants': 'Create Equity Grant',
 };
 
+// Every action here corresponds to an FSM transition with a matching
+// POST /hr/compensation/<tab>/:id/commands/<kebab-case-action> endpoint on the API.
+const SUPPORTED_ACTIONS: Record<CompensationTab, string[]> = {
+  plans: ['Activate', 'Suspend', 'Close'],
+  bands: ['Activate', 'Revise', 'Close'],
+  changes: ['Submit', 'SendForApproval', 'Approve', 'MakeEffective', 'Reject', 'Cancel'],
+  'bonus-cycles': ['Activate', 'StartCalculation', 'StartReview', 'Approve', 'MarkPaid', 'Close'],
+  'equity-grants': ['StartVesting', 'RecordVesting', 'Exercise', 'Expire', 'Forfeit'],
+};
+
+// Actions whose command payload needs more than the record id, collected via ActionInputDialog.
+const ACTIONS_REQUIRING_INPUT = new Set(['Revise', 'RecordVesting', 'Exercise']);
+
+function actionLabel(action: string): string {
+  return action.replace(/([A-Z])/g, ' $1').trim();
+}
+
+function actionCommandSlug(action: string): string {
+  return action.replace(/[A-Z]/g, (letter, offset) => (offset === 0 ? letter.toLowerCase() : `-${letter.toLowerCase()}`));
+}
+
 function apiData<T>(payload: unknown): T {
   const response = payload as { success?: boolean; data?: T };
   if (response.success === true && response.data !== undefined) return response.data;
@@ -260,7 +281,7 @@ function RecordActions({
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((action) => {
-        const enabled = (selected.tab === 'plans' && action === 'Activate') || (selected.tab === 'changes' && (action === 'Submit' || action === 'Approve'));
+        const enabled = SUPPORTED_ACTIONS[selected.tab]?.includes(action) ?? false;
         return (
           <Button
             key={action}
@@ -270,7 +291,7 @@ function RecordActions({
             title={enabled ? action : 'This transition is exposed by the workflow but has no command endpoint on this workspace yet.'}
             variant={enabled ? 'default' : 'outline'}
           >
-            {action.replace(/([A-Z])/g, ' $1').trim()}
+            {actionLabel(action)}
           </Button>
         );
       })}
@@ -303,6 +324,9 @@ export function AdminCompensation() {
   const [changeForm, setChangeForm] = React.useState<ChangeForm>(() => createEmptyChangeForm());
   const [bonusForm, setBonusForm] = React.useState<BonusCycleForm>(() => createEmptyBonusCycleForm());
   const [equityForm, setEquityForm] = React.useState<EquityGrantForm>(() => createEmptyEquityGrantForm());
+  const [actionDialog, setActionDialog] = React.useState<{ tab: CompensationTab; action: string; record: CompensationRecord } | null>(null);
+  const [reviseForm, setReviseForm] = React.useState({ minSalary: '', midSalary: '', maxSalary: '' });
+  const [unitsForm, setUnitsForm] = React.useState({ units: '' });
 
   const plansQuery = useQuery({
     queryKey: ['compensation-plans'],
@@ -366,6 +390,7 @@ export function AdminCompensation() {
     mutationFn: async ({ url, payload }: { url: string; payload: Record<string, unknown> }) => apiClient.post(url, payload),
     onSuccess: () => {
       setDialogOpen(false);
+      setActionDialog(null);
       invalidateCompensation();
       addNotification({ title: 'Compensation updated', message: 'The compensation record was saved.', type: 'success', read: false });
     },
@@ -460,22 +485,40 @@ export function AdminCompensation() {
   };
 
   const runAction = (action: string, record: CompensationRecord, tab: CompensationTab) => {
+    if (ACTIONS_REQUIRING_INPUT.has(action)) {
+      if (action === 'Revise' && 'minSalary' in record) {
+        setReviseForm({ minSalary: String(record.minSalary), midSalary: String(record.midSalary), maxSalary: String(record.maxSalary) });
+      }
+      if ((action === 'RecordVesting' || action === 'Exercise') && 'totalUnits' in record) {
+        setUnitsForm({ units: String(record.totalUnits) });
+      }
+      setActionDialog({ tab, action, record });
+      return;
+    }
+
     const id = recordId(record);
-    if (tab === 'plans' && action === 'Activate') {
-      mutation.mutate({ url: `/hr/compensation/plans/${id}/commands/activate`, payload: {} });
-      return;
-    }
-    if (tab === 'changes' && action === 'Submit') {
-      mutation.mutate({ url: `/hr/compensation/changes/${id}/commands/submit`, payload: {} });
-      return;
-    }
+    const url = `/hr/compensation/${tab}/${id}/commands/${actionCommandSlug(action)}`;
+
     if (tab === 'changes' && action === 'Approve') {
       if (!user?.id) {
         addNotification({ title: 'Approval unavailable', message: 'A signed-in approver is required.', type: 'error', read: false });
         return;
       }
-      mutation.mutate({ url: `/hr/compensation/changes/${id}/commands/approve`, payload: { approvedBy: user.id } });
+      mutation.mutate({ url, payload: { approvedBy: user.id } });
+      return;
     }
+
+    mutation.mutate({ url, payload: {} });
+  };
+
+  const submitActionDialog = () => {
+    if (!actionDialog) return;
+    const id = recordId(actionDialog.record);
+    const url = `/hr/compensation/${actionDialog.tab}/${id}/commands/${actionCommandSlug(actionDialog.action)}`;
+    const payload = actionDialog.action === 'Revise'
+      ? { minSalary: numberValue(reviseForm.minSalary), midSalary: numberValue(reviseForm.midSalary), maxSalary: numberValue(reviseForm.maxSalary) }
+      : { units: numberValue(unitsForm.units) };
+    mutation.mutate({ url, payload });
   };
 
   const plans = plansQuery.data ?? [];
@@ -683,6 +726,34 @@ export function AdminCompensation() {
           </div>
           <DialogFooter>
             <Button onClick={createRecord} disabled={mutation.isPending}>Save {tabLabels[activeTab].replace(/s$/, '')}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(actionDialog)} onOpenChange={(open) => !open && setActionDialog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{actionDialog ? actionLabel(actionDialog.action) : ''}</DialogTitle>
+            <DialogDescription>
+              {actionDialog?.action === 'Revise'
+                ? 'Set the new salary range for this band.'
+                : 'Enter the number of units for this transition.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            {actionDialog?.action === 'Revise' ? (
+              <>
+                <div className="space-y-2"><Label htmlFor="revise-min-salary">Minimum salary</Label><Input id="revise-min-salary" inputMode="numeric" value={reviseForm.minSalary} onChange={(event) => setReviseForm({ ...reviseForm, minSalary: event.target.value })} /></div>
+                <div className="space-y-2"><Label htmlFor="revise-mid-salary">Mid salary</Label><Input id="revise-mid-salary" inputMode="numeric" value={reviseForm.midSalary} onChange={(event) => setReviseForm({ ...reviseForm, midSalary: event.target.value })} /></div>
+                <div className="space-y-2"><Label htmlFor="revise-max-salary">Maximum salary</Label><Input id="revise-max-salary" inputMode="numeric" value={reviseForm.maxSalary} onChange={(event) => setReviseForm({ ...reviseForm, maxSalary: event.target.value })} /></div>
+              </>
+            ) : null}
+            {actionDialog?.action === 'RecordVesting' || actionDialog?.action === 'Exercise' ? (
+              <div className="space-y-2"><Label htmlFor="action-units">Units</Label><Input id="action-units" inputMode="numeric" value={unitsForm.units} onChange={(event) => setUnitsForm({ units: event.target.value })} /></div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button onClick={submitActionDialog} disabled={mutation.isPending}>{actionDialog ? actionLabel(actionDialog.action) : 'Submit'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
