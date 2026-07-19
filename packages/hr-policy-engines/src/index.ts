@@ -130,6 +130,15 @@ export {
   DEFAULT_LEGAL_REVIEW_SEVERITY_THRESHOLD,
 } from './engines/employee-relations-escalation.engine.js';
 
+export type {
+  DeiPayTransparencyDecisionCode,
+  DeiPayTransparencyInput,
+  DeiPayTransparencyViolation,
+  DeiPayTransparencyResult,
+} from './engines/dei-pay-transparency.engine.js';
+
+export { DeiPayTransparencyEngine, evaluateDeiPayTransparency } from './engines/dei-pay-transparency.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -139,4 +148,5 @@ export {
   countryPolicyValidationEngine,
   offerCompensationEngine,
   employeeRelationsDisciplinaryEngine,
+  deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

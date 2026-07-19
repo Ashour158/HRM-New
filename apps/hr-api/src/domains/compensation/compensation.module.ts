@@ -24,14 +24,43 @@ import { CompensationEventsPublisher } from './events/compensation-events.publis
 
 import { CreateCompensationPlanHandler } from './commands/create-compensation-plan.handler.js';
 import { ActivateCompensationPlanHandler } from './commands/activate-compensation-plan.handler.js';
+import { SuspendCompensationPlanHandler } from './commands/suspend-compensation-plan.handler.js';
+import { CloseCompensationPlanHandler } from './commands/close-compensation-plan.handler.js';
 import { CreateCompensationBandHandler } from './commands/create-compensation-band.handler.js';
+import { ActivateCompensationBandHandler } from './commands/activate-compensation-band.handler.js';
+import { ReviseCompensationBandHandler } from './commands/revise-compensation-band.handler.js';
+import { CloseCompensationBandHandler } from './commands/close-compensation-band.handler.js';
 import { CreateCompensationChangeHandler } from './commands/create-compensation-change.handler.js';
+import { SubmitCompensationChangeHandler } from './commands/submit-compensation-change.handler.js';
+import { SendForApprovalCompensationChangeHandler } from './commands/send-for-approval-compensation-change.handler.js';
 import { ApproveCompensationChangeHandler } from './commands/approve-compensation-change.handler.js';
+import { MakeEffectiveCompensationChangeHandler } from './commands/make-effective-compensation-change.handler.js';
+import { RejectCompensationChangeHandler } from './commands/reject-compensation-change.handler.js';
+import { CancelCompensationChangeHandler } from './commands/cancel-compensation-change.handler.js';
 import { CreateBonusCycleHandler } from './commands/create-bonus-cycle.handler.js';
+import { ActivateBonusCycleHandler } from './commands/activate-bonus-cycle.handler.js';
+import { StartCalculationBonusCycleHandler } from './commands/start-calculation-bonus-cycle.handler.js';
+import { StartReviewBonusCycleHandler } from './commands/start-review-bonus-cycle.handler.js';
+import { ApproveBonusCycleHandler } from './commands/approve-bonus-cycle.handler.js';
+import { MarkPaidBonusCycleHandler } from './commands/mark-paid-bonus-cycle.handler.js';
+import { CloseBonusCycleHandler } from './commands/close-bonus-cycle.handler.js';
 import { CreateEquityGrantHandler } from './commands/create-equity-grant.handler.js';
+import { StartVestingEquityGrantHandler } from './commands/start-vesting-equity-grant.handler.js';
+import { RecordVestingEquityGrantHandler } from './commands/record-vesting-equity-grant.handler.js';
+import { ExerciseEquityGrantHandler } from './commands/exercise-equity-grant.handler.js';
+import { ExpireEquityGrantHandler } from './commands/expire-equity-grant.handler.js';
+import { ForfeitEquityGrantHandler } from './commands/forfeit-equity-grant.handler.js';
 import { CreateVariableCompPlanHandler } from './commands/create-variable-comp-plan.handler.js';
+import { ActivateVariableCompPlanHandler } from './commands/activate-variable-comp-plan.handler.js';
+import { CloseVariableCompPlanHandler } from './commands/close-variable-comp-plan.handler.js';
 import { CreatePayScaleHandler } from './commands/create-pay-scale.handler.js';
+import { ActivatePayScaleHandler } from './commands/activate-pay-scale.handler.js';
+import { RevisePayScaleHandler } from './commands/revise-pay-scale.handler.js';
+import { ClosePayScaleHandler } from './commands/close-pay-scale.handler.js';
 import { CreateTotalCompensationStatementHandler } from './commands/create-total-compensation-statement.handler.js';
+import { GenerateTotalCompensationStatementHandler } from './commands/generate-total-compensation-statement.handler.js';
+import { DeliverTotalCompensationStatementHandler } from './commands/deliver-total-compensation-statement.handler.js';
+import { AcknowledgeTotalCompensationStatementHandler } from './commands/acknowledge-total-compensation-statement.handler.js';
 
 /**
  * Compensation domain module.
@@ -62,14 +91,43 @@ import { CreateTotalCompensationStatementHandler } from './commands/create-total
     CompensationEventsPublisher,
     CreateCompensationPlanHandler,
     ActivateCompensationPlanHandler,
+    SuspendCompensationPlanHandler,
+    CloseCompensationPlanHandler,
     CreateCompensationBandHandler,
+    ActivateCompensationBandHandler,
+    ReviseCompensationBandHandler,
+    CloseCompensationBandHandler,
     CreateCompensationChangeHandler,
+    SubmitCompensationChangeHandler,
+    SendForApprovalCompensationChangeHandler,
     ApproveCompensationChangeHandler,
+    MakeEffectiveCompensationChangeHandler,
+    RejectCompensationChangeHandler,
+    CancelCompensationChangeHandler,
     CreateBonusCycleHandler,
+    ActivateBonusCycleHandler,
+    StartCalculationBonusCycleHandler,
+    StartReviewBonusCycleHandler,
+    ApproveBonusCycleHandler,
+    MarkPaidBonusCycleHandler,
+    CloseBonusCycleHandler,
     CreateEquityGrantHandler,
+    StartVestingEquityGrantHandler,
+    RecordVestingEquityGrantHandler,
+    ExerciseEquityGrantHandler,
+    ExpireEquityGrantHandler,
+    ForfeitEquityGrantHandler,
     CreateVariableCompPlanHandler,
+    ActivateVariableCompPlanHandler,
+    CloseVariableCompPlanHandler,
     CreatePayScaleHandler,
+    ActivatePayScaleHandler,
+    RevisePayScaleHandler,
+    ClosePayScaleHandler,
     CreateTotalCompensationStatementHandler,
+    GenerateTotalCompensationStatementHandler,
+    DeliverTotalCompensationStatementHandler,
+    AcknowledgeTotalCompensationStatementHandler,
   ],
   exports: [
     CompensationPlanRepository,

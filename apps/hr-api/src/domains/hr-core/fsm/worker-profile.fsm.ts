@@ -27,12 +27,17 @@ export function registerWorkerProfileFsm(fsm: FsmFramework): void {
       { action: 'TerminateWorker', from: 'ACTIVE', to: 'TERMINATED', eventName: 'WorkerTerminated' },
       { action: 'TerminateWorker', from: 'SUSPENDED', to: 'TERMINATED', eventName: 'WorkerTerminated' },
       { action: 'RehireWorker', from: 'TERMINATED', to: 'REHIRED', eventName: 'WorkerRehired' },
-      { action: 'UpdateWorkerPersonalData', from: 'DRAFT', to: 'DRAFT', eventName: 'WorkerProfileUpdated' },
-      { action: 'UpdateWorkerPersonalData', from: 'PENDING_ACTIVATION', to: 'PENDING_ACTIVATION', eventName: 'WorkerProfileUpdated' },
-      { action: 'UpdateWorkerPersonalData', from: 'ACTIVE', to: 'ACTIVE', eventName: 'WorkerProfileUpdated' },
-      { action: 'UpdateWorkerPersonalData', from: 'SUSPENDED', to: 'SUSPENDED', eventName: 'WorkerProfileUpdated' },
-      { action: 'UpdateWorkerPersonalData', from: 'TERMINATED', to: 'TERMINATED', eventName: 'WorkerProfileUpdated' },
-      { action: 'UpdateWorkerPersonalData', from: 'REHIRED', to: 'REHIRED', eventName: 'WorkerProfileUpdated' },
+      // NOTE: the FSM's declared eventName below is metadata only (documentation /
+      // FSM-transition lookups); it does not drive what actually gets published.
+      // The real event emitted by WorkerProfile.updatePersonalData() is
+      // `PersonalDataUpdated` (see worker-profile.aggregate.ts) -- no `WorkerProfileUpdated`
+      // event class has ever existed. Corrected here to match reality.
+      { action: 'UpdateWorkerPersonalData', from: 'DRAFT', to: 'DRAFT', eventName: 'PersonalDataUpdated' },
+      { action: 'UpdateWorkerPersonalData', from: 'PENDING_ACTIVATION', to: 'PENDING_ACTIVATION', eventName: 'PersonalDataUpdated' },
+      { action: 'UpdateWorkerPersonalData', from: 'ACTIVE', to: 'ACTIVE', eventName: 'PersonalDataUpdated' },
+      { action: 'UpdateWorkerPersonalData', from: 'SUSPENDED', to: 'SUSPENDED', eventName: 'PersonalDataUpdated' },
+      { action: 'UpdateWorkerPersonalData', from: 'TERMINATED', to: 'TERMINATED', eventName: 'PersonalDataUpdated' },
+      { action: 'UpdateWorkerPersonalData', from: 'REHIRED', to: 'REHIRED', eventName: 'PersonalDataUpdated' },
       { action: 'UpsertWorkerProfileSection', from: 'DRAFT', to: 'DRAFT', eventName: 'PersonalDataRecordUpserted' },
       { action: 'UpsertWorkerProfileSection', from: 'PENDING_ACTIVATION', to: 'PENDING_ACTIVATION', eventName: 'PersonalDataRecordUpserted' },
       { action: 'UpsertWorkerProfileSection', from: 'ACTIVE', to: 'ACTIVE', eventName: 'PersonalDataRecordUpserted' },

@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getPool, parseNumeric, resolveTransactionAwareExecutor } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import type { PayrollPaymentBatchRecord } from '../services/payroll-artifact.service.js';
 import type { PayrollPaymentBatch } from '../services/payroll-input-orchestration.service.js';
 
@@ -14,14 +15,66 @@ function dateFromDb(value: Date): string {
   return value.toISOString().slice(0, 10);
 }
 
+/**
+ * `payload.rows[]` denormalizes the real bank-transfer details captured at
+ * payroll-close time (see `PayrollBankTransferRow`) so `PayrollBankFileService`
+ * can render NACHA/SEPA/CSV bank files from the persisted batch without a
+ * further DB round-trip. The fields below are the actual routing credentials
+ * a bank needs -- encrypt them at rest the same way the SPECIAL_CATEGORY
+ * repositories (ErInvestigationRepository et al.) encrypt free-text fields:
+ * `encryptPiiField`/`decryptPiiField` at the toRow/toRecord boundary only, so
+ * the in-memory `PayrollPaymentBatchRecord` stays plaintext for every existing
+ * consumer (bank file rendering, admin previews, reconciliation). Every other
+ * row field (employeeId, name, bankName, netSalary, currency, ...) is left
+ * untouched -- it is not itself a bank credential.
+ */
+const BANK_ROUTING_FIELDS = ['accountNumber', 'iban', 'routingNumber', 'swiftCode'] as const;
+type BankRoutingField = (typeof BANK_ROUTING_FIELDS)[number];
+
+function transformBankTransferRows(
+  rows: PayrollPaymentBatch['rows'] | undefined,
+  transform: (value: string) => string,
+): PayrollPaymentBatch['rows'] {
+  if (!rows) return [];
+  return rows.map((row) => {
+    const next = { ...row };
+    for (const field of BANK_ROUTING_FIELDS as readonly BankRoutingField[]) {
+      if (next[field]) next[field] = transform(next[field]);
+    }
+    return next;
+  });
+}
+
+function encryptPayload(payload: PayrollPaymentBatch): PayrollPaymentBatch {
+  return { ...payload, rows: transformBankTransferRows(payload.rows, encryptPiiField) };
+}
+
+/**
+ * Inverse of {@link encryptPayload}. Safe against legacy plaintext rows written
+ * before this fix -- `decryptPiiField` passes through any string without the
+ * `encpii:` marker unchanged.
+ */
+function decryptPayload(payload: PayrollPaymentBatch): PayrollPaymentBatch {
+  return { ...payload, rows: transformBankTransferRows(payload.rows, decryptPiiField) };
+}
+
 @Injectable()
 export class PayrollPaymentBatchRepository {
   private readonly db = createKyselyInstance(getPool());
   private readonly tableName = 'payroll_payment_batches' as const;
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async save(record: PayrollPaymentBatchRecord): Promise<void> {
     const row = this.toRow(record);
-    await this.db
+    await this.executor
       .insertInto(this.tableName)
       .values(row)
       .onConflict((oc: any) => oc
@@ -52,7 +105,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   async findById(tenantId: Uuid, id: Uuid): Promise<PayrollPaymentBatchRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -62,7 +115,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   async findByPayrollCycle(tenantId: Uuid, payrollCycleId: Uuid): Promise<PayrollPaymentBatchRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -72,7 +125,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   async findRecentByTenant(tenantId: Uuid, limit = 20): Promise<PayrollPaymentBatchRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -83,6 +136,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   private toRow(record: PayrollPaymentBatchRecord): Insertable<Database['payroll_payment_batches']> {
+    const payload = record.payload ? encryptPayload(record.payload) : record.payload;
     return {
       id: record.id,
       tenant_id: record.tenantId,
@@ -95,13 +149,13 @@ export class PayrollPaymentBatchRepository {
       currency: record.currency,
       ready_count: record.readyCount,
       blocked_count: record.blockedCount,
-      total_net: record.totalNet,
+      total_net: String(record.totalNet),
       file_hash: record.fileHash,
       // jsonb columns: serialize explicitly. node-postgres renders a JS array as a
       // Postgres array literal (not JSON), which is invalid for jsonb — so workflow_events
       // (an array) must be JSON.stringify'd. Do the same for the object columns for
       // consistency (pg casts the JSON text to jsonb).
-      payload: JSON.stringify(record.payload ?? {}),
+      payload: JSON.stringify(payload ?? {}),
       created_by: record.createdBy ?? null,
       approved_by: record.approvedBy ?? null,
       approved_at: record.approvedAt ?? null,
@@ -117,6 +171,8 @@ export class PayrollPaymentBatchRepository {
   }
 
   private toRecord(row: Database['payroll_payment_batches']): PayrollPaymentBatchRecord {
+    const rawPayload = row.payload as PayrollPaymentBatch | null;
+    const payload = rawPayload ? decryptPayload(rawPayload) : rawPayload;
     return {
       id: row.id,
       tenantId: row.tenant_id,
@@ -129,9 +185,9 @@ export class PayrollPaymentBatchRepository {
       currency: row.currency,
       readyCount: row.ready_count,
       blockedCount: row.blocked_count,
-      totalNet: row.total_net,
+      totalNet: parseNumeric(row.total_net),
       fileHash: row.file_hash,
-      payload: row.payload as PayrollPaymentBatch,
+      payload: payload as PayrollPaymentBatch,
       createdBy: row.created_by ?? undefined,
       approvedBy: row.approved_by ?? undefined,
       approvedAt: row.approved_at ?? undefined,

@@ -6,13 +6,15 @@ import { useUIStore } from '@/stores/ui-store';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { cn, formatDate } from '@/lib/utils';
-import { CheckCircle2, Clock3, Inbox, LifeBuoy, Search, TimerReset } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock3, Inbox, LifeBuoy, Search, TimerReset } from 'lucide-react';
 
 type HrServiceCaseStatus = 'OPEN' | 'IN_PROGRESS' | 'PENDING_CUSTOMER' | 'RESOLVED' | 'CLOSED' | 'ESCALATED';
 
@@ -26,6 +28,10 @@ interface HrServiceCase {
   assignedTo?: string;
   slaDeadline?: string;
   resolvedAt?: string;
+  catalogItemId?: string;
+  ownerGroup?: string;
+  escalationReason?: string;
+  escalatedAt?: string;
   status: HrServiceCaseStatus;
   createdAt: string;
   updatedAt: string;
@@ -95,6 +101,10 @@ function caseActions(status: HrServiceCaseStatus) {
   return [];
 }
 
+function canEscalate(status: HrServiceCaseStatus) {
+  return status === 'OPEN' || status === 'IN_PROGRESS' || status === 'PENDING_CUSTOMER';
+}
+
 export function AdminHrServiceDelivery() {
   const queryClient = useQueryClient();
   const { tenantId } = useTenant();
@@ -124,6 +134,29 @@ export function AdminHrServiceDelivery() {
       addNotification({ title: 'Case update failed', message, type: 'error', read: false });
     },
   });
+
+  const [escalateTarget, setEscalateTarget] = React.useState<HrServiceCase | null>(null);
+  const [escalationReason, setEscalationReason] = React.useState('');
+
+  const escalateCaseMutation = useMutation({
+    mutationFn: async ({ caseId, reason }: { caseId: string; reason: string }) =>
+      apiClient.post(`/hr-service-delivery/cases/${caseId}/commands/escalate`, { escalationReason: reason }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-hr-service-cases', tenantId] });
+      addNotification({ title: 'Case escalated', message: 'The HR service case was escalated.', type: 'success', read: false });
+      setEscalateTarget(null);
+      setEscalationReason('');
+    },
+    onError: (error: unknown) => {
+      const message = error instanceof Error ? error.message : 'Unable to escalate the case.';
+      addNotification({ title: 'Escalation failed', message, type: 'error', read: false });
+    },
+  });
+
+  const submitEscalation = () => {
+    if (!escalateTarget || !escalationReason.trim()) return;
+    escalateCaseMutation.mutate({ caseId: escalateTarget.id, reason: escalationReason.trim() });
+  };
 
   const cases = React.useMemo(() => (Array.isArray(casesQuery.data) ? casesQuery.data : emptyCases), [casesQuery.data]);
   const catalog = React.useMemo(() => (Array.isArray(catalogQuery.data) ? catalogQuery.data : emptyCatalog), [catalogQuery.data]);
@@ -186,7 +219,7 @@ export function AdminHrServiceDelivery() {
       header: 'Actions',
       cell: (row: HrServiceCase) => {
         const actions = caseActions(row.status);
-        if (actions.length === 0) return <span className="text-xs text-slate-500">No actions</span>;
+        if (actions.length === 0 && !canEscalate(row.status)) return <span className="text-xs text-slate-500">No actions</span>;
         return (
           <div className="flex flex-wrap gap-2">
             {actions.map((action) => (
@@ -199,6 +232,16 @@ export function AdminHrServiceDelivery() {
                 {action.label}
               </Button>
             ))}
+            {canEscalate(row.status) ? (
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => { setEscalateTarget(row); setEscalationReason(''); }}
+              >
+                <AlertTriangle className="mr-1 h-3.5 w-3.5" />
+                Escalate
+              </Button>
+            ) : null}
           </div>
         );
       },
@@ -297,6 +340,12 @@ export function AdminHrServiceDelivery() {
                                 {action.label}
                               </Button>
                             ))}
+                            {canEscalate(serviceCase.status) ? (
+                              <Button size="sm" variant="destructive" onClick={() => { setEscalateTarget(serviceCase); setEscalationReason(''); }}>
+                                <AlertTriangle className="mr-1 h-3.5 w-3.5" />
+                                Escalate
+                              </Button>
+                            ) : null}
                           </div>
                         </div>
                       );
@@ -339,6 +388,38 @@ export function AdminHrServiceDelivery() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={Boolean(escalateTarget)} onOpenChange={(open) => { if (!open) { setEscalateTarget(null); setEscalationReason(''); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Escalate service case</DialogTitle>
+            <DialogDescription>
+              {escalateTarget ? `Escalate ${escalateTarget.caseNumber} out of the normal queue. This is a terminal action and requires a reason.` : 'Escalate this case out of the normal queue.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="escalation-reason">Escalation reason</Label>
+            <textarea
+              id="escalation-reason"
+              className="min-h-24 w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20"
+              value={escalationReason}
+              onChange={(event) => setEscalationReason(event.target.value)}
+              placeholder="Why does this case need to be escalated?"
+            />
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setEscalateTarget(null); setEscalationReason(''); }}>Cancel</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={!escalationReason.trim() || escalateCaseMutation.isPending}
+              onClick={submitEscalation}
+            >
+              {escalateCaseMutation.isPending ? 'Escalating...' : 'Escalate case'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

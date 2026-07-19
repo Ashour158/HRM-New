@@ -80,7 +80,8 @@ describe('reporting command tenant isolation', () => {
       save: vi.fn(),
     };
     const { fsm, publisher } = dependencies();
-    const handler = new ActivateCalculatedFieldHandler(repo as never, fsm as never, publisher as never);
+    const catalog = { getCatalog: vi.fn() };
+    const handler = new ActivateCalculatedFieldHandler(repo as never, fsm as never, publisher as never, catalog as never);
     const calculatedFieldId = '00000000-0000-0000-0000-000000000401';
 
     await expect(handler.handle(command({ calculatedFieldId }))).rejects.toThrow('CalculatedField not found');

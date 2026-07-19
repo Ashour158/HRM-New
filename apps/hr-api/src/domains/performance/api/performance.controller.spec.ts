@@ -957,4 +957,414 @@ describe('PerformanceController', () => {
     expect(objectiveRepo.findByReviewCycle).not.toHaveBeenCalled();
     expect(result).toEqual([{ id: new Uuid('00000000-0000-0000-0000-000000000801') }]);
   });
+
+  /* ═══════════════════════════════════════════════════════════════
+     Command mutation authorization
+     Every state-mutating command endpoint must reject an actor who is
+     neither the resource owner (worker/manager) nor an HR/performance
+     administrator, and must allow the legitimate actor through.
+     ═══════════════════════════════════════════════════════════════ */
+  describe('command mutation authorization', () => {
+    const managerId = '00000000-0000-0000-0000-000000000030';
+    const strangerId = '00000000-0000-0000-0000-000000000099';
+
+    const selfEmployeeActor = () => actor({
+      actorType: 'USER',
+      actorId: new Uuid(workerId),
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_WRITE'],
+      email: 'employee@example.com',
+    });
+    const strangerEmployeeActor = () => actor({
+      actorType: 'USER',
+      actorId: new Uuid(strangerId),
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_WRITE'],
+      email: 'outsider@example.com',
+    });
+    const assignedManagerActor = () => actor({
+      actorType: 'USER',
+      actorId: new Uuid(managerId),
+      roles: ['MANAGER'],
+      permissions: ['PERFORMANCE_WRITE'],
+      email: 'manager@example.com',
+    });
+    const nonAdminManagerActor = () => actor({
+      actorType: 'USER',
+      actorId: new Uuid(strangerId),
+      roles: ['MANAGER'],
+      permissions: ['PERFORMANCE_WRITE'],
+      email: 'other.manager@example.com',
+    });
+    const orgScopedManagerActor = () => actor({
+      actorType: 'USER',
+      actorId: new Uuid(managerId),
+      roles: ['MANAGER'],
+      permissions: ['PERFORMANCE_WRITE'],
+      email: 'manager@example.com',
+    });
+    const noOrgScopeEmployeeActor = () => actor({
+      actorType: 'USER',
+      actorId: new Uuid(strangerId),
+      roles: ['EMPLOYEE'],
+      permissions: ['PERFORMANCE_READ'],
+      email: 'employee@example.com',
+    });
+
+    beforeEach(() => {
+      (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+    });
+
+    describe('review self-service commands (submit-self, acknowledge, dispute)', () => {
+      const reviewId = '00000000-0000-0000-0000-000000000710';
+      const reviewAggregate = {
+        id: new Uuid(reviewId),
+        workerId: new Uuid(workerId),
+        managerId: new Uuid(managerId),
+        status: 'IN_PROGRESS',
+        aggregateVersion: 1,
+      };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'submitSelfReview', invoke: (req) => controller.submitSelfReview(reviewId, { content: 'Great year' }, req) },
+        { name: 'acknowledgeReview', invoke: (req) => controller.acknowledgeReview(reviewId, req) },
+        { name: 'disputeReview', invoke: (req) => controller.disputeReview(reviewId, req) },
+      ];
+
+      beforeEach(() => {
+        (reviewRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(reviewAggregate);
+        (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), email: { value: 'employee@example.com' } });
+      });
+
+      it.each(cases)('$name allows the review\'s own worker', async ({ invoke }) => {
+        await invoke(requestWithActor(selfEmployeeActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a worker who does not own the review', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(strangerEmployeeActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('review manager commands (submit-manager, calibrate, finalize)', () => {
+      const reviewId = '00000000-0000-0000-0000-000000000711';
+      const reviewAggregate = {
+        id: new Uuid(reviewId),
+        workerId: new Uuid(workerId),
+        managerId: new Uuid(managerId),
+        status: 'IN_PROGRESS',
+        aggregateVersion: 1,
+      };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'submitManagerReview', invoke: (req) => controller.submitManagerReview(reviewId, { content: 'Strong year' }, req) },
+        { name: 'calibrateReview', invoke: (req) => controller.calibrateReview(reviewId, { rating: 4 }, req) },
+        { name: 'finalizeReview', invoke: (req) => controller.finalizeReview(reviewId, { rating: 4 }, req) },
+      ];
+
+      beforeEach(() => {
+        (reviewRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(reviewAggregate);
+        (workerRepo.findByEmail as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      });
+
+      it.each(cases)('$name allows the review\'s assigned manager', async ({ invoke }) => {
+        await invoke(requestWithActor(assignedManagerActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a manager who is not assigned to the review', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(nonAdminManagerActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('goal lifecycle commands', () => {
+      const goalId = '00000000-0000-0000-0000-000000000720';
+      const goalAggregate = { id: new Uuid(goalId), workerId: new Uuid(workerId), status: 'ACTIVE', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateGoal', invoke: (req) => controller.activateGoal(goalId, req) },
+        { name: 'updateGoalProgress', invoke: (req) => controller.updateGoalProgress(goalId, { currentValue: 42 }, req) },
+        { name: 'markGoalAchieved', invoke: (req) => controller.markGoalAchieved(goalId, req) },
+        { name: 'markGoalMissed', invoke: (req) => controller.markGoalMissed(goalId, req) },
+        { name: 'cancelGoal', invoke: (req) => controller.cancelGoal(goalId, req) },
+      ];
+
+      beforeEach(() => {
+        (goalRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(goalAggregate);
+        (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), email: { value: 'employee@example.com' }, managerId: undefined });
+      });
+
+      it.each(cases)('$name allows the goal\'s own worker', async ({ invoke }) => {
+        await invoke(requestWithActor(selfEmployeeActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a worker who does not own the goal', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(strangerEmployeeActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('objective lifecycle commands', () => {
+      const objectiveId = '00000000-0000-0000-0000-000000000721';
+      const objectiveAggregate = { id: new Uuid(objectiveId), ownerId: new Uuid(workerId), status: 'ACTIVE', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateObjective', invoke: (req) => controller.activateObjective(objectiveId, req) },
+        { name: 'updateObjectiveProgress', invoke: (req) => controller.updateObjectiveProgress(objectiveId, { progress: 50, confidenceScore: 0.8 }, req) },
+        { name: 'markObjectiveAchieved', invoke: (req) => controller.markObjectiveAchieved(objectiveId, req) },
+        { name: 'cancelObjective', invoke: (req) => controller.cancelObjective(objectiveId, req) },
+      ];
+
+      beforeEach(() => {
+        (objectiveRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(objectiveAggregate);
+        (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), email: { value: 'employee@example.com' }, managerId: undefined });
+      });
+
+      it.each(cases)('$name allows the objective\'s own owner', async ({ invoke }) => {
+        await invoke(requestWithActor(selfEmployeeActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a worker who does not own the objective', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(strangerEmployeeActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('key result lifecycle commands', () => {
+      const keyResultId = '00000000-0000-0000-0000-000000000722';
+      const parentObjectiveId = '00000000-0000-0000-0000-000000000723';
+      const keyResultAggregate = { id: new Uuid(keyResultId), objectiveId: new Uuid(parentObjectiveId), status: 'ACTIVE', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateKeyResult', invoke: (req) => controller.activateKeyResult(keyResultId, req) },
+        { name: 'updateKeyResultProgress', invoke: (req) => controller.updateKeyResultProgress(keyResultId, { currentValue: 5 }, req) },
+        { name: 'completeKeyResult', invoke: (req) => controller.completeKeyResult(keyResultId, req) },
+        { name: 'cancelKeyResult', invoke: (req) => controller.cancelKeyResult(keyResultId, req) },
+      ];
+
+      beforeEach(() => {
+        (keyResultRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(keyResultAggregate);
+        (objectiveRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(parentObjectiveId), ownerId: new Uuid(workerId) });
+        (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), email: { value: 'employee@example.com' }, managerId: undefined });
+      });
+
+      it.each(cases)('$name allows the parent objective\'s owner', async ({ invoke }) => {
+        await invoke(requestWithActor(selfEmployeeActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a worker who does not own the parent objective', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(strangerEmployeeActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('development plan lifecycle commands', () => {
+      const planId = '00000000-0000-0000-0000-000000000724';
+      const planAggregate = { id: new Uuid(planId), workerId: new Uuid(workerId), status: 'ACTIVE', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateDevelopmentPlan', invoke: (req) => controller.activateDevelopmentPlan(planId, req) },
+        { name: 'recordDevelopmentMilestone', invoke: (req) => controller.recordDevelopmentMilestone(planId, { objectiveTitle: 'Lead a workshop', status: 'IN_PROGRESS' }, req) },
+        { name: 'completeDevelopmentPlan', invoke: (req) => controller.completeDevelopmentPlan(planId, req) },
+        { name: 'closeDevelopmentPlan', invoke: (req) => controller.closeDevelopmentPlan(planId, req) },
+      ];
+
+      beforeEach(() => {
+        (developmentPlanRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(planAggregate);
+        (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), email: { value: 'employee@example.com' }, managerId: undefined });
+      });
+
+      it.each(cases)('$name allows the plan\'s own worker', async ({ invoke }) => {
+        await invoke(requestWithActor(selfEmployeeActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a worker who does not own the plan', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(strangerEmployeeActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('review cycle admin lifecycle commands', () => {
+      const cycleId = '00000000-0000-0000-0000-000000000740';
+      const cycleAggregate = { id: new Uuid(cycleId), tenantId: new Uuid(tenantId), name: 'FY26 Annual', status: 'DRAFT', aggregateVersion: 1, periods: [] };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'setupReviewCycle', invoke: (req) => controller.setupReviewCycle(cycleId, req) },
+        { name: 'activateReviewCycle', invoke: (req) => controller.activateReviewCycle(cycleId, req) },
+        { name: 'startReviewCycle', invoke: (req) => controller.startReviewCycle(cycleId, req) },
+        { name: 'enterCalibrationReviewCycle', invoke: (req) => controller.enterCalibrationReviewCycle(cycleId, req) },
+        { name: 'enterReviewReviewCycle', invoke: (req) => controller.enterReviewReviewCycle(cycleId, req) },
+        { name: 'closeReviewCycle', invoke: (req) => controller.closeReviewCycle(cycleId, req) },
+      ];
+
+      beforeEach(() => {
+        (cycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(cycleAggregate);
+        (workerRepo.findActive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+        (reviewRepo.findByReviewCycle as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+        (performanceNotificationService.notifyReviewCycleSetup as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+        (performanceNotificationService.notifyReviewAssignments as ReturnType<typeof vi.fn>).mockResolvedValue(0);
+      });
+
+      it.each(cases)('$name allows an HR/performance administrator', async ({ invoke }) => {
+        await invoke(requestWithActor(actor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a non-admin manager', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(nonAdminManagerActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('calibration session admin lifecycle commands', () => {
+      const sessionId = '00000000-0000-0000-0000-000000000741';
+      const sessionAggregate = { id: new Uuid(sessionId), tenantId: new Uuid(tenantId), status: 'PLANNED', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'scheduleCalibrationSession', invoke: (req) => controller.scheduleCalibrationSession(sessionId, req) },
+        { name: 'startCalibrationSession', invoke: (req) => controller.startCalibrationSession(sessionId, req) },
+        { name: 'completeCalibrationSession', invoke: (req) => controller.completeCalibrationSession(sessionId, req) },
+        { name: 'finalizeCalibrationSession', invoke: (req) => controller.finalizeCalibrationSession(sessionId, req) },
+      ];
+
+      beforeEach(() => {
+        (calibrationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(sessionAggregate);
+      });
+
+      it.each(cases)('$name allows an HR/performance administrator', async ({ invoke }) => {
+        await invoke(requestWithActor(actor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a non-admin manager', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(nonAdminManagerActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('feedback 360 cycle admin lifecycle commands', () => {
+      const cycleId = '00000000-0000-0000-0000-000000000742';
+      const cycleAggregate = {
+        id: new Uuid(cycleId),
+        tenantId: new Uuid(tenantId),
+        name: 'FY26 360',
+        status: 'DRAFT',
+        aggregateVersion: 1,
+        anonymityEnabled: true,
+        maxPeerReviews: 5,
+        minPeerReviews: 3,
+      };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateFeedback360Cycle', invoke: (req) => controller.activateFeedback360Cycle(cycleId, req) },
+        { name: 'launchFeedback360Cycle', invoke: (req) => controller.launchFeedback360Cycle(cycleId, req) },
+        { name: 'closeFeedback360Cycle', invoke: (req) => controller.closeFeedback360Cycle(cycleId, req) },
+        { name: 'archiveFeedback360Cycle', invoke: (req) => controller.archiveFeedback360Cycle(cycleId, req) },
+      ];
+
+      beforeEach(() => {
+        (feedback360CycleRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(cycleAggregate);
+        (workerRepo.findActive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+        (feedback360ResponseRepo.findByCycle as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      });
+
+      it.each(cases)('$name allows an HR/performance administrator', async ({ invoke }) => {
+        await invoke(requestWithActor(actor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a non-admin manager', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(nonAdminManagerActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('review template admin lifecycle commands', () => {
+      const templateId = '00000000-0000-0000-0000-000000000743';
+      const templateAggregate = { id: new Uuid(templateId), tenantId: new Uuid(tenantId), status: 'DRAFT', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'publishReviewTemplate', invoke: (req) => controller.publishReviewTemplate(templateId, req) },
+        { name: 'archiveReviewTemplate', invoke: (req) => controller.archiveReviewTemplate(templateId, req) },
+      ];
+
+      beforeEach(() => {
+        (reviewTemplateRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(templateAggregate);
+      });
+
+      it.each(cases)('$name allows an HR/performance administrator', async ({ invoke }) => {
+        await invoke(requestWithActor(actor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a non-admin manager', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(nonAdminManagerActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('competency admin lifecycle commands', () => {
+      const competencyId = '00000000-0000-0000-0000-000000000744';
+      const competencyAggregate = { id: new Uuid(competencyId), tenantId: new Uuid(tenantId), status: 'ACTIVE', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateCompetency', invoke: (req) => controller.activateCompetency(competencyId, req) },
+        { name: 'deactivateCompetency', invoke: (req) => controller.deactivateCompetency(competencyId, req) },
+      ];
+
+      beforeEach(() => {
+        (competencyRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(competencyAggregate);
+      });
+
+      it.each(cases)('$name allows an HR/performance administrator', async ({ invoke }) => {
+        await invoke(requestWithActor(actor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects a non-admin manager', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(nonAdminManagerActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('KPI lifecycle commands', () => {
+      const kpiId = '00000000-0000-0000-0000-000000000750';
+      const kpiAggregate = { id: new Uuid(kpiId), status: 'DRAFT', aggregateVersion: 1 };
+      const cases: Array<{ name: string; invoke: (req: Request) => Promise<unknown> }> = [
+        { name: 'activateKpi', invoke: (req) => controller.activateKpi(kpiId, req) },
+        { name: 'updateKpiActual', invoke: (req) => controller.updateKpiActual(kpiId, { actualValue: 10 }, req) },
+        { name: 'assignKpiOwner', invoke: (req) => controller.assignKpiOwner(kpiId, { ownerId: workerId }, req) },
+        { name: 'archiveKpi', invoke: (req) => controller.archiveKpi(kpiId, req) },
+      ];
+
+      beforeEach(() => {
+        (kpiRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(kpiAggregate);
+      });
+
+      it.each(cases)('$name allows a manager or HR performance actor', async ({ invoke }) => {
+        await invoke(requestWithActor(orgScopedManagerActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it.each(cases)('$name rejects an actor without organizational performance scope', async ({ invoke }) => {
+        await expect(invoke(requestWithActor(noOrgScopeEmployeeActor()))).rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('KPI measurement validation command', () => {
+      const measurementId = '00000000-0000-0000-0000-000000000751';
+      const measurementAggregate = { id: new Uuid(measurementId), status: 'PENDING', aggregateVersion: 1 };
+
+      beforeEach(() => {
+        (kpiMeasurementRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(measurementAggregate);
+      });
+
+      it('allows a manager or HR performance actor to validate a KPI measurement', async () => {
+        await controller.validateKpiMeasurement(measurementId, { validatedBy: managerId }, requestWithActor(orgScopedManagerActor()));
+        expect(commandBus.execute).toHaveBeenCalled();
+      });
+
+      it('rejects an actor without organizational performance scope', async () => {
+        await expect(controller.validateKpiMeasurement(measurementId, { validatedBy: managerId }, requestWithActor(noOrgScopeEmployeeActor())))
+          .rejects.toBeInstanceOf(ForbiddenException);
+        expect(commandBus.execute).not.toHaveBeenCalled();
+      });
+    });
+  });
 });

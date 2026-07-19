@@ -6,7 +6,6 @@ import {
   Body,
   Req,
   UseGuards,
-  UsePipes,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -19,15 +18,19 @@ import type { Request } from 'express';
 import { AuthGuard } from '../../../guards/auth.guard.js';
 import { requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 
-import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
 import { OnboardingPlanRepository } from '../repositories/onboarding-plan.repository.js';
 import { OnboardingTaskRepository } from '../repositories/onboarding-task.repository.js';
 
 import {
   CreateOnboardingPlanDto,
+  CreateOnboardingPlanDtoSchema,
   CreateOnboardingTaskDto,
+  CreateOnboardingTaskDtoSchema,
   ApplyOnboardingTemplateDto,
+  ApplyOnboardingTemplateDtoSchema,
   RecordOnboardingTaskEvidenceDto,
+  RecordOnboardingTaskEvidenceDtoSchema,
+  ZodValidationPipe,
 } from './dtos.js';
 import { OnboardingTemplateService } from '../services/onboarding-template.service.js';
 import { OnboardingReadinessService } from '../services/onboarding-readiness.service.js';
@@ -39,7 +42,6 @@ const ONBOARDING_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_AD
 @ApiTags('Onboarding')
 @Controller('hr/onboarding')
 @UseGuards(AuthGuard)
-@UsePipes(ZodValidationPipe)
 export class OnboardingController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -90,7 +92,7 @@ export class OnboardingController {
   @Post('plans')
   @ApiOperation({ summary: 'Create a new onboarding plan' })
   async createPlan(
-    @Body() dto: CreateOnboardingPlanDto,
+    @Body(new ZodValidationPipe(CreateOnboardingPlanDtoSchema)) dto: CreateOnboardingPlanDto,
     @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
@@ -106,7 +108,7 @@ export class OnboardingController {
   @ApiParam({ name: 'id', description: 'Plan UUID' })
   async applyTemplate(
     @Param('id') id: string,
-    @Body() dto: ApplyOnboardingTemplateDto,
+    @Body(new ZodValidationPipe(ApplyOnboardingTemplateDtoSchema)) dto: ApplyOnboardingTemplateDto,
     @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
@@ -209,7 +211,7 @@ export class OnboardingController {
   @Post('tasks')
   @ApiOperation({ summary: 'Create an onboarding task' })
   async createTask(
-    @Body() dto: CreateOnboardingTaskDto,
+    @Body(new ZodValidationPipe(CreateOnboardingTaskDtoSchema)) dto: CreateOnboardingTaskDto,
     @Req() req: Request,
   ) {
     this.assertOnboardingAdminScope(req);
@@ -241,7 +243,7 @@ export class OnboardingController {
   @ApiParam({ name: 'id', description: 'Task UUID' })
   async recordTaskEvidence(
     @Param('id') id: string,
-    @Body() dto: RecordOnboardingTaskEvidenceDto,
+    @Body(new ZodValidationPipe(RecordOnboardingTaskEvidenceDtoSchema)) dto: RecordOnboardingTaskEvidenceDto,
     @Req() req: Request,
   ) {
     await this.assertCanMutateTask(id, req);

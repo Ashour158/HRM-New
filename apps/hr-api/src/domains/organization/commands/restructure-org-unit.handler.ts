@@ -6,6 +6,7 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import type { RestructureOrgUnitPayload } from '@hcm/command-contracts';
 import { OrgUnitRepository } from '../repositories/org-unit.repository.js';
 import { OrgUnitFsm } from '../fsm/org-unit.fsm.js';
+import { WorksCouncilConsultationGuard } from '../../global-hr/services/works-council-consultation-guard.service.js';
 
 /**
  * Command handler for restructuring an OrgUnit.
@@ -18,6 +19,7 @@ export class RestructureOrgUnitHandler implements ICommandHandler {
   constructor(
     private readonly repo: OrgUnitRepository,
     private readonly fsm: OrgUnitFsm,
+    private readonly worksCouncilGuard: WorksCouncilConsultationGuard,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -25,6 +27,14 @@ export class RestructureOrgUnitHandler implements ICommandHandler {
     const entity = await this.repo.findById(payload.orgUnitId);
     if (!entity) {
       throw new Error('OrgUnit not found');
+    }
+
+    // Compliance gate: a restructuring cannot proceed while the org unit's
+    // legal entity has a required works-council consultation that has not
+    // completed. Org units without a legal entity on file are not scoped by
+    // this guard (see WorksCouncilConsultationGuard for the scoping rationale).
+    if (entity.legalEntityId) {
+      await this.worksCouncilGuard.assertNotBlocked(entity.legalEntityId, command.tenantId, 'restructure org unit');
     }
 
     if (payload.newParentOrgUnitId) {
