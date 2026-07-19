@@ -12,6 +12,7 @@ const addNotificationMock = vi.hoisted(() => vi.fn());
 const tenantId = '00000000-0000-4000-8000-000000000001';
 const actorId = '00000000-0000-4000-8000-000000000099';
 const courseId = '00000000-0000-4000-8000-000000000101';
+const assigneeWorkerId = '00000000-0000-4000-8000-000000000302';
 
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
@@ -91,6 +92,20 @@ describe('AdminLearning', () => {
       }
       if (url === `/learning/assignments/tenant/${tenantId}`) return apiResponse([]);
       if (url === `/learning/certifications/tenant/${tenantId}`) return apiResponse([]);
+      if (url === '/hr/core/workers/directory-search?search=priya&pageSize=10') {
+        return apiResponse([
+          {
+            id: assigneeWorkerId,
+            employeeId: 'EMP-3002',
+            firstName: 'Priya',
+            lastName: 'Shah',
+            email: 'priya.shah@example.com',
+            hireDate: '2025-03-01T00:00:00.000Z',
+            status: 'ACTIVE',
+            jobTitle: 'Clinical Nurse',
+          },
+        ]);
+      }
       if (url === `/learning/content-packages/tenant/${tenantId}`) {
         return apiResponse([
           {
@@ -147,14 +162,14 @@ describe('AdminLearning', () => {
 
     await userEvent.click(screen.getByRole('tab', { name: 'Assignment Overview' }));
     await userEvent.click(screen.getByRole('button', { name: 'Assign Course' }));
-    await userEvent.clear(screen.getByLabelText('Worker ID'));
-    await userEvent.type(screen.getByLabelText('Worker ID'), '00000000-0000-4000-8000-000000000302');
+    await userEvent.type(screen.getByLabelText('Select worker'), 'priya');
+    await userEvent.click(await screen.findByText('Priya Shah', {}, { timeout: 5000 }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Assignment' }));
 
     await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
       '/learning/assignments',
       expect.objectContaining({
-        workerId: '00000000-0000-4000-8000-000000000302',
+        workerId: assigneeWorkerId,
         courseId,
         assignedBy: actorId,
       }),

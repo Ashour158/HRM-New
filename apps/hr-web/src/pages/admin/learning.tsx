@@ -23,6 +23,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { WorkerPicker } from '@/components/common/worker-picker';
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
@@ -766,8 +767,8 @@ export function AdminLearning() {
                     </DialogHeader>
                     <div className="grid gap-4 py-2">
                       <div className="space-y-2">
-                        <Label htmlFor="assignment-worker">Worker ID</Label>
-                        <Input id="assignment-worker" value={assignmentForm.workerId} onChange={(event) => setAssignmentForm((current) => ({ ...current, workerId: event.target.value }))} />
+                        <Label htmlFor="assignment-worker">Select worker</Label>
+                        <WorkerPicker id="assignment-worker" value={assignmentForm.workerId} onChange={(workerId) => setAssignmentForm((current) => ({ ...current, workerId }))} />
                       </div>
                       <Combobox
                         label="Course"

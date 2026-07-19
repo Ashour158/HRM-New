@@ -127,6 +127,42 @@ export class LearningController {
     throw new ForbiddenException('Certificate access is limited to the certificate holder or HR/admin roles');
   }
 
+  private isPrivilegedLearningActor(req: Request): boolean {
+    const actor = requireActor(req, 'Learning');
+    return actor.actorType === 'SYSTEM'
+      || actor.actorType === 'SERVICE_ACCOUNT'
+      || actor.roles.some((role) => ['HR_ADMIN', 'HRBP', 'LEARNING_ADMIN', 'SUPER_ADMIN'].includes(role));
+  }
+
+  /**
+   * Restricts worker-scoped learning/certification records to the worker
+   * themselves, their reporting-line manager, or an HR/Learning admin role
+   * (HCM-P0-11).
+   */
+  private async assertCanAccessWorker(req: Request, workerId: string): Promise<void> {
+    const actor = requireActor(req, 'Learning');
+    if (this.isPrivilegedLearningActor(req)) return;
+    if (actor.actorId.value === workerId) return;
+
+    const worker = await this.workerRepo.findById(new Uuid(workerId));
+    if (!worker) throw new BadRequestException('Worker not found');
+
+    const managerId = (worker as { managerId?: Uuid }).managerId?.value;
+    if (actor.roles.includes('MANAGER') && managerId === actor.actorId.value) return;
+
+    throw new ForbiddenException('Learning records are scoped to self, reporting line, or HR/Learning admin roles');
+  }
+
+  /**
+   * Restricts tenant-wide learning/certification listings to HR/Learning
+   * admin roles (HCM-P0-11).
+   */
+  private assertLearningAdminScope(req: Request): void {
+    if (!this.isPrivilegedLearningActor(req)) {
+      throw new ForbiddenException('Learning administrative data requires HR or Learning admin scope');
+    }
+  }
+
   /* Learning Courses */
   @Post('courses')
   async createCourse(@Body(new ZodValidationPipe(CreateLearningCourseDtoSchema)) dto: dtos.CreateLearningCourseDto, @Req() req: Request) {
@@ -154,6 +190,9 @@ export class LearningController {
     return this.commandBus.execute(this.buildCommand('RetireLearningCourse', 'LearningCourse', { learningCourseId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  // Course catalog metadata carries no worker PII, so it is intentionally
+  // readable tenant-wide by any authenticated actor (tenant scope is still
+  // enforced via requireMatchingTenant on the tenant-listing route).
   @Get('courses/:id')
   async getCourse(@Param('id') id: string) {
     return this.courseRepo.findById(new Uuid(id));
@@ -199,22 +238,28 @@ export class LearningController {
   }
 
   @Get('assignments/:id')
-  async getAssignment(@Param('id') id: string) {
-    return this.assignmentRepo.findById(new Uuid(id));
+  async getAssignment(@Param('id') id: string, @Req() req: Request) {
+    const assignment = await this.assignmentRepo.findById(new Uuid(id));
+    if (!assignment) return assignment;
+    await this.assertCanAccessWorker(req, assignment.workerId.value);
+    return assignment;
   }
 
   @Get('assignments/worker/:workerId')
-  async getAssignmentsByWorker(@Param('workerId') workerId: string) {
+  async getAssignmentsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
     return this.assignmentRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('assignments/course/:courseId')
-  async getAssignmentsByCourse(@Param('courseId') courseId: string) {
+  async getAssignmentsByCourse(@Param('courseId') courseId: string, @Req() req: Request) {
+    this.assertLearningAdminScope(req);
     return this.assignmentRepo.findByCourse(new Uuid(courseId));
   }
 
   @Get('assignments/tenant/:tenantId')
   async getAssignmentsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertLearningAdminScope(req);
     return this.assignmentRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
@@ -246,17 +291,22 @@ export class LearningController {
   }
 
   @Get('certifications/:id')
-  async getCertification(@Param('id') id: string) {
-    return this.certificationRepo.findById(new Uuid(id));
+  async getCertification(@Param('id') id: string, @Req() req: Request) {
+    const certification = await this.certificationRepo.findById(new Uuid(id));
+    if (!certification) return certification;
+    await this.assertCanAccessWorker(req, certification.workerId.value);
+    return certification;
   }
 
   @Get('certifications/worker/:workerId')
-  async getCertificationsByWorker(@Param('workerId') workerId: string) {
+  async getCertificationsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
+    await this.assertCanAccessWorker(req, workerId);
     return this.certificationRepo.findByWorker(new Uuid(workerId));
   }
 
   @Get('certifications/tenant/:tenantId')
   async getCertificationsByTenant(@Param('tenantId') tenantId: string, @Req() req: Request) {
+    this.assertLearningAdminScope(req);
     return this.certificationRepo.findByTenant(this.requireMatchingTenant(req, tenantId));
   }
 
