@@ -1398,8 +1398,8 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
   'GET /reporting/report-definitions': () => ok(SAVED_REPORT_DEFINITIONS),
   'GET /reporting/report-executions': () => ok(MOCK_REPORT_EXECUTIONS),
   'GET /reporting/calculated-fields': () => ok([
-    { calculatedFieldId: '00000000-0000-0000-0000-00000000c501', fieldName: 'Net payroll cost', expression: 'grossPay - deductionAmount', dataType: 'currency', sourceFields: ['grossPay', 'deductionAmount'], status: 'ACTIVE' },
-    { calculatedFieldId: '00000000-0000-0000-0000-00000000c502', fieldName: 'Attendance risk score', expression: 'lateMinutes + exceptions', dataType: 'number', sourceFields: ['lateMinutes', 'exceptions'], status: 'DRAFT' },
+    { calculatedFieldId: '00000000-0000-0000-0000-00000000c501', fieldName: 'Net payroll cost', expression: 'grossPay - deductionAmount', dataType: 'currency', dataSource: 'PAYROLL', sourceFields: ['grossPay', 'deductionAmount'], status: 'ACTIVE' },
+    { calculatedFieldId: '00000000-0000-0000-0000-00000000c502', fieldName: 'Attendance risk score', expression: 'lateMinutes + exceptions', dataType: 'number', dataSource: 'ATTENDANCE', sourceFields: ['lateMinutes', 'exceptions'], status: 'DRAFT' },
   ]),
   'POST /reporting/builder/analytics-packs/run': () => ok({
     packCode: 'FULL_HR_ANALYTICS',
@@ -1535,6 +1535,7 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     fieldName: 'Custom metric',
     expression: 'grossPay - deductionAmount',
     dataType: 'currency',
+    dataSource: 'PAYROLL',
     status: 'DRAFT',
   }),
   'GET /reporting/hr-dashboard': () => ok({

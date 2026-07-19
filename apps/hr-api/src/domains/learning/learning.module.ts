@@ -1,6 +1,7 @@
 import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
+import { WorkerRepository } from '../hr-core/repositories/worker.repository.js';
 import { LearningController } from './api/learning.controller.js';
 import { LearningCourseRepository } from './repositories/learning-course.repository.js';
 import { LearningAssignmentRepository } from './repositories/learning-assignment.repository.js';
@@ -34,6 +35,7 @@ import { registerLearningContentPackageFsm } from './fsm/learning-content-packag
   imports: [PlatformModule],
   controllers: [LearningController],
   providers: [
+    WorkerRepository,
     LearningCourseRepository,
     LearningAssignmentRepository,
     CertificationRepository,

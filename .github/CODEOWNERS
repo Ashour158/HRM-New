@@ -1,0 +1,26 @@
+# Code ownership routing. Every path currently routes to the sole
+# maintainer -- this repo has one collaborator today (confirmed via the
+# GitHub collaborators API), so per-domain routing has no practical effect
+# yet. It exists so that the moment a second engineer joins, ownership
+# assignment is a one-line edit per path instead of a from-scratch design
+# exercise, and so the high-blast-radius paths below are called out
+# explicitly rather than left implicit.
+#
+# Update the owner handles here (and remove this comment block) once a
+# second reviewer is onboarded -- see docs/GO-LIVE-RUNBOOK.md and the
+# engineering-process findings this file closes.
+
+* @Ashour158
+
+# High-blast-radius paths -- these are exactly the classes of defect
+# (jsonb serialization, RLS bypass, auth-guard 500s, payroll money
+# correctness) that were found and fixed reactively across this project's
+# history. Once a second reviewer exists, require their sign-off here
+# specifically, even if other paths stay lightly reviewed.
+/apps/hr-api/src/domains/payroll/ @Ashour158
+/apps/hr-api/src/guards/ @Ashour158
+/infra/migrations/ @Ashour158
+/infra/rls/ @Ashour158
+/packages/hr-database/src/connection/ @Ashour158
+/packages/hr-platform-core/src/audit/ @Ashour158
+/packages/hr-platform-core/src/crypto/ @Ashour158

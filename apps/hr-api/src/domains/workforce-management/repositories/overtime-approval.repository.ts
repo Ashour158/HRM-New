@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -53,7 +53,7 @@ export class WfmOvertimeApprovalRepository extends BaseRepository<'wfm_overtime_
       id: new Uuid(row.id),
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
-      requestedHours: row.requested_hours,
+      requestedHours: parseNumeric(row.requested_hours),
       reason: row.reason,
       shiftDate: row.shift_date ?? undefined,
       requestedAt: row.requested_at,

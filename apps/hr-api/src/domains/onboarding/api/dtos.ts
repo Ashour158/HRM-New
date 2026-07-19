@@ -1,5 +1,22 @@
 import { z } from 'zod';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+
+/**
+ * NestJS pipe that validates a request body against an explicit Zod schema
+ * supplied at construction time (e.g. `@Body(new ZodValidationPipe(SomeDtoSchema))`).
+ * Unlike a metatype-based pipe, this can't silently no-op when a schema is
+ * missing — the schema is a required constructor argument.
+ */
+@Injectable()
+export class ZodValidationPipe implements PipeTransform {
+  constructor(private schema: z.ZodTypeAny) {}
+  transform(value: unknown): unknown {
+    const result = this.schema.safeParse(value);
+    if (!result.success) throw new BadRequestException(result.error.format());
+    return result.data;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Onboarding Plan DTOs                                               */
@@ -20,8 +37,6 @@ export const CreateOnboardingPlanDtoSchema = z.object({
 });
 
 export class CreateOnboardingPlanDto {
-  static zodSchema = CreateOnboardingPlanDtoSchema;
-
   @ApiProperty() planId!: string;
   @ApiProperty() workerId!: string;
   @ApiProperty() startDate!: Date;
@@ -71,8 +86,6 @@ export const CreateOnboardingTaskDtoSchema = z.object({
 });
 
 export class CreateOnboardingTaskDto {
-  static zodSchema = CreateOnboardingTaskDtoSchema;
-
   @ApiProperty() taskId!: string;
   @ApiProperty() planId!: string;
   @ApiProperty() title!: string;
@@ -97,8 +110,6 @@ export const ApplyOnboardingTemplateDtoSchema = z.object({
 });
 
 export class ApplyOnboardingTemplateDto {
-  static zodSchema = ApplyOnboardingTemplateDtoSchema;
-
   @ApiProperty() trackCode!: string;
   @ApiPropertyOptional() assignedBuddyId?: string;
   @ApiPropertyOptional() mentorId?: string;
@@ -115,8 +126,6 @@ export const RecordOnboardingTaskEvidenceDtoSchema = z.object({
 });
 
 export class RecordOnboardingTaskEvidenceDto {
-  static zodSchema = RecordOnboardingTaskEvidenceDtoSchema;
-
   @ApiPropertyOptional() evidenceType?: string;
   @ApiPropertyOptional() evidencePayload?: Record<string, unknown>;
   @ApiPropertyOptional() signingProviderEnvelopeId?: string;

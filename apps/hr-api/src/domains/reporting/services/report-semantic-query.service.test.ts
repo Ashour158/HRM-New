@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Uuid } from '@hcm/shared-kernel';
 import { ReportBuilderCatalogService } from './report-builder-catalog.service.js';
 import { ReportSemanticQueryService } from './report-semantic-query.service.js';
 import type { SemanticReportRowProvider } from './report-semantic-row-provider.service.js';
+import type { CalculatedFieldRepository } from '../repositories/calculated-field.repository.js';
+import { CalculatedField } from '../aggregates/calculated-field.aggregate.js';
 
 describe('ReportSemanticQueryService', () => {
   it('runs a scoped attendance semantic query with drill-through rows', async () => {
@@ -286,5 +289,140 @@ describe('ReportSemanticQueryService', () => {
         ]),
       }),
     ]));
+  });
+
+  describe('calculated fields', () => {
+    const tenantId = '00000000-0000-0000-0000-000000000001';
+
+    function activeCalculatedField(overrides: Partial<{
+      fieldName: string;
+      expression: string;
+      dataType: string;
+      dataSource: string;
+      sourceFields: string[];
+    }> = {}): CalculatedField {
+      return new CalculatedField({
+        id: Uuid.generate(),
+        tenantId: new Uuid(tenantId),
+        fieldName: overrides.fieldName ?? 'computedNetPay',
+        expression: overrides.expression ?? 'grossPay - taxAmount - insuranceAmount',
+        dataType: overrides.dataType ?? 'currency',
+        dataSource: overrides.dataSource ?? 'PAYROLL',
+        sourceFields: overrides.sourceFields ?? ['grossPay', 'taxAmount', 'insuranceAmount'],
+        status: 'ACTIVE',
+      });
+    }
+
+    function repoWith(fields: CalculatedField[]): CalculatedFieldRepository {
+      return {
+        findActiveByDataSourceForTenant: vi.fn(async (dataSource: string) => fields.filter((field) => field.dataSource === dataSource)),
+      } as unknown as CalculatedFieldRepository;
+    }
+
+    it('evaluates an active calculated field against each row and adds it as a computed column (ungrouped)', async () => {
+      const calculatedFieldRepo = repoWith([activeCalculatedField()]);
+      const service = new ReportSemanticQueryService(new ReportBuilderCatalogService(), undefined, calculatedFieldRepo);
+
+      const result = await service.run({
+        dataSource: 'PAYROLL',
+        tenantId,
+        queryDefinition: {
+          fields: ['employeeNumber'],
+          metrics: ['grossPay'],
+        },
+      });
+
+      expect(result.columns).toContain('computedNetPay');
+      expect(result.rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ employeeNumber: 'EMP-0042', grossPay: 5200, computedNetPay: 4160 }),
+        expect.objectContaining({ employeeNumber: 'EMP-0044', grossPay: 6100, computedNetPay: 4880 }),
+        expect.objectContaining({ employeeNumber: 'EMP-0047', grossPay: 4800, computedNetPay: 3840 }),
+      ]));
+      expect(result.drillThroughRows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ employeeNumber: 'EMP-0042', computedNetPay: 4160 }),
+      ]));
+    });
+
+    it('sums an active calculated field per group like a native metric (grouped)', async () => {
+      const calculatedFieldRepo = repoWith([activeCalculatedField()]);
+      const service = new ReportSemanticQueryService(new ReportBuilderCatalogService(), undefined, calculatedFieldRepo);
+
+      const result = await service.run({
+        dataSource: 'PAYROLL',
+        tenantId,
+        queryDefinition: {
+          metrics: ['grossPay'],
+          groupBy: ['department'],
+        },
+      });
+
+      expect(result.columns).toContain('computedNetPay');
+      expect(result.rows).toEqual(expect.arrayContaining([
+        expect.objectContaining({ department: 'ENGINEERING', computedNetPay: 9040 }),
+        expect.objectContaining({ department: 'SALES', computedNetPay: 3840 }),
+      ]));
+    });
+
+    it('does not evaluate calculated fields scoped to a different data source', async () => {
+      const calculatedFieldRepo = repoWith([activeCalculatedField({ dataSource: 'ATTENDANCE', expression: 'lateMinutes + exceptions', sourceFields: ['lateMinutes', 'exceptions'], fieldName: 'riskScore' })]);
+      const service = new ReportSemanticQueryService(new ReportBuilderCatalogService(), undefined, calculatedFieldRepo);
+
+      const result = await service.run({
+        dataSource: 'PAYROLL',
+        tenantId,
+        queryDefinition: { metrics: ['grossPay'] },
+      });
+
+      expect(result.columns).not.toContain('riskScore');
+      expect(result.rows.every((row) => !('riskScore' in row))).toBe(true);
+    });
+
+    it('falls back to an empty value and reports a warning when evaluation fails (division by zero)', async () => {
+      const calculatedFieldRepo = repoWith([activeCalculatedField({
+        fieldName: 'brokenRatio',
+        expression: 'grossPay / (taxAmount - taxAmount)',
+        sourceFields: ['grossPay', 'taxAmount'],
+      })]);
+      const service = new ReportSemanticQueryService(new ReportBuilderCatalogService(), undefined, calculatedFieldRepo);
+
+      const result = await service.run({
+        dataSource: 'PAYROLL',
+        tenantId,
+        queryDefinition: { fields: ['employeeNumber'], metrics: ['grossPay'] },
+      });
+
+      expect(result.rows.every((row) => row.brokenRatio === '')).toBe(true);
+      expect(result.warnings).toEqual(expect.arrayContaining([
+        expect.stringContaining('Calculated field "brokenRatio" could not be evaluated for 3 row(s): Division by zero.'),
+      ]));
+    });
+
+    it('skips a calculated field whose name collides with an existing catalog field and warns', async () => {
+      const calculatedFieldRepo = repoWith([activeCalculatedField({ fieldName: 'grossPay', expression: 'grossPay * 2' })]);
+      const service = new ReportSemanticQueryService(new ReportBuilderCatalogService(), undefined, calculatedFieldRepo);
+
+      const result = await service.run({
+        dataSource: 'PAYROLL',
+        tenantId,
+        queryDefinition: { metrics: ['grossPay'] },
+      });
+
+      expect(result.rows[0].grossPay).toBe(5200);
+      expect(result.warnings).toEqual(expect.arrayContaining([
+        expect.stringContaining('Calculated field "grossPay" was skipped because it conflicts with an existing field name'),
+      ]));
+    });
+
+    it('does not consult calculated fields when no repository is wired (backward compatible)', async () => {
+      const service = new ReportSemanticQueryService(new ReportBuilderCatalogService());
+
+      const result = await service.run({
+        dataSource: 'PAYROLL',
+        tenantId,
+        queryDefinition: { metrics: ['grossPay'] },
+      });
+
+      expect(result.columns).not.toContain('computedNetPay');
+    });
   });
 });

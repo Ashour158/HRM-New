@@ -714,50 +714,9 @@ describe('PayrollController salary governance', () => {
     expect(commandBus.execute).not.toHaveBeenCalled();
   });
 
-  it('uses persisted enterprise evidence before final close-to-pay dispatch', async () => {
-    const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
-    const payrollCycleId = '550e8400-e29b-41d4-a716-446655440701';
-    const calculationRunId = '550e8400-e29b-41d4-a716-446655440702';
-    const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440703');
-    const commandNames: string[] = [];
-    const cycle = {
-      id: new Uuid(payrollCycleId),
-      tenantId,
-      cycleName: 'May 2026 Payroll',
-      payPeriodStart: new Date('2026-05-01T00:00:00.000Z'),
-      payPeriodEnd: new Date('2026-05-31T00:00:00.000Z'),
-      payDate: new Date('2026-05-31T00:00:00.000Z'),
-      status: 'DRAFT',
-      aggregateVersion: 0,
-    };
-    const run = {
-      id: new Uuid(calculationRunId),
-      status: 'PENDING',
-      aggregateVersion: 0,
-    };
-    const commandBus = {
-      execute: vi.fn(async (command: { commandName: string }) => {
-        commandNames.push(command.commandName);
-        if (command.commandName === 'CreatePayrollCycle') {
-          cycle.status = 'DRAFT';
-          return { success: true, data: { payrollCycleId }, newState: cycle.status };
-        }
-        if (command.commandName === 'OpenPayrollCycle') cycle.status = 'OPEN';
-        if (command.commandName === 'StartPayrollInputCollection') cycle.status = 'INPUT_COLLECTION';
-        if (command.commandName === 'StartPayrollValidation') cycle.status = 'VALIDATION';
-        if (command.commandName === 'StartPayrollCalculation') cycle.status = 'CALCULATION';
-        if (command.commandName === 'StartPayrollReview') cycle.status = 'REVIEW';
-        if (command.commandName === 'ApprovePayrollCycle') cycle.status = 'APPROVED';
-        if (command.commandName === 'ClosePayrollCycle') cycle.status = 'CLOSED';
-        if (command.commandName === 'StartPayrollCalculationRun') {
-          run.status = 'PENDING';
-          return { success: true, data: { payrollCalculationRunId: calculationRunId }, newState: run.status };
-        }
-        if (command.commandName === 'ValidatePayrollCalculationRun') run.status = 'VALIDATED';
-        if (command.commandName === 'FinalizePayrollCalculationRun') run.status = 'FINALIZED';
-        return { success: true, data: {}, newState: cycle.status };
-      }),
-    };
+  it('delegates close-to-pay to the background job once pre-check readiness passes', async () => {
+    const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440701');
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
     const preview = {
       id: '2026-05',
       name: 'May 2026 Payroll',
@@ -786,7 +745,13 @@ describe('PayrollController salary governance', () => {
         explainability: [],
       }],
     };
-    let storedPaymentBatch: unknown;
+    const startJob = vi.fn(async () => ({
+      jobId: '550e8400-e29b-41d4-a716-446655449900',
+      status: 'RUNNING' as const,
+      totalEmployees: 1,
+      totalBatches: 1,
+      batchSize: 50,
+    }));
     const controller = new PayrollController(
       commandBus as never,
       {
@@ -839,71 +804,28 @@ describe('PayrollController salary governance', () => {
           bankReady: true,
           readinessReason: 'READY',
         }]),
-        buildResultLineDrafts: vi.fn(() => []),
-        buildPayslipsFromResultLines: vi.fn(() => []),
         maskRowForActor: (row: unknown) => row,
       } as never,
       new PayrollCycleGovernanceService() as never,
-      {
-        findById: vi.fn(async () => cycle),
-        findByTenant: vi.fn(async () => []),
-      } as never,
-      { findByPayrollCycle: vi.fn(async () => []) } as never,
-      { findById: vi.fn(async () => run) } as never,
-      { findByPayrollCycle: vi.fn(async () => []) } as never,
-      {
-        save: vi.fn(async (record) => { storedPaymentBatch = record; }),
-        findByPayrollCycle: vi.fn(async () => storedPaymentBatch),
-      } as never,
-      { saveMany: vi.fn(async () => undefined), findByPayrollCycle: vi.fn(async () => []) } as never,
+      { findByTenant: vi.fn(async () => []) } as never,
       {} as never,
-      { findByPayrollCycle: vi.fn(async () => undefined), save: vi.fn(async () => undefined) } as never,
-      {
-        buildInputDrafts: vi.fn(() => []),
-        buildPaymentBatch: vi.fn((cyclePreview, rows) => ({
-          batchId: `PAYMENT-${cyclePreview.id}`,
-          payrollCycleId: cyclePreview.id,
-          periodStart: cyclePreview.periodStart,
-          periodEnd: cyclePreview.periodEnd,
-          payDate: cyclePreview.payDate,
-          ready: true,
-          readyCount: rows.length,
-          blockedCount: 0,
-          totalNet: 8500,
-          currency: 'EGP',
-          rows,
-        })),
-        renderPayslipHtml: vi.fn(() => '<html></html>'),
-      } as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
       { applyApprovedInputs: vi.fn((cyclePreview) => cyclePreview) } as never,
-      {
-        buildPaymentBatchRecord: vi.fn(({ payrollCycleId, batch }) => ({
-          id: 'batch-1',
-          tenantId: tenantId.value,
-          payrollCycleId,
-          batchNumber: batch.batchId,
-          status: batch.ready ? 'READY' : 'BLOCKED',
-          periodStart: batch.periodStart,
-          periodEnd: batch.periodEnd,
-          payDate: batch.payDate,
-          currency: batch.currency,
-          readyCount: batch.readyCount,
-          blockedCount: batch.blockedCount,
-          totalNet: batch.totalNet,
-          fileHash: 'hash',
-          payload: batch,
-          reconciliationSummary: {},
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })),
-      } as never,
       {} as never,
       {} as never,
       {} as never,
-      new PayrollGlPostingService() as never,
+      {} as never,
+      {} as never,
+      { startJob } as never,
     );
     const req = {
-      tenantId: tenantId.value,
+      tenantId: '00000000-0000-0000-0000-000000000001',
       actor: {
         actorType: 'USER',
         actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
@@ -913,27 +835,26 @@ describe('PayrollController salary governance', () => {
       },
     } as never;
 
-    let response: unknown;
-    try {
-      await controller.closeMonthlyCycleToPay({ year: 2026, month: 5 }, req);
-      throw new Error('Expected persisted enterprise evidence to block final close');
-    } catch (error) {
-      expect(error).toBeInstanceOf(BadRequestException);
-      response = (error as BadRequestException).getResponse();
-    }
+    const response = await controller.closeMonthlyCycleToPay({ year: 2026, month: 5 }, req);
 
     expect(response).toMatchObject({
-      message: 'Payroll cycle has blocking readiness issues',
-      readiness: {
-        canClose: false,
-        issues: expect.arrayContaining([
-          expect.objectContaining({ code: 'MISSING_GL_MAPPING' }),
-          expect.objectContaining({ code: 'MISSING_PAYMENT_BATCH_CONFIG' }),
-        ]),
-      },
+      jobId: '550e8400-e29b-41d4-a716-446655449900',
+      status: 'RUNNING',
+      employeeCount: 1,
+      totalBatches: 1,
+      batchSize: 50,
     });
-    expect(commandNames).not.toContain('ApprovePayrollCycle');
-    expect(commandNames).not.toContain('ClosePayrollCycle');
+    expect(startJob).toHaveBeenCalledTimes(1);
+    expect(startJob).toHaveBeenCalledWith(expect.objectContaining({
+      year: 2026,
+      month: 5,
+      closeCycle: true,
+      preview: expect.objectContaining({ id: '2026-05' }),
+      readiness: expect.objectContaining({ canClose: true }),
+    }));
+    // The synchronous pre-check must not itself run the heavy per-line CommandBus pipeline -
+    // that only happens inside the (mocked here) background job.
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 
   it('rebuilds persisted calculation rows before direct close readiness passes', async () => {
@@ -1183,5 +1104,66 @@ describe('PayrollController salary governance', () => {
     expect(findByWorkersBetween).toHaveBeenCalledTimes(1);
     expect(findByWorkersLedger).toHaveBeenCalledTimes(1);
     expect(findByWorker).not.toHaveBeenCalled();
+  });
+
+  it('returns close-to-pay job status for polling clients', async () => {
+    const jobId = '550e8400-e29b-41d4-a716-446655449901';
+    const getJobStatus = vi.fn(async () => ({
+      id: new Uuid(jobId),
+      tenantId: new Uuid('00000000-0000-0000-0000-000000000001'),
+      status: 'RUNNING' as const,
+      year: 2026,
+      month: 5,
+      closeCycle: true,
+      batchSize: 50,
+      totalEmployees: 120,
+      processedEmployees: 60,
+      totalBatches: 3,
+      currentBatch: 2,
+      errors: [],
+      startedAt: new Date('2026-05-01T00:00:00.000Z'),
+      updatedAt: new Date('2026-05-01T00:01:00.000Z'),
+    }));
+    const controller = buildController({});
+    (controller as unknown as { payrollCloseJob: unknown }).payrollCloseJob = { getJobStatus };
+    const req = {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    const response = await controller.getCloseToPayJobStatus(jobId, req);
+
+    expect(getJobStatus).toHaveBeenCalledWith(expect.objectContaining({ value: '00000000-0000-0000-0000-000000000001' }), expect.objectContaining({ value: jobId }));
+    expect(response).toMatchObject({
+      jobId,
+      status: 'RUNNING',
+      totalEmployees: 120,
+      processedEmployees: 60,
+      totalBatches: 3,
+      currentBatch: 2,
+    });
+  });
+
+  it('rejects an invalid job id on the close-to-pay status endpoint', async () => {
+    const controller = buildController({});
+    (controller as unknown as { payrollCloseJob: unknown }).payrollCloseJob = { getJobStatus: vi.fn() };
+    const req = {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    await expect(controller.getCloseToPayJobStatus('not-a-uuid', req)).rejects.toBeInstanceOf(BadRequestException);
   });
 });

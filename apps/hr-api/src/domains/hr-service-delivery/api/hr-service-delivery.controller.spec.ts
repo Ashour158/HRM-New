@@ -86,6 +86,8 @@ function controller(overrides: Record<string, unknown> = {}) {
       status: 'DRAFT',
       aggregateVersion: 1,
     }),
+    findByTenant: vi.fn().mockResolvedValue([]),
+    findPublished: vi.fn().mockResolvedValue([]),
   };
   const hrServiceCatalogItemRepo = {
     findActive: vi.fn().mockResolvedValue([]),
@@ -233,5 +235,111 @@ describe('HrServiceDeliveryController employee services', () => {
     await expect(instance.publishHrKnowledgeArticle(knowledgeArticleId.value, request())).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  describe('escalation', () => {
+    function caseAssignedTo(assignedTo?: Uuid) {
+      return {
+        id: caseId,
+        tenantId,
+        assignedTo,
+        status: 'IN_PROGRESS',
+        aggregateVersion: 2,
+      };
+    }
+
+    it('allows the assigned agent to escalate their own case even without HR admin roles', async () => {
+      const { instance, commandBus, serviceCaseRepo } = controller();
+      serviceCaseRepo.findById.mockResolvedValue(caseAssignedTo(workerId));
+
+      const outcome = await instance.escalateHrServiceCase(caseId.value, { escalationReason: 'Employee is threatening legal action.' }, request());
+
+      expect(outcome.success).toBe(true);
+      const command = commandBus.execute.mock.calls[0][0];
+      expect(command.commandName).toBe('EscalateHrServiceCase');
+      expect(command.payload).toMatchObject({ escalationReason: 'Employee is threatening legal action.' });
+    });
+
+    it('rejects escalation from an employee who is not the assigned agent', async () => {
+      const { instance, commandBus, serviceCaseRepo } = controller();
+      serviceCaseRepo.findById.mockResolvedValue(caseAssignedTo(otherWorkerId));
+
+      await expect(instance.escalateHrServiceCase(caseId.value, { escalationReason: 'Not my case.' }, request()))
+        .rejects.toBeInstanceOf(ForbiddenException);
+      expect(commandBus.execute).not.toHaveBeenCalled();
+    });
+
+    it('allows HR service delivery administrators to escalate any case regardless of assignment', async () => {
+      const { instance, commandBus, serviceCaseRepo } = controller();
+      serviceCaseRepo.findById.mockResolvedValue(caseAssignedTo(otherWorkerId));
+      const adminReq = {
+        ...request(),
+        actor: { actorType: 'USER', actorId: workerId, roles: ['HR_ADMIN'], permissions: [], mfaAuthenticated: true, email: 'hr.admin@example.com' },
+      } as unknown as Request;
+
+      const outcome = await instance.escalateHrServiceCase(caseId.value, { escalationReason: 'Needs HR intervention.' }, adminReq);
+
+      expect(outcome.success).toBe(true);
+      expect(commandBus.execute).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects escalation for a case that does not exist', async () => {
+      const { instance, serviceCaseRepo } = controller();
+      serviceCaseRepo.findById.mockResolvedValue(undefined);
+
+      await expect(instance.escalateHrServiceCase(caseId.value, { escalationReason: 'Anything.' }, request()))
+        .rejects.toThrow('HR service case not found');
+    });
+  });
+
+  describe('reassignment', () => {
+    it('rejects employee attempts to reassign a case', async () => {
+      const { instance, commandBus } = controller();
+
+      await expect(instance.reassignHrServiceCase(caseId.value, { assignedTo: otherWorkerId.value }, request()))
+        .rejects.toBeInstanceOf(ForbiddenException);
+      expect(commandBus.execute).not.toHaveBeenCalled();
+    });
+
+    it('allows HR service delivery administrators to reassign a case with an owner group', async () => {
+      const { instance, commandBus, serviceCaseRepo } = controller();
+      serviceCaseRepo.findById.mockResolvedValue({
+        id: caseId, tenantId, assignedTo: workerId, status: 'OPEN', aggregateVersion: 1,
+      });
+      const adminReq = {
+        ...request(),
+        actor: { actorType: 'USER', actorId: workerId, roles: ['HR_ADMIN'], permissions: [], mfaAuthenticated: true, email: 'hr.admin@example.com' },
+      } as unknown as Request;
+
+      await instance.reassignHrServiceCase(caseId.value, { assignedTo: otherWorkerId.value, ownerGroup: 'Payroll Escalations' }, adminReq);
+
+      const command = commandBus.execute.mock.calls[0][0];
+      expect(command.commandName).toBe('ReassignHrServiceCase');
+      expect(command.payload).toMatchObject({ assignedTo: otherWorkerId.value, ownerGroup: 'Payroll Escalations' });
+    });
+  });
+
+  describe('knowledge base search', () => {
+    it('only returns published knowledge articles to employees', async () => {
+      const { instance, hrKnowledgeArticleRepo } = controller();
+
+      await instance.listHrKnowledgeArticles(request(), undefined, 'payroll');
+
+      expect(hrKnowledgeArticleRepo.findPublished).toHaveBeenCalledWith(tenantId, { category: undefined, query: 'payroll' });
+      expect(hrKnowledgeArticleRepo.findByTenant).not.toHaveBeenCalled();
+    });
+
+    it('returns the full knowledge article inventory (including drafts) to HR admins', async () => {
+      const { instance, hrKnowledgeArticleRepo } = controller();
+      const adminReq = {
+        ...request(),
+        actor: { actorType: 'USER', actorId: workerId, roles: ['HR_ADMIN'], permissions: [], mfaAuthenticated: true, email: 'hr.admin@example.com' },
+      } as unknown as Request;
+
+      await instance.listHrKnowledgeArticles(adminReq);
+
+      expect(hrKnowledgeArticleRepo.findByTenant).toHaveBeenCalledWith(tenantId);
+      expect(hrKnowledgeArticleRepo.findPublished).not.toHaveBeenCalled();
+    });
   });
 });
