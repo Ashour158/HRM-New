@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, resolveTransactionAwareExecutor } from '@hcm/database';
 import { WorksCouncilConsultation } from '../aggregates/works-council-consultation.aggregate.js';
 
 /**
@@ -18,8 +18,17 @@ export class WorksCouncilConsultationRepository {
     this.db = createKyselyInstance(getPool());
   }
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async findById(id: Uuid): Promise<WorksCouncilConsultation | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom('hr_global_hr.works_council_consultations')
       .selectAll()
       .where('id', '=', id.value)
@@ -28,7 +37,7 @@ export class WorksCouncilConsultationRepository {
   }
 
   async findByLegalEntity(legalEntityId: Uuid): Promise<WorksCouncilConsultation[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_global_hr.works_council_consultations')
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
@@ -37,7 +46,7 @@ export class WorksCouncilConsultationRepository {
   }
 
   async findBlockingByLegalEntity(legalEntityId: Uuid): Promise<WorksCouncilConsultation[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_global_hr.works_council_consultations')
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
@@ -55,7 +64,7 @@ export class WorksCouncilConsultationRepository {
     legalEntityId: Uuid,
     tenantId: Uuid,
   ): Promise<WorksCouncilConsultation[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_global_hr.works_council_consultations')
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
@@ -66,7 +75,7 @@ export class WorksCouncilConsultationRepository {
   }
 
   async save(entity: WorksCouncilConsultation): Promise<void> {
-    const existing = await this.db
+    const existing = await this.executor
       .selectFrom('hr_global_hr.works_council_consultations')
       .select('id')
       .where('id', '=', entity.id.value)
@@ -89,13 +98,13 @@ export class WorksCouncilConsultationRepository {
     };
 
     if (existing) {
-      await this.db
+      await this.executor
         .updateTable('hr_global_hr.works_council_consultations')
         .set(row)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
-      await this.db
+      await this.executor
         .insertInto('hr_global_hr.works_council_consultations')
         .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
