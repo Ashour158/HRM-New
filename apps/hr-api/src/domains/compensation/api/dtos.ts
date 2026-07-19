@@ -94,22 +94,6 @@ export class ApproveCompensationChangeDto {
 }
 
 /* ------------------------------------------------------------------ */
-/*  CompensationBand revision DTO                                      */
-/* ------------------------------------------------------------------ */
-
-export class ReviseCompensationBandDto {
-  static zodSchema = z.object({
-    minSalary: z.number().nonnegative(),
-    midSalary: z.number().nonnegative(),
-    maxSalary: z.number().nonnegative(),
-  });
-
-  @ApiProperty() minSalary!: number;
-  @ApiProperty() midSalary!: number;
-  @ApiProperty() maxSalary!: number;
-}
-
-/* ------------------------------------------------------------------ */
 /*  BonusCycle DTOs                                                    */
 /* ------------------------------------------------------------------ */
 
