@@ -6,8 +6,6 @@ import type {
   AuthPasswordResetRequest,
   AuthPasswordResetRequestResponse,
   AuthRefreshResponse,
-  AuthRegisterRequest,
-  AuthRegisterResponse,
 } from '@hcm/openapi-contracts';
 import { clearAuthSession, persistAuthSession, readAuthToken, readRefreshToken, readTenantId } from '@/lib/auth-storage';
 import { generateUUID } from './utils';
@@ -19,7 +17,7 @@ import { createMockAdapter } from './mock-adapter';
 interface RetryConfig extends InternalAxiosRequestConfig {
   retryCount?: number;
   authRefreshAttempted?: boolean;
-  // Public/unauthenticated auth flows (register, password reset) must surface 401s
+  // Public/unauthenticated auth flows (login, password reset) must surface 401s
   // inline rather than being bounced to /login.
   suppressAuthRedirect?: boolean;
 }
@@ -30,6 +28,7 @@ const DEFAULT_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const AUTH_BYPASS_ENABLED = import.meta.env.DEV && import.meta.env.VITE_AUTH_BYPASS === 'true';
 const LOCAL_BYPASS_TOKEN = 'local-dev-bypass-token';
 const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
+const USE_MOCK_API = DEMO_MODE || AUTH_BYPASS_ENABLED;
 
 function persistTokens(token: string, refreshToken?: string): void {
   persistAuthSession({ token, refreshToken });
@@ -50,7 +49,7 @@ function createApiClient(): AxiosInstance {
     headers: {
       'Content-Type': 'application/json',
     },
-    ...(DEMO_MODE ? { adapter: createMockAdapter() } : {}),
+    ...(USE_MOCK_API ? { adapter: createMockAdapter() } : {}),
   });
 
   // Request interceptor: attach auth, tenant, and correlation headers
@@ -134,15 +133,6 @@ function createApiClient(): AxiosInstance {
  * Global Axios instance for API requests.
  */
 export const apiClient = createApiClient();
-
-export async function registerAuthUser(payload: AuthRegisterRequest): Promise<AuthRegisterResponse> {
-  const response = await apiClient.post<ApiResponse<AuthRegisterResponse>>(
-    '/auth/register',
-    payload,
-    { suppressAuthRedirect: true } as RetryConfig,
-  );
-  return response.data.data;
-}
 
 export async function requestPasswordReset(
   payload: AuthPasswordResetRequest,
