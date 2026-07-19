@@ -180,7 +180,7 @@ jobs:
         run: pnpm runtime:golden-workflow | tee golden-workflow-smoke.log
 
       - name: Upload runtime smoke evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: runtime-smoke-evidence
           path: |
