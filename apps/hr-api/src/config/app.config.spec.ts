@@ -12,6 +12,7 @@ describe('loadAppConfig security defaults', () => {
     delete process.env.INTEGRATION_API_KEY;
     delete process.env.CORS_ORIGINS;
     delete process.env.PII_DATA_ENCRYPTION_KEY;
+    delete process.env.WEB_APP_URL;
     process.env.NODE_ENV = 'development';
   });
 
@@ -109,5 +110,25 @@ describe('loadAppConfig security defaults', () => {
     process.env.NODE_ENV = 'development';
     process.env.CORS_ORIGINS = '*';
     expect(() => loadAppConfig()).not.toThrow();
+  });
+
+  it('defaults webAppUrl to the first CORS origin when WEB_APP_URL is unset (HCM-P0-3)', () => {
+    process.env.CORS_ORIGINS = 'https://app.example.com,https://admin.example.com';
+    expect(loadAppConfig().webAppUrl).toBe('https://app.example.com');
+  });
+
+  it('falls back to the first default CORS origin when neither WEB_APP_URL nor CORS_ORIGINS is set', () => {
+    expect(loadAppConfig().webAppUrl).toBe('http://localhost:5173');
+  });
+
+  it('falls back to the hardcoded dev default when CORS_ORIGINS is explicitly empty', () => {
+    process.env.CORS_ORIGINS = '  ,  ';
+    expect(loadAppConfig().webAppUrl).toBe('http://localhost:4173');
+  });
+
+  it('prefers an explicit WEB_APP_URL over the CORS origin default', () => {
+    process.env.WEB_APP_URL = 'https://hcm.example.com';
+    process.env.CORS_ORIGINS = 'https://app.example.com';
+    expect(loadAppConfig().webAppUrl).toBe('https://hcm.example.com');
   });
 });

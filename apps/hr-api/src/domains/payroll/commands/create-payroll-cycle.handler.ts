@@ -19,7 +19,15 @@ export class CreatePayrollCycleHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as { cycleName: string; payPeriodStart: Date; payPeriodEnd: Date; payDate?: Date };
     const pc = PayrollCycle.create(
-      { id: Uuid.generate(), tenantId: command.tenantId, cycleName: payload.cycleName, payPeriodStart: payload.payPeriodStart, payPeriodEnd: payload.payPeriodEnd, payDate: payload.payDate },
+      {
+        id: Uuid.generate(),
+        tenantId: command.tenantId,
+        cycleName: payload.cycleName,
+        payPeriodStart: payload.payPeriodStart,
+        payPeriodEnd: payload.payPeriodEnd,
+        payDate: payload.payDate,
+        createdBy: command.actor.actorId,
+      },
       command.correlationId,
     );
     await this.repo.save(pc);

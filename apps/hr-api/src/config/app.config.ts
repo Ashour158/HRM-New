@@ -46,6 +46,8 @@ export interface AppConfig {
   integrationApiKey?: string;
   /** Allowed CORS origins. */
   corsOrigins: string[];
+  /** Canonical frontend origin SSO callbacks redirect to (server-configured, never client-supplied). */
+  webAppUrl: string;
   /** Log level. */
   logLevel: string;
   /** Whether OpenTelemetry tracing is enabled. */
@@ -100,6 +102,7 @@ export function loadAppConfig(): AppConfig {
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+  const webAppUrl = (process.env.WEB_APP_URL ?? corsOrigins[0] ?? 'http://localhost:4173').trim();
 
   if (isProduction) {
     // Reject placeholders AND low-entropy/known-dev secrets, not just exact literals.
@@ -144,6 +147,7 @@ export function loadAppConfig(): AppConfig {
     systemApiKey,
     integrationApiKey,
     corsOrigins,
+    webAppUrl,
     logLevel: process.env.LOG_LEVEL ?? 'info',
     otelEnabled: (process.env.OTEL_ENABLED ?? 'false').toLowerCase() === 'true',
     otelServiceName: process.env.OTEL_SERVICE_NAME ?? 'hr-api',
