@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -49,7 +49,7 @@ export class TimesheetRepository extends BaseRepository<'timesheets', Timesheet>
       periodStart: row.period_start,
       periodEnd: row.period_end,
       entries: (row.entries as TimesheetEntry[]) ?? [],
-      totalHours: row.total_hours,
+      totalHours: parseNumeric(row.total_hours),
       status: row.status as TimesheetStatus,
       submittedAt: row.submitted_at ?? undefined,
       approvedBy: row.approved_by ? new Uuid(row.approved_by) : undefined,

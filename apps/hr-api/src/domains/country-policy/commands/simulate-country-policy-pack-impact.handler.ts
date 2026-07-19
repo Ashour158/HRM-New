@@ -74,7 +74,7 @@ export class SimulateCountryPolicyPackImpactHandler implements ICommandHandler {
       aggregateId: pack.id,
       newState: pack.status,
       newVersion: pack.aggregateVersion,
-      allowedNextActions: ['SubmitForLegalReview', 'SubmitForApproval'],
+      allowedNextActions: ['SubmitForLegalReview', 'SubmitCountryPolicyPackForApproval'],
       fieldAccessDecisions: {},
       eventsEmitted: [...pack.domainEvents.map((e) => e.eventName), ...sim.domainEvents.map((e) => e.eventName)],
       auditRecordId: Uuid.generate(),

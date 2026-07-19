@@ -110,7 +110,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => ['Suspend', 'Close']) } as never,
     );
 
-    const result = await handler.handle(command('ActivateBenefitsProgram', { programId }, programId));
+    const result = await handler.handle(command('ActivateBenefitsProgram', { benefitsProgramId: programId }, programId));
 
     expect(repo.findById).toHaveBeenCalledWith(programId);
     expect(existing.status).toBe('ACTIVE');
@@ -129,7 +129,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => []) } as never,
     );
 
-    await expect(handler.handle(command('ActivateBenefitsProgram', { programId }, programId))).rejects.toThrow(
+    await expect(handler.handle(command('ActivateBenefitsProgram', { benefitsProgramId: programId }, programId))).rejects.toThrow(
       'Cannot activate BenefitsProgram from state CLOSED',
     );
   });
@@ -143,7 +143,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => ['Activate', 'Close']) } as never,
     );
 
-    const result = await handler.handle(command('SuspendBenefitsProgram', { programId, reason: 'carrier renegotiation' }, programId));
+    const result = await handler.handle(command('SuspendBenefitsProgram', { benefitsProgramId: programId, reason: 'carrier renegotiation' }, programId));
 
     expect(existing.status).toBe('SUSPENDED');
     expect(result).toEqual(expect.objectContaining({
@@ -162,7 +162,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => []) } as never,
     );
 
-    const result = await handler.handle(command('CloseBenefitsProgram', { programId, reason: 'plan discontinued' }, programId));
+    const result = await handler.handle(command('CloseBenefitsProgram', { benefitsProgramId: programId, reason: 'plan discontinued' }, programId));
 
     expect(existing.status).toBe('CLOSED');
     expect(result).toEqual(expect.objectContaining({
@@ -183,7 +183,7 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => []) } as never,
     );
 
-    const result = await handler.handle(command('CloseBenefitsProgram', { programId }, programId));
+    const result = await handler.handle(command('CloseBenefitsProgram', { benefitsProgramId: programId }, programId));
 
     expect(existing.status).toBe('CLOSED');
     expect(result.eventsEmitted).toEqual(['BenefitsProgramClosed']);
@@ -198,8 +198,21 @@ describe('BenefitsProgram lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => []) } as never,
     );
 
-    await expect(handler.handle(command('CloseBenefitsProgram', { programId }, programId))).rejects.toThrow(
+    await expect(handler.handle(command('CloseBenefitsProgram', { benefitsProgramId: programId }, programId))).rejects.toThrow(
       'Cannot close BenefitsProgram from state DRAFT',
+    );
+  });
+
+  it('rejects activating/suspending/closing a program that does not exist', async () => {
+    const repo = { findById: vi.fn(async () => undefined), save: vi.fn(async () => undefined) };
+    const handler = new ActivateBenefitsProgramHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    await expect(handler.handle(command('ActivateBenefitsProgram', { benefitsProgramId: programId }, programId))).rejects.toThrow(
+      'BenefitsProgram not found',
     );
   });
 });

@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { axe } from 'jest-axe';
 import { describe, expect, it, vi } from 'vitest';
-import { PreviewPanel, RuleRow, WorkflowStepBuilder } from '.';
+import { ConditionRowBuilder, PreviewPanel, RuleRow, WorkflowStepBuilder } from '.';
 
 describe('builder primitives accessibility', () => {
   it('renders without accessibility violations', async () => {
@@ -22,6 +22,14 @@ describe('builder primitives accessibility', () => {
         />
         <RuleRow code="LATE_GRACE" label="Late arrival grace" outcome="Deduct" />
         <PreviewPanel items={[{ label: 'Steps', value: 2 }]} />
+        <ConditionRowBuilder
+          index={0}
+          field="newAnnualSalary"
+          operator="GREATER_THAN"
+          value="10000"
+          onChange={vi.fn()}
+          onRemove={vi.fn()}
+        />
       </div>,
     );
 

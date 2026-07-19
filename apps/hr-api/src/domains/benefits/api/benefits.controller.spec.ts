@@ -116,7 +116,7 @@ describe('BenefitsController lifecycle commands', () => {
       commandName: 'ActivateBenefitsProgram',
       aggregateType: 'BenefitsProgram',
       aggregateId: programId,
-      payload: { programId },
+      payload: { benefitsProgramId: programId },
     }));
   });
 
@@ -130,7 +130,7 @@ describe('BenefitsController lifecycle commands', () => {
       commandName: 'CloseBenefitsProgram',
       aggregateType: 'BenefitsProgram',
       aggregateId: programId,
-      payload: { programId, reason: 'plan discontinued' },
+      payload: { benefitsProgramId: programId, reason: 'plan discontinued' },
     }));
   });
 

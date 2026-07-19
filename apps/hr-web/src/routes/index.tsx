@@ -6,10 +6,12 @@ import { useAuth } from '@/hooks/use-auth';
 
 const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
+const SsoCallbackPage = lazy(() => import('@/pages/sso-callback').then((module) => ({ default: module.SsoCallbackPage })));
 const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((module) => ({ default: module.NotificationsPage })));
 const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
 const EmployeeAttendanceAction = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeAttendanceAction })));
+const EmployeeAttendance = lazy(() => import('@/pages/employee/attendance').then((module) => ({ default: module.EmployeeAttendance })));
 const EmployeeProfile = lazy(() => import('@/pages/employee/profile').then((module) => ({ default: module.EmployeeProfile })));
 const EmployeePayslip = lazy(() => import('@/pages/employee/payslip').then((module) => ({ default: module.EmployeePayslip })));
 const EmployeeBenefits = lazy(() => import('@/pages/employee/benefits').then((module) => ({ default: module.EmployeeBenefits })));
@@ -22,9 +24,11 @@ const EmployeePulse = lazy(() => import('@/pages/employee/pulse').then((module) 
 const EmployeeLearning = lazy(() => import('@/pages/employee/learning').then((module) => ({ default: module.EmployeeLearning })));
 const EmployeeOnboarding = lazy(() => import('@/pages/employee/onboarding').then((module) => ({ default: module.EmployeeOnboarding })));
 const EmployeeServices = lazy(() => import('@/pages/employee/services').then((module) => ({ default: module.EmployeeServices })));
+const EmployeeReports = lazy(() => import('@/pages/employee/reports').then((module) => ({ default: module.EmployeeReports })));
 const ManagerDashboard = lazy(() => import('@/pages/manager/dashboard').then((module) => ({ default: module.ManagerDashboard })));
 const ManagerTeam = lazy(() => import('@/pages/manager/team').then((module) => ({ default: module.ManagerTeam })));
 const ManagerApprovals = lazy(() => import('@/pages/manager/approvals').then((module) => ({ default: module.ManagerApprovals })));
+const ManagerReports = lazy(() => import('@/pages/manager/reports').then((module) => ({ default: module.ManagerReports })));
 const AdminDashboard = lazy(() => import('@/pages/admin/dashboard').then((module) => ({ default: module.AdminDashboard })));
 const AdminGetStarted = lazy(() => import('@/pages/admin/get-started').then((module) => ({ default: module.AdminGetStarted })));
 const AdminWorkers = lazy(() => import('@/pages/admin/workers').then((module) => ({ default: module.AdminWorkers })));
@@ -114,6 +118,21 @@ const managerRoleNames = new Set(['MANAGER']);
 const systemAdminRoleNames = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
 const recruiterRoleNames = new Set(['RECRUITER', 'TALENT_ACQUISITION', 'HR_ADMIN', 'SUPER_ADMIN']);
 const payrollRoleNames = new Set(['PAYROLL_ADMIN', 'COMPENSATION_ADMIN', 'HR_ADMIN', 'SUPER_ADMIN']);
+// Full worker master-data admin (create/update/terminate/mass-update/export). Narrower than
+// adminRoleNames: matches the backend's HR_CORE_ADMIN_ROLES, which intentionally excludes
+// PAYROLL_ADMIN/COMPENSATION_ADMIN/BENEFITS_ADMIN/COMPLIANCE_OFFICER/ER_SPECIALIST — those
+// roles only carry WORKER_READ in the RBAC policy, not WORKER_CREATE/UPDATE/TERMINATE, and
+// use the /hr/core/workers/directory-search endpoint via WorkerPicker for name lookups instead.
+const hrCoreAdminRoleNames = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'PEOPLE_ADMIN',
+  'WORKFORCE_PLANNING_ADMIN',
+  'SYSTEM_ACTOR',
+]);
 
 function RequireRoles({
   children,
@@ -157,6 +176,7 @@ export function AppRoutes() {
       <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
 
       {/* Employee Portal */}
       <Route
@@ -172,6 +192,7 @@ export function AppRoutes() {
                   <Route path="payslip" element={<EmployeePayslip />} />
                   <Route path="benefits/*" element={<EmployeeBenefits />} />
                   <Route path="time-off" element={<EmployeeTimeOff />} />
+                  <Route path="attendance" element={<EmployeeAttendance />} />
                   <Route path="attendance/:direction" element={<EmployeeAttendanceAction />} />
                   <Route path="onboarding" element={<EmployeeOnboarding />} />
                   <Route path="performance" element={<EmployeePerformance />} />
@@ -181,6 +202,7 @@ export function AppRoutes() {
                   <Route path="pulse" element={<EmployeePulse />} />
                   <Route path="learning" element={<EmployeeLearning />} />
                   <Route path="services" element={<EmployeeServices />} />
+                  <Route path="reports" element={<EmployeeReports />} />
                   <Route path="*" element={<Navigate to="/employee" replace />} />
                 </Routes>
               </PortalLayout>
@@ -202,6 +224,7 @@ export function AppRoutes() {
                     <Route path="dashboard" element={<ManagerDashboard />} />
                     <Route path="team" element={<ManagerTeam />} />
                     <Route path="approvals" element={<ManagerApprovals />} />
+                    <Route path="reports" element={<ManagerReports />} />
                     <Route path="*" element={<Navigate to="/manager" replace />} />
                   </Routes>
                 </PortalLayout>
@@ -346,9 +369,30 @@ export function AppRoutes() {
                     <Route path="modules" element={<AdminModuleCatalog />} />
                     <Route path="modules/:moduleId/operations" element={<AdminModuleOperations />} />
                     <Route path="modules/:moduleId" element={<AdminModuleWorkbench />} />
-                    <Route path="employees/new" element={<AdminEmployeeCreate />} />
-                    <Route path="employees/:id" element={<AdminEmployeeProfile />} />
-                    <Route path="employees" element={<AdminWorkers />} />
+                    <Route
+                      path="employees/new"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminEmployeeCreate />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="employees/:id"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminEmployeeProfile />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="employees"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminWorkers />
+                        </RequireRoles>
+                      }
+                    />
                     <Route path="workers" element={<Navigate to="/admin/employees" replace />} />
                     <Route path="organization" element={<AdminOrganization />} />
                     <Route path="workforce-planning" element={<AdminOrganization initialTab="planning" />} />

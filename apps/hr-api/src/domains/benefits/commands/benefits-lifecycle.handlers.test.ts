@@ -255,6 +255,9 @@ describe('Benefits lifecycle command handlers', () => {
     }));
   });
 
+  // BenefitsProgram activate/suspend/close command-handler coverage lives in
+  // benefits-program-lifecycle.handlers.test.ts, alongside CreateBenefitsProgram.
+
   it('records life events with schema-complete event payload fields', async () => {
     const repo = { save: vi.fn(async () => undefined) };
     const handler = new CreateBenefitsLifeEventHandler(

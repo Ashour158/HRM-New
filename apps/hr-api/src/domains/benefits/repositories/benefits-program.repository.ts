@@ -46,7 +46,8 @@ export class BenefitsProgramRepository extends BaseRepository<'benefits_programs
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['benefits_programs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['benefits_programs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['benefits_programs']>);
     }

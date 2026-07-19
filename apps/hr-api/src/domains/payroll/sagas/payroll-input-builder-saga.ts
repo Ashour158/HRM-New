@@ -169,7 +169,7 @@ export class PayrollInputBuilderSaga implements OnModuleInit {
       event.metadata.correlationId,
     );
     await this.payrollInputRepo.save(payrollInput);
-    await this.eventsPublisher.publishFromAggregate(payrollInput);
+    await this.eventsPublisher.publishUncommitted(payrollInput, payrollInput.tenantId, event.metadata.correlationId);
     this.logger.log({
       type: 'SAGA_AUTO_CREATED_PAYROLL_INPUT',
       source: input.source,

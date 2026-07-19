@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -29,7 +29,7 @@ jobs:
           version: 9.15.9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -100,7 +100,7 @@ jobs:
       DATABASE_URL: postgresql://hcm_admin:hcm_ci_password@localhost:5432/hcm_platform
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -108,7 +108,7 @@ jobs:
           version: 9.15.9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -154,7 +154,7 @@ jobs:
       MFA_REQUIRED: "false"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -162,7 +162,7 @@ jobs:
           version: 9.15.9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -234,13 +234,13 @@ jobs:
       MFA_REQUIRED: "false"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -265,12 +265,41 @@ jobs:
           test/tenant-isolation.e2e.test.ts
           test/finder-tenant-isolation.e2e.test.ts
 
-  security:
-    name: Security scan
+  kafka-integration-test:
+    name: Kafka real-broker integration E2E
     runs-on: ubuntu-latest
+    services:
+      # KRaft mode (no Zookeeper), single-node broker+controller. Health check and
+      # listener wiring follow the official Apache Kafka Docker image's documented
+      # single-node example. NOTE: unverified by a live CI run as of authoring this
+      # job -- GitHub Actions on this repo is currently billing-locked, so this
+      # config has only been validated by static review, not an actual run.
+      kafka:
+        image: apache/kafka:3.7.1
+        ports:
+          - 9092:9092
+        env:
+          KAFKA_NODE_ID: "1"
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+        options: >-
+          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
+          --health-interval 10s
+          --health-timeout 10s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      KAFKA_BROKERS: localhost:9092
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -278,7 +307,37 @@ jobs:
           version: 9.15.9
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API package graph
+        run: pnpm --filter @hcm/hr-api... build
+
+      - name: Run Kafka real-broker integration E2E
+        run: >-
+          pnpm --filter @hcm/hr-api exec vitest run
+          test/kafka-event-bus.e2e.test.ts
+          --passWithNoTests
+
+  security:
+    name: Security scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -311,13 +370,13 @@ jobs:
             dockerfile: apps/hr-web/Dockerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Build ${{ matrix.name }} image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -362,13 +421,13 @@ jobs:
       LOG_LEVEL: error
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: pnpm
@@ -385,9 +444,12 @@ jobs:
             if curl -fsS http://localhost:3001/api/v1/health >/dev/null 2>&1; then echo "API up"; break; fi
             sleep 2
           done
+          # Thresholds must match docs/perf-baseline.md. /api/v1/health is a trivial
+          # static health check (no DB/Redis/auth work) — these gates prove that, not
+          # a representative authenticated business endpoint (see PERF-2).
           LOAD_URL=http://localhost:3001/api/v1/health \
           LOAD_CONCURRENCY=25 LOAD_DURATION_MS=12000 LOAD_WARMUP_MS=1500 \
-          LOAD_P95_MAX_MS=250 LOAD_MIN_RPS=150 LOAD_MAX_ERROR_RATE=0.01 \
+          LOAD_P95_MAX_MS=150 LOAD_MIN_RPS=200 LOAD_MAX_ERROR_RATE=0.01 \
           node scripts/load/smoke.mjs
           STATUS=$?
           kill $API_PID 2>/dev/null || true

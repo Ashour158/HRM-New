@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
@@ -8,10 +8,11 @@ import { BenefitsProgramFsm } from '../fsm/benefits-program.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
 /**
- * Command handler that permanently closes a BenefitsProgram. The
- * BenefitsCarrierConsumer reacts to BenefitsProgramClosed by auto-terminating
- * any remaining active enrollments tied to this program, so `programId`
- * must be present in the emitted event payload (`data`).
+ * Command handler that permanently closes a BenefitsProgram
+ * (ACTIVE|SUSPENDED -> CLOSED). The BenefitsCarrierConsumer reacts to
+ * BenefitsProgramClosed by auto-terminating any remaining active
+ * enrollments tied to this program, so `programId` must be present in the
+ * emitted event payload (`data`).
  */
 @Injectable()
 @CommandHandler('CloseBenefitsProgram')
@@ -25,9 +26,11 @@ export class CloseBenefitsProgramHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { programId: Uuid; reason?: string };
-    const program = await this.repo.findById(payload.programId);
-    if (!program) throw new Error('BenefitsProgram not found');
+    const payload = command.payload as { benefitsProgramId: Uuid; reason?: string };
+    const program = await this.repo.findById(payload.benefitsProgramId);
+    if (!program) {
+      throw new NotFoundException('BenefitsProgram not found');
+    }
 
     program.close(command.correlationId);
     await this.repo.save(program);

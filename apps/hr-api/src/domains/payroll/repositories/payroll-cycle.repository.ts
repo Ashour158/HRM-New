@@ -19,7 +19,7 @@ export class PayrollCycleRepository extends BaseRepository<'payroll_cycles', Pay
   }
 
   async findByTenant(tenantId: Uuid): Promise<PayrollCycle[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', tenantId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_cycles']));
   }
 
@@ -27,7 +27,8 @@ export class PayrollCycleRepository extends BaseRepository<'payroll_cycles', Pay
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_cycles']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_cycles']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_cycles']>);
     }
@@ -46,6 +47,7 @@ export class PayrollCycleRepository extends BaseRepository<'payroll_cycles', Pay
       closedAt: row.closed_at ?? undefined,
       approvedBy: row.approved_by ? new Uuid(row.approved_by) : undefined,
       approvedAt: row.approved_at ?? undefined,
+      createdBy: row.created_by ? new Uuid(row.created_by) : undefined,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -65,6 +67,7 @@ export class PayrollCycleRepository extends BaseRepository<'payroll_cycles', Pay
       closed_at: entity.closedAt ?? null,
       approved_by: entity.approvedBy?.value ?? null,
       approved_at: entity.approvedAt ?? null,
+      created_by: entity.createdBy?.value ?? null,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,
       updated_at: entity.updatedAt,

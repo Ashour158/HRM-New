@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
@@ -23,9 +23,11 @@ export class ActivateBenefitsProgramHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { programId: Uuid };
-    const program = await this.repo.findById(payload.programId);
-    if (!program) throw new Error('BenefitsProgram not found');
+    const payload = command.payload as { benefitsProgramId: Uuid };
+    const program = await this.repo.findById(payload.benefitsProgramId);
+    if (!program) {
+      throw new NotFoundException('BenefitsProgram not found');
+    }
 
     program.activate(command.correlationId);
     await this.repo.save(program);

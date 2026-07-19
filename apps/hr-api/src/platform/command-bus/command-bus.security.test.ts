@@ -4,7 +4,30 @@ import { join } from 'node:path';
 import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { AccessControlService } from '@hcm/access-control';
-import { CommandBus, requiredPolicyAreaForCommand } from './command-bus.js';
+import { requiredPolicyAreaForCommand } from './command-bus.js';
+import { ActorAuthStep } from './steps/actor-auth.step.js';
+import { FsmEvaluationStep } from './steps/fsm-evaluation.step.js';
+import { AggregateLoadStep } from './steps/aggregate-load.step.js';
+import { OutboxStep } from './steps/outbox.step.js';
+import { FieldPrivacyStep } from './steps/field-privacy.step.js';
+import { RbacStep } from './steps/rbac.step.js';
+import { RuntimeGovernanceStep } from './steps/runtime-governance.step.js';
+import { PolicyRevisionStep } from './steps/policy-revision.step.js';
+import { LegalPolicyStep } from './steps/legal-policy.step.js';
+import { SubjectWorkerAccessStep } from './steps/subject-worker-access.step.js';
+import { PolicyEngineStep } from './steps/policy-engine.step.js';
+import { AuditStep } from './steps/audit.step.js';
+import { PolicyDecisionEvidenceStep } from './steps/policy-decision-evidence.step.js';
+import { RuntimeSetupResolver } from './steps/runtime-setup.resolver.js';
+
+// NOTE ON THIS FILE'S SHAPE: command-bus.ts used to be a single ~1,900-line
+// class and these tests reached into its private methods via
+// `Object.create(CommandBus.prototype)`. It has since been decomposed into
+// the focused, independently-testable pipeline step classes under `./steps/`
+// (see command-bus.ts's class doc comment). This file was updated to
+// exercise those step classes directly instead of CommandBus internals —
+// same scenarios, same expected error codes/results, just invoked through
+// the new seams. See the codebase-wide refactor PR for details.
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440001');
@@ -51,13 +74,6 @@ function makeCommand(overrides: Partial<HrCommandEnvelope<unknown>> = {}): HrCom
   };
 }
 
-function commandBusWith(overrides: Record<string, unknown> = {}) {
-  return Object.assign(Object.create(CommandBus.prototype), {
-    accessControl: new AccessControlService(),
-    ...overrides,
-  }) as Record<string, (...args: unknown[]) => Promise<unknown>>;
-}
-
 function commandResult(overrides: Record<string, unknown> = {}) {
   return {
     success: true,
@@ -97,7 +113,7 @@ function readCommandHandlerNames(): string[] {
 
 describe('CommandBus security gates', () => {
   it('rejects command actors whose actorId is not a UUID', async () => {
-    const bus = commandBusWith();
+    const step = new ActorAuthStep();
     const command = makeCommand({
       actor: {
         actorType: 'SYSTEM',
@@ -108,27 +124,25 @@ describe('CommandBus security gates', () => {
       },
     });
 
-    await expect(bus.stepAuthenticateActor(command)).rejects.toMatchObject({
+    await expect(step.authenticate(command)).rejects.toMatchObject({
       errorCode: 'UNAUTHENTICATED_ACTOR',
     });
   });
 
   it('does not skip FSM evaluation when an expected aggregate could not be loaded', async () => {
-    const bus = commandBusWith();
+    const step = new FsmEvaluationStep({ getAllowedActions: () => [] } as never);
 
-    await expect(bus.stepEvaluateFsm(makeCommand(), undefined)).rejects.toMatchObject({
+    await expect(step.evaluate(makeCommand(), undefined)).rejects.toMatchObject({
       errorCode: 'AGGREGATE_NOT_LOADED',
     });
   });
 
   it('normalizes aggregate versions from database rows before FSM conflict checks', async () => {
-    const bus = commandBusWith({
-      fsmFramework: {
-        getAllowedActions: () => ['UpdateWorkerPersonalData'],
-      },
-    });
+    const step = new FsmEvaluationStep({
+      getAllowedActions: () => ['UpdateWorkerPersonalData'],
+    } as never);
 
-    await expect(bus.stepEvaluateFsm(makeCommand({
+    await expect(step.evaluate(makeCommand({
       expectedState: 'ACTIVE',
       expectedVersion: 1,
     }), { version: '1' } as never)).resolves.toBeUndefined();
@@ -152,9 +166,9 @@ describe('CommandBus security gates', () => {
         return query;
       },
     };
-    const bus = commandBusWith();
+    const step = new AggregateLoadStep();
 
-    const aggregate = await bus.stepLoadAggregate(tx, makeCommand({
+    const aggregate = await step.load(tx as never, makeCommand({
       aggregateType: 'Candidate',
       expectedState: 'NEW',
       expectedVersion: 3,
@@ -175,9 +189,9 @@ describe('CommandBus security gates', () => {
         }),
       }),
     };
-    const bus = commandBusWith();
+    const step = new OutboxStep();
 
-    await bus.stepWriteOutbox(tx, makeCommand({
+    await step.write(tx as never, makeCommand({
       commandName: 'SuspendWorker',
       aggregateType: 'WorkerProfile',
     }), {
@@ -244,9 +258,9 @@ describe('CommandBus security gates', () => {
     const tx = {
       selectFrom: () => query,
     };
-    const bus = commandBusWith();
+    const step = new AggregateLoadStep();
 
-    await expect(bus.stepLoadAggregate(tx, makeCommand({
+    await expect(step.load(tx as never, makeCommand({
       aggregateType: 'Candidate',
       expectedState: 'NEW',
       expectedVersion: 3,
@@ -256,7 +270,7 @@ describe('CommandBus security gates', () => {
   });
 
   it('blocks employee mutation of payroll-sensitive fields at the command field policy gate', async () => {
-    const bus = commandBusWith();
+    const step = new FieldPrivacyStep(new AccessControlService());
     const command = makeCommand({
       payload: {
         workerId,
@@ -267,7 +281,7 @@ describe('CommandBus security gates', () => {
       },
     });
 
-    await expect(bus.stepEvaluateFieldPolicy(command)).rejects.toMatchObject({
+    await expect(step.evaluate(command)).rejects.toMatchObject({
       errorCode: 'FIELD_POLICY_DENIED',
     });
   });
@@ -293,11 +307,9 @@ describe('CommandBus security gates', () => {
         },
       }),
     };
-    const bus = commandBusWith({
-      db: {
-        selectFrom: () => query,
-      },
-    });
+    const db = { selectFrom: () => query };
+    const rbacStep = new RbacStep(new AccessControlService(), db as never);
+    const runtimeGovernanceStep = new RuntimeGovernanceStep(new RuntimeSetupResolver(undefined, db as never));
 
     const command = makeCommand({
       actor: {
@@ -309,8 +321,8 @@ describe('CommandBus security gates', () => {
       },
     });
 
-    await expect(bus.stepEvaluateRbac(command)).resolves.toBeUndefined();
-    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+    await expect(rbacStep.evaluate(command)).resolves.toMatchObject({ allowed: true });
+    await expect(runtimeGovernanceStep.evaluate(command)).rejects.toMatchObject({
       errorCode: 'RUNTIME_POLICY_ACTION_DENIED',
     });
   });
@@ -336,11 +348,9 @@ describe('CommandBus security gates', () => {
         },
       }),
     };
-    const bus = commandBusWith({
-      db: {
-        selectFrom: () => query,
-      },
-    });
+    const db = { selectFrom: () => query };
+    const fieldPrivacyStep = new FieldPrivacyStep(new AccessControlService());
+    const runtimeGovernanceStep = new RuntimeGovernanceStep(new RuntimeSetupResolver(undefined, db as never));
 
     const command = makeCommand({
       payload: {
@@ -351,8 +361,8 @@ describe('CommandBus security gates', () => {
       },
     });
 
-    await expect(bus.stepEvaluateFieldPolicy(command)).resolves.toBeUndefined();
-    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+    await expect(fieldPrivacyStep.evaluate(command)).resolves.toBeUndefined();
+    await expect(runtimeGovernanceStep.evaluate(command)).rejects.toMatchObject({
       errorCode: 'RUNTIME_POLICY_FIELD_DENIED',
     });
   });
@@ -364,13 +374,9 @@ describe('CommandBus security gates', () => {
       where: () => query,
       executeTakeFirst,
     };
-    const bus = commandBusWith({
-      db: {
-        selectFrom: () => query,
-      },
-    });
+    const step = new LegalPolicyStep({ selectFrom: () => query } as never);
 
-    await expect(bus.stepEvaluateLegalAndPolicy(makeCommand())).rejects.toMatchObject({
+    await expect(step.evaluate(makeCommand())).rejects.toMatchObject({
       errorCode: 'LEGAL_HOLD_BLOCKED',
     });
   });
@@ -385,13 +391,9 @@ describe('CommandBus security gates', () => {
       },
       executeTakeFirst: async () => ({ status: 'ACTIVE' }),
     };
-    const bus = commandBusWith({
-      db: {
-        selectFrom: () => query,
-      },
-    });
+    const step = new RbacStep(new AccessControlService(), { selectFrom: () => query } as never);
 
-    const status = await bus.resolveActorEmploymentStatus(makeCommand(), 'EMPLOYEE');
+    const status = await step.resolveActorEmploymentStatus(makeCommand(), 'EMPLOYEE');
 
     expect(status).toBe('ACTIVE');
     expect(conditions).toContainEqual(['tenant_id', '=', tenantId.value]);
@@ -408,13 +410,9 @@ describe('CommandBus security gates', () => {
       },
       executeTakeFirst: async () => ({ id: workerId.value }),
     };
-    const bus = commandBusWith({
-      db: {
-        selectFrom: () => query,
-      },
-    });
+    const step = new SubjectWorkerAccessStep({ selectFrom: () => query } as never);
 
-    await bus.stepValidateSubjectWorkerAccess(makeCommand({
+    await step.validate(makeCommand({
       actor: {
         actorType: 'USER',
         actorId: managerId,
@@ -429,9 +427,9 @@ describe('CommandBus security gates', () => {
   });
 
   it('maps workforce planning users to administrative command access for WFM mutations', async () => {
-    const bus = commandBusWith();
+    const step = new RbacStep(new AccessControlService(), {} as never);
 
-    await expect(bus.stepEvaluateRbac(makeCommand({
+    await expect(step.evaluate(makeCommand({
       commandName: 'CreateShiftSchedule',
       actor: {
         actorType: 'USER',
@@ -445,7 +443,7 @@ describe('CommandBus security gates', () => {
       expectedState: undefined,
       expectedVersion: undefined,
       payload: {},
-    }))).resolves.toBeUndefined();
+    }))).resolves.toMatchObject({ allowed: true });
   });
 
   it('blocks statically allowed commands when applied allowed-action overrides hide the command action', async () => {
@@ -454,29 +452,26 @@ describe('CommandBus security gates', () => {
       where: () => query,
       executeTakeFirst: async () => ({ status: 'ACTIVE' }),
     };
-    const bus = commandBusWith({
-      db: {
-        selectFrom: () => query,
-      },
-      hcmSetup: {
-        getSetup: async () => ({
-          policyGovernance: {
-            allowedActionOverrides: [
-              {
-                id: 'deny-submit-absence',
-                active: true,
-                aggregateType: 'AbsenceRequest',
-                action: 'SubmitAbsenceRequest',
-                roles: ['HR_ADMIN'],
-                effect: 'HIDE',
-                reason: 'Leave submissions are temporarily paused.',
-              },
-            ],
-            fieldAccessOverrides: [],
-          },
-        }),
-      },
-    });
+    const db = { selectFrom: () => query };
+    const rbacStep = new RbacStep(new AccessControlService(), db as never);
+    const runtimeGovernanceStep = new RuntimeGovernanceStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        policyGovernance: {
+          allowedActionOverrides: [
+            {
+              id: 'deny-submit-absence',
+              active: true,
+              aggregateType: 'AbsenceRequest',
+              action: 'SubmitAbsenceRequest',
+              roles: ['HR_ADMIN'],
+              effect: 'HIDE',
+              reason: 'Leave submissions are temporarily paused.',
+            },
+          ],
+          fieldAccessOverrides: [],
+        },
+      }),
+    } as never, db as never));
 
     const command = makeCommand({
       commandName: 'SubmitAbsenceRequest',
@@ -491,8 +486,8 @@ describe('CommandBus security gates', () => {
       payload: { workerId },
     });
 
-    await expect(bus.stepEvaluateRbac(command)).resolves.toBeUndefined();
-    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+    await expect(rbacStep.evaluate(command)).resolves.toMatchObject({ allowed: true });
+    await expect(runtimeGovernanceStep.evaluate(command)).rejects.toMatchObject({
       errorCode: 'RUNTIME_POLICY_ACTION_DENIED',
     });
   });
@@ -511,28 +506,26 @@ describe('CommandBus security gates', () => {
     ['service delivery', 'OpenHrServiceCase', 'HrServiceCase'],
     ['reporting', 'CreateReportDefinition', 'ReportDefinition'],
   ])('consumes applied access policy overrides before %s command execution', async (_domain, commandName, aggregateType) => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          policyGovernance: {
-            allowedActionOverrides: [
-              {
-                id: `deny-${commandName}`,
-                active: true,
-                aggregateType,
-                action: commandName,
-                roles: ['HR_ADMIN'],
-                effect: 'HIDE',
-                reason: `Runtime policy blocks ${commandName}`,
-              },
-            ],
-            fieldAccessOverrides: [],
-          },
-        }),
-      },
-    });
+    const runtimeGovernanceStep = new RuntimeGovernanceStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        policyGovernance: {
+          allowedActionOverrides: [
+            {
+              id: `deny-${commandName}`,
+              active: true,
+              aggregateType,
+              action: commandName,
+              roles: ['HR_ADMIN'],
+              effect: 'HIDE',
+              reason: `Runtime policy blocks ${commandName}`,
+            },
+          ],
+          fieldAccessOverrides: [],
+        },
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEvaluateRuntimeAccessGovernance(makeCommand({
+    await expect(runtimeGovernanceStep.evaluate(makeCommand({
       commandName,
       aggregateType,
       actor: {
@@ -572,22 +565,20 @@ describe('CommandBus security gates', () => {
     aggregateType,
   ) => {
     const unrelatedArea = area === 'ACCESS_GOVERNANCE' ? 'LEAVE' : 'ACCESS_GOVERNANCE';
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [{
-            area: unrelatedArea,
-            revisionId: `policy-${unrelatedArea}`,
-            status: 'APPLIED',
-            appliedAt: '2026-06-07T10:00:00.000Z',
-            engineName: 'PolicyApplicationEngine',
-            engineVersion: '1.0.0',
-          }],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [{
+          area: unrelatedArea,
+          revisionId: `policy-${unrelatedArea}`,
+          status: 'APPLIED',
+          appliedAt: '2026-06-07T10:00:00.000Z',
+          engineName: 'PolicyApplicationEngine',
+          engineVersion: '1.0.0',
+        }],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       commandName,
       aggregateType,
       payload: { workerId },
@@ -603,22 +594,20 @@ describe('CommandBus security gates', () => {
     commandName,
     aggregateType,
   ) => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [{
-            area,
-            revisionId: `policy-${area}`,
-            status: 'APPLIED',
-            appliedAt: '2026-06-07T10:00:00.000Z',
-            engineName: 'PolicyApplicationEngine',
-            engineVersion: '1.0.0',
-          }],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [{
+          area,
+          revisionId: `policy-${area}`,
+          status: 'APPLIED',
+          appliedAt: '2026-06-07T10:00:00.000Z',
+          engineName: 'PolicyApplicationEngine',
+          engineVersion: '1.0.0',
+        }],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       commandName,
       aggregateType,
       payload: { workerId },
@@ -640,51 +629,49 @@ describe('CommandBus security gates', () => {
       departmentIds: ['dept-operations'],
       employeeTypes: ['FULL_TIME'],
     } as HrCommandEnvelope<unknown>['actor'];
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [
-            {
-              area: 'LEAVE',
-              revisionId: 'leave-tenant-default',
-              status: 'APPLIED',
-              appliedAt: '2026-06-07T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-            },
-            {
-              area: 'LEAVE',
-              revisionId: 'leave-eg-country',
-              status: 'APPLIED',
-              appliedAt: '2026-06-08T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-              scope: { tenantId: tenantId.value, countryCodes: ['EG'] },
-            },
-            {
-              area: 'LEAVE',
-              revisionId: 'leave-operations-department',
-              status: 'APPLIED',
-              appliedAt: '2026-06-09T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-              scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
-            },
-            {
-              area: 'LEAVE',
-              revisionId: 'leave-worker-exception',
-              status: 'APPLIED',
-              appliedAt: '2026-06-10T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-              scope: { tenantId: tenantId.value, workerIds: [workerId.value] },
-            },
-          ],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [
+          {
+            area: 'LEAVE',
+            revisionId: 'leave-tenant-default',
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          },
+          {
+            area: 'LEAVE',
+            revisionId: 'leave-eg-country',
+            status: 'APPLIED',
+            appliedAt: '2026-06-08T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+            scope: { tenantId: tenantId.value, countryCodes: ['EG'] },
+          },
+          {
+            area: 'LEAVE',
+            revisionId: 'leave-operations-department',
+            status: 'APPLIED',
+            appliedAt: '2026-06-09T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+            scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
+          },
+          {
+            area: 'LEAVE',
+            revisionId: 'leave-worker-exception',
+            status: 'APPLIED',
+            appliedAt: '2026-06-10T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+            scope: { tenantId: tenantId.value, workerIds: [workerId.value] },
+          },
+        ],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       actor,
       commandName: 'SubmitAbsenceRequest',
       aggregateType: 'AbsenceRequest',
@@ -708,34 +695,32 @@ describe('CommandBus security gates', () => {
       departmentIds: ['dept-operations'],
       employeeTypes: ['FULL_TIME'],
     } as HrCommandEnvelope<unknown>['actor'];
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [
-            {
-              area: 'LEAVE',
-              revisionId: 'leave-operations-a',
-              status: 'APPLIED',
-              appliedAt: '2026-06-07T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-              scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
-            },
-            {
-              area: 'LEAVE',
-              revisionId: 'leave-operations-b',
-              status: 'APPLIED',
-              appliedAt: '2026-06-08T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-              scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
-            },
-          ],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [
+          {
+            area: 'LEAVE',
+            revisionId: 'leave-operations-a',
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+            scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
+          },
+          {
+            area: 'LEAVE',
+            revisionId: 'leave-operations-b',
+            status: 'APPLIED',
+            appliedAt: '2026-06-08T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+            scope: { tenantId: tenantId.value, departmentIds: ['dept-operations'] },
+          },
+        ],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       actor,
       commandName: 'SubmitAbsenceRequest',
       aggregateType: 'AbsenceRequest',
@@ -764,32 +749,30 @@ describe('CommandBus security gates', () => {
     commandName,
     aggregateType,
   ) => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [
-            {
-              area,
-              revisionId: `${area}-revision-a`,
-              status: 'APPLIED',
-              appliedAt: '2026-06-07T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-            },
-            {
-              area,
-              revisionId: `${area}-revision-b`,
-              status: 'APPLIED',
-              appliedAt: '2026-06-08T10:00:00.000Z',
-              engineName: 'PolicyApplicationEngine',
-              engineVersion: '1.0.0',
-            },
-          ],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [
+          {
+            area,
+            revisionId: `${area}-revision-a`,
+            status: 'APPLIED',
+            appliedAt: '2026-06-07T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          },
+          {
+            area,
+            revisionId: `${area}-revision-b`,
+            status: 'APPLIED',
+            appliedAt: '2026-06-08T10:00:00.000Z',
+            engineName: 'PolicyApplicationEngine',
+            engineVersion: '1.0.0',
+          },
+        ],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       commandName,
       aggregateType,
       payload: { workerId, deductionAmount: 25 },
@@ -812,22 +795,20 @@ describe('CommandBus security gates', () => {
     ['DEI_ANALYTICS', 'ReviewDeiReport', 'DeiReport'],
     ['ENGAGEMENT', 'PublishEngagementSurvey', 'EngagementSurvey'],
   ])('fails closed for %s commands until a first-class applied policy revision exists', async (area, commandName, aggregateType) => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [{
-            area: 'ACCESS_GOVERNANCE',
-            revisionId: 'generic-access',
-            status: 'APPLIED',
-            appliedAt: '2026-06-07T10:00:00.000Z',
-            engineName: 'PolicyApplicationEngine',
-            engineVersion: '1.0.0',
-          }],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [{
+          area: 'ACCESS_GOVERNANCE',
+          revisionId: 'generic-access',
+          status: 'APPLIED',
+          appliedAt: '2026-06-07T10:00:00.000Z',
+          engineName: 'PolicyApplicationEngine',
+          engineVersion: '1.0.0',
+        }],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       commandName,
       aggregateType,
       payload: {},
@@ -842,22 +823,20 @@ describe('CommandBus security gates', () => {
     ['DEI_ANALYTICS', 'ReviewDeiReport', 'DeiReport'],
     ['ENGAGEMENT', 'PublishEngagementSurvey', 'EngagementSurvey'],
   ])('allows %s commands when the matching first-class runtime policy is applied', async (area, commandName, aggregateType) => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          runtimePolicyRevisions: [{
-            area,
-            revisionId: `policy-${area}`,
-            status: 'APPLIED',
-            appliedAt: '2026-06-07T10:00:00.000Z',
-            engineName: 'PolicyApplicationEngine',
-            engineVersion: '1.0.0',
-          }],
-        }),
-      },
-    });
+    const step = new PolicyRevisionStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        runtimePolicyRevisions: [{
+          area,
+          revisionId: `policy-${area}`,
+          status: 'APPLIED',
+          appliedAt: '2026-06-07T10:00:00.000Z',
+          engineName: 'PolicyApplicationEngine',
+          engineVersion: '1.0.0',
+        }],
+      }),
+    } as never, undefined as never));
 
-    await expect(bus.stepEnforceAppliedPolicyRevision(makeCommand({
+    await expect(step.enforce(makeCommand({
       commandName,
       aggregateType,
       payload: {},
@@ -894,18 +873,19 @@ describe('CommandBus security gates', () => {
       subjectWorkerId: workerId.value,
       sourceRecordId: workerId.value,
     };
-    const bus = commandBusWith();
+    const auditStep = new AuditStep();
+    const policyDecisionEvidenceStep = new PolicyDecisionEvidenceStep();
 
-    await bus.stepWriteAuditRecord(tx, makeCommand({
+    await auditStep.write(tx as never, makeCommand({
       commandName: 'SubmitAbsenceRequest',
       aggregateType: 'AbsenceRequest',
       payload: { workerId },
-    }), commandResult(), evidence);
-    await bus.stepWritePolicyDecisionEvidence(tx, makeCommand({
+    }), commandResult(), evidence as never);
+    await policyDecisionEvidenceStep.write(tx as never, makeCommand({
       commandName: 'SubmitAbsenceRequest',
       aggregateType: 'AbsenceRequest',
       payload: { workerId },
-    }), commandResult(), evidence);
+    }), commandResult(), evidence as never);
 
     expect(inserted).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -954,38 +934,36 @@ describe('CommandBus security gates', () => {
       subjectWorkerId: workerId.value,
       sourceRecordId: workerId.value,
     };
-    const bus = commandBusWith();
+    const step = new PolicyDecisionEvidenceStep();
 
-    await bus.stepWritePolicyDecisionEvidence(tx, makeCommand({
+    await step.write(tx as never, makeCommand({
       commandName: 'SubmitBenefitsEnrollment',
       aggregateType: 'BenefitsEnrollment',
       payload: { workerId },
-    }), commandResult(), evidence);
+    }), commandResult(), evidence as never);
 
     expect(inserted).toEqual([]);
   });
 
   it('blocks command payload writes when applied field-access overrides deny the written field', async () => {
-    const bus = commandBusWith({
-      hcmSetup: {
-        getSetup: async () => ({
-          policyGovernance: {
-            allowedActionOverrides: [],
-            fieldAccessOverrides: [
-              {
-                id: 'deny-hr-home-address',
-                active: true,
-                resourceType: 'WorkerProfile',
-                fieldPath: 'homeAddress.line1',
-                roles: ['HR_ADMIN'],
-                decision: 'DENIED',
-                reason: 'Address updates are locked during audit.',
-              },
-            ],
-          },
-        }),
-      },
-    });
+    const runtimeGovernanceStep = new RuntimeGovernanceStep(new RuntimeSetupResolver({
+      getSetup: async () => ({
+        policyGovernance: {
+          allowedActionOverrides: [],
+          fieldAccessOverrides: [
+            {
+              id: 'deny-hr-home-address',
+              active: true,
+              resourceType: 'WorkerProfile',
+              fieldPath: 'homeAddress.line1',
+              roles: ['HR_ADMIN'],
+              decision: 'DENIED',
+              reason: 'Address updates are locked during audit.',
+            },
+          ],
+        },
+      }),
+    } as never, undefined as never));
 
     const command = makeCommand({
       actor: {
@@ -1003,16 +981,17 @@ describe('CommandBus security gates', () => {
       },
     });
 
-    await expect(bus.stepEvaluateFieldPolicy(command)).resolves.toBeUndefined();
-    await expect(bus.stepEvaluateRuntimeAccessGovernance(command)).rejects.toMatchObject({
+    const fieldPrivacyStep = new FieldPrivacyStep(new AccessControlService());
+    await expect(fieldPrivacyStep.evaluate(command)).resolves.toBeUndefined();
+    await expect(runtimeGovernanceStep.evaluate(command)).rejects.toMatchObject({
       errorCode: 'RUNTIME_POLICY_FIELD_DENIED',
     });
   });
 
   it('enforces the self-service policy engine before executing employee commands', async () => {
-    const bus = commandBusWith();
+    const step = new PolicyEngineStep();
 
-    await expect(bus.stepEvaluatePolicyEngine(makeCommand({
+    await expect(step.evaluate(makeCommand({
       commandName: 'ApprovePayrollCycle',
       aggregateType: 'PayrollCycle',
       payload: { workerId },
@@ -1033,7 +1012,7 @@ describe('CommandBus security gates', () => {
         }),
       }),
     };
-    const bus = commandBusWith();
+    const step = new OutboxStep();
 
     const evidence = {
       serviceArea: 'LEAVE',
@@ -1049,7 +1028,7 @@ describe('CommandBus security gates', () => {
       sourceRecordId: workerId.value,
     };
 
-    await bus.stepWriteOutbox(tx, makeCommand({
+    await step.write(tx as never, makeCommand({
       subjectWorkerId: undefined,
       payload: { workerId },
       metadata: { requestHash: 'hash', clientType: 'EMPLOYEE_PORTAL', hrDataSensitivity: 'LOW' },
@@ -1065,7 +1044,7 @@ describe('CommandBus security gates', () => {
       fieldAccessDecisions: {},
       eventsEmitted: ['AbsenceRequestSubmitted'],
       auditRecordId: new Uuid('550e8400-e29b-41d4-a716-446655440014'),
-    }, evidence);
+    }, evidence as never);
 
     expect(inserted[0]?.row.metadata).toMatchObject({
       privacy: {

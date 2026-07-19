@@ -137,7 +137,7 @@ export class BenefitsController {
   async activateProgram(@Param('id') id: string, @Body() _dto: ActivateBenefitsProgramDto = {}, @Req() req: Request) {
     await this.getProgramForCommand(id);
     const command = this.buildCommand(req, 'ActivateBenefitsProgram', 'BenefitsProgram', id, {
-      programId: new Uuid(id),
+      benefitsProgramId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -146,7 +146,7 @@ export class BenefitsController {
   async suspendProgram(@Param('id') id: string, @Body() dto: SuspendBenefitsProgramDto = {}, @Req() req: Request) {
     await this.getProgramForCommand(id);
     const command = this.buildCommand(req, 'SuspendBenefitsProgram', 'BenefitsProgram', id, {
-      programId: new Uuid(id),
+      benefitsProgramId: new Uuid(id),
       reason: dto.reason,
     });
     return this.commandBus.execute(command);
@@ -156,7 +156,7 @@ export class BenefitsController {
   async closeProgram(@Param('id') id: string, @Body() dto: CloseBenefitsProgramDto = {}, @Req() req: Request) {
     await this.getProgramForCommand(id);
     const command = this.buildCommand(req, 'CloseBenefitsProgram', 'BenefitsProgram', id, {
-      programId: new Uuid(id),
+      benefitsProgramId: new Uuid(id),
       reason: dto.reason,
     });
     return this.commandBus.execute(command);
