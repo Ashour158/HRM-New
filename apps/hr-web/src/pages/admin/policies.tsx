@@ -271,7 +271,7 @@ function listSummary(scope: PolicyScope, labels: { tenantDefault: string; entiti
 }
 
 function isPolicyArea(value: string): value is PolicyArea {
-  return (policyAreas as string[]).includes(value);
+  return (policyAreas as readonly string[]).includes(value);
 }
 
 export function AdminPolicies() {
