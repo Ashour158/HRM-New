@@ -163,6 +163,41 @@ Alert thresholds should start conservative:
 4. If it is an anomaly: identify and stop the runaway workload (pause the offending scheduled job or tenant, or fix the retry loop) rather than raising the ceiling to mask it.
 5. This alert is a cost/capacity guardrail, not an outage signal by itself -- treat it as a prompt to investigate, not to blindly scale up.
 
+## Node Not Ready
+
+1. Confirm scope: is this one node or several? `kubectl get nodes` and check `kube_node_status_condition{condition="Ready"}` for the affected node(s).
+2. If several nodes are affected simultaneously, treat this as a possible full outage -- see [full-outage-runbook.md](full-outage-runbook.md), not a single-node repair.
+3. For a single node: check `kubectl describe node <name>` for the reported condition (disk pressure, memory pressure, network unavailable, kubelet not posting status).
+4. If the node is unrecoverable, cordon and drain it (`kubectl cordon` / `kubectl drain`) so the scheduler moves pods elsewhere, then investigate/replace the node per the cluster provider's runbook.
+
+## Node Disk Pressure
+
+1. Identify the affected node and filesystem from the alert labels.
+2. Check what is consuming space -- container image cache, log volumes, or PVCs (including the backup/restore-drill PVCs) are the most common causes on this deployment.
+3. Clear reclaimable space (unused images via `crictl rmi`/`docker system prune`, rotated logs) before resizing storage.
+4. If backup retention (`deploy/k8s/base/backup-cronjob.yaml`, currently 35 days) is the cause, confirm the PVC size is provisioned for the documented retention window before shrinking retention as a workaround.
+
+## Pod Crash Looping
+
+1. `kubectl logs <pod> --previous` to see the last crash's output before it restarted.
+2. `kubectl describe pod <pod>` for the exact `CrashLoopBackOff` reason and recent events.
+3. Cross-reference with the [High API Error Rate](#high-api-error-rate) and [High API Latency](#high-api-latency) sections if the crashing pod is `hcm-api` -- a bad deploy or a downstream dependency outage are the most common causes.
+4. If a recent deploy is the cause, roll back to the previous image tag (`deploy/k8s/base/kustomization.yaml`) rather than debugging forward under production load.
+
+## Migration Job Failed
+
+1. `kubectl logs job/hcm-database-migrate` for the failing migration's exact error.
+2. Do not re-run the migration Job blindly -- confirm from the log whether it failed before or after any DDL was applied, since partial migrations can leave the schema in an inconsistent state.
+3. See [migration-rollback-policy.md](migration-rollback-policy.md) for how to handle a partially-applied migration.
+4. Once fixed, re-run via the same path CI uses (`pnpm --filter @hcm/database migrate`) rather than applying DDL by hand, so the migration ledger stays authoritative.
+
+## Database Connection Pool Near Exhaustion
+
+1. Check which service is consuming connections -- `pg_stat_activity` grouped by `application_name` (the pool's `appName`, see `packages/hr-database/src/connection/pool.ts`) identifies the caller.
+2. Compare current replica count against the connection-pool budget documented in [GO-LIVE-RUNBOOK.md](GO-LIVE-RUNBOOK.md) (`maxReplicas × (DB_POOL_MAX + DB_SYSTEM_POOL_MAX)` against Postgres's `max_connections`) -- an unplanned HPA scale-out is the most common cause of this alert.
+3. If a specific query/transaction is holding connections open (long-running report, stuck migration), terminate it via `pg_terminate_backend` after confirming it is safe to do so.
+4. If sustained, this is a capacity-planning signal, not just an incident -- raise `DB_POOL_MAX`/`max_connections` or reduce `maxReplicas` deliberately rather than repeatedly firefighting the alert.
+
 ## Alert Rules
 
 Prometheus alert rules are provided in:

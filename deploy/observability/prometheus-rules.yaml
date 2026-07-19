@@ -64,3 +64,62 @@ groups:
           summary: "{{ $labels.horizontalpodautoscaler }} has been pinned at its maxReplicas ceiling for 30+ minutes"
           description: "Autoscaler {{ $labels.horizontalpodautoscaler }} in {{ $labels.namespace }} has been running at its configured maxReplicas ceiling for a sustained period. This is a cost/capacity signal, not necessarily an outage: either real demand has outgrown the ceiling (raise maxReplicas in deploy/k8s/base/hpa.yaml) or a runaway workload is masking a bug. Raising maxReplicas for hcm-api also raises the worst-case DB connection count -- recompute the pool budget in deploy/k8s/base/configmap.yaml first."
           runbook_url: "docs/observability-runbook.md#hpa-at-max-replicas"
+
+  # Infrastructure-level rules -- these fire on cluster/node/database
+  # conditions, not application behavior, and are the counterpart to the
+  # per-service degradation rules above. They require kube-state-metrics
+  # (node/pod status rules), node_exporter (the disk-pressure rule's
+  # node_filesystem_* metrics), and postgres_exporter (the connection-pool
+  # rule) to be deployed and scraped by the same Prometheus instance --
+  # adding a rule here does not make it live on its own.
+  - name: hcm-infrastructure
+    rules:
+      - alert: HcmNodeNotReady
+        expr: kube_node_status_condition{condition="Ready", status="true"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: hcm-infrastructure
+        annotations:
+          summary: "A Kubernetes node is not Ready"
+          runbook_url: "docs/observability-runbook.md#node-not-ready"
+
+      - alert: HcmNodeDiskPressure
+        expr: node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"} < 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: hcm-infrastructure
+        annotations:
+          summary: "A node filesystem has less than 10% free space"
+          runbook_url: "docs/observability-runbook.md#node-disk-pressure"
+
+      - alert: HcmPodCrashLooping
+        expr: kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff", namespace="hcm-production"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          service: hcm-infrastructure
+        annotations:
+          summary: "A pod in hcm-production is crash-looping"
+          runbook_url: "docs/observability-runbook.md#pod-crash-looping"
+
+      - alert: HcmMigrationJobFailed
+        expr: kube_job_status_failed{namespace="hcm-production", job_name=~"hcm-database-migrate.*"} > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: hcm-infrastructure
+        annotations:
+          summary: "The database migration Job failed"
+          runbook_url: "docs/observability-runbook.md#migration-job-failed"
+
+      - alert: HcmDbConnectionPoolNearExhaustion
+        expr: sum(pg_stat_activity_count) / max(pg_settings_max_connections) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: hcm-infrastructure
+        annotations:
+          summary: "Postgres connections are above 85% of max_connections"
+          runbook_url: "docs/observability-runbook.md#database-connection-pool-near-exhaustion"
