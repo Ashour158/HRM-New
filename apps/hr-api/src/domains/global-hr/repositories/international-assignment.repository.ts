@@ -42,6 +42,22 @@ export class InternationalAssignmentRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  /**
+   * Tenant-scoped lookup by id. API handlers serving a single assignment to
+   * a caller MUST use this instead of {@link findById} so that a caller from
+   * tenant A cannot read tenant B's assignment (which includes personal
+   * data) by guessing or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<InternationalAssignment | undefined> {
+    const row = await this.db
+      .selectFrom('hr_global_hr.international_assignments')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row) : undefined;
+  }
+
   async findByWorker(workerId: Uuid): Promise<InternationalAssignment[]> {
     const rows = await this.db
       .selectFrom('hr_global_hr.international_assignments')

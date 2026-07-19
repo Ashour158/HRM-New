@@ -27,6 +27,22 @@ export class WorksCouncilConsultationRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  /**
+   * Tenant-scoped lookup by id. API handlers serving a single consultation
+   * to a caller MUST use this instead of {@link findById} so that a caller
+   * from tenant A cannot read tenant B's works-council consultation (which
+   * includes personal/legal data) by guessing or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<WorksCouncilConsultation | undefined> {
+    const row = await this.db
+      .selectFrom('hr_global_hr.works_council_consultations')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row) : undefined;
+  }
+
   async findByLegalEntity(legalEntityId: Uuid): Promise<WorksCouncilConsultation[]> {
     const rows = await this.db
       .selectFrom('hr_global_hr.works_council_consultations')
