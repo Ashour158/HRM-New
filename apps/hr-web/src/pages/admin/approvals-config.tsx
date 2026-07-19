@@ -99,6 +99,24 @@ const ruleTemplates: ApprovalWorkflowRule[] = [
   },
 ];
 
+/**
+ * Finds a code that isn't already in use, starting from `baseCode`. Using a
+ * while loop against the actual set of existing codes (rather than
+ * `array.length + 1`) keeps codes unique even after rules have been deleted,
+ * when the array length can undercount how many codes with a given base have
+ * ever been generated.
+ */
+function generateUniqueCode(baseCode: string, existingCodes: Set<string>): string {
+  if (!existingCodes.has(baseCode)) return baseCode;
+  let suffix = 2;
+  let candidate = `${baseCode}_${suffix}`;
+  while (existingCodes.has(candidate)) {
+    suffix += 1;
+    candidate = `${baseCode}_${suffix}`;
+  }
+  return candidate;
+}
+
 export function AdminApprovalsConfig() {
   const { tenantId } = useTenant();
   const addNotification = useUIStore((state) => state.addNotification);
@@ -138,7 +156,7 @@ export function AdminApprovalsConfig() {
     setRules((current) => {
       const existingCodes = new Set(current.map((rule) => rule.code));
       const baseCode = `${trimmed.toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '')}_APPROVAL`;
-      const code = existingCodes.has(baseCode) ? `${baseCode}_${current.length + 1}` : baseCode;
+      const code = generateUniqueCode(baseCode, existingCodes);
       return [...current, {
         code,
         label: `${trimmed} approval`,
@@ -224,7 +242,7 @@ export function AdminApprovalsConfig() {
   const addTemplate = (template: ApprovalWorkflowRule) => {
     setRules((current) => {
       const existingCodes = new Set(current.map((rule) => rule.code));
-      const code = existingCodes.has(template.code) ? `${template.code}_${current.length + 1}` : template.code;
+      const code = generateUniqueCode(template.code, existingCodes);
       return [...current, { ...template, code }];
     });
   };

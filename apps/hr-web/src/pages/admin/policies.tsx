@@ -250,14 +250,19 @@ export function AdminPolicies() {
   const rawAreaParam = (searchParams.get('area') ?? '').toUpperCase();
   const scopedArea = isPolicyArea(rawAreaParam) ? rawAreaParam : undefined;
   const [form, setForm] = React.useState<BuilderForm>(() => (
-    scopedArea ? { ...initialForm, area: scopedArea } : initialForm
+    scopedArea ? { ...initialForm, area: scopedArea, rules: [createRuleRow(scopedArea)] } : initialForm
   ));
   const [selectedRevisionId, setSelectedRevisionId] = React.useState<string>('');
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (scopedArea) {
-      setForm((current) => (current.area === scopedArea ? current : { ...current, area: scopedArea }));
+      setForm((current) => (current.area === scopedArea
+        ? current
+        // Regenerate the rule ledger's default row for the new area too --
+        // otherwise the builder keeps a stale rule row whose category came
+        // from the previous area's category set.
+        : { ...current, area: scopedArea, rules: [createRuleRow(scopedArea)] }));
     }
   }, [scopedArea]);
 

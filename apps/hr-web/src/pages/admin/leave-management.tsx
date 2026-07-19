@@ -146,9 +146,16 @@ export function AdminLeaveManagement() {
   // from admin/settings.tsx so leave policy configuration lives on the leave admin page.
   const setupQuery = useApiQuery<HcmSetupConfig>(['hcm-setup'], '/admin/hcm-setup');
   const [policyDrafts, setPolicyDrafts] = React.useState<LeavePolicy[]>([]);
+  const hasHydratedPolicyDrafts = React.useRef(false);
 
   React.useEffect(() => {
-    if (setupQuery.data) setPolicyDrafts(JSON.parse(JSON.stringify(setupQuery.data.leavePolicies)) as LeavePolicy[]);
+    // Only hydrate drafts from the query on first load. Background refetches
+    // (e.g. React Query's refetch-on-window-focus) must not silently clobber
+    // in-progress, unsaved edits made in the editor below.
+    if (setupQuery.data && !hasHydratedPolicyDrafts.current) {
+      setPolicyDrafts(JSON.parse(JSON.stringify(setupQuery.data.leavePolicies)) as LeavePolicy[]);
+      hasHydratedPolicyDrafts.current = true;
+    }
   }, [setupQuery.data]);
 
   const savePoliciesMutation = useApiMutation<HcmSetupConfig, Partial<HcmSetupConfig>>(
@@ -717,7 +724,7 @@ export function AdminLeaveManagement() {
               ) : (
                 <div className="divide-y border-y">
                   {policyDrafts.map((policy, index) => (
-                    <div key={`${policy.code}-${index}`} className="grid gap-3 py-3 md:grid-cols-[1fr_1.4fr_.75fr_.75fr_.75fr_.75fr_.9fr_.8fr_3rem]">
+                    <div key={index} className="grid gap-3 py-3 md:grid-cols-[1fr_1.4fr_.75fr_.75fr_.75fr_.75fr_.8fr_.8fr_.8fr_3rem]">
                       <Input
                         aria-label="Policy code"
                         value={policy.code}
@@ -768,15 +775,27 @@ export function AdminLeaveManagement() {
                         </SelectContent>
                       </Select>
                       <Select
-                        value={policy.requestableByEmployee ? 'REQUESTABLE' : 'SYSTEM'}
-                        onValueChange={(value) => updatePolicyDraft(index, { requestableByEmployee: value === 'REQUESTABLE', systemManaged: value === 'SYSTEM' })}
+                        value={policy.requestableByEmployee ? 'YES' : 'NO'}
+                        onValueChange={(value) => updatePolicyDraft(index, { requestableByEmployee: value === 'YES' })}
                       >
                         <SelectTrigger aria-label="Requestable by employee">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="REQUESTABLE">Requestable</SelectItem>
-                          <SelectItem value="SYSTEM">System</SelectItem>
+                          <SelectItem value="YES">Requestable</SelectItem>
+                          <SelectItem value="NO">Not requestable</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={policy.systemManaged ? 'YES' : 'NO'}
+                        onValueChange={(value) => updatePolicyDraft(index, { systemManaged: value === 'YES' })}
+                      >
+                        <SelectTrigger aria-label="System managed">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="YES">System managed</SelectItem>
+                          <SelectItem value="NO">Not system managed</SelectItem>
                         </SelectContent>
                       </Select>
                       <Select value={policy.active ? 'ACTIVE' : 'INACTIVE'} onValueChange={(value) => updatePolicyDraft(index, { active: value === 'ACTIVE' })}>
