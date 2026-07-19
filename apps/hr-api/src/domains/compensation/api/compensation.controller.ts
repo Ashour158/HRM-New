@@ -50,6 +50,7 @@ import {
   CreatePayScaleDto,
   RevisePayScaleDto,
   CreateTotalCompensationStatementDto,
+  ZodValidationPipe,
 } from './dtos.js';
 
 const COMPENSATION_ADMIN_ROLES = new Set([
@@ -132,7 +133,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('plans')
-  async createPlan(@Body() dto: CreateCompensationPlanDto, @Req() req: Request) {
+  async createPlan(@Body(new ZodValidationPipe(CreateCompensationPlanDto.zodSchema)) dto: CreateCompensationPlanDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateCompensationPlan', 'CompensationPlan', undefined, {
       planId: new Uuid(dto.planId),
       name: dto.name,
@@ -197,7 +198,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('bands')
-  async createBand(@Body() dto: CreateCompensationBandDto, @Req() req: Request) {
+  async createBand(@Body(new ZodValidationPipe(CreateCompensationBandDto.zodSchema)) dto: CreateCompensationBandDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateCompensationBand', 'CompensationBand', undefined, {
       bandId: new Uuid(dto.bandId),
       bandCode: dto.bandCode,
@@ -220,7 +221,7 @@ export class CompensationController {
   }
 
   @Post('bands/:id/commands/revise')
-  async reviseBand(@Param('id') id: string, @Body() dto: ReviseCompensationBandDto, @Req() req: Request) {
+  async reviseBand(@Param('id') id: string, @Body(new ZodValidationPipe(ReviseCompensationBandDto.zodSchema)) dto: ReviseCompensationBandDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'ReviseCompensationBand', 'CompensationBand', id, {
       bandId: new Uuid(id),
       minSalary: dto.minSalary,
@@ -267,7 +268,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('changes')
-  async createChange(@Body() dto: CreateCompensationChangeDto, @Req() req: Request) {
+  async createChange(@Body(new ZodValidationPipe(CreateCompensationChangeDto.zodSchema)) dto: CreateCompensationChangeDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateCompensationChange', 'CompensationChange', undefined, {
       changeId: new Uuid(dto.changeId),
       workerId: new Uuid(dto.workerId),
@@ -289,7 +290,7 @@ export class CompensationController {
   }
 
   @Post('changes/:id/commands/approve')
-  async approveChange(@Param('id') id: string, @Body() dto: ApproveCompensationChangeDto, @Req() req: Request) {
+  async approveChange(@Param('id') id: string, @Body(new ZodValidationPipe(ApproveCompensationChangeDto.zodSchema)) dto: ApproveCompensationChangeDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'ApproveCompensationChange', 'CompensationChange', id, {
       changeId: new Uuid(id),
       approvedBy: new Uuid(dto.approvedBy),
@@ -348,7 +349,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('bonus-cycles')
-  async createBonusCycle(@Body() dto: CreateBonusCycleDto, @Req() req: Request) {
+  async createBonusCycle(@Body(new ZodValidationPipe(CreateBonusCycleDto.zodSchema)) dto: CreateBonusCycleDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateBonusCycle', 'BonusCycle', undefined, {
       cycleId: new Uuid(dto.cycleId),
       cycleName: dto.cycleName,
@@ -438,7 +439,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('equity-grants')
-  async createEquityGrant(@Body() dto: CreateEquityGrantDto, @Req() req: Request) {
+  async createEquityGrant(@Body(new ZodValidationPipe(CreateEquityGrantDto.zodSchema)) dto: CreateEquityGrantDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateEquityGrant', 'EquityGrant', undefined, {
       grantId: new Uuid(dto.grantId),
       workerId: new Uuid(dto.workerId),
@@ -460,7 +461,7 @@ export class CompensationController {
   }
 
   @Post('equity-grants/:id/commands/record-vesting')
-  async recordEquityGrantVesting(@Param('id') id: string, @Body() dto: RecordVestingEquityGrantDto, @Req() req: Request) {
+  async recordEquityGrantVesting(@Param('id') id: string, @Body(new ZodValidationPipe(RecordVestingEquityGrantDto.zodSchema)) dto: RecordVestingEquityGrantDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'RecordVestingEquityGrant', 'EquityGrant', id, {
       grantId: new Uuid(id),
       units: dto.units,
@@ -469,7 +470,7 @@ export class CompensationController {
   }
 
   @Post('equity-grants/:id/commands/exercise')
-  async exerciseEquityGrant(@Param('id') id: string, @Body() dto: ExerciseEquityGrantDto, @Req() req: Request) {
+  async exerciseEquityGrant(@Param('id') id: string, @Body(new ZodValidationPipe(ExerciseEquityGrantDto.zodSchema)) dto: ExerciseEquityGrantDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'ExerciseEquityGrant', 'EquityGrant', id, {
       grantId: new Uuid(id),
       units: dto.units,
@@ -520,7 +521,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('variable-comp-plans')
-  async createVariableCompPlan(@Body() dto: CreateVariableCompPlanDto, @Req() req: Request) {
+  async createVariableCompPlan(@Body(new ZodValidationPipe(CreateVariableCompPlanDto.zodSchema)) dto: CreateVariableCompPlanDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateVariableCompPlan', 'VariableCompPlan', undefined, {
       planId: new Uuid(dto.planId),
       name: dto.name,
@@ -577,7 +578,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('pay-scales')
-  async createPayScale(@Body() dto: CreatePayScaleDto, @Req() req: Request) {
+  async createPayScale(@Body(new ZodValidationPipe(CreatePayScaleDto.zodSchema)) dto: CreatePayScaleDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreatePayScale', 'PayScale', undefined, {
       scaleId: new Uuid(dto.scaleId),
       scaleCode: dto.scaleCode,
@@ -597,7 +598,7 @@ export class CompensationController {
   }
 
   @Post('pay-scales/:id/commands/revise')
-  async revisePayScale(@Param('id') id: string, @Body() dto: RevisePayScaleDto, @Req() req: Request) {
+  async revisePayScale(@Param('id') id: string, @Body(new ZodValidationPipe(RevisePayScaleDto.zodSchema)) dto: RevisePayScaleDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'RevisePayScale', 'PayScale', id, {
       scaleId: new Uuid(id),
       steps: dto.steps,
@@ -642,7 +643,7 @@ export class CompensationController {
   /* ---------------------------------------------------------------- */
 
   @Post('total-comp-statements')
-  async createTotalCompStatement(@Body() dto: CreateTotalCompensationStatementDto, @Req() req: Request) {
+  async createTotalCompStatement(@Body(new ZodValidationPipe(CreateTotalCompensationStatementDto.zodSchema)) dto: CreateTotalCompensationStatementDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateTotalCompensationStatement', 'TotalCompensationStatement', undefined, {
       statementId: new Uuid(dto.statementId),
       workerId: new Uuid(dto.workerId),
