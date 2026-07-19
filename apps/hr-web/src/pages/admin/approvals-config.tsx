@@ -10,7 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
-import { ConditionRowBuilder, PreviewPanel, WorkflowStepBuilder, type ApprovalConditionOperator } from '@/components/builder';
+import { ConditionRowBuilder, PreviewPanel, WorkflowStepBuilder } from '@/components/builder';
+import type { ApprovalConditionOperator } from '@/lib/approval-conditions';
 import { Workflow, Plus, Save, ShieldCheck, Trash2, Eye } from 'lucide-react';
 
 type ApprovalWorkflowCondition = {
