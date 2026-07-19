@@ -5,8 +5,8 @@ import { PortalLayout } from '@/layouts/portal-layout';
 import { useAuth } from '@/hooks/use-auth';
 
 const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
-const RegisterPage = lazy(() => import('@/pages/register').then((module) => ({ default: module.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
+const SsoCallbackPage = lazy(() => import('@/pages/sso-callback').then((module) => ({ default: module.SsoCallbackPage })));
 const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((module) => ({ default: module.NotificationsPage })));
 const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
@@ -116,6 +116,21 @@ const managerRoleNames = new Set(['MANAGER']);
 const systemAdminRoleNames = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
 const recruiterRoleNames = new Set(['RECRUITER', 'TALENT_ACQUISITION', 'HR_ADMIN', 'SUPER_ADMIN']);
 const payrollRoleNames = new Set(['PAYROLL_ADMIN', 'COMPENSATION_ADMIN', 'HR_ADMIN', 'SUPER_ADMIN']);
+// Full worker master-data admin (create/update/terminate/mass-update/export). Narrower than
+// adminRoleNames: matches the backend's HR_CORE_ADMIN_ROLES, which intentionally excludes
+// PAYROLL_ADMIN/COMPENSATION_ADMIN/BENEFITS_ADMIN/COMPLIANCE_OFFICER/ER_SPECIALIST — those
+// roles only carry WORKER_READ in the RBAC policy, not WORKER_CREATE/UPDATE/TERMINATE, and
+// use the /hr/core/workers/directory-search endpoint via WorkerPicker for name lookups instead.
+const hrCoreAdminRoleNames = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'PEOPLE_ADMIN',
+  'WORKFORCE_PLANNING_ADMIN',
+  'SYSTEM_ACTOR',
+]);
 
 function RequireRoles({
   children,
@@ -158,8 +173,8 @@ export function AppRoutes() {
     <Suspense fallback={<RouteLoading />}>
       <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
 
       {/* Employee Portal */}
       <Route
@@ -350,9 +365,30 @@ export function AppRoutes() {
                     <Route path="modules" element={<AdminModuleCatalog />} />
                     <Route path="modules/:moduleId/operations" element={<AdminModuleOperations />} />
                     <Route path="modules/:moduleId" element={<AdminModuleWorkbench />} />
-                    <Route path="employees/new" element={<AdminEmployeeCreate />} />
-                    <Route path="employees/:id" element={<AdminEmployeeProfile />} />
-                    <Route path="employees" element={<AdminWorkers />} />
+                    <Route
+                      path="employees/new"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminEmployeeCreate />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="employees/:id"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminEmployeeProfile />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="employees"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminWorkers />
+                        </RequireRoles>
+                      }
+                    />
                     <Route path="workers" element={<Navigate to="/admin/employees" replace />} />
                     <Route path="organization" element={<AdminOrganization />} />
                     <Route path="workforce-planning" element={<AdminOrganization initialTab="planning" />} />

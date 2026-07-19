@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManagerTeam } from './team';
 
@@ -217,6 +217,108 @@ describe('ManagerTeam', () => {
   beforeEach(() => {
     useApiQueryMock.mockReset();
     setupQueries();
+  });
+
+  describe('team activity widget on the list view', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-07-12T00:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('renders upcoming anniversaries and recent joins from the already-fetched roster', () => {
+      useApiQueryMock.mockReturnValue({
+        data: {
+          directReports: [
+            {
+              id: 'w-anniversary',
+              employeeId: 'EMP-200',
+              firstName: 'Anniversary',
+              lastName: 'Worker',
+              email: 'anniversary@example.com',
+              hireDate: '2022-07-20T00:00:00.000Z', // 8 days away, 4th anniversary
+              status: 'ACTIVE',
+            },
+            {
+              id: 'w-new-hire',
+              employeeId: 'EMP-201',
+              firstName: 'Newly',
+              lastName: 'Hired',
+              email: 'newly.hired@example.com',
+              hireDate: '2026-07-05T00:00:00.000Z', // 7 days ago
+              status: 'ACTIVE',
+            },
+          ],
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/manager/team']}>
+          <Routes>
+            <Route path="/manager/team" element={<ManagerTeam />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      const cardTitle = screen.getByText('Team Activity');
+      const card = cardTitle.parentElement?.parentElement as HTMLElement;
+
+      expect(within(card).getByText('Upcoming work anniversaries')).toBeInTheDocument();
+      expect(within(card).getByText('Anniversary Worker')).toBeInTheDocument();
+      expect(within(card).getByText('4 years')).toBeInTheDocument();
+
+      expect(within(card).getByText('Recent joins')).toBeInTheDocument();
+      expect(within(card).getByText('Newly Hired')).toBeInTheDocument();
+      expect(within(card).getByText('7 days ago')).toBeInTheDocument();
+
+      // Both workers still show up in the direct-reports table below the card.
+      expect(screen.getAllByText('Anniversary Worker')).toHaveLength(2);
+      expect(screen.getAllByText('Newly Hired')).toHaveLength(2);
+    });
+
+    it('shows the empty state when no direct reports have upcoming activity', () => {
+      useApiQueryMock.mockReturnValue({
+        data: {
+          directReports: [
+            {
+              id: 'w-tenured',
+              employeeId: 'EMP-300',
+              firstName: 'Long',
+              lastName: 'Tenured',
+              email: 'long.tenured@example.com',
+              hireDate: '2018-01-15T00:00:00.000Z', // far outside the 30-day window
+              status: 'ACTIVE',
+            },
+          ],
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter initialEntries={['/manager/team']}>
+          <Routes>
+            <Route path="/manager/team" element={<ManagerTeam />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByText('Team Activity')).toBeInTheDocument();
+      expect(
+        screen.getByText('No upcoming anniversaries or new joins in the next 30 days.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Upcoming work anniversaries')).not.toBeInTheDocument();
+      expect(screen.queryByText('Recent joins')).not.toBeInTheDocument();
+    });
   });
 
   it('shows selected member 360 and action-plan impact in the performance tab', async () => {

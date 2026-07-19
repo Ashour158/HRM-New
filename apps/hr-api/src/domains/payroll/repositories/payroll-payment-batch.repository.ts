@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -95,7 +95,7 @@ export class PayrollPaymentBatchRepository {
       currency: record.currency,
       ready_count: record.readyCount,
       blocked_count: record.blockedCount,
-      total_net: record.totalNet,
+      total_net: String(record.totalNet),
       file_hash: record.fileHash,
       // jsonb columns: serialize explicitly. node-postgres renders a JS array as a
       // Postgres array literal (not JSON), which is invalid for jsonb — so workflow_events
@@ -129,7 +129,7 @@ export class PayrollPaymentBatchRepository {
       currency: row.currency,
       readyCount: row.ready_count,
       blockedCount: row.blocked_count,
-      totalNet: row.total_net,
+      totalNet: parseNumeric(row.total_net),
       fileHash: row.file_hash,
       payload: row.payload as PayrollPaymentBatch,
       createdBy: row.created_by ?? undefined,

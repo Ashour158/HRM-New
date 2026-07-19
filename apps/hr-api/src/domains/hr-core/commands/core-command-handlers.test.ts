@@ -12,6 +12,8 @@ import { RehireWorkerHandler } from './rehire-worker.handler.js';
 import { CreateJobAssignmentHandler } from './create-job-assignment.handler.js';
 import { CreateEmploymentRelationshipHandler } from './create-employment-relationship.handler.js';
 import { ActivateEmploymentRelationshipHandler } from './activate-employment-relationship.handler.js';
+import { StartProbationEmploymentRelationshipHandler } from './start-probation-employment-relationship.handler.js';
+import { CompleteProbationEmploymentRelationshipHandler } from './complete-probation-employment-relationship.handler.js';
 import { EndEmploymentRelationshipHandler } from './end-employment-relationship.handler.js';
 import { CreateEmploymentContractHandler } from './create-employment-contract.handler.js';
 import { SignEmploymentContractHandler } from './sign-employment-contract.handler.js';
@@ -157,6 +159,44 @@ describe('Core HR command handlers', () => {
       relationshipType: 'EMPLOYEE',
       startDate: new Date('2024-01-01'),
       state: 'ACTIVE',
+    }));
+    const probationStarted = await new StartProbationEmploymentRelationshipHandler(relationshipRepo as never, fsm as never).handle(
+      command('StartProbationEmploymentRelationship', 'EmploymentRelationship', {
+        relationshipId,
+        probationEndDate: new Date('2024-04-01'),
+      }, { aggregateId: relationshipId }),
+    );
+    expect(probationStarted).toMatchObject({
+      success: true,
+      data: { relationshipId: relationshipId.value, state: 'PROBATION' },
+      eventsEmitted: ['ProbationStarted'],
+    });
+
+    relationshipRepo.findById.mockResolvedValueOnce(new EmploymentRelationship({
+      id: relationshipId,
+      tenantId,
+      workerId,
+      relationshipType: 'EMPLOYEE',
+      startDate: new Date('2024-01-01'),
+      state: 'PROBATION',
+      probationEndDate: new Date('2024-04-01'),
+    }));
+    const probationCompleted = await new CompleteProbationEmploymentRelationshipHandler(relationshipRepo as never, fsm as never).handle(
+      command('CompleteProbationEmploymentRelationship', 'EmploymentRelationship', { relationshipId }, { aggregateId: relationshipId }),
+    );
+    expect(probationCompleted).toMatchObject({
+      success: true,
+      data: { relationshipId: relationshipId.value, state: 'CONFIRMED' },
+      eventsEmitted: ['EmploymentConfirmed'],
+    });
+
+    relationshipRepo.findById.mockResolvedValueOnce(new EmploymentRelationship({
+      id: relationshipId,
+      tenantId,
+      workerId,
+      relationshipType: 'EMPLOYEE',
+      startDate: new Date('2024-01-01'),
+      state: 'CONFIRMED',
     }));
     const ended = await new EndEmploymentRelationshipHandler(relationshipRepo as never, fsm as never).handle(
       command('EndEmploymentRelationship', 'EmploymentRelationship', {

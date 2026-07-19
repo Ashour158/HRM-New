@@ -720,7 +720,7 @@ export class HcmSchedulerReadRepository implements LeaveSchedulerRepositoryPort,
       .where('balance.tenant_id', '=', input.tenantId.value)
       .where('balance.status', '=', 'ACTIVE')
       .where((eb) => eb.or([
-        eb('balance.balance_hours', '<', 0),
+        eb('balance.balance_hours', '<', '0'),
         eb('balance.effective_date', '<=', soon),
       ]))
       .execute();
@@ -2091,7 +2091,7 @@ export class HcmGovernanceSchedulerReadRepository implements
       .select(['account.id', 'account.worker_id', 'account.account_type', 'account.available_amount', 'account.currency', 'worker.manager_id'])
       .where('account.tenant_id', '=', input.tenantId.value)
       .where('account.status', '=', 'ACTIVE')
-      .where('account.available_amount', '>', 0)
+      .where('account.available_amount', '>', '0')
       .execute();
     const yearEnd = endOfYear(input.now);
     return rows.flatMap((row) => {
@@ -4588,6 +4588,15 @@ export class ScheduledReportGenerationJob implements ScheduledJob {
         payload: { reportDefinitionId: row.reportDefinitionId.value, recipients: row.recipients },
         escalationTier: escalationTier(0),
         now: ctx.now,
+      });
+      // Advance next_run_at so this schedule doesn't stay "due" and re-fire on
+      // every subsequent tick of this job's 15-minute cron.
+      await ctx.runCommand({
+        commandName: 'RecordReportScheduleRun',
+        aggregateType: 'ReportSchedule',
+        aggregateId: row.reportScheduleId,
+        payload: { reportScheduleId: row.reportScheduleId.value, ranAt: ctx.now },
+        reason: this.name,
       });
     }
     return { itemsProcessed: rows.length };

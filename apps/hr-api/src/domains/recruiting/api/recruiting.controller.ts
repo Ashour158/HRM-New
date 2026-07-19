@@ -6,7 +6,6 @@ import {
   Body,
   Query,
   Req,
-  UsePipes,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -17,7 +16,6 @@ import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import type { Request } from 'express';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 
-import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
 import { JobRequisitionRepository } from '../repositories/job-requisition.repository.js';
 import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { InterviewPlanRepository } from '../repositories/interview-plan.repository.js';
@@ -25,18 +23,26 @@ import { OfferRepository } from '../repositories/offer.repository.js';
 
 import {
   CreateJobRequisitionDto,
+  CreateJobRequisitionDtoSchema,
   CloseJobRequisitionDto,
+  CloseJobRequisitionDtoSchema,
   SubmitCandidateDto,
+  SubmitCandidateDtoSchema,
   ScreenCandidateDto,
+  ScreenCandidateDtoSchema,
   ScheduleInterviewDto,
+  ScheduleInterviewDtoSchema,
   CreateOfferDto,
+  CreateOfferDtoSchema,
   SendOfferDto,
+  SendOfferDtoSchema,
   AcceptOfferDto,
+  AcceptOfferDtoSchema,
+  ZodValidationPipe,
 } from './dtos.js';
 
 @ApiTags('Recruiting')
 @Controller('hr/recruiting')
-@UsePipes(ZodValidationPipe)
 export class RecruitingController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -51,12 +57,28 @@ export class RecruitingController {
   @Post('requisitions')
   @ApiOperation({ summary: 'Create a new job requisition' })
   async createRequisition(
-    @Body() dto: CreateJobRequisitionDto,
+    @Body(new ZodValidationPipe(CreateJobRequisitionDtoSchema)) dto: CreateJobRequisitionDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('CreateJobRequisition', req, dto, {
       aggregateType: 'JobRequisition',
       reason: 'Create job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('requisitions/:id/commands/submit-for-approval')
+  @ApiOperation({ summary: 'Submit a job requisition for approval' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async submitJobRequisitionForApproval(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('SubmitJobRequisitionForApproval', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'DRAFT',
+      reason: 'Submit job requisition for approval via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -77,6 +99,22 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('requisitions/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a job requisition' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async rejectRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RejectJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'PENDING_APPROVAL',
+      reason: 'Reject job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('requisitions/:id/commands/publish')
   @ApiOperation({ summary: 'Publish a job requisition' })
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
@@ -93,12 +131,44 @@ export class RecruitingController {
     return this.commandBus.execute(envelope);
   }
 
+  @Post('requisitions/:id/commands/open')
+  @ApiOperation({ summary: 'Open a job requisition for applications' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async openRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('OpenJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'PUBLISHED',
+      reason: 'Open job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('requisitions/:id/commands/fill')
+  @ApiOperation({ summary: 'Mark a job requisition as filled' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async fillRequisition(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('FillJobRequisition', req, { requisitionId: id }, {
+      aggregateType: 'JobRequisition',
+      aggregateId: id,
+      expectedState: 'OPEN',
+      reason: 'Fill job requisition via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   @Post('requisitions/:id/commands/close')
   @ApiOperation({ summary: 'Close a job requisition' })
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async closeRequisition(
     @Param('id') id: string,
-    @Body() dto: CloseJobRequisitionDto,
+    @Body(new ZodValidationPipe(CloseJobRequisitionDtoSchema)) dto: CloseJobRequisitionDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('CloseJobRequisition', req, { requisitionId: id, reason: dto.reason }, {
@@ -158,7 +228,7 @@ export class RecruitingController {
   @Post('candidates')
   @ApiOperation({ summary: 'Submit a candidate application' })
   async submitCandidate(
-    @Body() dto: SubmitCandidateDto,
+    @Body(new ZodValidationPipe(SubmitCandidateDtoSchema)) dto: SubmitCandidateDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('SubmitCandidateApplication', req, dto, {
@@ -173,7 +243,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async screenCandidate(
     @Param('id') id: string,
-    @Body() dto: ScreenCandidateDto,
+    @Body(new ZodValidationPipe(ScreenCandidateDtoSchema)) dto: ScreenCandidateDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('ScreenCandidate', req, { applicationId: id, ...dto }, {
@@ -190,12 +260,74 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async scheduleInterviewForCandidate(
     @Param('id') id: string,
-    @Body() dto: ScheduleInterviewDto,
+    @Body(new ZodValidationPipe(ScheduleInterviewDtoSchema)) dto: ScheduleInterviewDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('ScheduleInterview', req, { applicationId: id, ...dto }, {
       aggregateType: 'InterviewPlan',
       reason: 'Schedule interview via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/make-offer-pending')
+  @ApiOperation({ summary: 'Move a candidate to offer-pending' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async makeCandidateOfferPending(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('MakeOfferPending', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      expectedState: 'INTERVIEWING',
+      reason: 'Move candidate to offer-pending via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/hire')
+  @ApiOperation({ summary: 'Hire a candidate' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async hireCandidate(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('HireCandidate', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      expectedState: 'OFFER_PENDING',
+      reason: 'Hire candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/reject')
+  @ApiOperation({ summary: 'Reject a candidate' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async rejectCandidate(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RejectCandidate', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Reject candidate via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('candidates/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw a candidate application' })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async withdrawCandidate(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('WithdrawCandidate', req, { applicationId: id }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Withdraw candidate via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -241,12 +373,30 @@ export class RecruitingController {
   @Post('interviews')
   @ApiOperation({ summary: 'Schedule an interview' })
   async createInterview(
-    @Body() dto: ScheduleInterviewDto,
+    @Body(new ZodValidationPipe(ScheduleInterviewDtoSchema)) dto: ScheduleInterviewDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('ScheduleInterview', req, dto, {
       aggregateType: 'InterviewPlan',
       reason: 'Schedule interview via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('interviews/:id/commands/start')
+  @ApiOperation({ summary: 'Start an interview' })
+  @ApiParam({ name: 'id', description: 'Interview UUID' })
+  async startInterview(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const plan = await this.interviewPlanRepo.findById(new Uuid(id));
+    if (!plan) throw new BadRequestException('Interview plan not found');
+    const envelope = this.buildCommand('StartInterview', req, { interviewId: id }, {
+      aggregateType: 'InterviewPlan',
+      aggregateId: id,
+      expectedState: plan.status,
+      reason: 'Start interview via API',
     });
     return this.commandBus.execute(envelope);
   }
@@ -292,7 +442,7 @@ export class RecruitingController {
   @Post('offers')
   @ApiOperation({ summary: 'Create a new offer' })
   async createOffer(
-    @Body() dto: CreateOfferDto,
+    @Body(new ZodValidationPipe(CreateOfferDtoSchema)) dto: CreateOfferDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('CreateOffer', req, dto, {
@@ -323,7 +473,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async sendOffer(
     @Param('id') id: string,
-    @Body() _dto: SendOfferDto,
+    @Body(new ZodValidationPipe(SendOfferDtoSchema)) _dto: SendOfferDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('SendOffer', req, { offerId: id }, {
@@ -340,7 +490,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async acceptOffer(
     @Param('id') id: string,
-    @Body() dto: AcceptOfferDto,
+    @Body(new ZodValidationPipe(AcceptOfferDtoSchema)) dto: AcceptOfferDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('AcceptOffer', req, { offerId: id, acceptedAt: dto.acceptedAt ?? new Date() }, {
@@ -348,6 +498,53 @@ export class RecruitingController {
       aggregateId: id,
       expectedState: 'SENT',
       reason: 'Accept offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/decline')
+  @ApiOperation({ summary: 'Decline an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async declineOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('DeclineOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      expectedState: 'SENT',
+      reason: 'Decline offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/expire')
+  @ApiOperation({ summary: 'Expire an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async expireOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('ExpireOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      expectedState: 'SENT',
+      reason: 'Expire offer via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('offers/:id/commands/withdraw')
+  @ApiOperation({ summary: 'Withdraw an offer' })
+  @ApiParam({ name: 'id', description: 'Offer UUID' })
+  async withdrawOffer(
+    @Param('id') id: string,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('WithdrawOffer', req, { offerId: id }, {
+      aggregateType: 'Offer',
+      aggregateId: id,
+      reason: 'Withdraw offer via API',
     });
     return this.commandBus.execute(envelope);
   }

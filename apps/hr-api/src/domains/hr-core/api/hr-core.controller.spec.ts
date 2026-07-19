@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request } from 'express';
 import { HrCoreController } from './hr-core.controller.js';
@@ -42,6 +42,20 @@ function employeeRequestForTenant(tenantId = testTenantId): Request {
   } as unknown as Request;
 }
 
+function requestWithRoles(roles: string[], tenantId = testTenantId): Request {
+  return {
+    headers: {},
+    tenantId,
+    actor: {
+      actorType: 'USER',
+      actorId: new Uuid('550e8400-e29b-41d4-a716-446655440013'),
+      roles,
+      permissions: [],
+      mfaAuthenticated: true,
+    },
+  } as unknown as Request;
+}
+
 describe('HrCoreController smoke test', () => {
   const commandBus = { execute: vi.fn() } as unknown as CommandBus;
   const workerRepo = {
@@ -50,6 +64,7 @@ describe('HrCoreController smoke test', () => {
     findActive: vi.fn(),
     search: vi.fn(),
     searchForTenant: vi.fn(),
+    searchDirectoryForTenant: vi.fn(),
     findByEmail: vi.fn(),
     findByEmailForTenant: vi.fn(),
     findByEmployeeNumber: vi.fn(),
@@ -183,6 +198,47 @@ describe('HrCoreController smoke test', () => {
     expect(commandBus.execute).toHaveBeenCalledTimes(1);
     expect((commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0].commandName).toBe('ActivateWorker');
     expect(result.success).toBe(true);
+  });
+
+  it('startProbationEmploymentRelationship and completeProbationEmploymentRelationship delegate to commandBus (HCM-P0-8)', async () => {
+    const relationshipId = '550e8400-e29b-41d4-a716-446655440020';
+    const req = {
+      headers: {},
+      tenantId: relationshipId,
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440010'),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_UPDATE'],
+        mfaAuthenticated: true,
+      },
+    } as unknown as Request;
+
+    (employmentRelationshipRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: { value: relationshipId },
+      state: 'ACTIVE',
+      aggregateVersion: 1,
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, data: { relationshipId, state: 'PROBATION' } });
+
+    const started = await controller.startProbationEmploymentRelationship(
+      relationshipId,
+      { probationEndDate: new Date('2026-10-01') },
+      req,
+    );
+    expect((commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[0][0].commandName).toBe('StartProbationEmploymentRelationship');
+    expect(started.success).toBe(true);
+
+    (employmentRelationshipRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: { value: relationshipId },
+      state: 'PROBATION',
+      aggregateVersion: 2,
+    });
+    (commandBus.execute as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, data: { relationshipId, state: 'CONFIRMED' } });
+
+    const confirmed = await controller.completeProbationEmploymentRelationship(relationshipId, req);
+    expect((commandBus.execute as ReturnType<typeof vi.fn>).mock.calls[1][0].commandName).toBe('CompleteProbationEmploymentRelationship');
+    expect(confirmed.success).toBe(true);
   });
 
   it('rehireWorker delegates to commandBus with worker state guards', async () => {
@@ -402,6 +458,144 @@ describe('HrCoreController smoke test', () => {
     expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
   });
 
+  describe('HR_CORE_ADMIN_ROLES scope (full worker master-data admin)', () => {
+    it.each([
+      ['APP_ADMIN', ['APP_ADMIN']],
+      ['PLATFORM_ADMIN', ['PLATFORM_ADMIN']],
+      ['SUPER_ADMIN', ['SUPER_ADMIN']],
+      ['HR_ADMIN', ['HR_ADMIN']],
+      ['HRBP', ['HRBP']],
+    ])('allows %s to list and read the full worker admin payload', async (_label, roles) => {
+      const worker = new WorkerProfile({
+        id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
+        tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+        employeeNumber: 'EMP-001',
+        status: 'ACTIVE',
+        firstName: 'Alice',
+        lastName: 'Smith',
+        email: new Email('alice@example.com'),
+        hireDate: new Date('2023-01-15'),
+        jobTitle: 'Engineer',
+      });
+      (workerRepo.searchForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+      (workerRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(worker);
+
+      await expect(controller.listWorkers(requestWithRoles(roles), 'alice')).resolves.toHaveLength(1);
+      await expect(controller.getWorker(worker.id.value, requestWithRoles(roles))).resolves.toMatchObject({ employeeId: 'EMP-001' });
+    });
+
+    // These roles only carry WORKER_READ in the RBAC policy (packages/hr-access-control), not
+    // WORKER_CREATE/UPDATE/TERMINATE, so they must not reach the full admin worker endpoints
+    // that apps/hr-web's AdminWorkers and AdminEmployeeCreate pages call. They get
+    // HR_CORE_DIRECTORY_SEARCH_ROLES (searchWorkerDirectory) for name/ID lookups instead.
+    it.each([
+      ['PAYROLL_ADMIN', ['PAYROLL_ADMIN']],
+      ['COMPENSATION_ADMIN', ['COMPENSATION_ADMIN']],
+      ['BENEFITS_ADMIN', ['BENEFITS_ADMIN']],
+      ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
+      ['ER_SPECIALIST', ['ER_SPECIALIST']],
+    ])('rejects %s from the full worker admin list and read endpoints', async (_label, roles) => {
+      await expect(controller.listWorkers(requestWithRoles(roles), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
+      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+
+      await expect(controller.getWorker('550e8400-e29b-41d4-a716-446655440001', requestWithRoles(roles))).rejects.toBeInstanceOf(ForbiddenException);
+      expect(workerRepo.findByIdForTenant).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['PAYROLL_ADMIN', ['PAYROLL_ADMIN']],
+      ['COMPENSATION_ADMIN', ['COMPENSATION_ADMIN']],
+      ['BENEFITS_ADMIN', ['BENEFITS_ADMIN']],
+      ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
+      ['ER_SPECIALIST', ['ER_SPECIALIST']],
+    ])('rejects %s from creating a worker', async (_label, roles) => {
+      await expect(
+        controller.createWorker(
+          { firstName: 'Alice', lastName: 'Smith', email: 'alice@example.com' } as never,
+          requestWithRoles(roles),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(commandBus.execute).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('searchWorkerDirectory', () => {
+    const worker = new WorkerProfile({
+      id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
+      tenantId: new Uuid('550e8400-e29b-41d4-a716-446655440002'),
+      employeeNumber: 'EMP-001',
+      status: 'ACTIVE',
+      firstName: 'Alice',
+      lastName: 'Smith',
+      email: new Email('alice@example.com'),
+      hireDate: new Date('2023-01-15'),
+      jobTitle: 'Engineer',
+    });
+
+    it('returns only the minimal disambiguation fields, not the full admin payload', async () => {
+      (workerRepo.searchDirectoryForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+      const result = await controller.searchWorkerDirectory(requestForTenant(), 'alice');
+
+      expect(result).toEqual([
+        {
+          id: '550e8400-e29b-41d4-a716-446655440001',
+          employeeId: 'EMP-001',
+          firstName: 'Alice',
+          lastName: 'Smith',
+          jobTitle: 'Engineer',
+        },
+      ]);
+    });
+
+    it('searches via the name/employee-number-only repository method, never the email-inclusive admin search', async () => {
+      (workerRepo.searchDirectoryForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+      await controller.searchWorkerDirectory(requestForTenant(), 'alice');
+
+      expect(workerRepo.searchDirectoryForTenant).toHaveBeenCalledWith(
+        'alice',
+        expect.anything(),
+        expect.objectContaining({ limit: 10 }),
+      );
+      expect(workerRepo.searchForTenant).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['HR_ADMIN (existing admin caller)', ['HR_ADMIN']],
+      ['EMPLOYEE (recognition-recipient picker)', ['EMPLOYEE']],
+      ['MANAGER', ['MANAGER']],
+      ['COMPENSATION_ADMIN (admin compensation worker filter)', ['COMPENSATION_ADMIN']],
+      ['PAYROLL_ADMIN', ['PAYROLL_ADMIN']],
+      ['BENEFITS_ADMIN', ['BENEFITS_ADMIN']],
+      ['COMPLIANCE_OFFICER', ['COMPLIANCE_OFFICER']],
+      ['ER_SPECIALIST', ['ER_SPECIALIST']],
+    ])('allows %s to search the worker directory', async (_label, roles) => {
+      (workerRepo.searchDirectoryForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([worker]);
+
+      await expect(controller.searchWorkerDirectory(requestWithRoles(roles), 'alice')).resolves.toHaveLength(1);
+      expect(workerRepo.searchDirectoryForTenant).toHaveBeenCalled();
+    });
+
+    it('rejects roles with no directory-search grant', async () => {
+      await expect(controller.searchWorkerDirectory(requestWithRoles([]), 'alice')).rejects.toBeInstanceOf(ForbiddenException);
+      expect(workerRepo.searchDirectoryForTenant).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing or blank search term even for privileged callers', async () => {
+      await expect(controller.searchWorkerDirectory(requestForTenant())).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.searchWorkerDirectory(requestForTenant(), '   ')).rejects.toBeInstanceOf(BadRequestException);
+      expect(workerRepo.searchDirectoryForTenant).not.toHaveBeenCalled();
+    });
+
+    it('rejects an array-valued search param (repeated ?search= query) with 400 instead of throwing a TypeError', async () => {
+      await expect(
+        controller.searchWorkerDirectory(requestForTenant(), ['alice', 'bob'] as unknown as string),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(workerRepo.searchDirectoryForTenant).not.toHaveBeenCalled();
+    });
+  });
+
   it('getWorker returns mapped DTO', async () => {
     const worker = new WorkerProfile({
       id: new Uuid('550e8400-e29b-41d4-a716-446655440001'),
@@ -552,5 +746,25 @@ describe('HrCoreController smoke test', () => {
     expect(result.canCreate).toBe(false);
     expect(result.exactMatches).toContainEqual(expect.objectContaining({ field: 'email', value: 'alice@example.com' }));
     expect(result.warnings).toContainEqual(expect.objectContaining({ reason: 'Same full name' }));
+  });
+
+  it('getPersonalData rejects non-admin actors from reading another worker\'s banking/tax/compensation records (HCM-P0-2b)', async () => {
+    const workerId = '550e8400-e29b-41d4-a716-446655440001';
+    (workerRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: { value: workerId } });
+
+    await expect(controller.getPersonalData(workerId, employeeRequestForTenant())).rejects.toBeInstanceOf(ForbiddenException);
+    expect(personalDataRepo.findByWorkerForTenant).not.toHaveBeenCalled();
+  });
+
+  it('getPersonalData returns records for HR administrators', async () => {
+    const workerId = '550e8400-e29b-41d4-a716-446655440001';
+    (workerRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: { value: workerId } });
+    (personalDataRepo.findByWorkerForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: { value: 'record-1' }, dataCategory: 'BANKING', dataClassification: 'HIGH_SENSITIVITY', payload: { bankAccount: { iban: 'EG123' } }, encryptedPayloadRef: undefined },
+    ]);
+
+    const result = await controller.getPersonalData(workerId, requestForTenant());
+
+    expect(result).toEqual([expect.objectContaining({ id: 'record-1', dataCategory: 'BANKING' })]);
   });
 });

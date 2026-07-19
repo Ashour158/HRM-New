@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { BonusCycle } from '../aggregates/bonus-cycle.aggregate.js';
 
@@ -65,7 +65,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
       cycleYear: row.cycle_year,
       eligibilityDate: row.eligibility_date,
       paymentDate: row.payment_date,
-      totalPoolAmount: row.total_pool_amount,
+      totalPoolAmount: parseNumeric(row.total_pool_amount),
       currency: row.currency,
       status: row.status as 'DRAFT' | 'ACTIVE' | 'CALCULATION' | 'REVIEW' | 'APPROVED' | 'PAID' | 'CLOSED',
       aggregateVersion: row.aggregate_version,

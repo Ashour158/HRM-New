@@ -51,7 +51,6 @@ describe('auth hardening', () => {
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AppController.prototype.getLiveness)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.login)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.refresh)).toBe(true);
-    expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.register)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.requestPasswordReset)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.confirmPasswordReset)).toBe(true);
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.providers)).toBe(true);
@@ -64,6 +63,15 @@ describe('auth hardening', () => {
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.invite)).toBeUndefined();
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.createSsoConfig)).toBeUndefined();
     expect(Reflect.getMetadata(PUBLIC_ROUTE_KEY, AuthController.prototype.setupMfa)).toBeUndefined();
+  });
+
+  it('has no public self-registration endpoint (HCM-P0-1: closed account-takeover vector)', () => {
+    // Open self-registration previously let anyone who knew/guessed a real
+    // employee's email create an ACTIVE account bound to that employee's
+    // self-service identity, with an attacker-chosen tenantId and no
+    // verification. New employee access must always go through the
+    // admin-authenticated `invite` flow instead.
+    expect((AuthController.prototype as Record<string, unknown>).register).toBeUndefined();
   });
 
   it('auth guard skips explicit public endpoints', () => {

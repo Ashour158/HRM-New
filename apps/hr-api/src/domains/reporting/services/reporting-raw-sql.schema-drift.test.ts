@@ -43,7 +43,7 @@ const REPORTING_REPOSITORY_TABLES: RawSqlLoaderContract[] = [{
     {
       schema: 'hr_reporting',
       table: 'calculated_fields',
-      columns: ['id', 'tenant_id', 'field_name', 'expression', 'data_type', 'source_fields', 'status', 'aggregate_version', 'created_at', 'updated_at'],
+      columns: ['id', 'tenant_id', 'field_name', 'expression', 'data_type', 'data_source', 'source_fields', 'status', 'aggregate_version', 'created_at', 'updated_at'],
     },
   ],
 }];
