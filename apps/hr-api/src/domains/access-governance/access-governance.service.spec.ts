@@ -149,7 +149,13 @@ function repository(overrides: Record<string, unknown> = {}) {
     createServiceAccountCredential: vi.fn(async (_tenant: Uuid, input: Record<string, unknown>) => credential(input)),
     updateServiceAccountCredential: vi.fn(async (_tenant: Uuid, _account: Uuid, _credential: Uuid, input: Record<string, unknown>) => credential(input)),
     updateServiceAccount: vi.fn(async (_tenant: Uuid, _account: Uuid, input: Record<string, unknown>) => serviceAccount(input)),
+    assignUserRole: vi.fn(async () => []),
     removeUserRole: vi.fn(async () => []),
+    replaceRolePermissions: vi.fn(async () => []),
+    assignRolePermission: vi.fn(async () => undefined),
+    removeRolePermission: vi.fn(async () => undefined),
+    computeEffectiveUserAccess: vi.fn(async () => ({ roles: [], permissions: [] })),
+    listUserIdsForRole: vi.fn(async () => []),
     findAccessReviewCampaign: vi.fn(async () => campaign()),
     listAccessReviewItemsForCampaign: vi.fn(async () => []),
     updateAccessReviewCampaign: vi.fn(async (_tenant: Uuid, _campaign: Uuid, input: Record<string, unknown>) => campaign(input)),
@@ -425,5 +431,121 @@ describe('AccessGovernanceService credential vault and certification workflow', 
       }),
     }));
     expect(outbox.schedule).toHaveBeenCalled();
+  });
+});
+
+describe('AccessGovernanceService runtime authorization sync (HCM-P0-2)', () => {
+  const userId = new Uuid('00000000-0000-0000-0000-000000000080');
+  const roleId = new Uuid('00000000-0000-0000-0000-000000000090');
+
+  function usersRepository() {
+    return { setRolesAndPermissions: vi.fn(async () => undefined) };
+  }
+
+  it('resyncs the affected user\'s roles/permissions after a role is assigned', async () => {
+    const repo = repository({
+      computeEffectiveUserAccess: vi.fn(async () => ({ roles: ['PAYROLL_ADMIN'], permissions: ['PAYROLL_READ', 'PAYROLL_APPROVE'] })),
+    });
+    const users = usersRepository();
+    const service = new AccessGovernanceService(repo as never, undefined, undefined, users) as unknown as {
+      assignUserRole: AccessGovernanceService['assignUserRole'];
+    };
+
+    await service.assignUserRole(tenantId, { userId: userId.value, roleId: roleId.value }, actorId);
+
+    expect(repo.computeEffectiveUserAccess).toHaveBeenCalledWith(tenantId, userId);
+    expect(users.setRolesAndPermissions).toHaveBeenCalledWith(userId.value, ['PAYROLL_ADMIN'], ['PAYROLL_READ', 'PAYROLL_APPROVE']);
+  });
+
+  it('resyncs the affected user\'s roles/permissions after a role is removed', async () => {
+    const repo = repository({
+      computeEffectiveUserAccess: vi.fn(async () => ({ roles: [], permissions: [] })),
+    });
+    const users = usersRepository();
+    const service = new AccessGovernanceService(repo as never, undefined, undefined, users) as unknown as {
+      removeUserRole: AccessGovernanceService['removeUserRole'];
+    };
+
+    await service.removeUserRole(tenantId, userId, roleId);
+
+    expect(repo.computeEffectiveUserAccess).toHaveBeenCalledWith(tenantId, userId);
+    expect(users.setRolesAndPermissions).toHaveBeenCalledWith(userId.value, [], []);
+  });
+
+  it('fans out a resync to every user holding a role when its permission set is replaced', async () => {
+    const otherUserId = '00000000-0000-0000-0000-000000000081';
+    const repo = repository({
+      listUserIdsForRole: vi.fn(async () => [userId.value, otherUserId]),
+      computeEffectiveUserAccess: vi.fn(async () => ({ roles: ['PAYROLL_ADMIN'], permissions: ['PAYROLL_READ'] })),
+    });
+    const users = usersRepository();
+    const service = new AccessGovernanceService(repo as never, undefined, undefined, users) as unknown as {
+      replaceRolePermissions: AccessGovernanceService['replaceRolePermissions'];
+    };
+
+    await service.replaceRolePermissions(tenantId, roleId, ['00000000-0000-0000-0000-0000000000a1']);
+
+    expect(repo.listUserIdsForRole).toHaveBeenCalledWith(tenantId, roleId);
+    expect(users.setRolesAndPermissions).toHaveBeenCalledTimes(2);
+    expect(users.setRolesAndPermissions).toHaveBeenCalledWith(userId.value, ['PAYROLL_ADMIN'], ['PAYROLL_READ']);
+    expect(users.setRolesAndPermissions).toHaveBeenCalledWith(otherUserId, ['PAYROLL_ADMIN'], ['PAYROLL_READ']);
+  });
+
+  it('resyncs the subject user after SoD remediation removes a role', async () => {
+    const repo = repository({
+      computeEffectiveUserAccess: vi.fn(async () => ({ roles: ['PAYROLL_APPROVER'], permissions: ['PAYROLL_APPROVE'] })),
+    });
+    const users = usersRepository();
+    const service = new AccessGovernanceService(repo as never, undefined, undefined, users) as unknown as {
+      remediateSodViolation: (
+        tenant: Uuid,
+        dto: Record<string, unknown>,
+        actor?: Uuid,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    await service.remediateSodViolation(tenantId, {
+      ruleId: sodRuleId.value,
+      subjectUserId: userId.value,
+      violatingRoleId: roleId.value,
+      conflictingRoleId: '00000000-0000-0000-0000-000000000091',
+      action: 'REMOVE_VIOLATING_ROLE',
+    }, actorId);
+
+    expect(users.setRolesAndPermissions).toHaveBeenCalledWith(userId.value, ['PAYROLL_APPROVER'], ['PAYROLL_APPROVE']);
+  });
+
+  it('resyncs the subject user when an access review revoke decision removes a role', async () => {
+    const itemId = new Uuid('00000000-0000-0000-0000-000000000070');
+    const repo = repository({
+      updateAccessReviewItem: vi.fn(async () => reviewItem('REVOKE', {
+        id: itemId.value,
+        subject_user_id: userId.value,
+        role_id: roleId.value,
+        role_code: 'PAYROLL_ADMIN',
+      })),
+      computeEffectiveUserAccess: vi.fn(async () => ({ roles: [], permissions: [] })),
+    });
+    const users = usersRepository();
+    const service = new AccessGovernanceService(repo as never, undefined, undefined, users) as unknown as {
+      updateAccessReviewItem: AccessGovernanceService['updateAccessReviewItem'];
+    };
+
+    await service.updateAccessReviewItem(tenantId, itemId, { decision: 'REVOKE' }, actorId);
+
+    expect(users.setRolesAndPermissions).toHaveBeenCalledWith(userId.value, [], []);
+  });
+
+  it('does not attempt a resync when no UsersRepository is wired (backward-compatible no-op)', async () => {
+    const repo = repository({
+      computeEffectiveUserAccess: vi.fn(async () => ({ roles: ['PAYROLL_ADMIN'], permissions: [] })),
+    });
+    const service = new AccessGovernanceService(repo as never) as unknown as {
+      assignUserRole: AccessGovernanceService['assignUserRole'];
+    };
+
+    await expect(service.assignUserRole(tenantId, { userId: userId.value, roleId: roleId.value }, actorId))
+      .resolves.not.toThrow();
+    expect(repo.computeEffectiveUserAccess).not.toHaveBeenCalled();
   });
 });

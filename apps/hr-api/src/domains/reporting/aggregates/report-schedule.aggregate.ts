@@ -1,4 +1,5 @@
 import { AggregateRoot, DomainEvent, Uuid, ValidationError } from '@hcm/shared-kernel';
+import { nextReportRunAfter } from '../report-schedule-frequency.js';
 
 export type ReportScheduleStatus = 'ACTIVE' | 'PAUSED' | 'EXPIRED' | 'CANCELLED';
 
@@ -34,6 +35,14 @@ export class ReportSchedulePaused extends DomainEvent {
 export class ReportScheduleExpired extends DomainEvent {
   constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
     super({ eventName: 'ReportScheduleExpired', tenantId: props.tenantId, aggregateType: 'ReportSchedule', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+export class ReportScheduleRunRecorded extends DomainEvent {
+  readonly nextRunAt: string;
+
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid; nextRunAt: Date }) {
+    super({ eventName: 'ReportScheduleRunRecorded', tenantId: props.tenantId, aggregateType: 'ReportSchedule', aggregateId: props.aggregateId, correlationId: props.correlationId });
+    this.nextRunAt = props.nextRunAt.toISOString();
   }
 }
 
@@ -97,6 +106,22 @@ export class ReportSchedule extends AggregateRoot {
   cancel(_correlationId: Uuid): void {
     if (this.status !== 'ACTIVE' && this.status !== 'PAUSED') throw new ValidationError(`Cannot cancel from state ${this.status}`);
     this.status = 'CANCELLED';
+    this.incrementVersion();
+    this.updatedAt = new Date();
+  }
+
+  /**
+   * Records a completed firing and advances `nextRunAt`. The next run is
+   * computed from the schedule's own previous `nextRunAt`, not from `ranAt`,
+   * so a late-firing job doesn't drift every subsequent run later.
+   */
+  recordRun(ranAt: Date, correlationId: Uuid): void {
+    if (this.status !== 'ACTIVE') throw new ValidationError(`Cannot record a run from state ${this.status}`);
+    const baseline = this.nextRunAt ?? ranAt;
+    const nextRunAt = nextReportRunAfter(baseline, this.frequency);
+    this.lastRunAt = ranAt;
+    this.nextRunAt = nextRunAt;
+    this.addDomainEvent(new ReportScheduleRunRecorded({ tenantId: this.tenantId, aggregateId: this.id, correlationId, nextRunAt }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
