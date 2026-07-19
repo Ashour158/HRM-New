@@ -31,7 +31,7 @@ spec:
                   TS=$(date -u +%Y-%m-%dT%H-%M-%SZ);
                   echo "pg_dump -> /backups/hcm_${TS}.dump";
                   pg_dump "$DATABASE_URL" -Fc -f "/backups/hcm_${TS}.dump";
-                  find /backups -name '*.dump' -mtime +14 -delete;
+                  find /backups -name '*.dump' -mtime +35 -delete;
                   echo "backup complete"
               env:
                 - name: DATABASE_URL
