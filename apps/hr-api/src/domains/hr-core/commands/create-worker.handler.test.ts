@@ -266,6 +266,7 @@ describe('CreateWorkerHandler profile intake validation', () => {
       command({
         workEmail: 'amina.work@example.com',
         customFieldValues: { localUnionCode: 'EG-CUSTOM-1', unconfiguredKey: 'should-be-dropped' },
+        workAuthorization: { status: 'AUTHORIZED' },
       }),
     );
 
