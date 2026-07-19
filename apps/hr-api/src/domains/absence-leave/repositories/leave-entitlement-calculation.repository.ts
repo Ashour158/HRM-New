@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -47,9 +47,9 @@ export class LeaveEntitlementCalculationRepository extends BaseRepository<'leave
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       leaveType: row.leave_type,
-      calculatedEntitlement: row.calculated_entitlement,
-      usedEntitlement: row.used_entitlement,
-      remainingEntitlement: row.remaining_entitlement,
+      calculatedEntitlement: parseNumeric(row.calculated_entitlement),
+      usedEntitlement: parseNumeric(row.used_entitlement),
+      remainingEntitlement: parseNumeric(row.remaining_entitlement),
       calculationDate: row.calculation_date,
       status: row.status as LeaveEntitlementCalculationStatus,
       aggregateVersion: row.aggregate_version,

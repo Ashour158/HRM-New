@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool } from '@hcm/database';
+import { createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -50,8 +50,8 @@ export class PayrollGlPostingRepository {
       payroll_cycle_id: record.payrollCycleId,
       posting_number: record.postingNumber,
       status: record.status,
-      total_debits: record.totalDebits,
-      total_credits: record.totalCredits,
+      total_debits: String(record.totalDebits),
+      total_credits: String(record.totalCredits),
       currency: record.currency,
       // jsonb array column: serialize explicitly — node-postgres would render a JS array
       // as a Postgres array literal (invalid for jsonb), so the GL journal lines must be
@@ -74,8 +74,8 @@ export class PayrollGlPostingRepository {
       payrollCycleId: row.payroll_cycle_id,
       postingNumber: row.posting_number,
       status: row.status as PayrollGlPostingRecord['status'],
-      totalDebits: row.total_debits,
-      totalCredits: row.total_credits,
+      totalDebits: parseNumeric(row.total_debits),
+      totalCredits: parseNumeric(row.total_credits),
       currency: row.currency,
       lines: row.lines as PayrollGlPostingLine[],
       sourceHash: row.source_hash,

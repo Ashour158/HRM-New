@@ -12,15 +12,35 @@ describe('parseNumeric', () => {
     expect(parseNumeric('-42.75')).toBe(-42.75);
   });
 
+  it('parses a valid numeric-column string', () => {
+    expect(parseNumeric('123.45')).toBe(123.45);
+  });
+
+  it('parses a negative value', () => {
+    expect(parseNumeric('-42')).toBe(-42);
+  });
+
   it('passes through values that are already numbers', () => {
     expect(parseNumeric(10)).toBe(10);
     expect(parseNumeric(0)).toBe(0);
+  });
+
+  it('rejects a non-numeric string', () => {
+    expect(() => parseNumeric('not-a-number')).toThrow(/Expected a numeric value/);
   });
 
   it('throws instead of silently producing NaN for a non-numeric string', () => {
     // Previously: Number('N/A') is NaN, which would silently poison any
     // downstream sum/total instead of failing loudly at the read boundary.
     expect(() => parseNumeric('N/A')).toThrow(/Expected a numeric value/);
+  });
+
+  it('rejects a value that parses to Infinity', () => {
+    expect(() => parseNumeric('1e+400')).toThrow(/Expected a numeric value/);
+  });
+
+  it('rejects a value that parses to -Infinity', () => {
+    expect(() => parseNumeric('-1e+400')).toThrow(/Expected a numeric value/);
   });
 
   it('throws instead of silently producing Infinity for an out-of-range string', () => {
@@ -36,9 +56,21 @@ describe('parseNumeric', () => {
 });
 
 describe('parseNullableNumeric', () => {
+  it('returns undefined for null', () => {
+    expect(parseNullableNumeric(null)).toBeUndefined();
+  });
+
+  it('returns undefined for undefined', () => {
+    expect(parseNullableNumeric(undefined)).toBeUndefined();
+  });
+
   it('returns undefined for null and undefined without throwing', () => {
     expect(parseNullableNumeric(null)).toBeUndefined();
     expect(parseNullableNumeric(undefined)).toBeUndefined();
+  });
+
+  it('parses a valid numeric-column string', () => {
+    expect(parseNullableNumeric('7.5')).toBe(7.5);
   });
 
   it('parses a present numeric-string value', () => {
