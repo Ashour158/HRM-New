@@ -178,6 +178,7 @@ describe('AdminLearning', () => {
 
   it('uses a searchable course picker instead of a raw course ID input when assigning a course', async () => {
     const secondCourseId = '00000000-0000-4000-8000-000000000102';
+    const targetWorkerId = '00000000-0000-4000-8000-000000000303';
     apiClientGetMock.mockImplementation((url: string) => {
       if (url === `/learning/courses/tenant/${tenantId}`) {
         return apiResponse([
@@ -189,6 +190,20 @@ describe('AdminLearning', () => {
       if (url === `/learning/assignments/tenant/${tenantId}`) return apiResponse([]);
       if (url === `/learning/certifications/tenant/${tenantId}`) return apiResponse([]);
       if (url === `/learning/content-packages/tenant/${tenantId}`) return apiResponse([]);
+      if (url === '/hr/core/workers/directory-search?search=jordan&pageSize=10') {
+        return apiResponse([
+          {
+            id: targetWorkerId,
+            employeeId: 'EMP-3003',
+            firstName: 'Jordan',
+            lastName: 'Lee',
+            email: 'jordan.lee@example.com',
+            hireDate: '2025-03-01T00:00:00.000Z',
+            status: 'ACTIVE',
+            jobTitle: 'Safety Officer',
+          },
+        ]);
+      }
       return apiResponse({});
     });
 
@@ -203,14 +218,16 @@ describe('AdminLearning', () => {
     await userEvent.type(screen.getByRole('textbox', { name: 'Course search' }), 'Advanced');
     await userEvent.click(await screen.findByRole('option', { name: /Advanced infection control/ }));
 
-    await userEvent.clear(screen.getByLabelText('Worker ID'));
-    await userEvent.type(screen.getByLabelText('Worker ID'), '00000000-0000-4000-8000-000000000303');
+    // The raw free-text "Worker ID" input is likewise gone; a searchable worker picker replaces it.
+    expect(screen.queryByLabelText('Worker ID')).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Select worker'), 'jordan');
+    await userEvent.click(await screen.findByText('Jordan Lee', {}, { timeout: 5000 }));
     await userEvent.click(screen.getByRole('button', { name: 'Save Assignment' }));
 
     await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
       '/learning/assignments',
       expect.objectContaining({
-        workerId: '00000000-0000-4000-8000-000000000303',
+        workerId: targetWorkerId,
         courseId: secondCourseId,
       }),
     ));

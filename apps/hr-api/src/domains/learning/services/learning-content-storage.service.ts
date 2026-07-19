@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { createHash, randomUUID } from 'crypto';
 import { existsSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
@@ -142,7 +142,7 @@ const FILE_URL_PREFIX = 'local://learning-content/';
 export class LocalDiskLearningContentStorageService extends LearningContentStorageService {
   private readonly baseDir: string;
 
-  constructor(baseDir?: string) {
+  constructor(@Optional() baseDir?: string) {
     super();
     this.baseDir = path.resolve(
       baseDir ?? process.env.LEARNING_CONTENT_STORAGE_DIR ?? path.join(process.cwd(), 'uploads', 'learning-content'),

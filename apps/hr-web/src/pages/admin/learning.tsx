@@ -211,7 +211,7 @@ export function AdminLearning() {
     queryFn: async () => list<Certification>(unwrap(await apiClient.get(`/learning/certifications/tenant/${tenantId}`))),
   });
 
-  const courses = coursesQuery.data ?? [];
+  const courses = React.useMemo(() => coursesQuery.data ?? [], [coursesQuery.data]);
   const firstCourseId = recordId(courses[0]?.id);
   const courseOptions = React.useMemo(
     () => courses
