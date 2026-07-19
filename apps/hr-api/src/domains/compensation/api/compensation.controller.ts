@@ -92,6 +92,7 @@ export class CompensationController {
     aggregateType: string,
     aggregateId: string | undefined,
     payload: TPayload,
+    options?: { subjectWorkerId?: Uuid; allowSelfService?: boolean },
   ): HrCommandEnvelope<TPayload> {
     const tenantId = req.tenantId;
     if (!tenantId) {
@@ -101,13 +102,18 @@ export class CompensationController {
     if (!actor) {
       throw new BadRequestException('Actor missing');
     }
-    this.assertCompensationAdminScope(req);
+    if (options?.allowSelfService && options.subjectWorkerId) {
+      this.assertCompensationAdminOrSelfScope(req, options.subjectWorkerId);
+    } else {
+      this.assertCompensationAdminScope(req);
+    }
     return {
       commandId: Uuid.generate(),
       commandName,
       commandSchemaVersion: 1,
       tenantId: new Uuid(tenantId),
       actor,
+      subjectWorkerId: options?.subjectWorkerId,
       aggregateType,
       aggregateId: aggregateId ? new Uuid(aggregateId) : undefined,
       idempotencyKey: crypto.randomUUID(),
@@ -274,19 +280,19 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('changes/:id/commands/submit')
+  async submitChange(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'SubmitCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Post('changes/:id/commands/approve')
   async approveChange(@Param('id') id: string, @Body() dto: ApproveCompensationChangeDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'ApproveCompensationChange', 'CompensationChange', id, {
       changeId: new Uuid(id),
       approvedBy: new Uuid(dto.approvedBy),
-    });
-    return this.commandBus.execute(command);
-  }
-
-  @Post('changes/:id/commands/submit')
-  async submitChange(@Param('id') id: string, @Req() req: Request) {
-    const command = this.buildCommand(req, 'SubmitCompensationChange', 'CompensationChange', id, {
-      changeId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -661,17 +667,21 @@ export class CompensationController {
 
   @Post('total-comp-statements/:id/commands/deliver')
   async deliverTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const statement = await this.totalCompStatementRepo.findById(new Uuid(id));
+    if (!statement) throw new NotFoundException('TotalCompensationStatement not found');
     const command = this.buildCommand(req, 'DeliverTotalCompensationStatement', 'TotalCompensationStatement', id, {
       statementId: new Uuid(id),
-    });
+    }, { subjectWorkerId: statement.workerId });
     return this.commandBus.execute(command);
   }
 
   @Post('total-comp-statements/:id/commands/acknowledge')
   async acknowledgeTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const statement = await this.totalCompStatementRepo.findById(new Uuid(id));
+    if (!statement) throw new NotFoundException('TotalCompensationStatement not found');
     const command = this.buildCommand(req, 'AcknowledgeTotalCompensationStatement', 'TotalCompensationStatement', id, {
       statementId: new Uuid(id),
-    });
+    }, { subjectWorkerId: statement.workerId, allowSelfService: true });
     return this.commandBus.execute(command);
   }
 
@@ -701,5 +711,18 @@ export class CompensationController {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => COMPENSATION_ADMIN_ROLES.has(role))) return;
     throw new ForbiddenException('Only HR, payroll, or compensation administrators can access compensation administration');
+  }
+
+  /**
+   * Self-service gate: allows compensation administrators, or the worker who
+   * is the subject of the record, to proceed (e.g. acknowledging their own
+   * total compensation statement).
+   */
+  private assertCompensationAdminOrSelfScope(req: Request, subjectWorkerId: Uuid): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => COMPENSATION_ADMIN_ROLES.has(role))) return;
+    const actorId = req.actor?.actorId?.value;
+    if (actorId && actorId === subjectWorkerId.value) return;
+    throw new ForbiddenException('Only the record owner or compensation administrators may perform this action');
   }
 }

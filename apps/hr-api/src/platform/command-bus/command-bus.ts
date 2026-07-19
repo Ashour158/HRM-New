@@ -51,11 +51,16 @@ export interface CommandHandler {
 // keep working unchanged after the pipeline-step decomposition below.
 // Verified byte-identical against origin/main's (pre-decomposition) inline
 // GOVERNED_COMMAND_POLICY_MATRIX / AGGREGATE_LOADERS / SENSITIVE_FIELD_RULES
-// as of the 2026-07-19 main merge, plus the I9Case/EverifyCase aggregate
-// loaders and IMMIGRATION data-category classification this branch added
-// (ported into steps/aggregate-load.step.ts and command-bus.utils.ts
-// respectively), so no content changes were lost by keeping the step-file
-// location.
+// as of the 2026-07-19 main merge. This confirms the ACCESS_GOVERNANCE
+// catch-all regex already carries the Attach/Escalate/Reassign/Recalculate
+// verbs and aggregate-load.step.ts / field-privacy.step.ts /
+// policy-revision.step.ts already carry the MisclassificationAssessment,
+// DeiReport, PayGapReport, PayEquityReview, AttritionSegmentReport, and
+// worker.diversityData entries from already-merged branches, plus the
+// I9Case/EverifyCase aggregate loaders and IMMIGRATION data-category
+// classification this branch added (ported into steps/aggregate-load.step.ts
+// and command-bus.utils.ts respectively), so no content changes were lost by
+// keeping the step-file location.
 export { GOVERNED_COMMAND_POLICY_MATRIX, requiredPolicyAreaForCommand };
 
 /**

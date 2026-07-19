@@ -33,15 +33,17 @@ function buildController() {
   const commandBus = { execute: vi.fn(async () => ({ success: true })) };
   const positionRepo = { findById: vi.fn(), findAll: vi.fn(), findVacant: vi.fn() };
   const headcountRepo = { findById: vi.fn(), findAll: vi.fn(), findPendingApproval: vi.fn() };
+  const budgetRepo = { findById: vi.fn(), findAll: vi.fn(), findByDepartmentAndYear: vi.fn() };
   const fsmFramework = { getAllowedActionsFromState: vi.fn(() => ['Activate']) };
   const controller = new PositionControlController(
     commandBus as unknown as CommandBus,
     positionRepo as never,
     headcountRepo as never,
+    budgetRepo as never,
     fsmFramework as never,
   );
 
-  return { controller, commandBus, positionRepo, fsmFramework };
+  return { controller, commandBus, positionRepo, budgetRepo, fsmFramework };
 }
 
 describe('PositionControlController', () => {

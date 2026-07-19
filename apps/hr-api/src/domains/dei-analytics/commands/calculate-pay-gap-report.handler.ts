@@ -19,6 +19,12 @@ export interface CalculatePayGapReportPayload {
   payGapReportId: string;
 }
 
+/**
+ * Computes real mean/median hourly pay-gap statistics for a PayGapReport
+ * from actual worker + compensation data (scoped by the report's own
+ * reportType/reportingYear/countryCode), rather than trusting caller-supplied
+ * numbers. The caller only identifies which report to calculate.
+ */
 @Injectable()
 @CommandHandler('CalculatePayGapReport')
 export class CalculatePayGapReportHandler {

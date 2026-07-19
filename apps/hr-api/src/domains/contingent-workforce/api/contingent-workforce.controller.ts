@@ -17,6 +17,7 @@ import {
   CreateSowEngagementDto,
   CreateContractorRateCardDto,
   CreateMisclassificationAssessmentDto,
+  RecalculateMisclassificationScoreDto,
   ZodValidationPipe,
 } from './contingent-workforce.dto.js';
 
@@ -192,6 +193,17 @@ export class ContingentWorkforceController {
     const ar = await this.assessmentRepo.findById(new Uuid(id));
     if (!ar) throw new BadRequestException('Misclassification assessment not found');
     return this.commandBus.execute(this.buildCommand('StartMisclassificationAssessment', 'MisclassificationAssessment', { misclassificationAssessmentId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+  }
+
+  @Post('misclassification-assessments/:id/commands/recalculate-score')
+  async recalculateAssessmentScore(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(RecalculateMisclassificationScoreDto)) dto: dtos.RecalculateMisclassificationScoreDto,
+    @Req() req: Request,
+  ) {
+    const ar = await this.assessmentRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('Misclassification assessment not found');
+    return this.commandBus.execute(this.buildCommand('RecalculateMisclassificationScore', 'MisclassificationAssessment', { misclassificationAssessmentId: id, factorInputs: dto.factorInputs }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
   @Post('misclassification-assessments/:id/commands/mark-review-required')

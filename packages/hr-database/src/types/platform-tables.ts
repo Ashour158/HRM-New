@@ -805,6 +805,18 @@ export interface HeadcountRequestsTable {
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
 }
 
+export interface HeadcountBudgetsTable {
+  id: string;
+  tenant_id: string;
+  department_id: string;
+  fiscal_year: number;
+  ceiling: number;
+  set_by: string;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
 export interface LegalEntitiesTable {
   id: string;
   tenant_id: string;
@@ -877,6 +889,26 @@ export interface CandidatesTable {
   source: string | null;
   status: string;
   requisition_id: string;
+  /** Voluntary EEO self-identification (SPECIAL_CATEGORY, access-restricted). */
+  eeo_self_identification: unknown;
+  aggregate_version: number;
+  created_at: ColumnType<Date, string | undefined, never>;
+  updated_at: ColumnType<Date, string | undefined, string | undefined>;
+}
+
+export interface RequisitionAdverseImpactAnalysesTable {
+  id: string;
+  tenant_id: string;
+  requisition_id: string;
+  dimension: string;
+  decision_code: string;
+  flagged_stage_count: number;
+  small_cell_threshold: number;
+  stage_results: unknown;
+  status: string;
+  reviewed_by: string | null;
+  reviewed_at: Date | null;
+  review_notes: string | null;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
@@ -2100,6 +2132,7 @@ export interface MisclassificationAssessmentsTable {
   tenant_id: string;
   worker_id: string;
   assessment_date: Date;
+  factor_inputs: unknown;
   risk_score: string | null;
   risk_factors: unknown;
   status: string;
@@ -2460,6 +2493,7 @@ export interface Database {
   personal_data_records: PersonalDataRecordsTable;
   'hr_position.positions': PositionsTable;
   'hr_position.headcount_requests': HeadcountRequestsTable;
+  'hr_position.headcount_budgets': HeadcountBudgetsTable;
   'hr_org.legal_entities': LegalEntitiesTable;
   'hr_org.org_units': OrgUnitsTable;
   'hr_org.manager_relationships': ManagerRelationshipsTable;
@@ -2467,6 +2501,7 @@ export interface Database {
   'hr_recruiting.candidates': CandidatesTable;
   'hr_recruiting.interview_plans': InterviewPlansTable;
   'hr_recruiting.offers': OffersTable;
+  'hr_recruiting.requisition_adverse_impact_analyses': RequisitionAdverseImpactAnalysesTable;
   'hr_onboarding.onboarding_plans': OnboardingPlansTable;
   'hr_onboarding.onboarding_tasks': OnboardingTasksTable;
   'hr_onboarding.onboarding_track_templates': OnboardingTrackTemplatesTable;

@@ -8,7 +8,8 @@ import { BonusCycleFsm } from '../fsm/bonus-cycle.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for closing a BonusCycle.
+ * Command handler for closing a BonusCycle after payout.
+ * PAID → CLOSED (terminal).
  */
 @Injectable()
 @CommandHandler('CloseBonusCycle')

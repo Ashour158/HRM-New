@@ -19,9 +19,11 @@ import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PositionRepository } from '../repositories/position.repository.js';
 import { HeadcountRequestRepository } from '../repositories/headcount-request.repository.js';
+import { HeadcountBudgetRepository } from '../repositories/headcount-budget.repository.js';
 import {
   ApproveHeadcountRequestDto,
   ApproveHeadcountRequestDtoSchema,
+  ConfigureHeadcountBudgetDto,
   CreatePositionDto,
   CreatePositionDtoSchema,
   FillPositionDto,
@@ -57,6 +59,7 @@ export class PositionControlController {
     private readonly commandBus: CommandBus,
     private readonly positionRepo: PositionRepository,
     private readonly headcountRepo: HeadcountRequestRepository,
+    private readonly budgetRepo: HeadcountBudgetRepository,
     private readonly fsmFramework: FsmFramework,
   ) {}
 
@@ -273,7 +276,11 @@ export class PositionControlController {
   @ApiOperation({ summary: 'Approve a headcount request' })
   @ApiParam({ name: 'id', description: 'Headcount request UUID' })
   async approveHeadcountRequest(@Param('id') id: string, @Body(new ZodValidationPipe(ApproveHeadcountRequestDtoSchema)) dto: ApproveHeadcountRequestDto, @Req() req: Request) {
-    const envelope = this.buildCommand('ApproveHeadcountRequest', req, { requestId: id, positionsApproved: dto.positionsApproved }, {
+    const envelope = this.buildCommand('ApproveHeadcountRequest', req, {
+      requestId: id,
+      positionsApproved: dto.positionsApproved,
+      fiscalYear: dto.fiscalYear,
+    }, {
       aggregateType: 'headcountRequest',
       aggregateId: id,
       expectedState: 'UNDER_REVIEW',
@@ -359,6 +366,58 @@ export class PositionControlController {
       version: request.version,
       createdAt: request.createdAt,
       updatedAt: request.updatedAt,
+    };
+  }
+
+  @Post('headcount-budgets')
+  @ApiOperation({ summary: 'Configure (create or update) the headcount budget ceiling for an org unit and fiscal year' })
+  async configureHeadcountBudget(@Body() dto: ConfigureHeadcountBudgetDto, @Req() req: Request) {
+    this.assertPositionAdmin(req);
+    const envelope = this.buildCommand('ConfigureHeadcountBudget', req, dto, {
+      aggregateType: 'headcountBudget',
+      reason: 'Configure headcount budget via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Get('headcount-budgets')
+  @ApiOperation({ summary: 'List headcount budgets for the tenant, optionally filtered by fiscal year' })
+  @ApiQuery({ name: 'fiscalYear', required: false })
+  async listHeadcountBudgets(@Req() req: Request, @Query('fiscalYear') fiscalYear?: string) {
+    this.assertPositionAdmin(req);
+    const budgets = await this.budgetRepo.findAll(this.getTenantId(req), fiscalYear ? Number(fiscalYear) : undefined);
+    return budgets.map((b) => ({
+      id: b.id.value,
+      departmentId: b.departmentId.value,
+      fiscalYear: b.fiscalYear,
+      ceiling: b.ceiling,
+      version: b.version,
+      updatedAt: b.updatedAt,
+    }));
+  }
+
+  @Get('headcount-budgets/lookup')
+  @ApiOperation({ summary: 'Get the headcount budget configured for a specific org unit and fiscal year' })
+  @ApiQuery({ name: 'departmentId', required: true })
+  @ApiQuery({ name: 'fiscalYear', required: true })
+  async getHeadcountBudget(
+    @Req() req: Request,
+    @Query('departmentId') departmentId: string,
+    @Query('fiscalYear') fiscalYear: string,
+  ) {
+    this.assertPositionAdmin(req);
+    const budget = await this.budgetRepo.findByDepartmentAndYear(this.getTenantId(req), new Uuid(departmentId), Number(fiscalYear));
+    if (!budget) {
+      return { error: 'No headcount budget configured for this org unit and fiscal year' };
+    }
+    this.assertSameTenant(budget.tenantId, req);
+    return {
+      id: budget.id.value,
+      departmentId: budget.departmentId.value,
+      fiscalYear: budget.fiscalYear,
+      ceiling: budget.ceiling,
+      version: budget.version,
+      updatedAt: budget.updatedAt,
     };
   }
 

@@ -24,7 +24,7 @@ import type { WorksCouncilConsultation } from '../aggregates/works-council-consu
  *
  * A consultation is considered blocking while it is in REQUIRED, INITIATED,
  * or IN_PROGRESS — the same set the aggregate's own `isBlocking()` uses, and
- * exactly what {@link WorksCouncilConsultationRepository.findBlockingByLegalEntity}
+ * exactly what {@link WorksCouncilConsultationRepository.findBlockingByLegalEntityForTenant}
  * queries for. COMPLETED consultations never block. BLOCKED consultations are
  * a terminal record of an action that was already stopped by the works
  * council (not an open-ended future block on other actions), so they are
@@ -49,8 +49,7 @@ export class WorksCouncilConsultationGuard {
     legalEntityId: Uuid,
     tenantId: Uuid,
   ): Promise<WorksCouncilConsultation[]> {
-    const consultations = await this.repo.findBlockingByLegalEntity(legalEntityId);
-    return consultations.filter((consultation) => consultation.tenantId.value === tenantId.value);
+    return this.repo.findBlockingByLegalEntityForTenant(legalEntityId, tenantId);
   }
 
   async isBlocked(legalEntityId: Uuid, tenantId: Uuid): Promise<boolean> {

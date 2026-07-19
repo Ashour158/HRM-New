@@ -13,6 +13,7 @@ import { AttendanceExceptionRepository } from './repositories/attendance-excepti
 import { AttendanceDailyLedgerRepository } from './repositories/attendance-daily-ledger.repository.js';
 import { AttendanceCorrectionRequestRepository } from './repositories/attendance-correction-request.repository.js';
 import { OvertimeApprovalRepository } from './repositories/overtime-approval.repository.js';
+import { TimeAttendanceDirectoryQueryService } from './time-attendance-directory.query-service.js';
 import { CreateWorkScheduleHandler } from './commands/create-work-schedule.handler.js';
 import { ActivateWorkScheduleHandler } from './commands/activate-work-schedule.handler.js';
 import { ExpireWorkScheduleHandler } from './commands/expire-work-schedule.handler.js';
@@ -69,6 +70,7 @@ import { registerOvertimeApprovalFsm } from './fsm/overtime-approval.fsm.js';
     AttendanceDailyLedgerRepository,
     AttendanceCorrectionRequestRepository,
     OvertimeApprovalRepository,
+    TimeAttendanceDirectoryQueryService,
     CreateWorkScheduleHandler,
     ActivateWorkScheduleHandler,
     ExpireWorkScheduleHandler,
@@ -108,7 +110,7 @@ import { registerOvertimeApprovalFsm } from './fsm/overtime-approval.fsm.js';
     AttendanceReportingService,
     AttendanceSchedulingCommandCenterService,
   ],
-  exports: [WorkScheduleRepository, TimesheetRepository, TimeClockEventRepository, AttendanceExceptionRepository, AttendanceDailyLedgerRepository, AttendanceCorrectionRequestRepository, OvertimeApprovalRepository, AttendanceCalculationService, AttendanceStateService, AttendanceLedgerService, AttendanceLedgerBuilderService, AttendancePolicyResolutionService, AttendanceTrustService, AttendanceFinalizationService, AttendanceCloseReadinessService, AttendanceCorrectionService, AttendanceGeolocationExportService, AttendanceTimesheetProjectionService, AttendanceReminderService, AttendanceReportingService, AttendanceSchedulingCommandCenterService],
+  exports: [WorkScheduleRepository, TimesheetRepository, TimeClockEventRepository, AttendanceExceptionRepository, AttendanceDailyLedgerRepository, AttendanceCorrectionRequestRepository, OvertimeApprovalRepository, AttendanceCalculationService, AttendanceStateService, AttendanceLedgerService, AttendanceLedgerBuilderService, AttendancePolicyResolutionService, AttendanceTrustService, AttendanceFinalizationService, AttendanceCloseReadinessService, AttendanceCorrectionService, AttendanceGeolocationExportService, AttendanceTimesheetProjectionService, AttendanceReminderService, AttendanceReportingService, AttendanceSchedulingCommandCenterService, TimeAttendanceDirectoryQueryService],
 })
 export class TimeAttendanceModule implements OnModuleInit {
   constructor(@Inject(FsmFramework) private readonly fsm: FsmFramework) {}

@@ -92,10 +92,6 @@ describe('DeiAnalyticsController', () => {
     }, request());
     await controller.generateDeiReport({
       deiReportId,
-      metrics: {
-        genderDistribution: { female: 54, male: 46 },
-        leadershipRepresentation: { female: 42, male: 58 },
-      },
     }, request());
 
     expect(commandBus.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({
@@ -111,7 +107,6 @@ describe('DeiAnalyticsController', () => {
       expectedVersion: 1,
       payload: expect.objectContaining({
         deiReportId,
-        metrics: expect.objectContaining({ genderDistribution: expect.any(Object) }),
       }),
     }));
   });
@@ -123,7 +118,7 @@ describe('DeiAnalyticsController', () => {
     await expect(controller.getDeiReport(deiReportId, request())).resolves.toMatchObject({ status: 'GENERATED' });
     (deiReportRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValueOnce(undefined);
 
-    await expect(controller.generateDeiReport({ deiReportId, metrics: {} }, request())).rejects.toBeInstanceOf(BadRequestException);
+    await expect(controller.generateDeiReport({ deiReportId }, request())).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('rejects callers without a DEI/people-analytics or HR admin role', async () => {

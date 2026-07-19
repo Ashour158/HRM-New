@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { NextActions } from '@/components/common/next-actions';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import { useUIStore } from '@/stores/ui-store';
 import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, RefreshCw, Users, Workflow, XCircle } from 'lucide-react';
 import type { AbsenceRequest } from '@/types';
@@ -278,13 +279,20 @@ export function ManagerApprovals() {
     const key = `${chainId}:${stepId}`;
     const delegateToWorkerId = delegateTargets[key]?.trim();
     if (!delegateToWorkerId) {
-      addNotification({ title: 'Delegate worker required', message: 'Enter the worker ID to delegate this approval step.', type: 'error', read: false });
+      addNotification({ title: 'Delegate worker required', message: 'Search for and select a worker to delegate this approval step.', type: 'error', read: false });
       return;
     }
     delegateWorkflowMutation.mutate(
       { chainId, stepId, delegateToWorkerId, reason: 'Delegated from manager workspace' },
       {
-        onSuccess: () => addNotification({ title: 'Approval delegated', message: 'The approval step was delegated.', type: 'success', read: false }),
+        onSuccess: () => {
+          setDelegateTargets((current) => {
+            const next = { ...current };
+            delete next[key];
+            return next;
+          });
+          addNotification({ title: 'Approval delegated', message: 'The approval step was delegated.', type: 'success', read: false });
+        },
         onError: (err) => notifyError(err, 'Unable to delegate this workflow approval.'),
       },
     );
@@ -420,15 +428,23 @@ export function ManagerApprovals() {
                   {pendingStep ? (
                     <div className="flex flex-col gap-2 rounded-xl bg-white/60 p-3 sm:flex-row sm:items-end">
                       <div className="grid flex-1 gap-2">
-                        <Label htmlFor={`delegate-${pendingStep.id}`}>Delegate worker ID</Label>
-                        <Input
+                        <Label htmlFor={`delegate-${pendingStep.id}`}>Delegate to worker</Label>
+                        <WorkerPicker
                           id={`delegate-${pendingStep.id}`}
                           value={delegateTargets[delegateKey] ?? ''}
-                          onChange={(event) => setDelegateTargets((current) => ({ ...current, [delegateKey]: event.target.value }))}
-                          placeholder="Worker UUID"
+                          onChange={(workerId) => setDelegateTargets((current) => {
+                            const next = { ...current };
+                            if (workerId) next[delegateKey] = workerId;
+                            else delete next[delegateKey];
+                            return next;
+                          })}
                         />
                       </div>
-                      <Button variant="outline" onClick={() => handleWorkflowDelegate(chain.id, pendingStep.id)} disabled={delegateWorkflowMutation.isPending}>
+                      <Button
+                        variant="outline"
+                        onClick={() => handleWorkflowDelegate(chain.id, pendingStep.id)}
+                        disabled={delegateWorkflowMutation.isPending || !delegateTargets[delegateKey]}
+                      >
                         Delegate
                       </Button>
                     </div>

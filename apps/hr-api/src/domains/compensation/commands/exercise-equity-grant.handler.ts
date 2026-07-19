@@ -8,7 +8,9 @@ import { EquityGrantFsm } from '../fsm/equity-grant.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for exercising vested units on an EquityGrant.
+ * Command handler for exercising vested units of an EquityGrant.
+ * VESTED → EXERCISED (or EXERCISED → EXERCISED for a subsequent partial exercise).
+ * The aggregate enforces that cumulative exercised units never exceed vested units.
  */
 @Injectable()
 @CommandHandler('ExerciseEquityGrant')

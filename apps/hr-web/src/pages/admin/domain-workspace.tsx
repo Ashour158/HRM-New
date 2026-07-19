@@ -70,6 +70,11 @@ export interface DomainWorkspaceConfig {
   eyebrow: string;
   subtitle: string;
   entities: DomainEntityConfig[];
+  /**
+   * Optional content rendered between the page header and the entity tabs,
+   * e.g. the shared "Configure <Module>" launcher card.
+   */
+  headerExtra?: React.ReactNode;
 }
 
 interface ApiResponse<T> {
@@ -408,6 +413,7 @@ export function AdminDomainWorkspace({ config }: { config: DomainWorkspaceConfig
         title={config.title}
         subtitle={config.subtitle}
       />
+      {config.headerExtra}
       {/* Establishes the h2 level between the page h1 and the entity card titles (h3),
           so the heading order is valid (a11y: heading-order). */}
       <h2 className="sr-only">{config.title} entities</h2>

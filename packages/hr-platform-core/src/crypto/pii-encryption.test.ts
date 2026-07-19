@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   decryptPiiField,
+  decryptPiiObject,
   decryptPiiPayload,
   encryptPiiField,
+  encryptPiiObject,
   encryptPiiPayload,
 } from './pii-encryption.js';
 
@@ -77,5 +79,47 @@ describe('PII payload encryption', () => {
     const lookalike = 'v1.2mg dosage.taper.review next visit';
 
     expect(decryptPiiField(lookalike)).toBe(lookalike);
+  });
+
+  it('recursively encrypts every string leaf while preserving object/array structure', () => {
+    process.env.PII_DATA_ENCRYPTION_KEY = key;
+    const payload = {
+      bankAccount: { bankName: 'First Bank', iban: 'GB29NWBK60161331926819', routingNumber: '021000021' },
+      salaryAmount: 125000,
+      active: true,
+      notes: null,
+      taxIdentifiers: ['EIN-1234567', 'SIN-987654321'],
+    };
+
+    const encrypted = encryptPiiObject(payload);
+
+    expect(encrypted.bankAccount).toEqual({
+      bankName: expect.stringMatching(/^encpii:/),
+      iban: expect.stringMatching(/^encpii:/),
+      routingNumber: expect.stringMatching(/^encpii:/),
+    });
+    expect(JSON.stringify(encrypted)).not.toContain('GB29NWBK60161331926819');
+    expect(JSON.stringify(encrypted)).not.toContain('First Bank');
+    // Non-string leaves pass through untouched.
+    expect(encrypted.salaryAmount).toBe(125000);
+    expect(encrypted.active).toBe(true);
+    expect(encrypted.notes).toBeNull();
+    expect(encrypted.taxIdentifiers).toEqual([
+      expect.stringMatching(/^encpii:/),
+      expect.stringMatching(/^encpii:/),
+    ]);
+
+    expect(decryptPiiObject(encrypted)).toEqual(payload);
+  });
+
+  it('decryptPiiObject is safe against a payload that is only partially encrypted', () => {
+    process.env.PII_DATA_ENCRYPTION_KEY = key;
+    const payload = {
+      bankAccount: { iban: encryptPiiField('GB29NWBK60161331926819'), bankName: 'Legacy Plaintext Bank' },
+    };
+
+    expect(decryptPiiObject(payload)).toEqual({
+      bankAccount: { iban: 'GB29NWBK60161331926819', bankName: 'Legacy Plaintext Bank' },
+    });
   });
 });

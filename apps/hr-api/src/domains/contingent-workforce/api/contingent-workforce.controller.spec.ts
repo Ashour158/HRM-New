@@ -156,6 +156,22 @@ describe('ContingentWorkforceController', () => {
     }));
   });
 
+  const factorInputs = {
+    instructionsControl: true,
+    trainingProvided: false,
+    workScheduleSetByCompany: true,
+    worksExclusivelyForCompany: false,
+    toolsProvidedByCompany: false,
+    expensesReimbursed: false,
+    paidFixedRegularWage: false,
+    opportunityForProfitOrLoss: true,
+    significantInvestment: true,
+    writtenContractIndicatesEmployee: false,
+    employeeBenefitsProvided: false,
+    relationshipIsIndefinite: false,
+    servicesKeyToBusiness: false,
+  };
+
   it('runs misclassification assessments with aggregate state guards', async () => {
     const { controller, commandBus, assessmentRepo } = makeController();
     const assessmentDate = new Date('2026-07-05T00:00:00.000Z');
@@ -169,8 +185,7 @@ describe('ContingentWorkforceController', () => {
     await controller.createAssessment({
       workerId,
       assessmentDate,
-      riskScore: 62,
-      riskFactors: ['manager_control', 'long_duration'],
+      factorInputs,
     }, request());
     await controller.startAssessment(assessmentId, request());
 
@@ -180,8 +195,7 @@ describe('ContingentWorkforceController', () => {
       payload: expect.objectContaining({
         workerId,
         assessmentDate,
-        riskScore: 62,
-        riskFactors: ['manager_control', 'long_duration'],
+        factorInputs,
       }),
     }));
     expect(commandBus.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
@@ -193,6 +207,27 @@ describe('ContingentWorkforceController', () => {
       payload: {
         misclassificationAssessmentId: new Uuid(assessmentId),
       },
+    }));
+  });
+
+  it('recalculates a misclassification score while IN_PROGRESS with aggregate state guards', async () => {
+    const { controller, commandBus, assessmentRepo } = makeController();
+    (assessmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: new Uuid(assessmentId),
+      workerId: new Uuid(workerId),
+      status: 'IN_PROGRESS',
+      aggregateVersion: 6,
+    });
+
+    await controller.recalculateAssessmentScore(assessmentId, { factorInputs }, request());
+
+    expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+      commandName: 'RecalculateMisclassificationScore',
+      aggregateType: 'MisclassificationAssessment',
+      aggregateId: new Uuid(assessmentId),
+      expectedState: 'IN_PROGRESS',
+      expectedVersion: 6,
+      payload: { misclassificationAssessmentId: assessmentId, factorInputs },
     }));
   });
 

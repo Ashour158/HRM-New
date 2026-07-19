@@ -19,11 +19,9 @@ export class CreateDeiReportDto {
 
 export const GenerateDeiReportDtoSchema = z.object({
   deiReportId: z.string().uuid(),
-  metrics: z.record(z.unknown()),
 });
 export class GenerateDeiReportDto {
   @ApiProperty() deiReportId!: string;
-  @ApiProperty() metrics!: Record<string, unknown>;
 }
 
 export const CreatePayGapReportDtoSchema = z.object({
@@ -100,11 +98,9 @@ export class CreateAttritionSegmentReportDto {
 
 export const GenerateAttritionSegmentReportDtoSchema = z.object({
   attritionSegmentReportId: z.string().uuid(),
-  segments: z.record(z.unknown()),
 });
 export class GenerateAttritionSegmentReportDto {
   @ApiProperty() attritionSegmentReportId!: string;
-  @ApiProperty() segments!: Record<string, unknown>;
 }
 
 @Injectable()

@@ -37,14 +37,43 @@ export const CreateContractorRateCardDto = z.object({
 
 export type CreateContractorRateCardDto = z.infer<typeof CreateContractorRateCardDto>;
 
+/**
+ * Structured IRS common-law-test factor inputs. riskScore/riskFactors are
+ * never accepted directly from the caller — they are always computed
+ * server-side from these evidence-based factors by the misclassification
+ * scoring engine (see contingent-workforce/services/misclassification-scoring.ts).
+ */
+export const MisclassificationFactorInputsDto = z.object({
+  instructionsControl: z.boolean(),
+  trainingProvided: z.boolean(),
+  workScheduleSetByCompany: z.boolean(),
+  worksExclusivelyForCompany: z.boolean(),
+  toolsProvidedByCompany: z.boolean(),
+  expensesReimbursed: z.boolean(),
+  paidFixedRegularWage: z.boolean(),
+  opportunityForProfitOrLoss: z.boolean(),
+  significantInvestment: z.boolean(),
+  writtenContractIndicatesEmployee: z.boolean(),
+  employeeBenefitsProvided: z.boolean(),
+  relationshipIsIndefinite: z.boolean(),
+  servicesKeyToBusiness: z.boolean(),
+});
+
+export type MisclassificationFactorInputsDto = z.infer<typeof MisclassificationFactorInputsDto>;
+
 export const CreateMisclassificationAssessmentDto = z.object({
   workerId: z.string().uuid(),
   assessmentDate: z.coerce.date(),
-  riskScore: z.number().optional(),
-  riskFactors: z.array(z.string()).optional(),
+  factorInputs: MisclassificationFactorInputsDto,
 });
 
 export type CreateMisclassificationAssessmentDto = z.infer<typeof CreateMisclassificationAssessmentDto>;
+
+export const RecalculateMisclassificationScoreDto = z.object({
+  factorInputs: MisclassificationFactorInputsDto,
+});
+
+export type RecalculateMisclassificationScoreDto = z.infer<typeof RecalculateMisclassificationScoreDto>;
 
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
