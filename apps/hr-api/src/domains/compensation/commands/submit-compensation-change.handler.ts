@@ -8,19 +8,12 @@ import { CompensationChangeFsm } from '../fsm/compensation-change.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for submitting a CompensationChange for approval.
+ * Command handler for submitting a CompensationChange (DRAFT -> SUBMITTED).
  *
- * Drives the aggregate through its DRAFT -> SUBMITTED -> PENDING_APPROVAL
- * transitions via the aggregate's own {@link CompensationChange.submit} and
- * {@link CompensationChange.sendForApproval} guards. Without this handler a
- * freshly created compensation change was permanently stuck in DRAFT, so
- * ApproveCompensationChange (which requires PENDING_APPROVAL) could never
- * legally fire.
- *
- * Note: SendForApprovalCompensationChange also exists as a standalone
- * command (SUBMITTED -> PENDING_APPROVAL) for callers that want to drive
- * the two transitions independently; this handler performs both steps in
- * one call because the admin UI only exposes a single "Submit" action.
+ * A separate SendForApprovalCompensationChange command drives the
+ * following SUBMITTED -> PENDING_APPROVAL transition, mirroring the
+ * single-FSM-action-per-handler pattern used across the rest of the
+ * compensation domain (HCM-P0-13).
  */
 @Injectable()
 @CommandHandler('SubmitCompensationChange')
@@ -39,7 +32,6 @@ export class SubmitCompensationChangeHandler implements ICommandHandler {
     if (!change) throw new Error('CompensationChange not found');
 
     change.submit(command.correlationId);
-    change.sendForApproval(command.correlationId);
 
     await this.repo.save(change);
     const eventsEmitted = change.domainEvents.map((e) => e.eventName);

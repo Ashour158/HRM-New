@@ -86,7 +86,7 @@ describe('CompensationChange lifecycle command handlers', () => {
     }));
   });
 
-  it('submitting a DRAFT change moves it to PENDING_APPROVAL so it becomes approvable', async () => {
+  it('submitting a DRAFT change moves it to SUBMITTED, unblocking SendForApprovalCompensationChange', async () => {
     const existing = change('DRAFT');
     const repo = {
       findById: vi.fn(async () => existing),
@@ -95,22 +95,22 @@ describe('CompensationChange lifecycle command handlers', () => {
     const handler = new SubmitCompensationChangeHandler(
       repo as never,
       new CompensationEventsPublisher(),
-      { getAllowedActions: vi.fn(() => ['Approve', 'Reject', 'Cancel']) } as never,
+      { getAllowedActions: vi.fn(() => ['SendForApproval', 'Cancel']) } as never,
     );
 
     const result = await handler.handle(command('SubmitCompensationChange', 'CompensationChange', { changeId }, changeId));
 
     expect(repo.findById).toHaveBeenCalledWith(changeId);
     expect(repo.save).toHaveBeenCalledWith(existing);
-    expect(existing.status).toBe('PENDING_APPROVAL');
+    expect(existing.status).toBe('SUBMITTED');
     expect(result).toEqual(expect.objectContaining({
       success: true,
-      newState: 'PENDING_APPROVAL',
+      newState: 'SUBMITTED',
       eventsEmitted: ['CompensationChangeSubmitted'],
     }));
     expect(result.data).toEqual(expect.objectContaining({
       changeId: changeId.value,
-      status: 'PENDING_APPROVAL',
+      status: 'SUBMITTED',
     }));
   });
 
