@@ -21,6 +21,12 @@ export interface PayrollInputProps {
   updatedAt?: Date;
 }
 
+export class PayrollInputCreated extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'PayrollInputCreated', tenantId: props.tenantId, aggregateType: 'PayrollInput', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
 export class PayrollInputSubmitted extends DomainEvent {
   constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
     super({ eventName: 'PayrollInputSubmitted', tenantId: props.tenantId, aggregateType: 'PayrollInput', aggregateId: props.aggregateId, correlationId: props.correlationId });
@@ -75,9 +81,10 @@ export class PayrollInput extends AggregateRoot {
     if (props.aggregateVersion !== undefined) this.restoreVersion(props.aggregateVersion);
   }
 
-  static create(props: PayrollInputProps, _correlationId: Uuid): PayrollInput {
+  static create(props: PayrollInputProps, correlationId: Uuid): PayrollInput {
     Guard.againstEmptyString(props.inputType, 'inputType');
     const pi = new PayrollInput({ ...props, status: 'DRAFT', createdAt: new Date(), updatedAt: new Date() });
+    pi.addDomainEvent(new PayrollInputCreated({ tenantId: pi.tenantId, aggregateId: pi.id, correlationId }));
     return pi;
   }
 
