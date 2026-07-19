@@ -11,6 +11,7 @@ const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: 
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((module) => ({ default: module.NotificationsPage })));
 const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
 const EmployeeAttendanceAction = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeAttendanceAction })));
+const EmployeeAttendance = lazy(() => import('@/pages/employee/attendance').then((module) => ({ default: module.EmployeeAttendance })));
 const EmployeeProfile = lazy(() => import('@/pages/employee/profile').then((module) => ({ default: module.EmployeeProfile })));
 const EmployeePayslip = lazy(() => import('@/pages/employee/payslip').then((module) => ({ default: module.EmployeePayslip })));
 const EmployeeBenefits = lazy(() => import('@/pages/employee/benefits').then((module) => ({ default: module.EmployeeBenefits })));
@@ -189,6 +190,7 @@ export function AppRoutes() {
                   <Route path="payslip" element={<EmployeePayslip />} />
                   <Route path="benefits/*" element={<EmployeeBenefits />} />
                   <Route path="time-off" element={<EmployeeTimeOff />} />
+                  <Route path="attendance" element={<EmployeeAttendance />} />
                   <Route path="attendance/:direction" element={<EmployeeAttendanceAction />} />
                   <Route path="onboarding" element={<EmployeeOnboarding />} />
                   <Route path="performance" element={<EmployeePerformance />} />

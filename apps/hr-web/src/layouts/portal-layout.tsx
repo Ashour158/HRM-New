@@ -173,7 +173,7 @@ const employeeRailGroups: PortalRailGroup[] = [
     items: [
       { label: 'Home', path: '/employee', icon: Home },
       { label: 'Dashboard', path: '/employee/dashboard', icon: BarChart3 },
-      { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
+      { label: 'Attendance', path: '/employee/attendance', icon: Clock3 },
       { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
       { label: 'Services', path: '/employee/services', icon: LifeBuoy },
     ],
