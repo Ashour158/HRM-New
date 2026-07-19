@@ -30,7 +30,7 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
   }
 
   async findByWorker(workerId: Uuid): Promise<TotalCompensationStatement[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -39,7 +39,7 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
   }
 
   async findByWorkerAndYear(workerId: Uuid, statementYear: number): Promise<TotalCompensationStatement | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -52,7 +52,8 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['total_compensation_statements']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['total_compensation_statements']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['total_compensation_statements']>);
     }

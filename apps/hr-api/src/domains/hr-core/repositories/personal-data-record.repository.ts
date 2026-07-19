@@ -68,7 +68,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   }
 
   async findByWorker(workerId: Uuid): Promise<PersonalDataRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -79,7 +79,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   /** Batch variant of {@link findByWorker} — one query for many workers (avoids N+1). */
   async findByWorkers(workerIds: Uuid[]): Promise<PersonalDataRecord[]> {
     if (workerIds.length === 0) return [];
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId())
@@ -89,7 +89,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   }
 
   async findByWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<PersonalDataRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('worker_id', '=', workerId.value)
@@ -99,7 +99,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   }
 
   async findByWorkerAndCategory(workerId: Uuid, dataCategory: DataCategory): Promise<PersonalDataRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -113,7 +113,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     tenantId: Uuid,
     dataCategory: DataCategory,
   ): Promise<PersonalDataRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('worker_id', '=', workerId.value)
@@ -135,7 +135,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     value: string,
   ): Promise<PersonalDataRecord | undefined> {
     this.rejectEncryptedAtRestCategory(dataCategory);
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('data_category', '=', dataCategory)
@@ -156,7 +156,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
     tenantId: Uuid,
   ): Promise<PersonalDataRecord | undefined> {
     this.rejectEncryptedAtRestCategory(dataCategory);
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -177,7 +177,7 @@ export class PersonalDataRecordRepository extends BaseRepository<'personal_data_
   }
 
   async findExpiringWithinForTenant(days: number, tenantId?: Uuid): Promise<PersonalDataExpiryAlertRow[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId?.value ?? this.requireTenantId())

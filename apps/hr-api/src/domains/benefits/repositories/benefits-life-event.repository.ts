@@ -42,7 +42,8 @@ export class BenefitsLifeEventRepository extends BaseRepository<'benefits_life_e
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['benefits_life_events']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['benefits_life_events']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['benefits_life_events']>);
     }

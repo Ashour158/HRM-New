@@ -51,7 +51,6 @@ export class PayrollCycleCancelled extends DomainEvent {
 }
 
 export class PayrollCycle extends AggregateRoot {
-  private _aggregateVersion = 0;
   readonly tenantId: Uuid;
   cycleName: string;
   payPeriodStart: Date;
@@ -66,9 +65,7 @@ export class PayrollCycle extends AggregateRoot {
   createdAt: Date;
   updatedAt: Date;
 
-  get version(): number { return this._aggregateVersion; }
-  get aggregateVersion(): number { return this._aggregateVersion; }
-  incrementVersion(): void { this._aggregateVersion++; }
+  get aggregateVersion(): number { return this.version; }
 
   constructor(props: PayrollCycleProps) {
     super(props.id);
@@ -85,7 +82,7 @@ export class PayrollCycle extends AggregateRoot {
     this.createdBy = props.createdBy;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
-    if (props.aggregateVersion !== undefined) this._aggregateVersion = props.aggregateVersion;
+    if (props.aggregateVersion !== undefined) this.restoreVersion(props.aggregateVersion);
   }
 
   static create(props: PayrollCycleProps, _correlationId: Uuid): PayrollCycle {

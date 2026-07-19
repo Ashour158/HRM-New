@@ -31,7 +31,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<WorkerProfile | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('id', '=', id.value)
@@ -41,7 +41,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByEmployeeNumber(employeeNumber: string): Promise<WorkerProfile | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('employee_number', '=', employeeNumber)
@@ -50,7 +50,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByEmployeeNumberForTenant(employeeNumber: string, tenantId: Uuid): Promise<WorkerProfile | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('employee_number', '=', employeeNumber)
@@ -61,7 +61,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
 
   async findByEmployeeNumbersForTenant(employeeNumbers: string[], tenantId: Uuid): Promise<Map<string, WorkerProfile>> {
     if (employeeNumbers.length === 0) return new Map();
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('employee_number', 'in', employeeNumbers)
@@ -76,7 +76,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByEmail(email: string): Promise<WorkerProfile | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('email', '=', email)
@@ -85,7 +85,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByEmailForTenant(email: string, tenantId: Uuid): Promise<WorkerProfile | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('email', '=', email)
@@ -96,7 +96,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
 
   async findByEmailsForTenant(emails: string[], tenantId: Uuid): Promise<Map<string, WorkerProfile>> {
     if (emails.length === 0) return new Map();
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('email', 'in', emails)
@@ -111,7 +111,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByManager(managerId: Uuid): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('manager_id', '=', managerId.value)
@@ -120,7 +120,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByManagerForTenant(managerId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('manager_id', '=', managerId.value)
@@ -130,7 +130,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByDepartment(departmentId: Uuid): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('department_id', '=', departmentId.value)
@@ -139,7 +139,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByDepartmentForTenant(departmentId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('department_id', '=', departmentId.value)
@@ -149,7 +149,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByLegalEntity(legalEntityId: Uuid): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('legal_entity_id', '=', legalEntityId.value)
@@ -158,7 +158,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByLegalEntityForTenant(legalEntityId: Uuid, tenantId: Uuid): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('legal_entity_id', '=', legalEntityId.value)
@@ -168,7 +168,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findActive(): Promise<WorkerProfile[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('status', '=', 'ACTIVE')
@@ -177,11 +177,14 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async findByStatusForTenant(status: WorkerStatus, tenantId: Uuid, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
-    let dbQuery = this.db
+    let dbQuery = this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
-      .where('status', '=', status);
+      .where('status', '=', status)
+      // Deterministic order is required for limit/offset paging to be stable
+      // across pages (unordered LIMIT/OFFSET results are not guaranteed).
+      .orderBy('id', 'asc');
 
     if (options?.limit !== undefined) {
       dbQuery = dbQuery.limit(options.limit);
@@ -195,7 +198,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
   }
 
   async search(query: string, options?: { limit?: number; offset?: number }): Promise<WorkerProfile[]> {
-    let dbQuery = this.db
+    let dbQuery = this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId());
@@ -211,6 +214,10 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
         ])
       );
     }
+
+    // Deterministic order is required for limit/offset paging to be stable
+    // across pages (unordered LIMIT/OFFSET results are not guaranteed).
+    dbQuery = dbQuery.orderBy('id', 'asc');
 
     if (options?.limit !== undefined) {
       dbQuery = dbQuery.limit(options.limit);
@@ -235,7 +242,7 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
       legalEntityId?: Uuid;
     },
   ): Promise<WorkerProfile[]> {
-    let dbQuery = this.db
+    let dbQuery = this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value);
@@ -263,6 +270,10 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
         ])
       );
     }
+
+    // Deterministic order is required for limit/offset paging to be stable
+    // across pages (unordered LIMIT/OFFSET results are not guaranteed).
+    dbQuery = dbQuery.orderBy('id', 'asc');
 
     if (options?.limit !== undefined) {
       dbQuery = dbQuery.limit(options.limit);
