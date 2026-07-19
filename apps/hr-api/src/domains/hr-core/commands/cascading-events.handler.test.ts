@@ -14,7 +14,7 @@
  * provisioning, notifications, projections, ...) ever saw it.
  *
  * These tests exercise the real handlers against mocked repositories to get
- * a real `CommandResult`, then feed that result into the *real* `OutboxStep`
+ * a real `CommandResult`, then feed that result into the real `OutboxStep`
  * (the same pattern used in command-bus.security.test.ts) with a fake `tx`
  * that records every insert. This verifies actual outbox row counts/event
  * names end-to-end, not just that `domainEvents` was read on some aggregate.
