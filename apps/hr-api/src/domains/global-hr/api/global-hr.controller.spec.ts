@@ -18,6 +18,7 @@ const caseId = '00000000-0000-0000-0000-000000000030';
 const assignmentId = '00000000-0000-0000-0000-000000000040';
 const ruleSetId = '00000000-0000-0000-0000-000000000050';
 const leaveTypeId = '00000000-0000-0000-0000-000000000060';
+const consultationId = '00000000-0000-0000-0000-000000000070';
 
 function actor(): HrActor {
   return {
@@ -50,14 +51,20 @@ function makeController() {
     findById: vi.fn(),
     findByIdForTenant: vi.fn(),
   } as unknown as StatutoryLeaveTypeRepository;
-  const worksCouncilConsultationRepo = { findByLegalEntity: vi.fn(), findById: vi.fn() } as unknown as WorksCouncilConsultationRepository;
+  const worksCouncilConsultationRepo = {
+    findByLegalEntity: vi.fn(),
+    findById: vi.fn(),
+    findByIdForTenant: vi.fn(),
+  } as unknown as WorksCouncilConsultationRepository;
   const workAuthorizationCaseRepo = {
     findById: vi.fn(),
+    findByIdForTenant: vi.fn(),
     findByWorker: vi.fn(),
     findByTenant: vi.fn(),
   } as unknown as WorkAuthorizationCaseRepository;
   const internationalAssignmentRepo = {
     findById: vi.fn(),
+    findByIdForTenant: vi.fn(),
     findByWorker: vi.fn(),
     findByTenant: vi.fn(),
   } as unknown as InternationalAssignmentRepository;
@@ -76,6 +83,7 @@ function makeController() {
     commandBus,
     countryRuleSetRepo,
     statutoryLeaveTypeRepo,
+    worksCouncilConsultationRepo,
     workAuthorizationCaseRepo,
     internationalAssignmentRepo,
   };
@@ -223,5 +231,64 @@ describe('GlobalHrController', () => {
     await expect(controller.getStatutoryLeaveType(leaveTypeId, request())).resolves.toBeUndefined();
 
     expect(statutoryLeaveTypeRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(leaveTypeId), new Uuid(tenantId));
+  });
+
+  it('looks up a work authorization case scoped to the authenticated tenant', async () => {
+    const { controller, workAuthorizationCaseRepo } = makeController();
+    (workAuthorizationCaseRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(caseId) });
+
+    await expect(controller.getWorkAuthorizationCase(caseId, request())).resolves.toEqual({ id: new Uuid(caseId) });
+
+    expect(workAuthorizationCaseRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(caseId), new Uuid(tenantId));
+    expect(workAuthorizationCaseRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not leak another tenant\'s work authorization case across tenants', async () => {
+    const { controller, workAuthorizationCaseRepo } = makeController();
+    // The repository enforces the tenant filter in SQL; a cross-tenant id simply
+    // yields no row rather than the other tenant's record.
+    (workAuthorizationCaseRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await expect(controller.getWorkAuthorizationCase(caseId, request())).resolves.toBeUndefined();
+
+    expect(workAuthorizationCaseRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(caseId), new Uuid(tenantId));
+  });
+
+  it('looks up an international assignment scoped to the authenticated tenant', async () => {
+    const { controller, internationalAssignmentRepo } = makeController();
+    (internationalAssignmentRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(assignmentId) });
+
+    await expect(controller.getInternationalAssignment(assignmentId, request())).resolves.toEqual({ id: new Uuid(assignmentId) });
+
+    expect(internationalAssignmentRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(assignmentId), new Uuid(tenantId));
+    expect(internationalAssignmentRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not leak another tenant\'s international assignment across tenants', async () => {
+    const { controller, internationalAssignmentRepo } = makeController();
+    (internationalAssignmentRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await expect(controller.getInternationalAssignment(assignmentId, request())).resolves.toBeUndefined();
+
+    expect(internationalAssignmentRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(assignmentId), new Uuid(tenantId));
+  });
+
+  it('looks up a works-council consultation scoped to the authenticated tenant', async () => {
+    const { controller, worksCouncilConsultationRepo } = makeController();
+    (worksCouncilConsultationRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(consultationId) });
+
+    await expect(controller.getWorksCouncilConsultation(consultationId, request())).resolves.toEqual({ id: new Uuid(consultationId) });
+
+    expect(worksCouncilConsultationRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(consultationId), new Uuid(tenantId));
+    expect(worksCouncilConsultationRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('does not leak another tenant\'s works-council consultation across tenants', async () => {
+    const { controller, worksCouncilConsultationRepo } = makeController();
+    (worksCouncilConsultationRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+    await expect(controller.getWorksCouncilConsultation(consultationId, request())).resolves.toBeUndefined();
+
+    expect(worksCouncilConsultationRepo.findByIdForTenant).toHaveBeenCalledWith(new Uuid(consultationId), new Uuid(tenantId));
   });
 });

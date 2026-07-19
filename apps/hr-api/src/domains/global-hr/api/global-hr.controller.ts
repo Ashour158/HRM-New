@@ -205,7 +205,8 @@ export class GlobalHrController {
   @Get('works-council-consultations/:id')
   async getWorksCouncilConsultation(@Param('id') id: string, @Req() req: Request) {
     this.assertGlobalHrAdminScope(req);
-    return this.worksCouncilConsultationRepo.findById(new Uuid(id));
+    const tenantId = requireTenantId(req, 'Global HR');
+    return this.worksCouncilConsultationRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 
   /* ---------------------------------------------------------------- */
@@ -350,7 +351,8 @@ export class GlobalHrController {
   @Get('work-authorization-cases/:id')
   async getWorkAuthorizationCase(@Param('id') id: string, @Req() req: Request) {
     this.assertGlobalHrAdminScope(req);
-    return this.workAuthorizationCaseRepo.findById(new Uuid(id));
+    const tenantId = requireTenantId(req, 'Global HR');
+    return this.workAuthorizationCaseRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 
   /* ---------------------------------------------------------------- */
@@ -468,6 +470,7 @@ export class GlobalHrController {
   @Get('international-assignments/:id')
   async getInternationalAssignment(@Param('id') id: string, @Req() req: Request) {
     this.assertGlobalHrAdminScope(req);
-    return this.internationalAssignmentRepo.findById(new Uuid(id));
+    const tenantId = requireTenantId(req, 'Global HR');
+    return this.internationalAssignmentRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 }
