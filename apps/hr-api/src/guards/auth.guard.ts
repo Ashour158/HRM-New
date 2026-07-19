@@ -79,7 +79,14 @@ export class AuthGuard implements CanActivate {
     if (apiKey) {
       const actorStub = this.resolveApiKeyActor(apiKey, config);
       if (!actorStub) {
-        this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_API_KEY', route: request.path, method: request.method });
+        this.logger.warn({
+          eventType: 'AUTH_DENIED',
+          reason: 'INVALID_API_KEY',
+          route: request.path,
+          method: request.method,
+          correlationId: request.correlationId,
+          traceId: request.traceId,
+        });
         throw new ForbiddenException('Invalid API key');
       }
       request.actor = this.buildActor(actorStub, apiKey);
@@ -92,13 +99,27 @@ export class AuthGuard implements CanActivate {
       (request.headers.Authorization as string | undefined);
 
     if (!authHeader) {
-      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'MISSING_AUTH_HEADER', route: request.path, method: request.method });
+      this.logger.warn({
+        eventType: 'AUTH_DENIED',
+        reason: 'MISSING_AUTH_HEADER',
+        route: request.path,
+        method: request.method,
+        correlationId: request.correlationId,
+        traceId: request.traceId,
+      });
       throw new UnauthorizedException('Missing Authorization header');
     }
 
     const token = authHeader.replace(/^Bearer\s+/i, '');
     if (!token) {
-      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'EMPTY_BEARER_TOKEN', route: request.path, method: request.method });
+      this.logger.warn({
+        eventType: 'AUTH_DENIED',
+        reason: 'EMPTY_BEARER_TOKEN',
+        route: request.path,
+        method: request.method,
+        correlationId: request.correlationId,
+        traceId: request.traceId,
+      });
       throw new UnauthorizedException('Empty Bearer token');
     }
 
@@ -112,7 +133,14 @@ export class AuthGuard implements CanActivate {
       (request.actor as HrActor & { email?: string; tenantId?: string }).tenantId = payload.tenant_id;
       return true;
     } catch {
-      this.logger.warn({ eventType: 'AUTH_DENIED', reason: 'INVALID_OR_EXPIRED_TOKEN', route: request.path, method: request.method });
+      this.logger.warn({
+        eventType: 'AUTH_DENIED',
+        reason: 'INVALID_OR_EXPIRED_TOKEN',
+        route: request.path,
+        method: request.method,
+        correlationId: request.correlationId,
+        traceId: request.traceId,
+      });
       throw new UnauthorizedException('Invalid or expired token');
     }
   }
