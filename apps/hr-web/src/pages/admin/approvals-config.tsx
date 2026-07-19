@@ -10,8 +10,17 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
-import { PreviewPanel, WorkflowStepBuilder } from '@/components/builder';
+import { ConditionRowBuilder, PreviewPanel, WorkflowStepBuilder } from '@/components/builder';
+import type { ApprovalConditionOperator } from '@/lib/approval-conditions';
 import { Workflow, Plus, Save, ShieldCheck, Trash2, Eye } from 'lucide-react';
+
+type ApprovalWorkflowCondition = {
+  field: string;
+  operator: ApprovalConditionOperator;
+  value: unknown;
+};
+
+type ApprovalConditionLogic = 'ALL' | 'ANY';
 
 type ApprovalWorkflowStepRule = {
   code: string;
@@ -40,6 +49,8 @@ type ApprovalWorkflowRule = {
   commandName: string;
   aggregateType?: string;
   slaHours?: number;
+  conditions?: ApprovalWorkflowCondition[];
+  conditionLogic?: ApprovalConditionLogic;
   steps: ApprovalWorkflowStepRule[];
 };
 
@@ -160,11 +171,16 @@ export function AdminApprovalsConfig() {
     const orderedSteps = [...rule.steps].sort((left, right) => left.order - right.order);
     const totalSla = orderedSteps.reduce((total, step) => total + (step.slaHours ?? 0), 0);
     const escalationCount = orderedSteps.reduce((total, step) => total + (step.escalationTiers?.length ?? 0), 0);
+    const conditionCount = rule.conditions?.length ?? 0;
     return [
       { label: 'Command', value: rule.commandName },
       { label: 'Steps', value: orderedSteps.length },
       { label: 'Total SLA', value: `${totalSla}h` },
       { label: 'Escalations', value: escalationCount },
+      {
+        label: 'Routing conditions',
+        value: conditionCount === 0 ? 'Always' : `${conditionCount} (${rule.conditionLogic ?? 'ALL'})`,
+      },
     ];
   };
 
@@ -203,6 +219,36 @@ export function AdminApprovalsConfig() {
           .map((step, currentStepIndex) => ({ ...step, order: currentStepIndex + 1 })),
       };
     }));
+  };
+
+  const addCondition = (ruleIndex: number) => {
+    setRules((current) => current.map((rule, index) => {
+      if (index !== ruleIndex) return rule;
+      const conditions = [...(rule.conditions ?? []), { field: '', operator: 'EQUALS' as ApprovalConditionOperator, value: '' }];
+      return { ...rule, conditions, conditionLogic: rule.conditionLogic ?? 'ALL' };
+    }));
+  };
+
+  const updateCondition = (ruleIndex: number, conditionIndex: number, patch: Partial<ApprovalWorkflowCondition>) => {
+    setRules((current) => current.map((rule, index) => {
+      if (index !== ruleIndex) return rule;
+      const conditions = (rule.conditions ?? []).map((condition, currentConditionIndex) => (
+        currentConditionIndex === conditionIndex ? { ...condition, ...patch } : condition
+      ));
+      return { ...rule, conditions };
+    }));
+  };
+
+  const removeCondition = (ruleIndex: number, conditionIndex: number) => {
+    setRules((current) => current.map((rule, index) => {
+      if (index !== ruleIndex) return rule;
+      const conditions = (rule.conditions ?? []).filter((_condition, currentConditionIndex) => currentConditionIndex !== conditionIndex);
+      return { ...rule, conditions };
+    }));
+  };
+
+  const setConditionLogic = (ruleIndex: number, conditionLogic: ApprovalConditionLogic) => {
+    setRules((current) => current.map((rule, index) => (index === ruleIndex ? { ...rule, conditionLogic } : rule)));
   };
 
   const save = () => saveMutation.mutate({ rules });
@@ -319,6 +365,49 @@ export function AdminApprovalsConfig() {
                     onRemove={() => removeStep(ruleIndex, stepIndex)}
                   />
                 ))}
+
+                <div className="rounded-2xl border border-dashed border-slate-300 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">Routing conditions</p>
+                      <p className="text-xs text-slate-500">
+                        Only intercept this command when its payload satisfies these conditions. Leave empty to match every {rule.commandName || 'command'}.
+                      </p>
+                    </div>
+                    {(rule.conditions ?? []).length > 1 ? (
+                      <div className="flex items-center gap-2 text-xs font-medium text-slate-600">
+                        <span>Match</span>
+                        <select
+                          aria-label="Condition combination logic"
+                          className="h-9 rounded-lg border border-input bg-background px-2 text-sm"
+                          value={rule.conditionLogic ?? 'ALL'}
+                          onChange={(event) => setConditionLogic(ruleIndex, event.target.value as ApprovalConditionLogic)}
+                        >
+                          <option value="ALL">All conditions (AND)</option>
+                          <option value="ANY">Any condition (OR)</option>
+                        </select>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {(rule.conditions ?? []).map((condition, conditionIndex) => (
+                      <ConditionRowBuilder
+                        key={`condition-${ruleIndex}-${conditionIndex}`}
+                        index={conditionIndex}
+                        field={condition.field}
+                        operator={condition.operator}
+                        value={condition.value === undefined || condition.value === null ? '' : String(condition.value)}
+                        onChange={(patch) => updateCondition(ruleIndex, conditionIndex, patch)}
+                        onRemove={() => removeCondition(ruleIndex, conditionIndex)}
+                      />
+                    ))}
+                  </div>
+                  <Button className="mt-3" variant="outline" size="sm" onClick={() => addCondition(ruleIndex)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add condition
+                  </Button>
+                </div>
+
                 {previewRuleIndex === ruleIndex ? (
                   <PreviewPanel title="Sandbox approval preview" items={previewItems(rule)} />
                 ) : null}

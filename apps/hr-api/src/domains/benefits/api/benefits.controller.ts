@@ -107,6 +107,36 @@ export class BenefitsController {
     return this.commandBus.execute(command);
   }
 
+  @Post('programs/:id/commands/activate')
+  async activateProgram(@Param('id') id: string, @Req() req: Request) {
+    const program = await this.programRepo.findById(new Uuid(id));
+    if (!program) throw new NotFoundException('BenefitsProgram not found');
+    const command = this.buildCommand(req, 'ActivateBenefitsProgram', 'BenefitsProgram', id, {
+      benefitsProgramId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('programs/:id/commands/suspend')
+  async suspendProgram(@Param('id') id: string, @Req() req: Request) {
+    const program = await this.programRepo.findById(new Uuid(id));
+    if (!program) throw new NotFoundException('BenefitsProgram not found');
+    const command = this.buildCommand(req, 'SuspendBenefitsProgram', 'BenefitsProgram', id, {
+      benefitsProgramId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('programs/:id/commands/close')
+  async closeProgram(@Param('id') id: string, @Req() req: Request) {
+    const program = await this.programRepo.findById(new Uuid(id));
+    if (!program) throw new NotFoundException('BenefitsProgram not found');
+    const command = this.buildCommand(req, 'CloseBenefitsProgram', 'BenefitsProgram', id, {
+      benefitsProgramId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('programs')
   async listPrograms(@Req() req: Request) {
     this.assertBenefitsAdminScope(req);

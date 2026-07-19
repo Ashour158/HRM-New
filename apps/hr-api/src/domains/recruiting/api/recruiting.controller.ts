@@ -6,7 +6,6 @@ import {
   Body,
   Query,
   Req,
-  UsePipes,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -17,7 +16,6 @@ import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import type { Request } from 'express';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 
-import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
 import { JobRequisitionRepository } from '../repositories/job-requisition.repository.js';
 import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { InterviewPlanRepository } from '../repositories/interview-plan.repository.js';
@@ -25,23 +23,31 @@ import { OfferRepository } from '../repositories/offer.repository.js';
 
 import {
   CreateJobRequisitionDto,
+  CreateJobRequisitionDtoSchema,
   CloseJobRequisitionDto,
+  CloseJobRequisitionDtoSchema,
   RejectJobRequisitionDto,
   SubmitCandidateDto,
+  SubmitCandidateDtoSchema,
   ScreenCandidateDto,
+  ScreenCandidateDtoSchema,
   RejectCandidateDto,
   WithdrawCandidateDto,
   ScheduleInterviewDto,
+  ScheduleInterviewDtoSchema,
   CreateOfferDto,
+  CreateOfferDtoSchema,
   SendOfferDto,
+  SendOfferDtoSchema,
   AcceptOfferDto,
+  AcceptOfferDtoSchema,
   DeclineOfferDto,
   WithdrawOfferDto,
+  ZodValidationPipe,
 } from './dtos.js';
 
 @ApiTags('Recruiting')
 @Controller('hr/recruiting')
-@UsePipes(ZodValidationPipe)
 export class RecruitingController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -56,7 +62,7 @@ export class RecruitingController {
   @Post('requisitions')
   @ApiOperation({ summary: 'Create a new job requisition' })
   async createRequisition(
-    @Body() dto: CreateJobRequisitionDto,
+    @Body(new ZodValidationPipe(CreateJobRequisitionDtoSchema)) dto: CreateJobRequisitionDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('CreateJobRequisition', req, dto, {
@@ -168,7 +174,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async closeRequisition(
     @Param('id') id: string,
-    @Body() dto: CloseJobRequisitionDto,
+    @Body(new ZodValidationPipe(CloseJobRequisitionDtoSchema)) dto: CloseJobRequisitionDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('CloseJobRequisition', req, { requisitionId: id, reason: dto.reason }, {
@@ -228,7 +234,7 @@ export class RecruitingController {
   @Post('candidates')
   @ApiOperation({ summary: 'Submit a candidate application' })
   async submitCandidate(
-    @Body() dto: SubmitCandidateDto,
+    @Body(new ZodValidationPipe(SubmitCandidateDtoSchema)) dto: SubmitCandidateDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('SubmitCandidateApplication', req, dto, {
@@ -243,7 +249,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async screenCandidate(
     @Param('id') id: string,
-    @Body() dto: ScreenCandidateDto,
+    @Body(new ZodValidationPipe(ScreenCandidateDtoSchema)) dto: ScreenCandidateDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('ScreenCandidate', req, { applicationId: id, ...dto }, {
@@ -292,7 +298,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async scheduleInterviewForCandidate(
     @Param('id') id: string,
-    @Body() dto: ScheduleInterviewDto,
+    @Body(new ZodValidationPipe(ScheduleInterviewDtoSchema)) dto: ScheduleInterviewDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('ScheduleInterview', req, { applicationId: id, ...dto }, {
@@ -375,7 +381,7 @@ export class RecruitingController {
   @Post('interviews')
   @ApiOperation({ summary: 'Schedule an interview' })
   async createInterview(
-    @Body() dto: ScheduleInterviewDto,
+    @Body(new ZodValidationPipe(ScheduleInterviewDtoSchema)) dto: ScheduleInterviewDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('ScheduleInterview', req, dto, {
@@ -444,7 +450,7 @@ export class RecruitingController {
   @Post('offers')
   @ApiOperation({ summary: 'Create a new offer' })
   async createOffer(
-    @Body() dto: CreateOfferDto,
+    @Body(new ZodValidationPipe(CreateOfferDtoSchema)) dto: CreateOfferDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('CreateOffer', req, dto, {
@@ -475,7 +481,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async sendOffer(
     @Param('id') id: string,
-    @Body() _dto: SendOfferDto,
+    @Body(new ZodValidationPipe(SendOfferDtoSchema)) _dto: SendOfferDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('SendOffer', req, { offerId: id }, {
@@ -492,7 +498,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async acceptOffer(
     @Param('id') id: string,
-    @Body() dto: AcceptOfferDto,
+    @Body(new ZodValidationPipe(AcceptOfferDtoSchema)) dto: AcceptOfferDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('AcceptOffer', req, { offerId: id, acceptedAt: dto.acceptedAt ?? new Date() }, {

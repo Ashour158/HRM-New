@@ -45,7 +45,7 @@ export class SubmitCountryPolicyPackForComplianceReviewHandler implements IComma
         'SubmitForGlobalHRReview',
         'SubmitForBenefitsReview',
         'SubmitForAbsenceReview',
-        'SubmitForApproval',
+        'SubmitCountryPolicyPackForApproval',
       ],
       fieldAccessDecisions: {},
       eventsEmitted: pack.domainEvents.map((e) => e.eventName),

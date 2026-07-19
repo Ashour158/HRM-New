@@ -9,7 +9,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { StatTile } from '@/components/ui/stat-tile';
 import { useUIStore } from '@/stores/ui-store';
+
+const AUTOMATION_METRIC_LABEL_CLASSES = 'text-sm font-medium text-slate-500';
+const AUTOMATION_METRIC_VALUE_CLASSES = 'mt-1 text-3xl font-bold';
+const AUTOMATION_METRIC_ICON_BOX_CLASSES: Record<'default' | 'alert', string> = {
+  default: 'rounded-xl p-3 bg-indigo-50 text-indigo-600',
+  alert: 'rounded-xl p-3 bg-rose-50 text-rose-600',
+};
 
 type SchedulerRunStatus = 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'SKIPPED';
 
@@ -251,10 +259,42 @@ export function AdminAutomation() {
         ) : (
           <>
             <section className="grid gap-4 md:grid-cols-4">
-              <MetricCard icon={CalendarClock} label="Jobs" value={summary.total} />
-              <MetricCard icon={CheckCircle2} label="Enabled" value={summary.enabled} />
-              <MetricCard icon={XCircle} label="Failed Last Run" value={summary.failed} tone={summary.failed > 0 ? 'alert' : 'default'} />
-              <MetricCard icon={Activity} label="Running" value={summary.running} />
+              <StatTile
+                icon={CalendarClock}
+                label="Jobs"
+                value={summary.total}
+                contentClassName="p-5"
+                labelClassName={AUTOMATION_METRIC_LABEL_CLASSES}
+                valueClassName={AUTOMATION_METRIC_VALUE_CLASSES}
+                iconBoxClassName={AUTOMATION_METRIC_ICON_BOX_CLASSES.default}
+              />
+              <StatTile
+                icon={CheckCircle2}
+                label="Enabled"
+                value={summary.enabled}
+                contentClassName="p-5"
+                labelClassName={AUTOMATION_METRIC_LABEL_CLASSES}
+                valueClassName={AUTOMATION_METRIC_VALUE_CLASSES}
+                iconBoxClassName={AUTOMATION_METRIC_ICON_BOX_CLASSES.default}
+              />
+              <StatTile
+                icon={XCircle}
+                label="Failed Last Run"
+                value={summary.failed}
+                contentClassName="p-5"
+                labelClassName={AUTOMATION_METRIC_LABEL_CLASSES}
+                valueClassName={AUTOMATION_METRIC_VALUE_CLASSES}
+                iconBoxClassName={AUTOMATION_METRIC_ICON_BOX_CLASSES[summary.failed > 0 ? 'alert' : 'default']}
+              />
+              <StatTile
+                icon={Activity}
+                label="Running"
+                value={summary.running}
+                contentClassName="p-5"
+                labelClassName={AUTOMATION_METRIC_LABEL_CLASSES}
+                valueClassName={AUTOMATION_METRIC_VALUE_CLASSES}
+                iconBoxClassName={AUTOMATION_METRIC_ICON_BOX_CLASSES.default}
+              />
             </section>
 
             <Card className="overflow-hidden">
@@ -379,28 +419,3 @@ export function AdminAutomation() {
   );
 }
 
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  tone = 'default',
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: number;
-  tone?: 'default' | 'alert';
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-between p-5">
-        <div>
-          <p className="text-sm font-medium text-slate-500">{label}</p>
-          <p className="mt-1 text-3xl font-bold">{value}</p>
-        </div>
-        <div className={`rounded-xl p-3 ${tone === 'alert' ? 'bg-rose-50 text-rose-600' : 'bg-indigo-50 text-indigo-600'}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}

@@ -7,6 +7,7 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { Offer } from '../aggregates/offer.aggregate.js';
 import { OfferRepository } from '../repositories/offer.repository.js';
 import { CandidateRepository } from '../repositories/candidate.repository.js';
+import { OfferCompensationGateService } from '../services/offer-compensation-gate.service.js';
 import { RecruitingEventsPublisher } from '../events/recruiting-events.publisher.js';
 
 export interface CreateOfferCommandPayload {
@@ -22,6 +23,17 @@ export interface CreateOfferCommandPayload {
  * Handler for the CreateOffer command.
  *
  * Creates a new Offer in DRAFT state for a candidate.
+ *
+ * Before creation, the proposed compensation is validated by the
+ * `offer-compensation` policy engine (via {@link OfferCompensationGateService})
+ * against the compensation band for the requisition's position. A BLOCKING
+ * engine result (invalid/missing band, currency mismatch) fails the command
+ * closed. A WARNING result (out of band, pay-equity deviation — decisionCode
+ * CONDITIONAL) does not block creation: the Offer FSM already requires a
+ * second, distinct human to approve the offer (SoD-enforced in
+ * `Offer.approve`) before it becomes binding, which serves as the "requires
+ * additional approval" escalation path for these cases. The decision is
+ * re-verified at approval time by ApproveOfferHandler.
  */
 @Injectable()
 @CommandHandler('CreateOffer')
@@ -31,6 +43,7 @@ export class CreateOfferHandler implements ICommandHandler {
   constructor(
     private readonly offerRepo: OfferRepository,
     private readonly candidateRepo: CandidateRepository,
+    private readonly compensationGate: OfferCompensationGateService,
     private readonly fsm: FsmFramework,
     private readonly eventPublisher: RecruitingEventsPublisher,
   ) {}
@@ -44,6 +57,18 @@ export class CreateOfferHandler implements ICommandHandler {
 
     if (candidate.status !== 'INTERVIEWING') {
       throw new BadRequestException('Candidate must be in INTERVIEWING state to create an offer');
+    }
+
+    const compensationDecision = await this.compensationGate.evaluate(
+      candidate.requisitionId,
+      payload.proposedSalary,
+      payload.currency,
+    );
+
+    if (compensationDecision.decisionCode === 'REJECTED') {
+      throw new BadRequestException(
+        `Offer compensation rejected: ${compensationDecision.violations.map((v) => v.message).join(' ')}`,
+      );
     }
 
     const offer = Offer.create(
@@ -74,7 +99,12 @@ export class CreateOfferHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { offerId: offer.id.value, status: offer.status, candidateId: candidate.id.value },
+      data: {
+        offerId: offer.id.value,
+        status: offer.status,
+        candidateId: candidate.id.value,
+        compensationDecision,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: offer.id,

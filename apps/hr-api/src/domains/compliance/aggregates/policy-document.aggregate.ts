@@ -56,6 +56,30 @@ export class PolicyDocumentCreated extends DomainEvent {
   }
 }
 
+export class PolicyDocumentSubmitted extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({
+      eventName: 'PolicyDocumentSubmitted',
+      tenantId: props.tenantId,
+      aggregateType: 'PolicyDocument',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+  }
+}
+
+export class PolicyDocumentRejected extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({
+      eventName: 'PolicyDocumentRejected',
+      tenantId: props.tenantId,
+      aggregateType: 'PolicyDocument',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+  }
+}
+
 export class PolicyDocumentApproved extends DomainEvent {
   constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
     super({
@@ -162,11 +186,18 @@ export class PolicyDocument extends AggregateRoot {
   /**
    * Submit for approval (DRAFT → PENDING_APPROVAL).
    */
-  submitForApproval(_correlationId: Uuid): void {
+  submitForApproval(correlationId: Uuid): void {
     if (this.status !== 'DRAFT') {
       throw new ValidationError(`Cannot submit for approval from state ${this.status}`);
     }
     this.status = 'PENDING_APPROVAL';
+    this.addDomainEvent(
+      new PolicyDocumentSubmitted({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+      }),
+    );
     this.incrementVersion();
     this.updatedAt = new Date();
   }
@@ -193,11 +224,18 @@ export class PolicyDocument extends AggregateRoot {
   /**
    * Reject the policy document (PENDING_APPROVAL → REJECTED).
    */
-  reject(_correlationId: Uuid): void {
+  reject(correlationId: Uuid): void {
     if (this.status !== 'PENDING_APPROVAL') {
       throw new ValidationError(`Cannot reject from state ${this.status}`);
     }
     this.status = 'REJECTED';
+    this.addDomainEvent(
+      new PolicyDocumentRejected({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+      }),
+    );
     this.incrementVersion();
     this.updatedAt = new Date();
   }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { SpendingAccount } from '../aggregates/spending-account.aggregate.js';
 
@@ -42,7 +42,8 @@ export class SpendingAccountRepository extends BaseRepository<'spending_accounts
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['spending_accounts']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['spending_accounts']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['spending_accounts']>);
     }
@@ -54,9 +55,9 @@ export class SpendingAccountRepository extends BaseRepository<'spending_accounts
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       accountType: row.account_type,
-      annualElection: row.annual_election,
-      usedAmount: row.used_amount,
-      availableAmount: row.available_amount,
+      annualElection: parseNumeric(row.annual_election),
+      usedAmount: parseNumeric(row.used_amount),
+      availableAmount: parseNumeric(row.available_amount),
       currency: row.currency,
       status: row.status as 'ACTIVE' | 'SUSPENDED' | 'CLOSED',
       aggregateVersion: row.aggregate_version,
