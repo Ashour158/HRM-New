@@ -110,4 +110,18 @@ describe('HireCandidateHandler', () => {
     );
     expect(candidateRepo.save).not.toHaveBeenCalled();
   });
+
+  it('is idempotent when the candidate is already HIRED (retried command)', async () => {
+    const hired = offerPendingCandidate();
+    hired.hire(Uuid.generate());
+    vi.mocked(candidateRepo.findById).mockResolvedValue(hired);
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('HIRED');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(candidateRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
 });

@@ -14,7 +14,10 @@ export interface ExpireOfferCommandPayload {
 /**
  * Handler for the ExpireOffer command.
  *
- * Transitions an offer from SENT to EXPIRED.
+ * Transitions an offer from SENT to EXPIRED (terminal). Intended to be
+ * invoked manually (e.g. via the recruiter admin UI) or by a future
+ * scheduled job once an offer's response deadline has passed; no
+ * scheduler is introduced by this change.
  */
 @Injectable()
 @CommandHandler('ExpireOffer')
@@ -49,7 +52,7 @@ export class ExpireOfferHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(offer.status, 'Offer'),
       fieldAccessDecisions: {},
       eventsEmitted: ['OfferExpired'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }

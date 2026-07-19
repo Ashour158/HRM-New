@@ -1237,6 +1237,9 @@ export const MOCK_RESPONSES: Record<string, () => unknown> = {
     { id: 'op-001', workerId: 'wkr-006', workerName: 'Alex Rivera', status: 'IN_PROGRESS', startDate: '2026-05-20', completedTasks: 7, totalTasks: 12 },
   ]),
 
+  // ── Offboarding ───────────────────────────────────────────────────────────
+  'GET /hr/offboarding/plans': () => ok([]),
+
   // ── Manager ───────────────────────────────────────────────────────────────
   'GET /manager/dashboard': () => ok({
     directReports: WORKERS.filter((w) => w.managerId === 'wkr-mgr-001'),

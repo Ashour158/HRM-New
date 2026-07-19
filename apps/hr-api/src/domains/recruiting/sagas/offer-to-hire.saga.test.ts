@@ -1,82 +1,204 @@
-import { describe, expect, it, vi } from 'vitest';
-import { Uuid } from '@hcm/shared-kernel';
-import { getCurrentTenantId } from '@hcm/platform-core';
-import type { HrEventEnvelope } from '@hcm/event-schemas';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { OfferToHireSaga } from './offer-to-hire.saga.js';
 import { uuidV5 } from './deterministic-uuid.js';
+import { Offer } from '../aggregates/offer.aggregate.js';
+import { Candidate } from '../aggregates/candidate.aggregate.js';
+import { JobRequisition } from '../aggregates/job-requisition.aggregate.js';
+import type { OfferRepository } from '../repositories/offer.repository.js';
+import type { CandidateRepository } from '../repositories/candidate.repository.js';
+import type { JobRequisitionRepository } from '../repositories/job-requisition.repository.js';
+import type { CommandBus } from '../../../platform/command-bus/command-bus.js';
+import type { EventBus, EventHandler } from '../../../platform/event-bus/event-bus.js';
+import type { HrEventEnvelope } from '@hcm/event-schemas';
+import { createPrivacyForEvent } from '@hcm/event-schemas';
+import { Uuid } from '@hcm/shared-kernel';
+import { getCurrentTenantId } from '@hcm/platform-core';
 
 /** Mirrors the private `I9_CASE_ID_NAMESPACE` constant in `offer-to-hire.saga.ts`. */
 const I9_CASE_ID_NAMESPACE = '9b1c9e2a-2f7a-5e3b-8f5a-6c2b7e4a1d90';
 
-const tenantId = Uuid.generate();
-const offerId = Uuid.generate();
-const candidateId = Uuid.generate();
-const requisitionId = Uuid.generate();
-const positionId = Uuid.generate();
+describe('OfferToHireSaga', () => {
+  const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
+  const offerId = new Uuid('00000000-0000-0000-0000-000000000605');
+  const candidateId = new Uuid('00000000-0000-0000-0000-000000000304');
+  const requisitionId = new Uuid('00000000-0000-0000-0000-000000000103');
+  const positionId = new Uuid('00000000-0000-0000-0000-000000000203');
 
-function offerAcceptedEvent(): HrEventEnvelope<{ offerId: Uuid; acceptedBy: Uuid }> {
-  // onOfferAccepted only reads tenantId, payload.offerId and
-  // metadata.correlationId - the rest of the envelope is irrelevant to the
-  // saga's own logic (it is not passed through isOfferAcceptedEvent's zod
-  // gate here since we invoke the saga's handler directly).
-  return {
-    tenantId,
-    payload: { offerId, acceptedBy: Uuid.generate() },
-    metadata: { correlationId: Uuid.generate() },
-  } as unknown as HrEventEnvelope<{ offerId: Uuid; acceptedBy: Uuid }>;
-}
-
-function buildSaga(commandBus: { execute: ReturnType<typeof vi.fn> }) {
-  const eventBus = { subscribe: vi.fn() };
-  const offerRepo = {
-    findById: vi.fn(async () => ({
+  function offer(): Offer {
+    return Offer.rehydrate({
       id: offerId,
+      tenantId,
       candidateId,
       requisitionId,
-      startDate: new Date('2026-08-01T00:00:00.000Z'),
-    })),
-  };
+      proposedSalary: 175000,
+      currency: 'USD',
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      status: 'ACCEPTED',
+      aggregateVersion: 5,
+    });
+  }
+
+  function candidateInState(id: Uuid, status: Candidate['status']): Candidate {
+    return Candidate.rehydrate({
+      id,
+      tenantId,
+      firstName: 'Mona',
+      lastName: 'Hassan',
+      email: `${id.value}@example.com`,
+      status,
+      requisitionId,
+      aggregateVersion: 4,
+    });
+  }
+
+  function requisition(): JobRequisition {
+    return JobRequisition.rehydrate({
+      id: requisitionId,
+      tenantId,
+      requisitionNumber: 'REQ-003',
+      positionId,
+      title: 'Staff Engineer',
+      status: 'FILLED',
+      aggregateVersion: 6,
+    });
+  }
+
+  let capturedHandler: EventHandler | undefined;
+
+  const eventBus = {
+    subscribe: vi.fn((_topic: string, _group: string, handler: EventHandler) => {
+      capturedHandler = handler;
+    }),
+  } as unknown as EventBus;
+
+  const commandBus = {
+    execute: vi.fn().mockResolvedValue({ success: true, data: {} }),
+  } as unknown as CommandBus;
+
+  const offerRepo = {
+    findById: vi.fn(),
+  } as unknown as OfferRepository;
+
   const candidateRepo = {
-    findById: vi.fn(async () => ({
-      firstName: 'Jordan',
-      lastName: 'Rivera',
-      email: 'jordan.rivera@example.com',
-    })),
-  };
+    findById: vi.fn(),
+    findByRequisition: vi.fn(),
+  } as unknown as CandidateRepository;
+
   const requisitionRepo = {
-    findById: vi.fn(async () => ({ positionId })),
-  };
+    findById: vi.fn(),
+  } as unknown as JobRequisitionRepository;
 
-  const saga = new OfferToHireSaga(
-    eventBus as never,
-    commandBus as never,
-    offerRepo as never,
-    candidateRepo as never,
-    requisitionRepo as never,
-  );
-  return saga as unknown as {
-    onOfferAccepted(event: HrEventEnvelope<{ offerId: Uuid; acceptedBy: Uuid }>): Promise<void>;
-  };
-}
+  let saga: OfferToHireSaga;
 
-describe('OfferToHireSaga', () => {
+  function offerAcceptedEvent(): HrEventEnvelope<{ offerId: string; acceptedBy: string }> {
+    return {
+      eventId: Uuid.generate(),
+      eventName: 'OfferAccepted',
+      eventSchemaVersion: 1,
+      tenantId,
+      aggregateType: 'Offer',
+      aggregateId: offerId,
+      // Plain UUID strings -- matches what AcceptOfferHandler's
+      // CommandResult.data (and OfferAcceptedPayloadSchema) actually carry,
+      // not `Uuid` instances.
+      payload: { offerId: offerId.value, acceptedBy: Uuid.generate().value },
+      metadata: {
+        correlationId: Uuid.generate(),
+        requestHash: 'hash',
+        clientType: 'HR_ADMIN',
+      },
+      privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
+      occurredAt: new Date(),
+      version: 5,
+    };
+  }
+
+  function jobRequisitionFilledEvent(): HrEventEnvelope<{ requisitionId: string; offerId: string }> {
+    return {
+      eventId: Uuid.generate(),
+      eventName: 'JobRequisitionFilled',
+      eventSchemaVersion: 1,
+      tenantId,
+      aggregateType: 'JobRequisition',
+      aggregateId: requisitionId,
+      // Plain UUID strings -- see the note in offerAcceptedEvent() above.
+      payload: { requisitionId: requisitionId.value, offerId: offerId.value },
+      metadata: {
+        correlationId: Uuid.generate(),
+        requestHash: 'hash',
+        clientType: 'HR_ADMIN',
+      },
+      privacy: createPrivacyForEvent('NONE', undefined, 'PROFILE'),
+      occurredAt: new Date(),
+      version: 6,
+    };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    capturedHandler = undefined;
+    vi.mocked(commandBus.execute).mockResolvedValue({ success: true, data: {} } as never);
+    saga = new OfferToHireSaga(eventBus, commandBus, offerRepo, candidateRepo, requisitionRepo);
+    saga.onModuleInit();
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it('subscribes to the hr.recruiting.v1 topic', () => {
+    expect(eventBus.subscribe).toHaveBeenCalledWith(
+      'hr.recruiting.v1',
+      'offer-to-hire-saga',
+      expect.objectContaining({ consumerGroup: 'offer-to-hire-saga' }),
+    );
+    expect(capturedHandler).toBeDefined();
+  });
+
+  it('drives the full offer-to-hire pipeline when OfferAccepted fires', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offer());
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState(candidateId, 'HIRED'));
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisition());
+
+    await capturedHandler!.handle(offerAcceptedEvent());
+
+    const dispatchedCommandNames = vi
+      .mocked(commandBus.execute)
+      .mock.calls.map(([cmd]) => (cmd as { commandName: string }).commandName);
+
+    expect(dispatchedCommandNames).toEqual([
+      'CreateWorker',
+      'CreateEmploymentRelationship',
+      'CreateJobAssignment',
+      'FillPosition',
+      'CreateOnboardingPlan',
+      'CreateI9Case',
+    ]);
+  });
+
   it('dispatches every command inside the accepted offer tenant context and derives a deterministic CreateI9Case id from the worker id', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offer());
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState(candidateId, 'HIRED'));
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisition());
+
     const capturedCommands: Array<{ commandName: string; payload: unknown }> = [];
     const observedTenantsDuringDispatch: Array<string | undefined> = [];
-    const commandBus = {
-      execute: vi.fn(async (command: { commandName: string; payload: unknown }) => {
-        observedTenantsDuringDispatch.push(getCurrentTenantId()?.value);
-        capturedCommands.push({ commandName: command.commandName, payload: command.payload });
-        return { success: true };
-      }),
-    };
+    vi.mocked(commandBus.execute).mockImplementation(async (command) => {
+      observedTenantsDuringDispatch.push(getCurrentTenantId()?.value);
+      capturedCommands.push({
+        commandName: (command as { commandName: string }).commandName,
+        payload: (command as { payload: unknown }).payload,
+      });
+      return { success: true, data: {} } as never;
+    });
 
-    const saga = buildSaga(commandBus);
-    await saga.onOfferAccepted(offerAcceptedEvent());
+    await capturedHandler!.handle(offerAcceptedEvent());
 
     // Every command dispatched by the saga must run inside the accepted
     // offer's own tenant context so tenant-scoped repositories (e.g.
-    // I9CaseRepository, which now sources tenant_id from AsyncLocalStorage)
+    // I9CaseRepository, which sources tenant_id from AsyncLocalStorage)
     // don't reject the write.
     expect(observedTenantsDuringDispatch.length).toBeGreaterThan(0);
     expect(observedTenantsDuringDispatch.every((observed) => observed === tenantId.value)).toBe(true);
@@ -100,5 +222,135 @@ describe('OfferToHireSaga', () => {
 
     const otherWorkerId = Uuid.generate().value;
     expect(uuidV5(otherWorkerId, I9_CASE_ID_NAMESPACE)).not.toBe(first);
+  });
+
+  it('does not run the pipeline for events that are not OfferAccepted or JobRequisitionFilled', async () => {
+    const unrelated: HrEventEnvelope<unknown> = {
+      ...offerAcceptedEvent(),
+      eventName: 'OfferSent',
+    };
+
+    await capturedHandler!.handle(unrelated);
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
+    expect(offerRepo.findById).not.toHaveBeenCalled();
+  });
+
+  it('moves the saga to manual review (without throwing) when a pipeline step fails', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offer());
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState(candidateId, 'HIRED'));
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisition());
+    vi.mocked(commandBus.execute).mockResolvedValueOnce({
+      success: false,
+      errorMessage: 'downstream failure',
+    } as never);
+
+    await expect(capturedHandler!.handle(offerAcceptedEvent())).resolves.toBeUndefined();
+    // Only the first step (CreateWorker) should have been attempted.
+    expect(commandBus.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('bulk-rejects other still-active candidates when JobRequisitionFilled fires', async () => {
+    const hiredCandidate = candidateInState(candidateId, 'HIRED');
+    const stillInterviewing = candidateInState(
+      new Uuid('00000000-0000-0000-0000-000000000305'),
+      'INTERVIEWING',
+    );
+    const stillScreening = candidateInState(
+      new Uuid('00000000-0000-0000-0000-000000000306'),
+      'SCREENING',
+    );
+    const alreadyWithdrawn = candidateInState(
+      new Uuid('00000000-0000-0000-0000-000000000307'),
+      'WITHDRAWN',
+    );
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([
+      hiredCandidate,
+      stillInterviewing,
+      stillScreening,
+      alreadyWithdrawn,
+    ]);
+
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+
+    expect(candidateRepo.findByRequisition).toHaveBeenCalledWith(requisitionId);
+
+    const rejectCalls = vi
+      .mocked(commandBus.execute)
+      .mock.calls.filter(([cmd]) => (cmd as { commandName: string }).commandName === 'RejectCandidate');
+
+    // Only the two non-terminal candidates should be rejected — the hired
+    // and already-withdrawn candidates must be left alone.
+    expect(rejectCalls).toHaveLength(2);
+    const rejectedCandidateIds = rejectCalls.map(
+      ([cmd]) => (cmd as { payload: { applicationId: Uuid } }).payload.applicationId.value,
+    );
+    expect(rejectedCandidateIds).toEqual(
+      expect.arrayContaining([stillInterviewing.id.value, stillScreening.id.value]),
+    );
+    expect(rejectedCandidateIds).not.toContain(hiredCandidate.id.value);
+    expect(rejectedCandidateIds).not.toContain(alreadyWithdrawn.id.value);
+  });
+
+  it('isolates bulk-reject failures per candidate instead of aborting the batch', async () => {
+    const first = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    const second = candidateInState(new Uuid('00000000-0000-0000-0000-000000000309'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([first, second]);
+    vi.mocked(commandBus.execute)
+      .mockResolvedValueOnce({ success: false, errorMessage: 'concurrent update' } as never)
+      .mockResolvedValueOnce({ success: true, data: {} } as never);
+
+    await expect(capturedHandler!.handle(jobRequisitionFilledEvent())).resolves.toBeUndefined();
+
+    expect(commandBus.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it('surfaces failed candidate ids via getBulkRejectFailures so a retry can target just the failures', async () => {
+    const first = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    const second = candidateInState(new Uuid('00000000-0000-0000-0000-000000000309'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([first, second]);
+    vi.mocked(commandBus.execute)
+      .mockResolvedValueOnce({ success: false, errorMessage: 'concurrent update' } as never)
+      .mockResolvedValueOnce({ success: true, data: {} } as never);
+
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+
+    expect(saga.getBulkRejectFailures(requisitionId)).toEqual([first.id.value]);
+  });
+
+  it('clears previously recorded failures once a later run fully succeeds', async () => {
+    const candidate = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([candidate]);
+    vi.mocked(commandBus.execute).mockResolvedValueOnce({ success: false, errorMessage: 'concurrent update' } as never);
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+    expect(saga.getBulkRejectFailures(requisitionId)).toEqual([candidate.id.value]);
+
+    vi.mocked(commandBus.execute).mockResolvedValueOnce({ success: true, data: {} } as never);
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+
+    expect(saga.getBulkRejectFailures(requisitionId)).toEqual([]);
+  });
+
+  it('derives the bulk-reject idempotency key deterministically from the triggering event and candidate', async () => {
+    const first = candidateInState(new Uuid('00000000-0000-0000-0000-000000000308'), 'NEW');
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([first]);
+    const event = jobRequisitionFilledEvent();
+
+    await capturedHandler!.handle(event);
+
+    const [rejectCommand] = vi.mocked(commandBus.execute).mock.calls[0];
+    expect((rejectCommand as { idempotencyKey: string }).idempotencyKey).toBe(
+      `${event.eventId.value}:reject-candidate:${first.id.value}`,
+    );
+  });
+
+  it('does nothing when every candidate in the pipeline is already terminal', async () => {
+    vi.mocked(candidateRepo.findByRequisition).mockResolvedValue([
+      candidateInState(candidateId, 'HIRED'),
+    ]);
+
+    await capturedHandler!.handle(jobRequisitionFilledEvent());
+
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });

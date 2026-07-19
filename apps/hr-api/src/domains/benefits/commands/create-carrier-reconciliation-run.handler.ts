@@ -46,6 +46,9 @@ export class CreateCarrierReconciliationRunHandler implements ICommandHandler {
       currency: payload.currency,
       correlationId: command.correlationId,
     });
+    // Immediately begin the run so CarrierReconciliationStarted fires, mirroring
+    // how CreateBenefitsEnrollmentHandler submits enrollments right after creation.
+    run.start(command.correlationId);
 
     await this.repo.save(run);
     const eventsEmitted = run.domainEvents.map((e) => e.eventName);

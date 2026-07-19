@@ -3,12 +3,8 @@
 ## Supported Versions
 
 This project ships a single active release line. Security fixes are applied
-to the latest `main`/tagged release only.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.4.x   | :white_check_mark: |
-| < 1.4   | :x:                |
+to the latest `main`/tagged release only; older releases and tags are not
+patched.
 
 ## Reporting a Vulnerability
 
@@ -44,7 +40,16 @@ the vulnerability, will not result in legal action from this project.
 
 ## Scope
 
-In scope: the application code in this repository (`apps/`, `packages/`)
-and its documented deployment manifests (`deploy/`). Out of scope:
-third-party dependencies (report upstream) and any environment not
-provisioned from this repository's own infrastructure-as-code.
+In scope: the application code in this repository (`apps/`, `packages/`),
+its documented deployment manifests (`deploy/`), and this repository's own
+dependency configuration -- i.e. the package manifests, lockfile, and
+`pnpm.overrides` entries that select and pin third-party package versions
+(including how they're used by our code). Vulnerabilities caused by an
+outdated, misconfigured, or unnecessarily permissive dependency selection
+*in this repository* are in scope even if the underlying flaw lives in a
+third-party package.
+
+Out of scope: upstream defects in third-party package code itself with no
+repository-specific misconfiguration -- report those to the upstream
+project -- and any environment not provisioned from this repository's own
+infrastructure-as-code.

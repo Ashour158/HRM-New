@@ -109,4 +109,18 @@ describe('MakeOfferPendingHandler', () => {
     );
     expect(candidateRepo.save).not.toHaveBeenCalled();
   });
+
+  it('is idempotent when the candidate is already OFFER_PENDING (retried command)', async () => {
+    const offerPending = interviewingCandidate();
+    offerPending.makeOfferPending(Uuid.generate());
+    vi.mocked(candidateRepo.findById).mockResolvedValue(offerPending);
+
+    const result = await handler.handle(command());
+
+    expect(result.success).toBe(true);
+    expect(result.newState).toBe('OFFER_PENDING');
+    expect(result.eventsEmitted).toEqual([]);
+    expect(candidateRepo.save).not.toHaveBeenCalled();
+    expect(eventPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
 });

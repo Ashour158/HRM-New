@@ -70,7 +70,17 @@ export class TerminateWorkerHandler {
 
     return {
       success: true,
-      data: { workerId: worker.id.value, status: worker.status },
+      // workerId/terminatedBy/effectiveDate mirror WorkerTerminatedPayloadSchema
+      // (@hcm/event-schemas) so downstream WorkerTerminated subscribers -
+      // IAM deprovisioning and the offboarding initiation saga - receive a
+      // schema-conformant payload instead of having to infer it.
+      data: {
+        workerId: worker.id.value,
+        status: worker.status,
+        terminatedBy: command.actor.actorId.value,
+        effectiveDate: payload.terminationDate.toISOString(),
+        reason: payload.reason,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: worker.id,

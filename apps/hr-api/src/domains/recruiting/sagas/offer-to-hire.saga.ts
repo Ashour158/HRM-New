@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
-import { isOfferAcceptedEvent } from '@hcm/event-schemas';
+import { isOfferAcceptedEvent, isJobRequisitionFilledEvent } from '@hcm/event-schemas';
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { createCommand } from '@hcm/command-contracts';
 import { runWithTenant } from '@hcm/platform-core';
@@ -10,6 +10,7 @@ import { OfferRepository } from '../repositories/offer.repository.js';
 import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { JobRequisitionRepository } from '../repositories/job-requisition.repository.js';
 import { uuidV5 } from './deterministic-uuid.js';
+import type { CandidateStatus } from '../aggregates/candidate.aggregate.js';
 
 /**
  * Fixed RFC-4122-shaped namespace used to derive a deterministic I9Case id
@@ -46,12 +47,23 @@ interface SagaState {
  * Max duration: 7 days
  * Timeout: moves to MANUAL_REVIEW
  * DLQ: hr.saga.dlq.offer-to-hire
+ *
+ * Secondary trigger: JobRequisitionFilled event
+ *   Bulk-rejects every other still-active candidate in the filled
+ *   requisition's pipeline via RejectCandidate, so applicants don't sit
+ *   stuck once the position is no longer open (see onJobRequisitionFilled).
  */
 @Injectable()
 export class OfferToHireSaga implements OnModuleInit {
   private readonly logger = new Logger(OfferToHireSaga.name);
   private readonly sagaStates = new Map<string, SagaState>();
   private readonly maxDurationMs = 7 * 24 * 60 * 60 * 1000;
+  // Keyed by requisitionId -> candidate ids whose RejectCandidate dispatch
+  // failed on the most recent JobRequisitionFilled bulk-reject run. Lets a
+  // retry (manual or scheduled) target just the failures instead of
+  // re-processing the whole requisition; the per-candidate error is only
+  // logged otherwise and would be lost.
+  private readonly bulkRejectFailures = new Map<string, string[]>();
 
   constructor(
     private readonly eventBus: EventBus,
@@ -67,6 +79,8 @@ export class OfferToHireSaga implements OnModuleInit {
       handle: async (event: HrEventEnvelope<unknown>) => {
         if (isOfferAcceptedEvent(event)) {
           await this.onOfferAccepted(event);
+        } else if (isJobRequisitionFilledEvent(event)) {
+          await this.onJobRequisitionFilled(event);
         }
       },
     });
@@ -75,21 +89,27 @@ export class OfferToHireSaga implements OnModuleInit {
     setInterval(() => this.checkTimeouts(), 60 * 60 * 1000);
   }
 
-  private async onOfferAccepted(event: HrEventEnvelope<{ offerId: Uuid; acceptedBy: Uuid }>): Promise<void> {
-    const sagaId = `saga-${event.payload.offerId.value}-${Date.now()}`;
+  private async onOfferAccepted(event: HrEventEnvelope<{ offerId: string; acceptedBy: string }>): Promise<void> {
+    // `event.payload.offerId` is a plain UUID string (see the note on
+    // OfferAcceptedPayload in @hcm/event-schemas) -- normalize once here so
+    // every use below is a real `Uuid` instance, not a string wrongly typed
+    // as `Uuid` (which would silently no-op `.value` and break
+    // `offerRepo.findById`).
+    const offerId = new Uuid(event.payload.offerId);
+    const sagaId = `saga-${offerId.value}-${Date.now()}`;
     const tenantId = event.tenantId.value;
     const correlationId = event.metadata.correlationId.value;
 
     this.logger.log({
       type: 'SAGA_STARTED',
       sagaId,
-      offerId: event.payload.offerId.value,
+      offerId: offerId.value,
       tenantId,
     });
 
     const state: SagaState = {
       sagaId,
-      offerId: event.payload.offerId.value,
+      offerId: offerId.value,
       tenantId,
       correlationId,
       startedAt: new Date(),
@@ -99,7 +119,7 @@ export class OfferToHireSaga implements OnModuleInit {
     this.sagaStates.set(sagaId, state);
 
     try {
-      const offer = await this.offerRepo.findById(event.payload.offerId);
+      const offer = await this.offerRepo.findById(offerId);
       if (!offer) {
         throw new Error('Offer not found');
       }
@@ -232,12 +252,98 @@ export class OfferToHireSaga implements OnModuleInit {
     }
   }
 
+  /**
+   * Reacts to JobRequisitionFilled by bulk-rejecting every other candidate
+   * still active in that requisition's pipeline, so they don't sit stuck
+   * indefinitely once the position has been filled by someone else.
+   *
+   * Each candidate is rejected independently via the RejectCandidate
+   * command (which calls the existing `candidate.reject()` aggregate
+   * method) so this gets normal audit/outbox treatment. Failures are
+   * isolated per-candidate — one candidate failing to transition (e.g.
+   * because it was concurrently moved to a terminal state) must not stop
+   * the rest of the pipeline from being cleaned up.
+   */
+  private async onJobRequisitionFilled(
+    event: HrEventEnvelope<{ requisitionId: string; offerId?: string }>,
+  ): Promise<void> {
+    const tenantId = event.tenantId.value;
+    const correlationId = event.metadata.correlationId.value;
+    // `event.payload.requisitionId` is a plain UUID string -- see the note
+    // on JobRequisitionFilledPayload in @hcm/event-schemas.
+    const requisitionId = new Uuid(event.payload.requisitionId);
+
+    const terminalStatuses: CandidateStatus[] = ['HIRED', 'REJECTED', 'WITHDRAWN'];
+    const candidates = await this.candidateRepo.findByRequisition(requisitionId);
+    const stillActive = candidates.filter((candidate) => !terminalStatuses.includes(candidate.status));
+
+    if (stillActive.length === 0) {
+      return;
+    }
+
+    this.logger.log({
+      type: 'REQUISITION_FILLED_BULK_REJECT_STARTED',
+      requisitionId: requisitionId.value,
+      candidateCount: stillActive.length,
+    });
+
+    const failedCandidateIds: string[] = [];
+
+    for (const candidate of stillActive) {
+      try {
+        await this.dispatchCommand(
+          tenantId,
+          correlationId,
+          'RejectCandidate',
+          'Candidate',
+          { applicationId: candidate.id, reason: 'Requisition filled by another candidate' },
+          candidate.id,
+          // Deterministic, not `crypto.randomUUID()`: derived from the
+          // triggering event and the target candidate, so a saga retry (or
+          // an at-least-once redelivery of the same JobRequisitionFilled
+          // event) reissues the *same* idempotency key per candidate
+          // instead of creating a fresh key that bypasses the command bus's
+          // idempotency dedupe and re-processes a candidate that was
+          // already rejected.
+          `${event.eventId.value}:reject-candidate:${candidate.id.value}`,
+        );
+      } catch (err) {
+        failedCandidateIds.push(candidate.id.value);
+        this.logger.error({
+          type: 'REQUISITION_FILLED_BULK_REJECT_STEP_FAILED',
+          requisitionId: requisitionId.value,
+          candidateId: candidate.id.value,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    if (failedCandidateIds.length > 0) {
+      this.bulkRejectFailures.set(requisitionId.value, failedCandidateIds);
+    } else {
+      this.bulkRejectFailures.delete(requisitionId.value);
+    }
+  }
+
+  /**
+   * Candidate ids whose RejectCandidate dispatch failed on the most recent
+   * JobRequisitionFilled bulk-reject run for the given requisition. Empty if
+   * the run fully succeeded (or hasn't run yet). Intended for a retry path
+   * to target just the failures instead of re-scanning the whole
+   * requisition.
+   */
+  getBulkRejectFailures(requisitionId: Uuid): string[] {
+    return this.bulkRejectFailures.get(requisitionId.value) ?? [];
+  }
+
   private async dispatchCommand(
     tenantId: string,
     correlationId: string,
     commandName: string,
     aggregateType: string,
     payload: unknown,
+    aggregateId?: Uuid,
+    idempotencyKey?: string,
   ): Promise<void> {
     const command = createCommand(
       commandName,
@@ -252,7 +358,8 @@ export class OfferToHireSaga implements OnModuleInit {
       payload,
       {
         aggregateType,
-        idempotencyKey: crypto.randomUUID(),
+        aggregateId,
+        idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
         correlationId: new Uuid(correlationId),
         reason: `OfferToHireSaga: ${commandName}`,
       },

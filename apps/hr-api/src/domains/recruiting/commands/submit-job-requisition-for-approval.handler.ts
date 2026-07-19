@@ -49,7 +49,7 @@ export class SubmitJobRequisitionForApprovalHandler implements ICommandHandler {
       allowedNextActions: this.fsm.getAllowedActionsFromState(requisition.status, 'JobRequisition'),
       fieldAccessDecisions: {},
       eventsEmitted: ['JobRequisitionSubmitted'],
-      auditRecordId: Uuid.generate(),
+      auditRecordId: command.commandId,
     };
   }
 }
