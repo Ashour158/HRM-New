@@ -28,12 +28,15 @@ import {
   CloseJobRequisitionDto,
   CloseJobRequisitionDtoSchema,
   RejectJobRequisitionDto,
+  RejectJobRequisitionDtoSchema,
   SubmitCandidateDto,
   SubmitCandidateDtoSchema,
   ScreenCandidateDto,
   ScreenCandidateDtoSchema,
   RejectCandidateDto,
+  RejectCandidateDtoSchema,
   WithdrawCandidateDto,
+  WithdrawCandidateDtoSchema,
   ScheduleInterviewDto,
   ScheduleInterviewDtoSchema,
   CreateOfferDto,
@@ -43,11 +46,16 @@ import {
   AcceptOfferDto,
   AcceptOfferDtoSchema,
   DeclineOfferDto,
+  DeclineOfferDtoSchema,
   WithdrawOfferDto,
+  WithdrawOfferDtoSchema,
   ZodValidationPipe,
   RecordCandidateEeoSelfIdentificationDto,
+  RecordCandidateEeoSelfIdentificationDtoSchema,
   AnalyzeRequisitionAdverseImpactDto,
+  AnalyzeRequisitionAdverseImpactDtoSchema,
   ReviewRequisitionAdverseImpactAnalysisDto,
+  ReviewRequisitionAdverseImpactAnalysisDtoSchema,
 } from './dtos.js';
 
 // Adverse-impact analysis results are group-level and k-anonymity-suppressed,
@@ -127,7 +135,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async rejectRequisition(
     @Param('id') id: string,
-    @Body() dto: RejectJobRequisitionDto,
+    @Body(new ZodValidationPipe(RejectJobRequisitionDtoSchema)) dto: RejectJobRequisitionDto,
     @Req() req: Request,
   ) {
     // Wrap the route-param id in a real Uuid before it reaches the command
@@ -288,7 +296,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async rejectCandidate(
     @Param('id') id: string,
-    @Body() dto: RejectCandidateDto,
+    @Body(new ZodValidationPipe(RejectCandidateDtoSchema)) dto: RejectCandidateDto,
     @Req() req: Request,
   ) {
     // Load the candidate first so (a) the payload carries a real Uuid
@@ -318,7 +326,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async withdrawCandidate(
     @Param('id') id: string,
-    @Body() dto: WithdrawCandidateDto,
+    @Body(new ZodValidationPipe(WithdrawCandidateDtoSchema)) dto: WithdrawCandidateDto,
     @Req() req: Request,
   ) {
     // See rejectCandidate() above for why the aggregate is loaded first.
@@ -425,7 +433,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
   async recordCandidateEeoSelfIdentification(
     @Param('id') id: string,
-    @Body() dto: RecordCandidateEeoSelfIdentificationDto,
+    @Body(new ZodValidationPipe(RecordCandidateEeoSelfIdentificationDtoSchema)) dto: RecordCandidateEeoSelfIdentificationDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('RecordCandidateEeoSelfIdentification', req, { candidateId: id, ...dto }, {
@@ -575,7 +583,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async declineOffer(
     @Param('id') id: string,
-    @Body() dto: DeclineOfferDto,
+    @Body(new ZodValidationPipe(DeclineOfferDtoSchema)) dto: DeclineOfferDto,
     @Req() req: Request,
   ) {
     // Wrap the route-param id in a real Uuid before it reaches the command
@@ -611,7 +619,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Offer UUID' })
   async withdrawOffer(
     @Param('id') id: string,
-    @Body() dto: WithdrawOfferDto,
+    @Body(new ZodValidationPipe(WithdrawOfferDtoSchema)) dto: WithdrawOfferDto,
     @Req() req: Request,
   ) {
     // Load the offer first so (a) the payload carries a real Uuid instance
@@ -681,7 +689,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async analyzeRequisitionAdverseImpact(
     @Param('id') id: string,
-    @Body() dto: AnalyzeRequisitionAdverseImpactDto,
+    @Body(new ZodValidationPipe(AnalyzeRequisitionAdverseImpactDtoSchema)) dto: AnalyzeRequisitionAdverseImpactDto,
     @Req() req: Request,
   ) {
     const envelope = this.buildCommand('AnalyzeRequisitionAdverseImpact', req, { requisitionId: id, ...dto }, {
@@ -696,7 +704,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Adverse impact analysis UUID' })
   async reviewRequisitionAdverseImpactAnalysis(
     @Param('id') id: string,
-    @Body() dto: ReviewRequisitionAdverseImpactAnalysisDto,
+    @Body(new ZodValidationPipe(ReviewRequisitionAdverseImpactAnalysisDtoSchema)) dto: ReviewRequisitionAdverseImpactAnalysisDto,
     @Req() req: Request,
   ) {
     const actor = this.actor(req);
