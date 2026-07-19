@@ -187,10 +187,11 @@ describe('PayrollInputBuilderSaga', () => {
     const workerId = Uuid.generate();
     const enrollmentId = Uuid.generate();
     const saved: Array<{ amount: number; currency: string; inputType: string }> = [];
+    const { eventsPublisher } = realEventsPublisher();
     const saga = new PayrollInputBuilderSaga(
       { subscribe: vi.fn() } as never,
       { save: vi.fn(async (input) => saved.push(input)) } as never,
-      { publishFromAggregate: vi.fn() } as never,
+      eventsPublisher,
       { findByTenant: vi.fn(async () => [cycle]) } as never,
       hcmSetupService() as never,
     );
