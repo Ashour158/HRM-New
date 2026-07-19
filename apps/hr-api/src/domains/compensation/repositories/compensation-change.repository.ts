@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric, parseNullableNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { CompensationChange } from '../aggregates/compensation-change.aggregate.js';
 
@@ -30,7 +30,7 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
   }
 
   async findByWorker(workerId: Uuid): Promise<CompensationChange[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -39,7 +39,7 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
   }
 
   async findByTenant(tenantId: Uuid): Promise<CompensationChange[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -51,7 +51,8 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['compensation_changes']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['compensation_changes']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['compensation_changes']>);
     }
@@ -63,8 +64,8 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       changeType: row.change_type,
-      oldAmount: row.old_amount ?? undefined,
-      newAmount: row.new_amount,
+      oldAmount: parseNullableNumeric(row.old_amount),
+      newAmount: parseNumeric(row.new_amount),
       currency: row.currency,
       effectiveDate: row.effective_date,
       approvedBy: row.approved_by ? new Uuid(row.approved_by) : undefined,

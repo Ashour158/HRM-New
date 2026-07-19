@@ -6,6 +6,7 @@ import { SelfServiceAuthorityEngine } from './self-service.engine.js';
 import { CountryPolicyValidationEngine } from './country-policy-validation.engine.js';
 import { OfferCompensationEngine } from './offer-compensation.engine.js';
 import { HrAiGovernanceEngine } from './hr-ai-governance.engine.js';
+import { DeiPayTransparencyEngine } from './dei-pay-transparency.engine.js';
 
 /**
  * Singleton registry holding the declarative definitions for every
@@ -328,6 +329,11 @@ engineRegistry.register({
   requiresHumanReview: true,
   auditRequired: true,
 });
+
+// dei-pay-transparency-people-analytics is registered as a definition above;
+// this binds the concrete executable engine (sample-size / suppression /
+// materiality-threshold compliance check over a computed pay-gap report).
+export const deiPayTransparencyEngine = new DeiPayTransparencyEngine();
 
 /* ── 19. Engagement, Recognition & 360 Feedback ── */
 engineRegistry.register({

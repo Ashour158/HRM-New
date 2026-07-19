@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CommandBus } from './command-bus.js';
-
-function commandBusShell() {
-  return Object.create(CommandBus.prototype) as {
-    inferEventNameFromCommand(commandName: string, aggregateType: string): string;
-  };
-}
+import { inferEventNameFromCommand } from './command-bus.utils.js';
 
 describe('CommandBus fallback event naming', () => {
   it.each([
@@ -15,6 +9,6 @@ describe('CommandBus fallback event naming', () => {
     ['ReviewPayrollResultLine', 'PayrollResultLine', 'PayrollResultLineReviewed'],
     ['ClosePayrollCycle', 'PayrollCycle', 'PayrollCycleClosed'],
   ])('maps %s for %s to %s', (commandName, aggregateType, expected) => {
-    expect(commandBusShell().inferEventNameFromCommand(commandName, aggregateType)).toBe(expected);
+    expect(inferEventNameFromCommand(commandName, aggregateType)).toBe(expected);
   });
 });

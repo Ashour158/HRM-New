@@ -126,6 +126,15 @@ export type {
 
 export { HrAiGovernanceEngine, evaluateHrAiGovernanceBiasAudit } from './engines/hr-ai-governance.engine.js';
 
+export type {
+  DeiPayTransparencyDecisionCode,
+  DeiPayTransparencyInput,
+  DeiPayTransparencyViolation,
+  DeiPayTransparencyResult,
+} from './engines/dei-pay-transparency.engine.js';
+
+export { DeiPayTransparencyEngine, evaluateDeiPayTransparency } from './engines/dei-pay-transparency.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -135,4 +144,5 @@ export {
   countryPolicyValidationEngine,
   offerCompensationEngine,
   hrAiGovernanceEngine,
+  deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

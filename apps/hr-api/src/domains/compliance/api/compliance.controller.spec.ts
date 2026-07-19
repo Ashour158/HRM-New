@@ -88,4 +88,41 @@ describe('ComplianceController', () => {
     }));
     expect(policyDocumentRepo.findById).toHaveBeenCalledWith(new Uuid(documentId));
   });
+
+  it('submits, rejects, and archives policy documents through commandBus (HCM-P0-18)', async () => {
+    const { controller, commandBus, policyDocumentRepo } = buildController();
+
+    policyDocumentRepo.findById.mockResolvedValue({ id: new Uuid(documentId), status: 'DRAFT', aggregateVersion: 0 });
+    await controller.submitPolicyDocumentForApproval(documentId, request());
+    expect(commandBus.execute).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      commandName: 'SubmitPolicyDocumentForApproval',
+      aggregateType: 'PolicyDocument',
+      aggregateId: new Uuid(documentId),
+      expectedState: 'DRAFT',
+      expectedVersion: 0,
+      payload: { documentId },
+    }));
+
+    policyDocumentRepo.findById.mockResolvedValue({ id: new Uuid(documentId), status: 'PENDING_APPROVAL', aggregateVersion: 1 });
+    await controller.rejectPolicyDocument(documentId, request());
+    expect(commandBus.execute).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      commandName: 'RejectPolicyDocument',
+      aggregateType: 'PolicyDocument',
+      aggregateId: new Uuid(documentId),
+      expectedState: 'PENDING_APPROVAL',
+      expectedVersion: 1,
+      payload: { documentId },
+    }));
+
+    policyDocumentRepo.findById.mockResolvedValue({ id: new Uuid(documentId), status: 'PUBLISHED', aggregateVersion: 3 });
+    await controller.archivePolicyDocument(documentId, request());
+    expect(commandBus.execute).toHaveBeenNthCalledWith(3, expect.objectContaining({
+      commandName: 'ArchivePolicyDocument',
+      aggregateType: 'PolicyDocument',
+      aggregateId: new Uuid(documentId),
+      expectedState: 'PUBLISHED',
+      expectedVersion: 3,
+      payload: { documentId },
+    }));
+  });
 });

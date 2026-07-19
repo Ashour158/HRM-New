@@ -5,7 +5,6 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PayrollInput } from '../aggregates/payroll-input.aggregate.js';
 import { PayrollInputRepository } from '../repositories/payroll-input.repository.js';
-import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
 
 @CommandHandler('CreatePayrollInput')
 @Injectable()
@@ -13,7 +12,6 @@ export class CreatePayrollInputHandler {
   constructor(
     private readonly repo: PayrollInputRepository,
     private readonly fsm: FsmFramework,
-    private readonly publisher: PayrollEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -23,7 +21,6 @@ export class CreatePayrollInputHandler {
       command.correlationId,
     );
     await this.repo.save(pi);
-    await this.publisher.publishFromAggregate(pi);
     return {
       success: true,
       data: { payrollInputId: pi.id.value, status: pi.status },

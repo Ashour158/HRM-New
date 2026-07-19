@@ -37,6 +37,9 @@ import {
   ApproveCountryPolicyPackDtoSchema,
   RejectCountryPolicyPackDtoSchema,
   PublishCountryPolicyPackDtoSchema,
+  PackIdOnlyDtoSchema,
+  SupersedeCountryPolicyPackDtoSchema,
+  RollbackCountryPolicyPackDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
 
@@ -280,7 +283,7 @@ export class CountryPolicyController {
     const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
     if (!pack) throw new BadRequestException('Country policy pack not found');
     const command = this.buildCommand(
-      'SubmitForApproval',
+      'SubmitCountryPolicyPackForApproval',
       'CountryPolicyPack',
       dto,
       req,
@@ -353,6 +356,111 @@ export class CountryPolicyController {
         expectedVersion: pack.aggregateVersion,
       },
     );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/parse')
+  async parseCountryPolicyPack(
+    @Body(new ZodValidationPipe(PackIdOnlyDtoSchema)) dto: dtos.PackIdOnlyDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('ParseCountryPolicyPack', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/require-simulation')
+  async requireCountryPolicyPackImpactSimulation(
+    @Body(new ZodValidationPipe(PackIdOnlyDtoSchema)) dto: dtos.PackIdOnlyDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('RequireCountryPolicyPackImpactSimulation', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/schedule-publication')
+  async scheduleCountryPolicyPackPublication(
+    @Body(new ZodValidationPipe(PackIdOnlyDtoSchema)) dto: dtos.PackIdOnlyDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('ScheduleCountryPolicyPackPublication', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/supersede')
+  async supersedeCountryPolicyPack(
+    @Body(new ZodValidationPipe(SupersedeCountryPolicyPackDtoSchema)) dto: dtos.SupersedeCountryPolicyPackDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('SupersedeCountryPolicyPack', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/rollback')
+  async rollbackCountryPolicyPack(
+    @Body(new ZodValidationPipe(RollbackCountryPolicyPackDtoSchema)) dto: dtos.RollbackCountryPolicyPackDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('RollbackCountryPolicyPack', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/retire')
+  async retireCountryPolicyPack(
+    @Body(new ZodValidationPipe(PackIdOnlyDtoSchema)) dto: dtos.PackIdOnlyDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('RetireCountryPolicyPack', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-packs/quarantine')
+  async quarantineCountryPolicyPack(
+    @Body(new ZodValidationPipe(PackIdOnlyDtoSchema)) dto: dtos.PackIdOnlyDto,
+    @Req() req: Request,
+  ) {
+    const pack = await this.policyPackRepo.findById(new Uuid(dto.packId));
+    if (!pack) throw new BadRequestException('Country policy pack not found');
+    const command = this.buildCommand('QuarantineCountryPolicyPack', 'CountryPolicyPack', dto, req, {
+      aggregateId: new Uuid(dto.packId),
+      expectedState: pack.status,
+      expectedVersion: pack.aggregateVersion,
+    });
     return this.commandBus.execute(command);
   }
 
