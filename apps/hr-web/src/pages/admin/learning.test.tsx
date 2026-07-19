@@ -175,4 +175,142 @@ describe('AdminLearning', () => {
       }),
     ));
   });
+
+  it('uses a searchable course picker instead of a raw course ID input when assigning a course', async () => {
+    const secondCourseId = '00000000-0000-4000-8000-000000000102';
+    const targetWorkerId = '00000000-0000-4000-8000-000000000303';
+    apiClientGetMock.mockImplementation((url: string) => {
+      if (url === `/learning/courses/tenant/${tenantId}`) {
+        return apiResponse([
+          { id: { value: courseId }, title: 'Clinical onboarding essentials', contentType: 'VIDEO', durationMinutes: 45, status: 'DRAFT' },
+          { id: { value: secondCourseId }, title: 'Advanced infection control', contentType: 'VIDEO', durationMinutes: 60, status: 'PUBLISHED' },
+        ]);
+      }
+      if (url === `/learning/assignments/course/${courseId}` || url === `/learning/assignments/course/${secondCourseId}`) return apiResponse([]);
+      if (url === `/learning/assignments/tenant/${tenantId}`) return apiResponse([]);
+      if (url === `/learning/certifications/tenant/${tenantId}`) return apiResponse([]);
+      if (url === `/learning/content-packages/tenant/${tenantId}`) return apiResponse([]);
+      if (url === '/hr/core/workers/directory-search?search=jordan&pageSize=10') {
+        return apiResponse([
+          {
+            id: targetWorkerId,
+            employeeId: 'EMP-3003',
+            firstName: 'Jordan',
+            lastName: 'Lee',
+            email: 'jordan.lee@example.com',
+            hireDate: '2025-03-01T00:00:00.000Z',
+            status: 'ACTIVE',
+            jobTitle: 'Safety Officer',
+          },
+        ]);
+      }
+      return apiResponse({});
+    });
+
+    renderLearning();
+    await userEvent.click(await screen.findByRole('tab', { name: 'Assignment Overview' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Assign Course' }));
+
+    // The raw free-text "Course ID" input is gone; a searchable combobox replaces it.
+    expect(screen.queryByLabelText('Course ID')).not.toBeInTheDocument();
+    const picker = screen.getByRole('combobox', { name: 'Course' });
+    await userEvent.click(picker);
+    await userEvent.type(screen.getByRole('textbox', { name: 'Course search' }), 'Advanced');
+    await userEvent.click(await screen.findByRole('option', { name: /Advanced infection control/ }));
+
+    // The raw free-text "Worker ID" input is likewise gone; a searchable worker picker replaces it.
+    expect(screen.queryByLabelText('Worker ID')).not.toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Select worker'), 'jordan');
+    await userEvent.click(await screen.findByText('Jordan Lee', {}, { timeout: 5000 }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save Assignment' }));
+
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
+      '/learning/assignments',
+      expect.objectContaining({
+        workerId: targetWorkerId,
+        courseId: secondCourseId,
+      }),
+    ));
+  });
+
+  it('creates a content package and uploads its file to the new upload endpoint', async () => {
+    const newPackageId = '00000000-0000-4000-8000-000000000777';
+    apiClientPostMock.mockImplementation((url: string) => {
+      if (url === '/learning/content-packages') {
+        // Command endpoints return a CommandResult (itself `{ data, aggregateId, ... }`)
+        // wrapped one more level by the global `{ success, data }` response envelope.
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              success: true,
+              data: { learningContentPackageId: newPackageId, status: 'UPLOADED' },
+              aggregateId: { value: newPackageId },
+            },
+          },
+        });
+      }
+      if (url === `/learning/content-packages/${newPackageId}/upload`) {
+        return Promise.resolve({ data: { success: true, data: { learningContentPackageId: newPackageId, status: 'UPLOADED', fileUrl: `local://learning-content/${newPackageId}/course.zip` } } });
+      }
+      return Promise.resolve({ data: { success: true, data: { allowedNextActions: [] } } });
+    });
+
+    renderLearning();
+    await userEvent.click(await screen.findByRole('button', { name: 'Add Package' }));
+
+    const file = new File(['zip-bytes'], 'course.zip', { type: 'application/zip' });
+    await userEvent.upload(screen.getByLabelText('Content file (optional)'), file);
+    await userEvent.click(screen.getByRole('button', { name: 'Save Package' }));
+
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
+      '/learning/content-packages',
+      expect.objectContaining({ title: 'New content package', packageType: 'SCORM_2004' }),
+    ));
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
+      `/learning/content-packages/${newPackageId}/upload`,
+      expect.any(FormData),
+    ));
+  });
+
+  it('downloads a certificate PDF from the certification register', async () => {
+    const certificationRecordId = '00000000-0000-4000-8000-000000000901';
+    apiClientGetMock.mockImplementation((url: string) => {
+      if (url === `/learning/courses/tenant/${tenantId}`) return apiResponse([]);
+      if (url === `/learning/assignments/tenant/${tenantId}`) return apiResponse([]);
+      if (url === `/learning/content-packages/tenant/${tenantId}`) return apiResponse([]);
+      if (url === `/learning/certifications/tenant/${tenantId}`) {
+        return apiResponse([{
+          id: { value: certificationRecordId },
+          certificationName: 'Basic Life Support',
+          workerId: '00000000-0000-4000-8000-000000000301',
+          status: 'ACTIVE',
+          expiryDate: '2027-01-10T00:00:00.000Z',
+        }]);
+      }
+      if (url === `/learning/certifications/${certificationRecordId}/certificate.pdf`) {
+        return Promise.resolve({ data: new Blob(['%PDF-1.7'], { type: 'application/pdf' }) });
+      }
+      return apiResponse({});
+    });
+
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+    URL.revokeObjectURL = vi.fn();
+
+    try {
+      renderLearning();
+      const downloadButton = await screen.findByRole('button', { name: /Download certificate for Basic Life Support/ });
+      await userEvent.click(downloadButton);
+
+      await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith(
+        `/learning/certifications/${certificationRecordId}/certificate.pdf`,
+        { responseType: 'blob' },
+      ));
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
+  });
 });

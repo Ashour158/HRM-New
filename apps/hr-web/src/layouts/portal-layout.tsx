@@ -87,6 +87,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'Pulse', path: '/employee/pulse' },
       { label: 'Learning', path: '/employee/learning' },
       { label: 'Services', path: '/employee/services' },
+      { label: 'My Reports', path: '/employee/reports' },
     ],
   },
   manager: {
@@ -98,6 +99,7 @@ const portalConfigs: Record<PortalType, PortalConfig> = {
       { label: 'Dashboard', path: '/manager/dashboard' },
       { label: 'Team', path: '/manager/team' },
       { label: 'Approvals', path: '/manager/approvals' },
+      { label: 'Reports', path: '/manager/reports' },
     ],
   },
   admin: {
@@ -165,6 +167,7 @@ const managerRailItems: PortalRailItem[] = [
   { label: 'Dashboard', path: '/manager/dashboard', icon: BarChart3 },
   { label: 'Team', path: '/manager/team', icon: Users },
   { label: 'Approvals', path: '/manager/approvals', icon: BarChart3 },
+  { label: 'Reports', path: '/manager/reports', icon: BarChart3 },
 ];
 
 const employeeRailGroups: PortalRailGroup[] = [
@@ -173,7 +176,7 @@ const employeeRailGroups: PortalRailGroup[] = [
     items: [
       { label: 'Home', path: '/employee', icon: Home },
       { label: 'Dashboard', path: '/employee/dashboard', icon: BarChart3 },
-      { label: 'Attendance', path: '/employee#attendance', icon: Clock3 },
+      { label: 'Attendance', path: '/employee/attendance', icon: Clock3 },
       { label: 'Leave', path: '/employee/time-off', icon: Umbrella },
       { label: 'Services', path: '/employee/services', icon: LifeBuoy },
     ],
@@ -184,6 +187,7 @@ const employeeRailGroups: PortalRailGroup[] = [
       { label: 'My Profile', path: '/employee/profile', icon: UserCircle },
       { label: 'My Payslips', path: '/employee/payslip', icon: FileText },
       { label: 'Benefits', path: '/employee/benefits', icon: Heart },
+      { label: 'My Reports', path: '/employee/reports', icon: BarChart3 },
     ],
   },
   {

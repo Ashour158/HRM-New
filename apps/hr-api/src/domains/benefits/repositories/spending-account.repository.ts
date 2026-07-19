@@ -42,7 +42,8 @@ export class SpendingAccountRepository extends BaseRepository<'spending_accounts
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['spending_accounts']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['spending_accounts']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['spending_accounts']>);
     }

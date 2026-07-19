@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
+import { createKyselyInstance, getPool, parseNumeric, resolveTransactionAwareExecutor } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,9 +19,18 @@ export class PayrollPaymentBatchRepository {
   private readonly db = createKyselyInstance(getPool());
   private readonly tableName = 'payroll_payment_batches' as const;
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async save(record: PayrollPaymentBatchRecord): Promise<void> {
     const row = this.toRow(record);
-    await this.db
+    await this.executor
       .insertInto(this.tableName)
       .values(row)
       .onConflict((oc: any) => oc
@@ -52,7 +61,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   async findById(tenantId: Uuid, id: Uuid): Promise<PayrollPaymentBatchRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -62,7 +71,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   async findByPayrollCycle(tenantId: Uuid, payrollCycleId: Uuid): Promise<PayrollPaymentBatchRecord | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -72,7 +81,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   async findRecentByTenant(tenantId: Uuid, limit = 20): Promise<PayrollPaymentBatchRecord[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)

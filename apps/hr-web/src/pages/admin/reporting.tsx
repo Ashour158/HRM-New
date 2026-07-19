@@ -36,6 +36,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
+import { ReportCard, ReportCardGrid } from '@/components/reports/report-card';
 import { validateCalculatedFieldExpression } from '@/lib/calculated-field-expression';
 import { ReportingOverviewTab } from './reporting/reporting-overview-tab';
 import { ReportingPageHeader, ReportingTabs } from './reporting/reporting-shell';
@@ -549,6 +550,12 @@ export function AdminReporting() {
     () => catalog?.smartCategories.find((category) => category.code === selectedSmartCategoryCode) ?? catalog?.smartCategories[0],
     [catalog?.smartCategories, selectedSmartCategoryCode],
   );
+  const libraryTemplates = useMemo(() => {
+    const templates = catalog?.templates ?? [];
+    const recommended = templates.filter((template) => template.recommended);
+    const rest = templates.filter((template) => !template.recommended);
+    return [...recommended, ...rest].slice(0, 6);
+  }, [catalog?.templates]);
   const sourceGroups = useMemo(() => groupSourcesByCategory(catalog?.dataSources ?? []), [catalog?.dataSources]);
   const smartCategoryGroups = useMemo(() => groupSmartCategories(catalog?.smartCategories ?? []), [catalog?.smartCategories]);
   const relationshipsForCurrentSource = useMemo(
@@ -864,7 +871,41 @@ export function AdminReporting() {
       ) : dashboard ? (
         <>
           {activeTab === 'overview' ? (
-            <ReportingOverviewTab dashboard={dashboard} attentionReports={attentionReports} />
+            <div className="space-y-6">
+              <ReportingOverviewTab dashboard={dashboard} attentionReports={attentionReports} />
+              {libraryTemplates.length > 0 ? (
+                <div className="space-y-3">
+                  <SectionHeading
+                    title="Prebuilt Report Library"
+                    actions={(
+                      <Button variant="outline" onClick={() => setActiveTab('builder')}>
+                        <Database className="me-2 h-4 w-4" />
+                        Open full builder
+                      </Button>
+                    )}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Named, one-click organization reports - the same report-card pattern used by My Reports and Team Reports. Each card opens pre-configured and ready to run in the Report Builder.
+                  </p>
+                  <ReportCardGrid>
+                    {libraryTemplates.map((template) => (
+                      <ReportCard
+                        key={template.code}
+                        icon={Database}
+                        title={template.title}
+                        description={template.description ?? catalog?.dataSources.find((source) => source.code === template.dataSource)?.title ?? template.dataSource}
+                        badge={template.recommended ? 'Recommended' : undefined}
+                        actionLabel="Configure & run"
+                        onAction={() => {
+                          applyTemplate(template);
+                          setActiveTab('builder');
+                        }}
+                      />
+                    ))}
+                  </ReportCardGrid>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           {activeTab === 'analytics' ? (
