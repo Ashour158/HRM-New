@@ -80,7 +80,7 @@ function deepTransform(value, key, transformField) {
 
 async function transformRows(pgm, key, transformField) {
   const { rows } = await pgm.db.query(
-    `SELECT id, payload FROM "hr_platform"."personal_data_records"
+    `SELECT id, payload FROM "hr_core"."personal_data_records"
      WHERE data_category = ANY($1) AND payload IS NOT NULL`,
     [ENCRYPTED_CATEGORIES],
   );
@@ -88,7 +88,7 @@ async function transformRows(pgm, key, transformField) {
   for (const row of rows) {
     const transformed = deepTransform(row.payload, key, transformField);
     await pgm.db.query(
-      `UPDATE "hr_platform"."personal_data_records" SET payload = $1 WHERE id = $2`,
+      `UPDATE "hr_core"."personal_data_records" SET payload = $1 WHERE id = $2`,
       [JSON.stringify(transformed), row.id],
     );
   }
