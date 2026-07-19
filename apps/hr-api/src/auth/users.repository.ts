@@ -166,6 +166,23 @@ export class UsersRepository {
       .where('id', '=', userId)
       .execute();
   }
+
+  /**
+   * Overwrites the effective roles/permissions baked into future JWTs for this user.
+   * Callers are expected to have already recomputed these from the access-governance
+   * role/permission-assignment tables -- this method only persists the result.
+   */
+  async setRolesAndPermissions(userId: string, roles: string[], permissions: string[]): Promise<void> {
+    await this.db
+      .updateTable('users')
+      .set({
+        roles: toJsonb(roles),
+        permissions: toJsonb(permissions),
+        updated_at: new Date().toISOString(),
+      })
+      .where('id', '=', userId)
+      .execute();
+  }
 }
 
 function normalizeEmail(email: string): string {
