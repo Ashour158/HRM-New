@@ -151,7 +151,10 @@ describe('CreateWorkerHandler profile intake validation', () => {
   });
 
   it('allows manual employee ID assignment when the tenant policy is manual only', async () => {
-    await handler.handle(command({ employeeNumber: 'EMP-MANUAL-001' }));
+    await handler.handle(command({
+      employeeNumber: 'EMP-MANUAL-001',
+      workAuthorization: { requiresWorkAuthorization: false },
+    }));
 
     expect(workerRepo.findByEmployeeNumberForTenant).toHaveBeenCalledWith('EMP-MANUAL-001', tenantId);
     expect(workerRepo.save).toHaveBeenCalled();
@@ -263,6 +266,7 @@ describe('CreateWorkerHandler profile intake validation', () => {
       command({
         workEmail: 'amina.work@example.com',
         customFieldValues: { localUnionCode: 'EG-CUSTOM-1', unconfiguredKey: 'should-be-dropped' },
+        workAuthorization: { status: 'AUTHORIZED' },
       }),
     );
 
@@ -330,6 +334,7 @@ describe('CreateWorkerHandler profile intake validation', () => {
         photoUrl: 'https://assets.example.com/amina.jpg',
         address: { line1: '12 Nile St', city: 'Cairo', country: 'EG' },
         workLocation: { id: 'cairo-hq', name: 'Cairo HQ', countryCode: 'EG', city: 'Cairo' },
+        workAuthorization: { requiresWorkAuthorization: false },
         emergencyContact: { name: 'Omar Hassan', relationship: 'Brother', phoneNumber: '+201009998877' },
         emergencyContacts: [
           { name: 'Omar Hassan', relationship: 'Brother', phoneNumber: '+201009998877' },
@@ -401,5 +406,164 @@ describe('CreateWorkerHandler profile intake validation', () => {
         }),
       }),
     );
+  });
+});
+
+describe('CreateWorkerHandler employment eligibility gate', () => {
+  const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
+  const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440002');
+
+  const workerRepo = {
+    findByEmailForTenant: vi.fn(),
+    findByEmployeeNumberForTenant: vi.fn(),
+    save: vi.fn(),
+  } as unknown as WorkerRepository;
+
+  const employmentRelationshipRepo = {
+    save: vi.fn(),
+  } as unknown as EmploymentRelationshipRepository;
+
+  const personalDataRepo = {
+    findByPayloadFieldForTenant: vi.fn(),
+    save: vi.fn(),
+  } as unknown as PersonalDataRecordRepository & {
+    findByPayloadFieldForTenant: ReturnType<typeof vi.fn>;
+  };
+
+  const fsm = {
+    getAllowedActionsFromState: vi.fn(() => ['ActivateWorker', 'UpdateWorkerPersonalData']),
+  } as unknown as FsmFramework;
+
+  const eventPublisher = {
+    publishFromAggregate: vi.fn(),
+  } as unknown as WorkerEventsPublisher;
+
+  const hcmSetup = {
+    getSetup: vi.fn(),
+  } as unknown as HcmSetupService;
+
+  const handler = new CreateWorkerHandler(
+    workerRepo,
+    employmentRelationshipRepo,
+    personalDataRepo,
+    fsm,
+    eventPublisher,
+    hcmSetup,
+  );
+
+  function command(payload: Record<string, unknown>): HrCommandEnvelope<unknown> {
+    return {
+      commandId: Uuid.generate(),
+      commandName: 'CreateWorker',
+      commandSchemaVersion: 1,
+      tenantId,
+      actor: {
+        actorType: 'USER',
+        actorId: Uuid.generate(),
+        roles: ['HR_ADMIN'],
+        permissions: ['WORKER_CREATE'],
+        mfaAuthenticated: true,
+      },
+      aggregateType: 'WorkerProfile',
+      idempotencyKey: 'test-key',
+      correlationId: Uuid.generate(),
+      reason: 'test',
+      payload: {
+        workerId,
+        firstName: 'Jordan',
+        lastName: 'Rivera',
+        email: 'jordan.rivera@example.com',
+        hireDate: new Date('2026-07-01T00:00:00.000Z'),
+        ...payload,
+      },
+      metadata: {
+        requestHash: 'hash',
+        clientType: 'HR_ADMIN',
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(workerRepo.findByEmailForTenant).mockResolvedValue(undefined);
+    vi.mocked(workerRepo.findByEmployeeNumberForTenant).mockResolvedValue(undefined);
+    vi.mocked(personalDataRepo.findByPayloadFieldForTenant).mockResolvedValue(undefined);
+    vi.mocked(hcmSetup.getSetup).mockResolvedValue({
+      employeeIdPolicy: { mode: 'MANUAL_ONLY' },
+      departments: [],
+      jobTitles: [],
+      documentRequirements: [],
+      genderOptions: [],
+      workPhoneEnabled: true,
+      locations: [],
+      cities: [],
+      socialMediaFields: [],
+      payrollCalculationPolicy: { taxRatePercent: 15, employeeInsuranceRatePercent: 7 },
+      fieldRules: [],
+    });
+  });
+
+  it('fails closed: rejects a hire whose work authorization has expired', async () => {
+    await expect(
+      handler.handle(command({
+        workAuthorization: { status: 'EXPIRED' },
+      })),
+    ).rejects.toThrow(/Employment eligibility check failed \(REQUIRES_WORK_AUTHORIZATION\)/);
+
+    expect(workerRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('fails closed: rejects a hire with no work authorization data on file', async () => {
+    await expect(handler.handle(command({}))).rejects.toThrow(
+      /Employment eligibility check failed \(REQUIRES_WORK_AUTHORIZATION\)/,
+    );
+
+    expect(workerRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('fails closed: rejects a hire whose required background check has not cleared', async () => {
+    await expect(
+      handler.handle(command({
+        workAuthorization: {
+          requiresWorkAuthorization: false,
+          backgroundCheckRequired: true,
+          backgroundCheckStatus: 'PENDING',
+        },
+      })),
+    ).rejects.toThrow(/Employment eligibility check failed \(REQUIRES_BACKGROUND_CHECK\)/);
+
+    expect(workerRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('fails closed: rejects a hire below the minimum working age', async () => {
+    await expect(
+      handler.handle(command({
+        dateOfBirth: new Date('2015-01-01T00:00:00.000Z'),
+        workAuthorization: { requiresWorkAuthorization: false },
+      })),
+    ).rejects.toThrow(/Employment eligibility check failed \(NOT_ELIGIBLE\)/);
+
+    expect(workerRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('allows a domestic hire that explicitly opts out of work authorization', async () => {
+    await handler.handle(command({
+      workAuthorization: { requiresWorkAuthorization: false },
+    }));
+
+    expect(workerRepo.save).toHaveBeenCalled();
+  });
+
+  it('allows an eligible hire with valid, unexpired work authorization and a cleared background check', async () => {
+    await handler.handle(command({
+      workAuthorization: {
+        status: 'VALID',
+        expiresAt: '2999-01-01',
+        backgroundCheckRequired: true,
+        backgroundCheckStatus: 'PASSED',
+      },
+    }));
+
+    expect(workerRepo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'DRAFT' }));
   });
 });

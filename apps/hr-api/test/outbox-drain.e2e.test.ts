@@ -271,6 +271,10 @@ describe.sequential('outbox -> event bus -> inbox drain', () => {
       employmentType: 'FULL_TIME',
       departmentName: 'People Operations',
       jobTitle: 'HR Operations Analyst',
+      // The employment-eligibility hire gate (I-9/E-Verify PR) fails closed on
+      // missing work-authorization data - this synthetic hire is a verified
+      // local national, so record that on file.
+      workAuthorization: { status: 'AUTHORIZED' },
     });
     const workerId = findId(workerCreate.body, ['workerId']);
     createdWorkerIds.add(workerId);

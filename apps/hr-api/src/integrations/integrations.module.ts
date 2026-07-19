@@ -34,6 +34,7 @@ import {
   VmsIntegrationAdapter,
   DataWarehouseAdapter,
   EmailNotificationAdapter,
+  EverifyAdapter,
 } from './adapters/index.js';
 
 // Consumers
@@ -58,6 +59,7 @@ const ADAPTERS = [
   VmsIntegrationAdapter,
   DataWarehouseAdapter,
   EmailNotificationAdapter,
+  EverifyAdapter,
 ];
 
 const CONSUMERS = [
@@ -94,6 +96,7 @@ export class IntegrationsModule implements OnModuleInit {
     private readonly vms: VmsIntegrationAdapter,
     private readonly warehouse: DataWarehouseAdapter,
     private readonly email: EmailNotificationAdapter,
+    private readonly everify: EverifyAdapter,
   ) {}
 
   onModuleInit(): void {
@@ -105,5 +108,6 @@ export class IntegrationsModule implements OnModuleInit {
     this.orchestrator.registerAdapter(this.vms);
     this.orchestrator.registerAdapter(this.warehouse);
     this.orchestrator.registerAdapter(this.email);
+    this.orchestrator.registerAdapter(this.everify);
   }
 }

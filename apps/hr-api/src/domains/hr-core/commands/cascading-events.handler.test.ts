@@ -152,6 +152,8 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
         address: { line1: '12 Nile St', city: 'Cairo', country: 'EG' },
         // Populates BANKING personal-data record.
         bankAccount: { bankName: 'National Bank', iban: 'EG380019000500000000263180002' },
+        // Required by the employment-eligibility hire gate (HCM-P0-8b).
+        workAuthorization: { status: 'AUTHORIZED' },
       },
       { effectiveDate: new Date('2024-01-01') }, // triggers EmploymentRelationship creation
     );
@@ -170,9 +172,9 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     );
     // One WorkerProfileCreated + one EmploymentRelationshipCreated + one
     // PersonalDataRecordCreated per non-empty profile section (BASIC,
-    // CONTACT, BANKING => 3).
-    expect(result.eventsEmitted).toHaveLength(1 + 1 + 3);
-    expect(result.eventsEmitted!.filter((e) => e === 'PersonalDataRecordCreated')).toHaveLength(3);
+    // CONTACT, BANKING, WORK_AUTHORIZATION => 4).
+    expect(result.eventsEmitted).toHaveLength(1 + 1 + 4);
+    expect(result.eventsEmitted!.filter((e) => e === 'PersonalDataRecordCreated')).toHaveLength(4);
 
     // Now prove those events actually reach the outbox (not just that the
     // handler *computed* a bigger array).
@@ -183,7 +185,7 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     expect(inserted).toHaveLength(result.eventsEmitted!.length);
     expect(inserted.map((row) => row.row.event_name)).toEqual(result.eventsEmitted);
     expect(inserted.filter((row) => row.row.event_name === 'EmploymentRelationshipCreated')).toHaveLength(1);
-    expect(inserted.filter((row) => row.row.event_name === 'PersonalDataRecordCreated')).toHaveLength(3);
+    expect(inserted.filter((row) => row.row.event_name === 'PersonalDataRecordCreated')).toHaveLength(4);
   });
 
   it('TerminateWorker: publishes events for WorkerProfile + every active JobAssignment ended + every non-ended EmploymentRelationship ended', async () => {
