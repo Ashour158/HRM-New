@@ -6,6 +6,7 @@ import {
   hasCoordinateEvidence,
   type CoordinateEvidence,
 } from '@/lib/attendance-location';
+import { StatTile } from '@/components/ui/stat-tile';
 import { cn } from '@/lib/utils';
 
 export function AttendanceLocationMap({
@@ -94,10 +95,14 @@ export function FeedRow({
 
 export function EvidenceMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded border border-slate-200 bg-slate-50 px-3 py-2">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="mt-1 truncate font-semibold text-slate-950">{value}</p>
-    </div>
+    <StatTile
+      variant="plain"
+      className="rounded border-slate-200 bg-slate-50 px-3 py-2"
+      label={label}
+      value={value}
+      labelClassName="text-xs text-slate-500"
+      valueClassName="truncate font-semibold text-slate-950"
+    />
   );
 }
 

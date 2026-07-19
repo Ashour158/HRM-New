@@ -5,9 +5,16 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PayGapReportRepository } from '../repositories/pay-gap-report.repository.js';
 import { DeiAnalyticsEventsPublisher } from '../events/dei-analytics-events.publisher.js';
-import { WorkforceDataService } from '../services/workforce-data.service.js';
-import { calculatePayGapStatistics, DIMENSION_FIELD_BY_PAY_GAP_REPORT_TYPE } from '../services/pay-gap-calculator.js';
+import { PayGapCalculationService } from '../services/pay-gap-calculation.service.js';
 
+/**
+ * The caller only identifies WHICH report to calculate. `meanHourlyGap`,
+ * `medianHourlyGap`, and `quartileDistribution` used to be caller-supplied
+ * numbers with no underlying data trail; they are now computed by
+ * {@link PayGapCalculationService} from real worker compensation and
+ * self-identification records, scoped by the report's own tenant/country/
+ * report-type (set when the report was created).
+ */
 export interface CalculatePayGapReportPayload {
   payGapReportId: string;
 }
@@ -25,22 +32,14 @@ export class CalculatePayGapReportHandler {
     private readonly repo: PayGapReportRepository,
     private readonly fsm: FsmFramework,
     private readonly publisher: DeiAnalyticsEventsPublisher,
-    private readonly workforceData: WorkforceDataService,
+    private readonly calculationService: PayGapCalculationService,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CalculatePayGapReportPayload;
     const entity = await this.repo.findById(new Uuid(payload.payGapReportId));
     if (!entity) throw new Error('PayGapReport not found');
-
-    const dimensionField = DIMENSION_FIELD_BY_PAY_GAP_REPORT_TYPE[entity.reportType];
-    const records = await this.workforceData.loadPayGapWorkerRecords(command.tenantId, {
-      countryCode: entity.countryCode,
-      reportingYear: entity.reportingYear,
-      dimensionField,
-    });
-    const { meanHourlyGap, medianHourlyGap, quartileDistribution } = calculatePayGapStatistics(records);
-
+    const { meanHourlyGap, medianHourlyGap, quartileDistribution } = await this.calculationService.computeForReport(entity);
     entity.calculate(command.correlationId, meanHourlyGap, medianHourlyGap, quartileDistribution);
     await this.repo.save(entity);
     await this.publisher.publishFromAggregate(entity);

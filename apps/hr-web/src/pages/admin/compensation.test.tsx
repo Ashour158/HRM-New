@@ -46,6 +46,8 @@ function apiResponse(data: unknown) {
   return Promise.resolve({ data: { success: true, data } });
 }
 
+const workerId = '00000000-0000-4000-8000-000000000501';
+
 function renderCompensation() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
@@ -78,6 +80,18 @@ describe('AdminCompensation', () => {
       if (url === '/hr/compensation/bands') return apiResponse([]);
       if (url === '/hr/compensation/bonus-cycles') return apiResponse([]);
       if (url.endsWith('/allowed-actions')) return apiResponse({ allowedActions: ['ACTIVATE'] });
+      if (url === `/hr/core/workers/directory-search?search=ali&pageSize=10`) {
+        return apiResponse([
+          {
+            id: workerId,
+            employeeId: 'EMP-2001',
+            firstName: 'Alice',
+            lastName: 'Nguyen',
+            jobTitle: 'Senior Engineer',
+          },
+        ]);
+      }
+      if (url === `/hr/compensation/changes/worker/${workerId}`) return apiResponse([]);
       return apiResponse({});
     });
     apiClientPostMock.mockResolvedValue({ data: { success: true, data: { allowedNextActions: [] } } });
@@ -107,5 +121,18 @@ describe('AdminCompensation', () => {
         currency: 'AED',
       }),
     ));
+  });
+
+  it('searches and selects a worker through the worker picker to filter compensation changes', async () => {
+    renderCompensation();
+
+    expect(await screen.findByRole('heading', { name: 'Compensation' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('tab', { name: 'Changes' }));
+
+    await userEvent.type(screen.getByLabelText('Filter changes by worker'), 'ali');
+    await userEvent.click(await screen.findByText('Alice Nguyen', {}, { timeout: 5000 }));
+
+    expect(screen.getByLabelText('Filter changes by worker')).toHaveValue('Alice Nguyen');
+    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith(`/hr/compensation/changes/worker/${workerId}`), { timeout: 5000 });
   });
 });

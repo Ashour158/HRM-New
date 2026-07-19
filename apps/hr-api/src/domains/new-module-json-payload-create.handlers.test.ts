@@ -281,7 +281,8 @@ describe('new module create handlers with JSON command payloads', () => {
   it('maps HR service delivery create payloads and preserves JSONB article tags as arrays', async () => {
     const fsm = new FsmFramework();
     const serviceCase = captureRepo<any>();
-    await new OpenHrServiceCaseHandler(serviceCase.repo as never, fsm, publisher() as never).handle(command({
+    const catalogItemRepo = { findById: vi.fn().mockResolvedValue(undefined) };
+    await new OpenHrServiceCaseHandler(serviceCase.repo as never, catalogItemRepo as never, fsm, publisher() as never).handle(command({
       caseNumber: 'HR-2026-001',
       requesterWorkerId: workerId,
       caseType: 'HR_LETTER',

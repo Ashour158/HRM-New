@@ -42,6 +42,8 @@ export class UpdateWorkerPersonalDataHandler {
     );
     await this.workerRepo.save(worker);
 
+    const eventsEmitted = worker.domainEvents.map((e) => e.eventName);
+
     let record = await this.personalDataRepo.findByWorkerAndCategory(worker.id, 'BASIC');
     const extraFields: Record<string, unknown> = {};
     if (payload.phoneNumber) extraFields.phoneNumber = payload.phoneNumber;
@@ -51,6 +53,7 @@ export class UpdateWorkerPersonalDataHandler {
       if (Object.keys(extraFields).length > 0) {
         record.update(extraFields, command.correlationId);
         await this.personalDataRepo.save(record);
+        eventsEmitted.push(...record.domainEvents.map((e) => e.eventName));
       }
     } else if (Object.keys(extraFields).length > 0) {
       record = PersonalDataRecord.create(
@@ -67,6 +70,7 @@ export class UpdateWorkerPersonalDataHandler {
         command.correlationId,
       );
       await this.personalDataRepo.save(record);
+      eventsEmitted.push(...record.domainEvents.map((e) => e.eventName));
     }
 
     await this.eventPublisher.publishFromAggregate(worker);
@@ -81,7 +85,7 @@ export class UpdateWorkerPersonalDataHandler {
       newVersion: worker.aggregateVersion,
       allowedNextActions: this.fsm.getAllowedActionsFromState(worker.status, 'WorkerProfile'),
       fieldAccessDecisions: {},
-      eventsEmitted: worker.domainEvents.map((e) => e.eventName),
+      eventsEmitted,
       auditRecordId: command.commandId,
     } as CommandResult<unknown>;
   }

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import {
@@ -27,6 +28,7 @@ import { FieldMask } from '@/components/common/field-mask';
 import { AllowedActions } from '@/components/common/allowed-actions';
 import { AuditTrail } from '@/components/common/audit-trail';
 import { ErrorState } from '@/components/common/error-state';
+import { TextReasonDialog } from '@/components/common/workflow-dialogs';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
@@ -150,6 +152,8 @@ export function AdminEmployeeProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const addNotification = useUIStore((state) => state.addNotification);
+  const [isTerminateDialogOpen, setTerminateDialogOpen] = useState(false);
+  const [isSuspendDialogOpen, setSuspendDialogOpen] = useState(false);
   const { data: profile, isLoading, isError, error, refetch } = useApiQuery<EmployeeProfileData>(
     ['admin-employee-profile', id],
     `/hr/core/workers/${id}/profile`,
@@ -288,15 +292,14 @@ export function AdminEmployeeProfile() {
     }
   };
 
-  const terminate = async () => {
-    const reason = window.prompt('Enter termination reason:');
-    if (!reason) return;
+  const submitTermination = async (reason: string) => {
     try {
       await terminateMutation.mutateAsync({
         employeeId: worker.id,
         reason,
         terminationDate: new Date().toISOString(),
       });
+      setTerminateDialogOpen(false);
       refetch();
       refetchMaster();
       addNotification({ title: 'Employee terminated', message: 'The employee record has been terminated.', type: 'success', read: false });
@@ -305,15 +308,14 @@ export function AdminEmployeeProfile() {
     }
   };
 
-  const suspend = async () => {
-    const reason = window.prompt('Enter suspension reason:');
-    if (!reason) return;
+  const submitSuspension = async (reason: string) => {
     try {
       await suspendMutation.mutateAsync({
         employeeId: worker.id,
         reason,
         effectiveDate: new Date().toISOString(),
       });
+      setSuspendDialogOpen(false);
       refetch();
       refetchMaster();
       addNotification({ title: 'Employee suspended', message: 'The employee record has been suspended.', type: 'success', read: false });
@@ -377,13 +379,13 @@ export function AdminEmployeeProfile() {
               </Button>
             ) : null}
             {canTerminate ? (
-              <Button variant="destructive" onClick={terminate} disabled={terminateMutation.isPending}>
+              <Button variant="destructive" onClick={() => setTerminateDialogOpen(true)} disabled={terminateMutation.isPending}>
                 <UserMinus className="mr-2 h-4 w-4" />
                 Terminate
               </Button>
             ) : null}
             {canSuspend ? (
-              <Button variant="outline" onClick={suspend} disabled={suspendMutation.isPending}>
+              <Button variant="outline" onClick={() => setSuspendDialogOpen(true)} disabled={suspendMutation.isPending}>
                 <PauseCircle className="mr-2 h-4 w-4" />
                 Suspend
               </Button>
@@ -668,6 +670,30 @@ export function AdminEmployeeProfile() {
           </section>
         </aside>
       </div>
+
+      <TextReasonDialog
+        open={isTerminateDialogOpen}
+        onOpenChange={setTerminateDialogOpen}
+        title="Terminate employee"
+        description={`This will terminate ${worker.firstName} ${worker.lastName} effective today.`}
+        label="Termination reason"
+        placeholder="Explain why this employee is being terminated"
+        submitLabel="Terminate"
+        isSubmitting={terminateMutation.isPending}
+        onSubmit={submitTermination}
+      />
+
+      <TextReasonDialog
+        open={isSuspendDialogOpen}
+        onOpenChange={setSuspendDialogOpen}
+        title="Suspend employee"
+        description={`This will suspend ${worker.firstName} ${worker.lastName} effective today.`}
+        label="Suspension reason"
+        placeholder="Explain why this employee is being suspended"
+        submitLabel="Suspend"
+        isSubmitting={suspendMutation.isPending}
+        onSubmit={submitSuspension}
+      />
     </div>
   );
 }

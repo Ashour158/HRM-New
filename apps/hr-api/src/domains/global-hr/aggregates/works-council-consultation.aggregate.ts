@@ -80,6 +80,26 @@ export class WorksCouncilConsultationInitiated extends DomainEvent {
   }
 }
 
+export class WorksCouncilConsultationProgressStarted extends DomainEvent {
+  readonly legalEntityId: string;
+
+  constructor(props: {
+    tenantId: Uuid;
+    aggregateId: Uuid;
+    correlationId: Uuid;
+    legalEntityId: Uuid;
+  }) {
+    super({
+      eventName: 'WorksCouncilConsultationProgressStarted',
+      tenantId: props.tenantId,
+      aggregateType: 'WorksCouncilConsultation',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+    this.legalEntityId = props.legalEntityId.value;
+  }
+}
+
 export class WorksCouncilConsultationCompleted extends DomainEvent {
   readonly legalEntityId: string;
 
@@ -225,11 +245,19 @@ export class WorksCouncilConsultation extends AggregateRoot {
   /**
    * Move to in-progress (INITIATED → IN_PROGRESS).
    */
-  startProgress(_correlationId: Uuid): void {
+  startProgress(correlationId: Uuid): void {
     if (this.status !== 'INITIATED') {
       throw new ValidationError(`Cannot start progress from state ${this.status}`);
     }
     this.status = 'IN_PROGRESS';
+    this.addDomainEvent(
+      new WorksCouncilConsultationProgressStarted({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+        legalEntityId: this.legalEntityId,
+      }),
+    );
     this.incrementVersion();
     this.updatedAt = new Date();
   }

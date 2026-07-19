@@ -34,6 +34,7 @@ data:
   SAML_METADATA_URL: ""
   SAML_ENTITY_ID: ""
   CORS_ORIGINS: https://hcm.example.com
+  WEB_APP_URL: https://hcm.example.com
   LOG_LEVEL: info
   OTEL_ENABLED: "false"
   OTEL_SERVICE_NAME: hr-api

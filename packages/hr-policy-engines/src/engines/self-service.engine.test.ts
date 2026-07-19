@@ -46,6 +46,22 @@ describe('SelfServiceAuthorityEngine', () => {
     expect(decision.decisionCode).toBe('ALLOWED');
   });
 
+  it('allows an employee to submit their own performance self-review (HCM-P0-10)', async () => {
+    const engine = new SelfServiceAuthorityEngine();
+
+    const decision = await engine.execute({
+      actorType: 'EMPLOYEE',
+      commandName: 'SubmitSelfReview',
+      actorRoles: ['EMPLOYEE'],
+      abacContext: {
+        aggregateType: 'PerformanceReview',
+        commandType: 'UPDATE',
+      },
+    }, context);
+
+    expect(decision.decisionCode).toBe('ALLOWED');
+  });
+
   it('forbids an employee from executing administrative payroll commands', async () => {
     const engine = new SelfServiceAuthorityEngine();
 

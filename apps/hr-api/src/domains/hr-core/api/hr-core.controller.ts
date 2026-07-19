@@ -41,8 +41,11 @@ import {
   UpdateWorkerDtoSchema,
   TerminateWorkerDtoSchema,
   CreateJobAssignmentDtoSchema,
+  UpdateJobAssignmentDtoSchema,
   CreateEmploymentRelationshipDtoSchema,
+  StartProbationEmploymentRelationshipDtoSchema,
   CreateEmploymentContractDtoSchema,
+  TerminateEmploymentContractDtoSchema,
   ZodValidationPipe,
 } from './dtos.js';
 
@@ -151,6 +154,11 @@ function toCsv(rows: Array<Record<string, string | number | null | undefined>>):
   ].join('\n');
 }
 
+// Full worker master-data admin scope (create/update/terminate/mass-update/export, full
+// payload reads). PAYROLL_ADMIN/COMPENSATION_ADMIN/BENEFITS_ADMIN/COMPLIANCE_OFFICER/
+// ER_SPECIALIST are deliberately excluded: per the RBAC role catalog (packages/hr-access-control)
+// those roles only carry WORKER_READ, not WORKER_CREATE/UPDATE/TERMINATE. They get
+// HR_CORE_DIRECTORY_SEARCH_ROLES below for name/ID lookups instead.
 const HR_CORE_ADMIN_ROLES = new Set([
   'APP_ADMIN',
   'PLATFORM_ADMIN',
@@ -160,6 +168,21 @@ const HR_CORE_ADMIN_ROLES = new Set([
   'PEOPLE_ADMIN',
   'WORKFORCE_PLANNING_ADMIN',
   'SYSTEM_ACTOR',
+]);
+
+// Broader than HR_CORE_ADMIN_ROLES: covers the worker-directory "who is this person"
+// lookup (recognition recipient pickers, compensation worker filters, etc.) where any
+// authenticated employee/manager or people-adjacent admin needs to disambiguate a
+// worker by name, but must never receive the full admin worker payload.
+const HR_CORE_DIRECTORY_SEARCH_ROLES = new Set([
+  ...HR_CORE_ADMIN_ROLES,
+  'EMPLOYEE',
+  'MANAGER',
+  'PAYROLL_ADMIN',
+  'COMPENSATION_ADMIN',
+  'BENEFITS_ADMIN',
+  'COMPLIANCE_OFFICER',
+  'ER_SPECIALIST',
 ]);
 
 @ApiTags('HR Core')
@@ -231,6 +254,12 @@ export class HrCoreController {
     const roles = req.actor?.roles ?? [];
     if (roles.some((role) => HR_CORE_ADMIN_ROLES.has(role))) return;
     throw new ForbiddenException('Only HR administrators can access employee master data administration');
+  }
+
+  private assertHrCoreDirectorySearchScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => HR_CORE_DIRECTORY_SEARCH_ROLES.has(role))) return;
+    throw new ForbiddenException('Only authenticated workforce roles can search the worker directory');
   }
 
   private async getTenantWorker(id: string, req: Request): Promise<WorkerProfile> {
@@ -550,6 +579,34 @@ export class HrCoreController {
     });
 
     return workers.map((w) => this.toWorkerDto(w));
+  }
+
+  // Narrow-scope companion to listWorkers(): open to any authenticated workforce
+  // role (not just HR_CORE_ADMIN_ROLES) but returns only the minimal fields needed
+  // to disambiguate a worker by name/employee ID, never the full admin payload.
+  @Get('workers/directory-search')
+  async searchWorkerDirectory(
+    @Req() req: Request,
+    // Typed as string here for the common case, but Express/qs parses a repeated
+    // query param (?search=a&search=b) into a string[] at runtime regardless of
+    // this compile-time annotation -- guard with Array.isArray() below.
+    @Query('search') search?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    this.assertHrCoreDirectorySearchScope(req);
+    if (Array.isArray(search)) {
+      throw new BadRequestException('The search parameter must be a single value');
+    }
+    const term = (search ?? '').trim();
+    if (!term) {
+      throw new BadRequestException('A search term is required');
+    }
+    const tenantId = this.getTenantId(req);
+    const limit = clampLimit(pageSize, { def: 10, max: 50 });
+
+    const workers = await this.workerRepo.searchDirectoryForTenant(term, tenantId, { limit, offset: 0 });
+
+    return workers.map((w) => this.toWorkerDirectoryDto(w));
   }
 
   @Get('workers/export.csv')
@@ -1200,6 +1257,16 @@ export class HrCoreController {
     };
   }
 
+  private toWorkerDirectoryDto(worker: WorkerProfile) {
+    return {
+      id: worker.id.value,
+      employeeId: worker.employeeNumber,
+      firstName: worker.firstName,
+      lastName: worker.lastName,
+      jobTitle: worker.jobTitle ?? undefined,
+    };
+  }
+
   @Get('workers/:id/timeline')
   async getWorkerTimeline(@Param('id') id: string) {
     // Would query audit ledger and transition ledger in production.
@@ -1208,6 +1275,7 @@ export class HrCoreController {
 
   @Get('workers/:id/personal-data')
   async getPersonalData(@Param('id') id: string, @Req() req: Request) {
+    this.assertHrCoreAdminScope(req);
     const tenantId = this.getTenantId(req);
     await this.getTenantWorker(id, req);
     const records = await this.personalDataRepo.findByWorkerForTenant(new Uuid(id), tenantId);
@@ -1282,6 +1350,46 @@ export class HrCoreController {
     if (!relationship) throw new BadRequestException('Employment relationship not found');
     const command = this.buildCommand(
       'ActivateEmploymentRelationship',
+      'EmploymentRelationship',
+      { relationshipId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: relationship.state,
+        expectedVersion: relationship.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-relationships/:id/commands/start-probation')
+  async startProbationEmploymentRelationship(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(StartProbationEmploymentRelationshipDtoSchema)) dto: dtos.StartProbationEmploymentRelationshipDto,
+    @Req() req: Request,
+  ) {
+    const relationship = await this.employmentRelationshipRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!relationship) throw new BadRequestException('Employment relationship not found');
+    const command = this.buildCommand(
+      'StartProbationEmploymentRelationship',
+      'EmploymentRelationship',
+      { relationshipId: new Uuid(id), probationEndDate: dto.probationEndDate },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: relationship.state,
+        expectedVersion: relationship.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-relationships/:id/commands/confirm')
+  async completeProbationEmploymentRelationship(@Param('id') id: string, @Req() req: Request) {
+    const relationship = await this.employmentRelationshipRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!relationship) throw new BadRequestException('Employment relationship not found');
+    const command = this.buildCommand(
+      'CompleteProbationEmploymentRelationship',
       'EmploymentRelationship',
       { relationshipId: new Uuid(id) },
       req,
@@ -1370,6 +1478,28 @@ export class HrCoreController {
     return this.executeCommand(command);
   }
 
+  @Post('job-assignments/:id/commands/update')
+  async updateJobAssignment(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateJobAssignmentDtoSchema)) dto: dtos.UpdateJobAssignmentDto,
+    @Req() req: Request,
+  ) {
+    const assignment = await this.jobAssignmentRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!assignment) throw new BadRequestException('Job assignment not found');
+    const command = this.buildCommand(
+      'UpdateJobAssignment',
+      'JobAssignment',
+      { assignmentId: new Uuid(id), ...dto },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: assignment.state,
+        expectedVersion: assignment.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
   @Get('job-assignments/worker/:workerId')
   async getJobAssignments(@Param('workerId') workerId: string, @Req() req: Request) {
     const tenantId = this.getTenantId(req);
@@ -1399,6 +1529,64 @@ export class HrCoreController {
       'SignEmploymentContract',
       'EmploymentContract',
       { contractId: new Uuid(id), signedAt: new Date() },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: contract.state,
+        expectedVersion: contract.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-contracts/:id/commands/activate')
+  async activateEmploymentContract(@Param('id') id: string, @Req() req: Request) {
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!contract) throw new BadRequestException('Contract not found');
+    const command = this.buildCommand(
+      'ActivateEmploymentContract',
+      'EmploymentContract',
+      { contractId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: contract.state,
+        expectedVersion: contract.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-contracts/:id/commands/terminate')
+  async terminateEmploymentContract(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(TerminateEmploymentContractDtoSchema)) dto: dtos.TerminateEmploymentContractDto,
+    @Req() req: Request,
+  ) {
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!contract) throw new BadRequestException('Contract not found');
+    const command = this.buildCommand(
+      'TerminateEmploymentContract',
+      'EmploymentContract',
+      { contractId: new Uuid(id), ...dto },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: contract.state,
+        expectedVersion: contract.aggregateVersion,
+      },
+    );
+    return this.executeCommand(command);
+  }
+
+  @Post('employment-contracts/:id/commands/expire')
+  async expireEmploymentContract(@Param('id') id: string, @Req() req: Request) {
+    const contract = await this.employmentContractRepo.findByIdForTenant(new Uuid(id), this.getTenantId(req));
+    if (!contract) throw new BadRequestException('Contract not found');
+    const command = this.buildCommand(
+      'ExpireEmploymentContract',
+      'EmploymentContract',
+      { contractId: new Uuid(id) },
       req,
       {
         aggregateId: new Uuid(id),
