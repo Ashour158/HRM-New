@@ -1,5 +1,6 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { GlobalHrModule } from '../global-hr/global-hr.module.js';
 import { PositionRepository } from '../position-control/repositories/position.repository.js';
 import { HeadcountRequestRepository } from '../position-control/repositories/headcount-request.repository.js';
 import { OrganizationController } from './api/organization.controller.js';
@@ -28,7 +29,7 @@ import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-wor
  * Owns LegalEntity, OrgUnit, and ManagerRelationship aggregates.
  */
 @Module({
-  imports: [HrCoreModule],
+  imports: [HrCoreModule, GlobalHrModule],
   controllers: [OrganizationController],
   providers: [
     LegalEntityRepository,

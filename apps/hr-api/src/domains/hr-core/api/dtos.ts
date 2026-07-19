@@ -230,6 +230,14 @@ export class CreateEmploymentRelationshipDto {
   @ApiPropertyOptional() probationEndDate?: Date;
 }
 
+export const StartProbationEmploymentRelationshipDtoSchema = z.object({
+  probationEndDate: z.coerce.date(),
+});
+
+export class StartProbationEmploymentRelationshipDto {
+  @ApiProperty() probationEndDate!: Date;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Employment Contract DTOs                                           */
 /* ------------------------------------------------------------------ */
@@ -250,6 +258,34 @@ export class CreateEmploymentContractDto {
   @ApiProperty() startDate!: Date;
   @ApiPropertyOptional() endDate?: Date;
   @ApiPropertyOptional() terms?: Record<string, unknown>;
+}
+
+export const TerminateEmploymentContractDtoSchema = z.object({
+  terminationDate: z.coerce.date(),
+  reason: z.string().min(1),
+});
+
+export class TerminateEmploymentContractDto {
+  @ApiProperty() terminationDate!: Date;
+  @ApiProperty() reason!: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Job Assignment update DTO                                         */
+/* ------------------------------------------------------------------ */
+
+export const UpdateJobAssignmentDtoSchema = z.object({
+  jobTitle: z.string().min(1).optional(),
+  departmentId: z.string().uuid().optional(),
+  managerId: z.string().uuid().optional(),
+  positionId: z.string().uuid().optional(),
+});
+
+export class UpdateJobAssignmentDto {
+  @ApiPropertyOptional() jobTitle?: string;
+  @ApiPropertyOptional() departmentId?: string;
+  @ApiPropertyOptional() managerId?: string;
+  @ApiPropertyOptional() positionId?: string;
 }
 
 /* ------------------------------------------------------------------ */

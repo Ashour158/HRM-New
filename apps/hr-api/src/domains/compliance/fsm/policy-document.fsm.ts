@@ -15,14 +15,14 @@ export class PolicyDocumentFsmRegistrar implements OnModuleInit {
       aggregateType: 'PolicyDocument',
       states: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'PUBLISHED', 'ARCHIVED', 'REJECTED'],
       actions: [
-        'SubmitForApproval',
+        'SubmitPolicyDocumentForApproval',
         'ApprovePolicyDocument',
         'RejectPolicyDocument',
         'PublishPolicyDocument',
         'ArchivePolicyDocument',
       ],
       transitions: [
-        { action: 'SubmitForApproval', from: 'DRAFT', to: 'PENDING_APPROVAL', eventName: 'PolicyDocumentSubmitted' },
+        { action: 'SubmitPolicyDocumentForApproval', from: 'DRAFT', to: 'PENDING_APPROVAL', eventName: 'PolicyDocumentSubmitted' },
         { action: 'ApprovePolicyDocument', from: 'PENDING_APPROVAL', to: 'APPROVED', eventName: 'PolicyDocumentApproved' },
         { action: 'RejectPolicyDocument', from: 'PENDING_APPROVAL', to: 'REJECTED', eventName: 'PolicyDocumentRejected' },
         { action: 'PublishPolicyDocument', from: 'APPROVED', to: 'PUBLISHED', eventName: 'PolicyDocumentPublished' },

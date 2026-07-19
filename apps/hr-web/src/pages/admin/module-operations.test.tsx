@@ -169,6 +169,16 @@ describe('AdminModuleOperations benefits actions', () => {
     ));
   });
 
+  it('renders the workspace summary stats through the shared StatTile component', async () => {
+    renderOperations([enrollmentRecord]);
+
+    await waitFor(() => expect(screen.getByText('Live Records').closest('div')).toHaveTextContent('1'));
+    expect(screen.getByText('Live Workflows').closest('div')).toHaveTextContent('0');
+    expect(screen.getByText('Blocked Items').closest('div')).toHaveTextContent('0');
+    expect(screen.getByText('Event Hooks').closest('div')).toHaveTextContent('4');
+    expect(screen.getByText('Persisted operational records in this workspace')).toBeInTheDocument();
+  });
+
   it('keeps raw record and native identifiers in advanced diagnostics instead of the default records view', async () => {
     renderOperations([enrollmentRecord]);
     await openRecordsTab();

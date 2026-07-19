@@ -64,6 +64,12 @@ export const resources = {
           invalidTenant: 'Choose a valid organization',
         },
       },
+      sso: {
+        completingSignIn: 'Completing sign-in...',
+        callbackMissingToken: 'Single Sign-On did not return a valid session. Please try again.',
+        callbackFailed: 'We could not complete your Single Sign-On session. Please try again.',
+        backToLogin: 'Back to sign in',
+      },
       home: {
         title: 'For You',
         subtitle: 'Your approvals, reminders, notifications, and work that needs attention.',
@@ -459,6 +465,11 @@ export const resources = {
             condition: 'Condition',
             outcome: 'Outcome',
             value: 'Value',
+            category: 'Ledger category',
+            retroBehavior: 'Retroactive handling',
+            leavePolicyCode: 'Leave policy code',
+            unsupportedRuleBuilderTitle: 'Generic rule builder is not available for this area',
+            unsupportedRuleBuilderMessage: 'This policy area uses a fixed set of named parameters instead of a rule list, so it cannot be configured from the generic rule builder. Choose a template above, or use the dedicated screen for this area.',
           },
         },
         sod: {
@@ -581,6 +592,12 @@ export const resources = {
           passwordRequired: 'كلمة المرور مطلوبة',
           invalidTenant: 'اختر مؤسسة صحيحة',
         },
+      },
+      sso: {
+        completingSignIn: 'جارٍ إتمام تسجيل الدخول...',
+        callbackMissingToken: 'لم يُرجع تسجيل الدخول الموحد جلسة صالحة. حاول مرة أخرى.',
+        callbackFailed: 'تعذر إتمام جلسة تسجيل الدخول الموحد. حاول مرة أخرى.',
+        backToLogin: 'العودة إلى تسجيل الدخول',
       },
       home: {
         title: 'مخصص لك',
@@ -977,6 +994,11 @@ export const resources = {
             condition: 'الشرط',
             outcome: 'الناتج',
             value: 'القيمة',
+            category: 'فئة دفتر القواعد',
+            retroBehavior: 'معالجة الأثر الرجعي',
+            leavePolicyCode: 'رمز سياسة الإجازة',
+            unsupportedRuleBuilderTitle: 'منشئ القواعد العام غير متاح لهذا المجال',
+            unsupportedRuleBuilderMessage: 'يستخدم مجال السياسة هذا مجموعة ثابتة من المعاملات المسماة بدلاً من قائمة قواعد، لذا لا يمكن إعداده من منشئ القواعد العام. اختر قالباً أعلاه، أو استخدم الشاشة المخصصة لهذا المجال.',
           },
         },
         sod: {

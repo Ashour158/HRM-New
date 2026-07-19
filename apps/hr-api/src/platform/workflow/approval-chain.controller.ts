@@ -10,7 +10,7 @@ import { Permissions } from '../../decorators/permissions.decorator.js';
 import { actorClientType, requireActor, requireTenantId } from '../http/request-context.js';
 import { CommandBus } from '../command-bus/command-bus.js';
 import { HcmSetupService } from '../../domains/hcm-setup/hcm-setup.service.js';
-import type { ApprovalWorkflowRule } from '../../domains/hcm-setup/hcm-setup.types.js';
+import { APPROVAL_CONDITION_OPERATORS, type ApprovalWorkflowRule } from '../../domains/hcm-setup/hcm-setup.types.js';
 import { ApprovalWorkflowService } from './approval-workflow.service.js';
 import { ApprovalChain } from './approval-chain.aggregate.js';
 
@@ -137,9 +137,12 @@ export class ApprovalChainController {
       if (!rule.code || !rule.label || !rule.commandName || !Array.isArray(rule.steps) || rule.steps.length === 0) {
         throw new BadRequestException('Approval workflow rules require code, label, commandName, and at least one step');
       }
+      const conditions = this.normalizeConditions(rule.conditions);
       return {
         ...rule,
         active: rule.active !== false,
+        conditions,
+        conditionLogic: this.normalizeConditionLogic(rule.conditionLogic, conditions.length),
         steps: rule.steps
           .slice()
           .sort((left, right) => left.order - right.order)
@@ -150,6 +153,34 @@ export class ApprovalChainController {
             approverType: step.approverType ?? 'ROLE',
           })),
       };
+    });
+  }
+
+  private normalizeConditionLogic(
+    conditionLogic: ApprovalWorkflowRule['conditionLogic'],
+    conditionCount: number,
+  ): ApprovalWorkflowRule['conditionLogic'] {
+    if (conditionCount === 0) return undefined;
+    if (conditionLogic === undefined) return 'ALL';
+    if (conditionLogic !== 'ALL' && conditionLogic !== 'ANY') {
+      throw new BadRequestException(`Approval routing conditionLogic "${conditionLogic}" is not supported`);
+    }
+    return conditionLogic;
+  }
+
+  private normalizeConditions(conditions: ApprovalWorkflowRule['conditions']): NonNullable<ApprovalWorkflowRule['conditions']> {
+    if (!Array.isArray(conditions) || conditions.length === 0) return [];
+    return conditions.map((condition) => {
+      if (!condition.field || typeof condition.field !== 'string' || !condition.field.trim()) {
+        throw new BadRequestException('Approval routing conditions require a field path');
+      }
+      if (!APPROVAL_CONDITION_OPERATORS.includes(condition.operator)) {
+        throw new BadRequestException(`Approval routing condition operator "${condition.operator}" is not supported`);
+      }
+      if (condition.value === undefined) {
+        throw new BadRequestException('Approval routing conditions require a comparison value');
+      }
+      return { field: condition.field.trim(), operator: condition.operator, value: condition.value };
     });
   }
 }

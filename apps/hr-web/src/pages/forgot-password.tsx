@@ -1,13 +1,14 @@
 import * as React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { z } from 'zod';
-import { ArrowLeft, KeyRound, Loader2 } from 'lucide-react';
+import { ArrowLeft, KeyRound } from 'lucide-react';
 import { confirmPasswordReset, requestPasswordReset } from '@/lib/api-client';
 import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/loading-state';
 
 const requestSchema = z.object({
   tenantId: z.string().uuid('Choose a valid organization'),
@@ -133,7 +134,7 @@ export function ForgotPasswordPage() {
               </div>
               <Field label="Work email" type="email" value={requestForm.email} error={requestErrors.email} onChange={(email) => setRequestForm({ ...requestForm, email })} />
               <Button type="submit" className="h-11 w-full gap-2" disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {submitting ? <Spinner /> : <KeyRound className="h-4 w-4" />}
                 Send reset message
               </Button>
             </form>
@@ -142,7 +143,7 @@ export function ForgotPasswordPage() {
               <Field label="Reset token" value={confirmForm.token} error={confirmErrors.token} onChange={(token) => setConfirmForm({ ...confirmForm, token })} />
               <Field label="New password" type="password" value={confirmForm.password} error={confirmErrors.password} onChange={(password) => setConfirmForm({ ...confirmForm, password })} />
               <Button type="submit" className="h-11 w-full gap-2" disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
+                {submitting ? <Spinner /> : <KeyRound className="h-4 w-4" />}
                 Set new password
               </Button>
             </form>

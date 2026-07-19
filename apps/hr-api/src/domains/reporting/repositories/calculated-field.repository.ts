@@ -40,6 +40,17 @@ export class CalculatedFieldRepository {
     return rows.map((r: any) => this.toAggregate(r));
   }
 
+  async findActiveByDataSourceForTenant(dataSource: string, tenantId: Uuid): Promise<CalculatedField[]> {
+    const rows = await this.db
+      .selectFrom('hr_reporting.calculated_fields')
+      .selectAll()
+      .where('status', '=', 'ACTIVE')
+      .where('data_source', '=', dataSource)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
   async save(entity: CalculatedField): Promise<void> {
     const existing = await this.db
       .selectFrom('hr_reporting.calculated_fields')
@@ -53,6 +64,7 @@ export class CalculatedFieldRepository {
       field_name: entity.fieldName,
       expression: entity.expression,
       data_type: entity.dataType,
+      data_source: entity.dataSource,
       source_fields: JSON.stringify(entity.sourceFields ?? []),
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
@@ -77,6 +89,7 @@ export class CalculatedFieldRepository {
       fieldName: row.field_name as string,
       expression: row.expression as string,
       dataType: row.data_type as string,
+      dataSource: (row.data_source as string) ?? '',
       sourceFields: (row.source_fields as string[]) ?? [],
       status: row.status as CalculatedField['status'],
       aggregateVersion: (row.aggregate_version as number) ?? 0,
