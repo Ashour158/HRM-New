@@ -17,6 +17,7 @@ export function resolvePortalSearchPath(portalType: PortalSearchContext, query: 
     if (value.includes('profile') || value.includes('document')) return '/employee/profile';
     if (value.includes('onboard')) return '/employee/onboarding';
     if (value.includes('offboard') || value.includes('exit') || value.includes('resign')) return '/employee/offboarding';
+    if (value.includes('attendance') || value.includes('check in') || value.includes('check-in') || value.includes('clock') || value.includes('shift')) return '/employee/attendance';
     return '/employee/services';
   }
   if (portalType === 'recruiter') {

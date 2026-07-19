@@ -440,6 +440,24 @@ export const EndJobAssignmentPayloadSchema = z.object({
   reason: z.string().min(1),
 });
 
+export const UpdateJobAssignmentCommandName = 'UpdateJobAssignment' as const;
+
+export interface UpdateJobAssignmentPayload {
+  assignmentId: Uuid;
+  jobTitle?: string;
+  departmentId?: Uuid | string;
+  managerId?: Uuid | string;
+  positionId?: Uuid | string;
+}
+
+export const UpdateJobAssignmentPayloadSchema = z.object({
+  assignmentId: z.string().uuid(),
+  jobTitle: z.string().min(1).optional(),
+  departmentId: z.string().uuid().optional(),
+  managerId: z.string().uuid().optional(),
+  positionId: z.string().uuid().optional(),
+});
+
 /* ------------------------------------------------------------------ */
 /*  Employment relationship commands                                   */
 /* ------------------------------------------------------------------ */
@@ -538,4 +556,24 @@ export const TerminateEmploymentContractPayloadSchema = z.object({
   contractId: z.string().uuid(),
   terminationDate: z.coerce.date(),
   reason: z.string().min(1),
+});
+
+export const ActivateEmploymentContractCommandName = 'ActivateEmploymentContract' as const;
+
+export interface ActivateEmploymentContractPayload {
+  contractId: Uuid;
+}
+
+export const ActivateEmploymentContractPayloadSchema = z.object({
+  contractId: z.string().uuid(),
+});
+
+export const ExpireEmploymentContractCommandName = 'ExpireEmploymentContract' as const;
+
+export interface ExpireEmploymentContractPayload {
+  contractId: Uuid;
+}
+
+export const ExpireEmploymentContractPayloadSchema = z.object({
+  contractId: z.string().uuid(),
 });

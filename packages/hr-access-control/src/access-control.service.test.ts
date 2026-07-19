@@ -148,6 +148,34 @@ describe('AccessControlService time and attendance self-service commands', () =>
     expect(decision.allowed).toBe(true);
   });
 
+  it('allows employees to submit their self-review and managers to submit the manager review (HCM-P0-10)', () => {
+    const selfReviewDecision = service.evaluateCommandAccess({
+      commandName: 'SubmitSelfReview',
+      commandType: 'UPDATE',
+      aggregateType: 'PerformanceReview',
+      payload: {},
+    }, {
+      actorType: 'EMPLOYEE',
+      roles: ['EMPLOYEE'],
+      employmentStatus: 'ACTIVE',
+    });
+
+    expect(selfReviewDecision.allowed, selfReviewDecision.reason).toBe(true);
+
+    const managerReviewDecision = service.evaluateCommandAccess({
+      commandName: 'SubmitManagerReview',
+      commandType: 'UPDATE',
+      aggregateType: 'PerformanceReview',
+      payload: {},
+    }, {
+      actorType: 'MANAGER',
+      roles: ['MANAGER'],
+      employmentStatus: 'ACTIVE',
+    });
+
+    expect(managerReviewDecision.allowed, managerReviewDecision.reason).toBe(true);
+  });
+
   it('allows employees and managers to start and complete learning assignments through self service (HCM-P0-11)', () => {
     for (const commandName of ['StartLearningAssignment', 'CompleteLearningAssignment']) {
       const employeeDecision = service.evaluateCommandAccess({

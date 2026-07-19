@@ -46,13 +46,13 @@ spec:
                 # "admin" key, so this sources SYSTEM_DATABASE_URL (hcm_system) as the
                 # closest existing role — it was previously pointed at a secret/key that
                 # didn't exist at all (hcm-secrets/ADMIN_DATABASE_URL), which is the bug
-                # this fixes. KNOWN GAP: per infra/rls/provision-app-role.sql, hcm_system
-                # is granted LOGIN BYPASSRLS but NOT CREATEDB, so CREATE DATABASE/DROP
-                # DATABASE below will still fail with permission denied until hcm_system
-                # (or a dedicated least-privilege drill role) is granted CREATEDB. That is
-                # an RLS-role-model change, intentionally left to whoever owns
-                # infra/rls/provision-app-role.sql / docs/RLS-ROLLOUT-PLAN.md rather than
-                # bundled into this infra-scaffolding change.
+                # this fixes. hcm_system is now also granted CREATEDB (see
+                # infra/rls/provision-app-role.sql), so the CREATE DATABASE/DROP DATABASE
+                # calls below can succeed once that grant is (re-)applied against the
+                # target database. NOTE: this closes the permission gap that previously
+                # blocked this CronJob from ever running successfully, but the in-cluster
+                # CronJob itself still needs a real, observed drill run to be considered
+                # proven — see docs/disaster-recovery.md and docs/GO-LIVE-RUNBOOK.md.
                 - name: ADMIN_DATABASE_URL
                   valueFrom: { secretKeyRef: { name: hcm-platform-secrets, key: SYSTEM_DATABASE_URL } }
               resources:

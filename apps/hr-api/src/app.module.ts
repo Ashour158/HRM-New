@@ -53,6 +53,7 @@ import { AdminReadinessController } from './admin-readiness.controller.js';
 import { AdminReadinessService } from './admin-readiness.service.js';
 import { AuditController } from './audit.controller.js';
 import { ManagerTeamController } from './manager-team.controller.js';
+import { ReportLibraryController } from './domains/reporting/report-library/report-library.controller.js';
 import { AuthGuard } from './guards/auth.guard.js';
 import { RolesGuard } from './guards/roles.guard.js';
 import { PermissionGuard } from './guards/permission.guard.js';
@@ -76,7 +77,7 @@ import { DomainExceptionFilter } from './filters/domain-exception.filter.js';
       return path.includes('/observability') || path.endsWith('/health') || path.endsWith('/metrics');
     },
   }), ObservabilityModule, AuthModule, PlatformModule, HrCoreModule, RecruitingModule, OnboardingModule, OffboardingModule, CompensationModule, BenefitsModule, ComplianceModule, GlobalHrModule, CountryPolicyModule, TimeAttendanceModule, AbsenceLeaveModule, PayrollModule, PerformanceModule, LearningModule, SkillsTalentModule, EngagementModule, WorkforceManagementModule, EmployeeRelationsModule, HrServiceDeliveryModule, ContingentWorkforceModule, WellbeingEapModule, UnionLaborModule, ReportingModule, DeiAnalyticsModule, HrAiGovernanceModule, IntelligenceModule, IntegrationsModule, OrganizationModule, PositionControlModule, HcmSetupModule, AdminModuleOperationsModule, AccessGovernanceModule, PolicyCenterModule, SchedulerModule, SavedViewsModule],
-  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController],
+  controllers: [AppController, PolicyActionsController, EmployeeSelfServiceController, AdminDashboardController, AdminReadinessController, AuditController, ManagerTeamController, ReportLibraryController],
   providers: [
     AppService,
     AdminReadinessService,
