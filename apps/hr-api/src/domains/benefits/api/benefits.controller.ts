@@ -43,6 +43,7 @@ import {
   DetectCarrierReconciliationVarianceDto,
   ReconcileCarrierReconciliationRunDto,
   FailCarrierReconciliationRunDto,
+  ZodValidationPipe,
 } from './dtos.js';
 
 const BENEFITS_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN', 'HRBP', 'BENEFITS_ADMIN']);
@@ -103,7 +104,7 @@ export class BenefitsController {
   /* ---------------------------------------------------------------- */
 
   @Post('programs')
-  async createProgram(@Body() dto: CreateBenefitsProgramDto, @Req() req: Request) {
+  async createProgram(@Body(new ZodValidationPipe(CreateBenefitsProgramDto.zodSchema)) dto: CreateBenefitsProgramDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateBenefitsProgram', 'BenefitsProgram', undefined, {
       programId: new Uuid(dto.programId),
       programName: dto.programName,
@@ -134,7 +135,7 @@ export class BenefitsController {
   }
 
   @Post('programs/:id/commands/activate')
-  async activateProgram(@Param('id') id: string, @Body() _dto: ActivateBenefitsProgramDto = {}, @Req() req: Request) {
+  async activateProgram(@Param('id') id: string, @Body(new ZodValidationPipe(ActivateBenefitsProgramDto.zodSchema)) _dto: ActivateBenefitsProgramDto = {}, @Req() req: Request) {
     await this.getProgramForCommand(id);
     const command = this.buildCommand(req, 'ActivateBenefitsProgram', 'BenefitsProgram', id, {
       benefitsProgramId: new Uuid(id),
@@ -143,7 +144,7 @@ export class BenefitsController {
   }
 
   @Post('programs/:id/commands/suspend')
-  async suspendProgram(@Param('id') id: string, @Body() dto: SuspendBenefitsProgramDto = {}, @Req() req: Request) {
+  async suspendProgram(@Param('id') id: string, @Body(new ZodValidationPipe(SuspendBenefitsProgramDto.zodSchema)) dto: SuspendBenefitsProgramDto = {}, @Req() req: Request) {
     await this.getProgramForCommand(id);
     const command = this.buildCommand(req, 'SuspendBenefitsProgram', 'BenefitsProgram', id, {
       benefitsProgramId: new Uuid(id),
@@ -153,7 +154,7 @@ export class BenefitsController {
   }
 
   @Post('programs/:id/commands/close')
-  async closeProgram(@Param('id') id: string, @Body() dto: CloseBenefitsProgramDto = {}, @Req() req: Request) {
+  async closeProgram(@Param('id') id: string, @Body(new ZodValidationPipe(CloseBenefitsProgramDto.zodSchema)) dto: CloseBenefitsProgramDto = {}, @Req() req: Request) {
     await this.getProgramForCommand(id);
     const command = this.buildCommand(req, 'CloseBenefitsProgram', 'BenefitsProgram', id, {
       benefitsProgramId: new Uuid(id),
@@ -167,7 +168,7 @@ export class BenefitsController {
   /* ---------------------------------------------------------------- */
 
   @Post('enrollments')
-  async createEnrollment(@Body() dto: CreateBenefitsEnrollmentDto, @Req() req: Request) {
+  async createEnrollment(@Body(new ZodValidationPipe(CreateBenefitsEnrollmentDto.zodSchema)) dto: CreateBenefitsEnrollmentDto, @Req() req: Request) {
     const workerId = new Uuid(dto.workerId);
     const command = this.buildCommand(req, 'CreateBenefitsEnrollment', 'BenefitsEnrollment', undefined, {
       enrollmentId: new Uuid(dto.enrollmentId),
@@ -183,7 +184,7 @@ export class BenefitsController {
   }
 
   @Post('enrollments/:id/commands/approve')
-  async approveEnrollment(@Param('id') id: string, @Body() dto: ApproveBenefitsEnrollmentDto = {}, @Req() req: Request) {
+  async approveEnrollment(@Param('id') id: string, @Body(new ZodValidationPipe(ApproveBenefitsEnrollmentDto.zodSchema)) dto: ApproveBenefitsEnrollmentDto = {}, @Req() req: Request) {
     const enrollment = await this.getEnrollmentForCommand(id);
     const approvedBy = dto.approvedBy ? new Uuid(dto.approvedBy) : this.actorId(req);
     const command = this.buildCommand(req, 'ApproveBenefitsEnrollment', 'BenefitsEnrollment', id, {
@@ -196,7 +197,7 @@ export class BenefitsController {
   }
 
   @Post('enrollments/:id/commands/reject')
-  async rejectEnrollment(@Param('id') id: string, @Body() dto: RejectBenefitsEnrollmentDto = {}, @Req() req: Request) {
+  async rejectEnrollment(@Param('id') id: string, @Body(new ZodValidationPipe(RejectBenefitsEnrollmentDto.zodSchema)) dto: RejectBenefitsEnrollmentDto = {}, @Req() req: Request) {
     const enrollment = await this.getEnrollmentForCommand(id);
     const command = this.buildCommand(req, 'RejectBenefitsEnrollment', 'BenefitsEnrollment', id, {
       enrollmentId: new Uuid(id),
@@ -220,7 +221,7 @@ export class BenefitsController {
   }
 
   @Post('enrollments/:id/commands/terminate')
-  async terminateEnrollment(@Param('id') id: string, @Body() dto: TerminateBenefitsEnrollmentDto = {}, @Req() req: Request) {
+  async terminateEnrollment(@Param('id') id: string, @Body(new ZodValidationPipe(TerminateBenefitsEnrollmentDto.zodSchema)) dto: TerminateBenefitsEnrollmentDto = {}, @Req() req: Request) {
     const enrollment = await this.getEnrollmentForCommand(id);
     const command = this.buildCommand(req, 'TerminateBenefitsEnrollment', 'BenefitsEnrollment', id, {
       enrollmentId: new Uuid(id),
@@ -264,7 +265,7 @@ export class BenefitsController {
   /* ---------------------------------------------------------------- */
 
   @Post('life-events')
-  async createLifeEvent(@Body() dto: CreateBenefitsLifeEventDto, @Req() req: Request) {
+  async createLifeEvent(@Body(new ZodValidationPipe(CreateBenefitsLifeEventDto.zodSchema)) dto: CreateBenefitsLifeEventDto, @Req() req: Request) {
     const workerId = new Uuid(dto.workerId);
     const command = this.buildCommand(req, 'CreateBenefitsLifeEvent', 'BenefitsLifeEvent', undefined, {
       lifeEventId: new Uuid(dto.lifeEventId),
@@ -279,7 +280,7 @@ export class BenefitsController {
   }
 
   @Post('life-events/:id/commands/process')
-  async processLifeEvent(@Param('id') id: string, @Body() dto: ProcessBenefitsLifeEventDto = {}, @Req() req: Request) {
+  async processLifeEvent(@Param('id') id: string, @Body(new ZodValidationPipe(ProcessBenefitsLifeEventDto.zodSchema)) dto: ProcessBenefitsLifeEventDto = {}, @Req() req: Request) {
     const event = await this.getLifeEventForCommand(id);
     const command = this.buildCommand(req, 'ProcessBenefitsLifeEvent', 'BenefitsLifeEvent', id, {
       lifeEventId: new Uuid(id),
@@ -291,7 +292,7 @@ export class BenefitsController {
   }
 
   @Post('life-events/:id/commands/reject')
-  async rejectLifeEvent(@Param('id') id: string, @Body() dto: RejectBenefitsLifeEventDto = {}, @Req() req: Request) {
+  async rejectLifeEvent(@Param('id') id: string, @Body(new ZodValidationPipe(RejectBenefitsLifeEventDto.zodSchema)) dto: RejectBenefitsLifeEventDto = {}, @Req() req: Request) {
     const event = await this.getLifeEventForCommand(id);
     const command = this.buildCommand(req, 'RejectBenefitsLifeEvent', 'BenefitsLifeEvent', id, {
       lifeEventId: new Uuid(id),
@@ -321,7 +322,7 @@ export class BenefitsController {
   /* ---------------------------------------------------------------- */
 
   @Post('spending-accounts')
-  async createSpendingAccount(@Body() dto: CreateSpendingAccountDto, @Req() req: Request) {
+  async createSpendingAccount(@Body(new ZodValidationPipe(CreateSpendingAccountDto.zodSchema)) dto: CreateSpendingAccountDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateSpendingAccount', 'SpendingAccount', undefined, {
       accountId: new Uuid(dto.accountId),
       workerId: new Uuid(dto.workerId),
@@ -339,7 +340,7 @@ export class BenefitsController {
   }
 
   @Post('spending-accounts/:id/commands/record-usage')
-  async recordSpendingAccountUsage(@Param('id') id: string, @Body() dto: RecordSpendingAccountUsageDto, @Req() req: Request) {
+  async recordSpendingAccountUsage(@Param('id') id: string, @Body(new ZodValidationPipe(RecordSpendingAccountUsageDto.zodSchema)) dto: RecordSpendingAccountUsageDto, @Req() req: Request) {
     const account = await this.getSpendingAccountForCommand(id);
     const command = this.buildCommand(req, 'RecordSpendingAccountUsage', 'SpendingAccount', id, {
       accountId: new Uuid(id),
@@ -351,7 +352,7 @@ export class BenefitsController {
   }
 
   @Post('spending-accounts/:id/commands/close')
-  async closeSpendingAccount(@Param('id') id: string, @Body() _dto: CloseSpendingAccountDto = {}, @Req() req: Request) {
+  async closeSpendingAccount(@Param('id') id: string, @Body(new ZodValidationPipe(CloseSpendingAccountDto.zodSchema)) _dto: CloseSpendingAccountDto = {}, @Req() req: Request) {
     const account = await this.getSpendingAccountForCommand(id);
     const command = this.buildCommand(req, 'CloseSpendingAccount', 'SpendingAccount', id, {
       accountId: new Uuid(id),
@@ -366,7 +367,7 @@ export class BenefitsController {
   /* ---------------------------------------------------------------- */
 
   @Post('carrier-reconciliation-runs')
-  async createCarrierReconciliationRun(@Body() dto: CreateCarrierReconciliationRunDto, @Req() req: Request) {
+  async createCarrierReconciliationRun(@Body(new ZodValidationPipe(CreateCarrierReconciliationRunDto.zodSchema)) dto: CreateCarrierReconciliationRunDto, @Req() req: Request) {
     const command = this.buildCommand(req, 'CreateCarrierReconciliationRun', 'CarrierReconciliationRun', undefined, {
       runId: new Uuid(dto.runId),
       carrierId: new Uuid(dto.carrierId),
@@ -387,7 +388,7 @@ export class BenefitsController {
   }
 
   @Post('carrier-reconciliation-runs/:id/commands/detect-variance')
-  async detectReconciliationVariance(@Param('id') id: string, @Body() dto: DetectCarrierReconciliationVarianceDto, @Req() req: Request) {
+  async detectReconciliationVariance(@Param('id') id: string, @Body(new ZodValidationPipe(DetectCarrierReconciliationVarianceDto.zodSchema)) dto: DetectCarrierReconciliationVarianceDto, @Req() req: Request) {
     await this.getReconciliationRunForCommand(id);
     const command = this.buildCommand(req, 'DetectCarrierReconciliationVariance', 'CarrierReconciliationRun', id, {
       runId: new Uuid(id),
@@ -397,7 +398,7 @@ export class BenefitsController {
   }
 
   @Post('carrier-reconciliation-runs/:id/commands/reconcile')
-  async reconcileReconciliationRun(@Param('id') id: string, @Body() _dto: ReconcileCarrierReconciliationRunDto = {}, @Req() req: Request) {
+  async reconcileReconciliationRun(@Param('id') id: string, @Body(new ZodValidationPipe(ReconcileCarrierReconciliationRunDto.zodSchema)) _dto: ReconcileCarrierReconciliationRunDto = {}, @Req() req: Request) {
     await this.getReconciliationRunForCommand(id);
     const command = this.buildCommand(req, 'ReconcileCarrierReconciliationRun', 'CarrierReconciliationRun', id, {
       runId: new Uuid(id),
@@ -406,7 +407,7 @@ export class BenefitsController {
   }
 
   @Post('carrier-reconciliation-runs/:id/commands/fail')
-  async failReconciliationRun(@Param('id') id: string, @Body() dto: FailCarrierReconciliationRunDto = {}, @Req() req: Request) {
+  async failReconciliationRun(@Param('id') id: string, @Body(new ZodValidationPipe(FailCarrierReconciliationRunDto.zodSchema)) dto: FailCarrierReconciliationRunDto = {}, @Req() req: Request) {
     await this.getReconciliationRunForCommand(id);
     const command = this.buildCommand(req, 'FailCarrierReconciliationRun', 'CarrierReconciliationRun', id, {
       runId: new Uuid(id),

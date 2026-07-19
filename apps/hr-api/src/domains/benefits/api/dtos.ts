@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { z } from 'zod';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
 /* ------------------------------------------------------------------ */
 /*  BenefitsProgram DTOs                                               */
@@ -226,4 +227,14 @@ export class FailCarrierReconciliationRunDto {
   });
 
   @ApiPropertyOptional() reason?: string;
+}
+
+@Injectable()
+export class ZodValidationPipe implements PipeTransform {
+  constructor(private schema: z.ZodTypeAny) {}
+  transform(value: unknown): unknown {
+    const result = this.schema.safeParse(value);
+    if (!result.success) throw new BadRequestException(result.error.format());
+    return result.data;
+  }
 }
