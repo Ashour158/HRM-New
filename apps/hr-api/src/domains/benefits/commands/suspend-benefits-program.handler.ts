@@ -29,8 +29,12 @@ export class SuspendBenefitsProgramHandler implements ICommandHandler {
       throw new NotFoundException('BenefitsProgram not found');
     }
 
-    program.suspend(command.correlationId);
-    await this.repo.save(program);
+    // Idempotent replay: a command retry (network blip, redelivery) must
+    // succeed rather than throw once the program is already SUSPENDED.
+    if (program.status !== 'SUSPENDED') {
+      program.suspend(command.correlationId);
+      await this.repo.save(program);
+    }
     const eventsEmitted = program.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(program, command);
 

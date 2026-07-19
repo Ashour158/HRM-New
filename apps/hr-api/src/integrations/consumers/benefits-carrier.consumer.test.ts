@@ -328,6 +328,24 @@ describe('BenefitsCarrierConsumer', () => {
       }));
     });
 
+    it('rejects the whole handler when a per-enrollment termination fails, so the inbox retries the BenefitsProgramClosed event instead of silently dropping it', async () => {
+      const { commandBus, enrollmentRepo, handle } = buildConsumer();
+      const okEnrollment = { id: new Uuid(enrollmentId), workerId: new Uuid(workerId), status: 'EFFECTIVE' };
+      const failingEnrollmentId = '00000000-0000-0000-0000-000000000104';
+      const failingEnrollment = { id: new Uuid(failingEnrollmentId), workerId: new Uuid(workerId), status: 'APPROVED' };
+      enrollmentRepo.findByProgram.mockResolvedValue([okEnrollment, failingEnrollment]);
+      commandBus.execute
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: false, errorMessage: 'optimistic concurrency conflict' });
+
+      await expect(handle(event(BENEFITS_PROGRAM_CLOSED, { programId }))).rejects.toThrow(
+        /Failed to terminate 1 of 2 enrollment\(s\) for closed BenefitsProgram/,
+      );
+
+      // Both terminations were attempted; the failure doesn't short-circuit the loop.
+      expect(commandBus.execute).toHaveBeenCalledTimes(2);
+    });
+
     it('routes CarrierReconciliationVarianceDetected to the reminder/escalation mechanism', async () => {
       const { reminderEmitter, handle } = buildConsumer();
 

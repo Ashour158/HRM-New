@@ -33,7 +33,7 @@ export class CreateBenefitsProgramHandler implements ICommandHandler {
       carrierId?: Uuid;
       effectiveFrom?: Date;
       effectiveUntil?: Date;
-      monthlyPremium?: number;
+      monthlyPremium: number;
       currency?: string;
     };
 
@@ -45,7 +45,7 @@ export class CreateBenefitsProgramHandler implements ICommandHandler {
       carrierId: payload.carrierId,
       effectiveFrom: payload.effectiveFrom,
       effectiveUntil: payload.effectiveUntil,
-      monthlyPremium: payload.monthlyPremium ?? 0,
+      monthlyPremium: payload.monthlyPremium,
       currency: payload.currency ?? resolveTenantCurrency(await this.hcmSetupService.getSetup(command.tenantId)),
       correlationId: command.correlationId,
     });

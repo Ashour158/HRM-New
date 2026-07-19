@@ -1,3 +1,6 @@
+/**
+ * @hrDataClassification HIGH_SENSITIVITY - benefits program premium and currency fields.
+ */
 import { AggregateRoot, DomainEvent, Uuid, Guard } from '@hcm/shared-kernel';
 
 /**
@@ -16,8 +19,12 @@ export interface BenefitsProgramProps {
   carrierId?: Uuid;
   effectiveFrom?: Date;
   effectiveUntil?: Date;
-  /** Base monthly premium cost of this program, snapshotted onto enrollments at creation time. */
+  /**
+   * Base monthly premium cost of this program, snapshotted onto enrollments at creation time.
+   * @hrDataClassification HIGH_SENSITIVITY
+   */
   monthlyPremium: number;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   currency: string;
   status: BenefitsProgramStatus;
   aggregateVersion?: number;
@@ -74,7 +81,9 @@ export class BenefitsProgram extends AggregateRoot {
   carrierId?: Uuid;
   effectiveFrom?: Date;
   effectiveUntil?: Date;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   monthlyPremium: number;
+  /** @hrDataClassification HIGH_SENSITIVITY */
   currency: string;
   status: BenefitsProgramStatus;
   readonly createdAt: Date;

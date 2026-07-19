@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
@@ -25,10 +25,16 @@ export class FailCarrierReconciliationRunHandler implements ICommandHandler {
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as { runId: Uuid; reason?: string };
     const run = await this.repo.findById(payload.runId);
-    if (!run) throw new Error('CarrierReconciliationRun not found');
+    if (!run) {
+      throw new NotFoundException('CarrierReconciliationRun not found');
+    }
 
-    run.fail(command.correlationId);
-    await this.repo.save(run);
+    // Idempotent replay: a command retry (network blip, redelivery) must
+    // succeed rather than throw once the run is already FAILED.
+    if (run.status !== 'FAILED') {
+      run.fail(command.correlationId);
+      await this.repo.save(run);
+    }
     const eventsEmitted = run.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(run, command);
 

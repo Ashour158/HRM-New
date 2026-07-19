@@ -13,7 +13,10 @@ export class CreateBenefitsProgramDto {
     carrierId: z.string().uuid().optional(),
     effectiveFrom: z.coerce.date().optional(),
     effectiveUntil: z.coerce.date().optional(),
-    monthlyPremium: z.number().nonnegative().optional(),
+    // Required: monthlyPremium snapshots onto every enrollment's premiumAmount
+    // and flows directly into payroll's BENEFITS_DEDUCTION amount, so an
+    // omitted value must be rejected rather than silently defaulting to 0.
+    monthlyPremium: z.number().nonnegative(),
     currency: z.string().length(3).optional(),
   });
 
@@ -23,7 +26,7 @@ export class CreateBenefitsProgramDto {
   @ApiPropertyOptional() carrierId?: string;
   @ApiPropertyOptional() effectiveFrom?: Date;
   @ApiPropertyOptional() effectiveUntil?: Date;
-  @ApiPropertyOptional() monthlyPremium?: number;
+  @ApiProperty() monthlyPremium!: number;
   @ApiPropertyOptional() currency?: string;
 }
 

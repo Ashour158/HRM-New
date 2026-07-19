@@ -107,6 +107,26 @@ describe('CarrierReconciliationRun lifecycle command handlers', () => {
     expect(result.data).toEqual(expect.objectContaining({ runId: runId.value, varianceAmount: 2000 }));
   });
 
+  it('idempotently returns success (without re-detecting or saving) for a command retry against a run that already has VARIANCE_DETECTED', async () => {
+    const existing = run('VARIANCE_DETECTED');
+    existing.varianceAmount = 2000;
+    const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
+    const handler = new DetectCarrierReconciliationVarianceHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => ['Reconcile', 'Fail']) } as never,
+    );
+
+    const result = await handler.handle(command('DetectCarrierReconciliationVariance', { runId, varianceAmount: 2000 }, runId));
+
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      newState: 'VARIANCE_DETECTED',
+      eventsEmitted: [],
+    }));
+  });
+
   it('rejects detecting variance on a PENDING (not yet started) run', async () => {
     const existing = run('PENDING');
     const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
@@ -151,6 +171,25 @@ describe('CarrierReconciliationRun lifecycle command handlers', () => {
     expect(result.eventsEmitted).toEqual(['CarrierReconciliationCompleted']);
   });
 
+  it('idempotently returns success (without re-invoking reconcile or saving) for a command retry against an already-RECONCILED run', async () => {
+    const existing = run('RECONCILED');
+    const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
+    const handler = new ReconcileCarrierReconciliationRunHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    const result = await handler.handle(command('ReconcileCarrierReconciliationRun', { runId }, runId));
+
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      newState: 'RECONCILED',
+      eventsEmitted: [],
+    }));
+  });
+
   it('fails an IN_PROGRESS run', async () => {
     const existing = run('IN_PROGRESS');
     const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
@@ -168,6 +207,25 @@ describe('CarrierReconciliationRun lifecycle command handlers', () => {
       eventsEmitted: ['CarrierReconciliationFailed'],
     }));
     expect(result.data).toEqual(expect.objectContaining({ reason: 'carrier file unparseable' }));
+  });
+
+  it('idempotently returns success (without re-invoking fail or saving) for a command retry against an already-FAILED run', async () => {
+    const existing = run('FAILED');
+    const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
+    const handler = new FailCarrierReconciliationRunHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    const result = await handler.handle(command('FailCarrierReconciliationRun', { runId, reason: 'retry' }, runId));
+
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      newState: 'FAILED',
+      eventsEmitted: [],
+    }));
   });
 
   it('rejects failing an already-RECONCILED (terminal) run', async () => {

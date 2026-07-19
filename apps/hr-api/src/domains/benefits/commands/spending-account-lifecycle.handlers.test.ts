@@ -121,7 +121,7 @@ describe('SpendingAccount lifecycle command handlers', () => {
     }));
   });
 
-  it('rejects closing an already-CLOSED (terminal) spending account', async () => {
+  it('idempotently returns success (without re-invoking close or saving) for a command retry against an already-CLOSED spending account', async () => {
     const existing = account('CLOSED');
     const repo = { findById: vi.fn(async () => existing), save: vi.fn(async () => undefined) };
     const handler = new CloseSpendingAccountHandler(
@@ -130,8 +130,19 @@ describe('SpendingAccount lifecycle command handlers', () => {
       { getAllowedActions: vi.fn(() => []) } as never,
     );
 
-    await expect(handler.handle(command('CloseSpendingAccount', { accountId }, accountId))).rejects.toThrow(
-      'Cannot close SpendingAccount from state CLOSED',
-    );
+    const result = await handler.handle(command('CloseSpendingAccount', { accountId }, accountId));
+
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      newState: 'CLOSED',
+      eventsEmitted: [],
+    }));
+    expect(result.data).toEqual(expect.objectContaining({
+      accountId: accountId.value,
+      workerId: workerId.value,
+      accountType: 'HSA',
+      status: 'CLOSED',
+    }));
   });
 });

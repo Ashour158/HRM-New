@@ -69,6 +69,7 @@ describe('BenefitsEventsPublisher', () => {
       programId,
       programName: 'Medical',
       programType: 'HEALTH',
+      monthlyPremium: 350,
     }));
 
     expect(result).toEqual(expect.objectContaining({
