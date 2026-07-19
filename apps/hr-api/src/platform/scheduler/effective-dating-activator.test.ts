@@ -57,7 +57,7 @@ describe('EffectiveDatingActivator', () => {
       idempotencyKey: `effective-dating:${tenantId.value}:policy-effective-dating:PolicyRevision:${duePolicyId.value}:2026-06-13`,
       actor: expect.objectContaining({
         actorType: 'SYSTEM',
-        roles: ['SYSTEM_SCHEDULER'],
+        roles: ['SYSTEM_ACTOR'],
       }),
       metadata: expect.objectContaining({ clientType: 'SYSTEM_SCHEDULER' }),
     }));
