@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric, parseNullableNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { CompensationChange } from '../aggregates/compensation-change.aggregate.js';
 
@@ -64,8 +64,8 @@ export class CompensationChangeRepository extends BaseRepository<'compensation_c
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       changeType: row.change_type,
-      oldAmount: row.old_amount ?? undefined,
-      newAmount: row.new_amount,
+      oldAmount: parseNullableNumeric(row.old_amount),
+      newAmount: parseNumeric(row.new_amount),
       currency: row.currency,
       effectiveDate: row.effective_date,
       approvedBy: row.approved_by ? new Uuid(row.approved_by) : undefined,

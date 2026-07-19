@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { CompensationBand } from '../aggregates/compensation-band.aggregate.js';
 
@@ -65,9 +65,9 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
       bandCode: row.band_code,
       jobLevel: row.job_level,
       jobFamily: row.job_family,
-      minSalary: row.min_salary,
-      midSalary: row.mid_salary,
-      maxSalary: row.max_salary,
+      minSalary: parseNumeric(row.min_salary),
+      midSalary: parseNumeric(row.mid_salary),
+      maxSalary: parseNumeric(row.max_salary),
       currency: row.currency,
       status: row.status as 'DRAFT' | 'ACTIVE' | 'REVISED' | 'CLOSED',
       aggregateVersion: row.aggregate_version,

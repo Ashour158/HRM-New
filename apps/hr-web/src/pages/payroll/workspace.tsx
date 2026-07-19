@@ -1,5 +1,6 @@
 import * as React from 'react';
-import { Banknote, Download, FileCheck2, FileText, ListChecks, PlayCircle } from 'lucide-react';
+import { Banknote, Download, FileCheck2, FileText, ListChecks, Loader2, PlayCircle } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,6 +98,41 @@ interface PayrollCommandResult {
   allowedNextActions?: string[];
 }
 
+interface PayrollCloseToPayStarted {
+  jobId: string;
+  status: 'RUNNING';
+  employeeCount?: number;
+  totalBatches?: number;
+  batchSize?: number;
+  readiness?: PayrollReadiness;
+}
+
+interface PayrollCloseJobEmployeeError {
+  workerId: string;
+  employeeId?: string;
+  stage: string;
+  message: string;
+}
+
+interface PayrollCloseJobStatus {
+  jobId: string;
+  status: 'RUNNING' | 'SUCCEEDED' | 'FAILED';
+  totalEmployees?: number;
+  processedEmployees?: number;
+  totalBatches?: number;
+  currentBatch?: number;
+  errors?: PayrollCloseJobEmployeeError[];
+  errorMessage?: string;
+  result?: {
+    payrollCycleId?: string;
+    status?: string;
+    totalNet?: number;
+    currency?: string;
+    resultLineCount?: number;
+    payrollInputCount?: number;
+  };
+}
+
 type PayrollCycleCommand = {
   id: string;
   command: 'start-review' | 'approve' | 'export';
@@ -134,7 +170,9 @@ export function PayrollWorkspace() {
   const [selectedWorkerId, setSelectedWorkerId] = React.useState<string | undefined>();
   const [lastCommand, setLastCommand] = React.useState<PayrollCommandResult | null>(null);
   const [isDownloading, setIsDownloading] = React.useState(false);
+  const [activeJobId, setActiveJobId] = React.useState<string | undefined>();
   const addNotification = useUIStore((state) => state.addNotification);
+  const queryClient = useQueryClient();
 
   const querySuffix = `year=${year}&month=${month}`;
   const previewQuery = useApiQuery<PayrollCyclePreview>(
@@ -181,18 +219,62 @@ export function PayrollWorkspace() {
     [cycleId, month, year],
   );
 
-  const closeMutation = useApiMutation<PayrollCommandResult, { year: number; month: number; closeCycle: boolean }>(
+  // Close-to-pay now runs as a background job: the mutation only starts it and hands back a
+  // job id, it does not block until every employee is processed. Progress is observed by
+  // polling the status endpoint below instead of waiting on one long HTTP response.
+  const closeMutation = useApiMutation<PayrollCloseToPayStarted, { year: number; month: number; closeCycle: boolean }>(
     '/payroll/monthly-cycle/close-to-pay',
     'post',
-    invalidateKeys,
+    undefined,
     {
       onSuccess: (result) => {
-        setLastCommand(result);
-        addNotification({ title: 'Payroll close started', message: 'The close-to-pay pipeline is running for the selected period.', type: 'success', read: false });
+        setActiveJobId(result.jobId);
+        addNotification({ title: 'Payroll close started', message: `Processing ${result.employeeCount ?? 'the'} employees in batches of ${result.batchSize ?? 50}.`, type: 'success', read: false });
       },
       onError: (error) => addNotification({ title: 'Payroll close failed', message: error.message, type: 'error', read: false }),
     },
   );
+
+  const jobStatusQuery = useApiQuery<PayrollCloseJobStatus>(
+    ['payroll-close-job-status', activeJobId],
+    `/payroll/monthly-cycle/close-to-pay/${activeJobId}/status`,
+    {
+      enabled: Boolean(activeJobId),
+      retry: false,
+      refetchInterval: (query) => (query.state.data?.status === 'RUNNING' ? 2000 : false),
+    },
+  );
+
+  const job = jobStatusQuery.data;
+  const jobIsRunning = Boolean(activeJobId) && (!job || job.status === 'RUNNING');
+  const jobProgressPercent = job?.totalEmployees ? Math.min(100, Math.round(((job.processedEmployees ?? 0) / job.totalEmployees) * 100)) : 0;
+
+  const previousJobStatusRef = React.useRef<string | undefined>();
+  React.useEffect(() => {
+    if (!job || job.status === previousJobStatusRef.current) return;
+    previousJobStatusRef.current = job.status;
+    if (job.status === 'SUCCEEDED') {
+      setLastCommand({
+        payrollCycleId: job.result?.payrollCycleId,
+        status: job.result?.status,
+        totalNet: job.result?.totalNet,
+        currency: job.result?.currency,
+      });
+      invalidateKeys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+      const errorCount = job.errors?.length ?? 0;
+      addNotification({
+        title: 'Payroll close completed',
+        message: errorCount > 0
+          ? `Cycle is now ${job.result?.status ?? 'processed'}, with ${errorCount} employee${errorCount === 1 ? '' : 's'} needing review.`
+          : `Cycle is now ${job.result?.status ?? 'processed'}.`,
+        type: errorCount > 0 ? 'warning' : 'success',
+        read: false,
+      });
+    } else if (job.status === 'FAILED') {
+      invalidateKeys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+      addNotification({ title: 'Payroll close failed', message: job.errorMessage ?? 'The close-to-pay run failed.', type: 'error', read: false });
+    }
+  }, [job, invalidateKeys, queryClient, addNotification]);
 
   const cycleCommandMutation = useApiMutation<PayrollCommandResult, PayrollCycleCommand>(
     (variables) => `/payroll/cycles/${variables.id}/commands/${variables.command}`,
@@ -262,9 +344,9 @@ export function PayrollWorkspace() {
         <div className="flex flex-wrap gap-2">
           <Input className="w-24 bg-white" type="number" value={year} onChange={(event) => setYear(Number(event.target.value || today.getFullYear()))} aria-label="Payroll year" />
           <Input className="w-20 bg-white" type="number" min={1} max={12} value={month} onChange={(event) => setMonth(Number(event.target.value || today.getMonth() + 1))} aria-label="Payroll month" />
-          <Button onClick={() => closeMutation.mutateAsync({ year, month, closeCycle: true })} disabled={closeMutation.isPending}>
-            <PlayCircle className="mr-2 h-4 w-4" />
-            Close to pay
+          <Button onClick={() => closeMutation.mutateAsync({ year, month, closeCycle: true })} disabled={closeMutation.isPending || jobIsRunning}>
+            {closeMutation.isPending || jobIsRunning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PlayCircle className="mr-2 h-4 w-4" />}
+            {jobIsRunning ? 'Closing to pay…' : 'Close to pay'}
           </Button>
         </div>
       </div>
@@ -272,6 +354,44 @@ export function PayrollWorkspace() {
       {/* Establishes the h2 level between the page h1 and the card titles (h3) below,
           so the heading order is valid (a11y: heading-order). */}
       <h2 className="sr-only">Payroll workspace sections</h2>
+
+      {activeJobId ? (
+        <Card className="rounded-3xl border-white/60 bg-white/75 shadow-sm" role="status" aria-live="polite">
+          <CardContent className="space-y-3 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                {jobIsRunning ? <Loader2 className="h-4 w-4 animate-spin text-indigo-600" /> : null}
+                <span className="text-sm font-bold text-slate-900">
+                  {job?.status === 'SUCCEEDED' && 'Close-to-pay run completed'}
+                  {job?.status === 'FAILED' && 'Close-to-pay run failed'}
+                  {(!job || job.status === 'RUNNING') && 'Close-to-pay run in progress'}
+                </span>
+                <Badge className={statusTone(job?.status === 'SUCCEEDED' ? 'APPROVED' : job?.status === 'FAILED' ? 'FAILED' : 'CALCULATION')}>
+                  {job?.status ?? 'RUNNING'}
+                </Badge>
+              </div>
+              <span className="text-xs font-semibold text-slate-500">
+                {job?.processedEmployees ?? 0} of {job?.totalEmployees ?? '…'} employees
+                {job?.totalBatches ? ` · batch ${Math.min(job.currentBatch ?? 0, job.totalBatches)} of ${job.totalBatches}` : ''}
+              </span>
+            </div>
+            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`h-2 rounded-full transition-all ${job?.status === 'FAILED' ? 'bg-rose-500' : job?.status === 'SUCCEEDED' ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                style={{ width: `${job?.status === 'SUCCEEDED' ? 100 : jobProgressPercent}%` }}
+              />
+            </div>
+            {job?.errorMessage ? (
+              <p className="text-xs font-semibold text-rose-600">{job.errorMessage}</p>
+            ) : null}
+            {job?.errors && job.errors.length > 0 ? (
+              <p className="text-xs font-semibold text-amber-600">
+                {job.errors.length} employee{job.errors.length === 1 ? '' : 's'} had errors and were skipped without aborting the run.
+              </p>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="rounded-3xl border-white/60 bg-white/70 shadow-sm">

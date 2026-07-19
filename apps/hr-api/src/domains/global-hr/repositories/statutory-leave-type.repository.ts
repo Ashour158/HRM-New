@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, parseNullableNumeric } from '@hcm/database';
 import { StatutoryLeaveType } from '../aggregates/statutory-leave-type.aggregate.js';
 
 /**
@@ -59,10 +59,10 @@ export class StatutoryLeaveTypeRepository {
       country_code: entity.countryCode,
       leave_type_code: entity.leaveTypeCode,
       leave_type_name: entity.leaveTypeName,
-      minimum_entitlement: entity.minimumEntitlement,
+      minimum_entitlement: String(entity.minimumEntitlement),
       unit: entity.unit,
       carryover_allowed: entity.carryoverAllowed,
-      max_carryover: entity.maxCarryover,
+      max_carryover: String(entity.maxCarryover),
       effective_from: entity.effectiveFrom,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
@@ -90,10 +90,10 @@ export class StatutoryLeaveTypeRepository {
       countryCode: row.country_code as string,
       leaveTypeCode: row.leave_type_code as string,
       leaveTypeName: row.leave_type_name as string,
-      minimumEntitlement: (row.minimum_entitlement as number) ?? 0,
+      minimumEntitlement: parseNullableNumeric(row.minimum_entitlement as string | null | undefined) ?? 0,
       unit: row.unit as string,
       carryoverAllowed: (row.carryover_allowed as boolean) ?? false,
-      maxCarryover: (row.max_carryover as number) ?? 0,
+      maxCarryover: parseNullableNumeric(row.max_carryover as string | null | undefined) ?? 0,
       effectiveFrom: row.effective_from ? new Date(row.effective_from as string) : new Date(),
       status: row.status as StatutoryLeaveType['status'],
       aggregateVersion: (row.aggregate_version as number) ?? 0,
