@@ -5,6 +5,7 @@ import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { HrAiModelRun } from '../aggregates/hr-ai-model-run.aggregate.js';
 import { HrAiModelRunRepository } from '../repositories/hr-ai-model-run.repository.js';
+import { HrAiUseCaseGuard } from '../services/hr-ai-use-case-guard.service.js';
 import { HrAiGovernanceEventsPublisher } from '../events/hr-ai-governance-events.publisher.js';
 
 export interface CreateHrAiModelRunPayload {
@@ -21,14 +22,22 @@ export class CreateHrAiModelRunHandler {
     private readonly repo: HrAiModelRunRepository,
     private readonly fsm: FsmFramework,
     private readonly publisher: HrAiGovernanceEventsPublisher,
+    private readonly useCaseGuard: HrAiUseCaseGuard,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CreateHrAiModelRunPayload;
+    const useCaseId = new Uuid(payload.useCaseId);
+
+    // Safety-stop enforcement: a SUSPENDED use case, or one with an active
+    // (TRIGGERED/INVESTIGATING) kill switch, must not be able to spawn new
+    // model runs. See HrAiUseCaseGuard for why this check is load-bearing.
+    await this.useCaseGuard.assertRunnable(useCaseId, command.tenantId, 'create HR AI model run');
+
     const entity = HrAiModelRun.create({
       id: new Uuid(payload.hrAiModelRunId),
       tenantId: command.tenantId,
-      useCaseId: new Uuid(payload.useCaseId),
+      useCaseId,
       modelVersion: payload.modelVersion,
       inputDataSnapshot: payload.inputDataSnapshot,
     }, command.correlationId);

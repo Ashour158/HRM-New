@@ -154,13 +154,15 @@ function buildService(seed: PolicyRevisionRecord[] = []) {
   const notifications = { createMany: vi.fn(async () => undefined) };
   const auditLedger = { write: vi.fn(async () => undefined) };
   const outbox = { schedule: vi.fn(async () => undefined) };
+  const logger = { error: vi.fn() };
   return {
-    service: new (PolicyCenterService as never)(repository, hcmSetup, notifications, auditLedger, outbox) as PolicyCenterService,
+    service: new (PolicyCenterService as never)(repository, hcmSetup, notifications, auditLedger, outbox, logger) as PolicyCenterService,
     repository,
     hcmSetup,
     notifications,
     auditLedger,
     outbox,
+    logger,
   };
 }
 
@@ -780,6 +782,75 @@ describe('PolicyCenterService', () => {
         }),
       }),
     }));
+  });
+
+  it('blocks (does not silently confirm) a high-risk apply when the impact-record query fails, and logs the failure (C-5 regression)', async () => {
+    const published = revision({
+      status: 'PUBLISHED',
+      draftConfig: {
+        ...revision().draftConfig,
+        policyControls: { requiresHighRiskConfirmation: true },
+      },
+    });
+    const { service, repository, hcmSetup, auditLedger, logger } = buildService([published]);
+    // Simulate one of the 7 underlying impact-record queries (e.g. the open-payroll-cycle
+    // query) failing transiently -- schema drift, a dropped connection, a permission error.
+    vi.mocked(repository.listImpactRecords).mockRejectedValueOnce(
+      new Error('relation "hr_payroll.payroll_cycles" is undefined'),
+    );
+
+    // Before the fix, this silently read as "nothing at risk" and the high-risk revision
+    // applied with zero human confirmation. It must now throw and block the apply outright,
+    // with a clear message -- not the raw DB error -- surfaced to the caller.
+    let caught: unknown;
+    try {
+      await service.applyRevision(tenantId, published.id, actor);
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect((caught as Error).message).toContain('Policy impact assessment could not be computed');
+    expect((caught as Error).message).not.toContain('payroll_cycles');
+
+    // The apply must be genuinely blocked, not merely reported as failed after the fact.
+    expect(hcmSetup.updateSetup).not.toHaveBeenCalled();
+    expect(repository.createApplicationRun).not.toHaveBeenCalled();
+    expect(auditLedger.write).not.toHaveBeenCalledWith(expect.objectContaining({ action: 'PolicyRevisionApplied' }));
+    expect(repository.updateRevision).not.toHaveBeenCalledWith(published.id, expect.objectContaining({ status: 'APPLIED' }));
+
+    // The failure must be observable in production, unlike the old silent catch blocks.
+    expect(logger.error).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'POLICY_IMPACT_ASSESSMENT_FAILED',
+      tenantId: tenantId.value,
+      policyRevisionId: published.id,
+      area: published.area,
+      message: expect.stringContaining('payroll_cycles'),
+    }));
+  });
+
+  it('leaves the normal high-risk-confirmation and low-risk-auto-apply paths unchanged when impact data loads successfully', async () => {
+    const lowRisk = revision({ status: 'PUBLISHED' });
+    const { service: lowRiskService } = buildService([lowRisk]);
+
+    await expect(lowRiskService.applyRevision(tenantId, lowRisk.id, actor)).resolves.toEqual(
+      expect.objectContaining({ status: 'APPLIED' }),
+    );
+
+    const highRisk = revision({
+      status: 'PUBLISHED',
+      draftConfig: {
+        ...revision().draftConfig,
+        policyControls: { requiresHighRiskConfirmation: true },
+      },
+    });
+    const { service: highRiskService } = buildService([highRisk]);
+
+    await expect(highRiskService.applyRevision(tenantId, highRisk.id, actor)).rejects.toThrow(
+      'High-risk policy apply requires explicit confirmation or an emergency override.',
+    );
+    await expect(
+      highRiskService.applyRevision(tenantId, highRisk.id, actor, { confirmedHighRisk: true }),
+    ).resolves.toEqual(expect.objectContaining({ status: 'APPLIED' }));
   });
 
   it('exposes max-depth policy templates for leave, attendance, access, compliance, benefits, and people analytics domains', () => {

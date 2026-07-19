@@ -225,10 +225,10 @@ export class RecruitingController {
     @Query('position') positionId?: string,
   ) {
     if (departmentId) {
-      return this.requisitionRepo.findByDepartment(new Uuid(departmentId));
+      return this.requisitionRepo.findByDepartmentForTenant(new Uuid(departmentId), this.tenantId(req));
     }
     if (positionId) {
-      return this.requisitionRepo.findByPosition(new Uuid(positionId));
+      return this.requisitionRepo.findByPositionForTenant(new Uuid(positionId), this.tenantId(req));
     }
     // No generic findAll on repository; return open requisitions as default
     return this.requisitionRepo.findOpen(this.tenantId(req));
@@ -243,8 +243,8 @@ export class RecruitingController {
   @Get('requisitions/:id')
   @ApiOperation({ summary: 'Get a job requisition by ID' })
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
-  async getRequisition(@Param('id') id: string) {
-    const requisition = await this.requisitionRepo.findById(new Uuid(id));
+  async getRequisition(@Param('id') id: string, @Req() req: Request) {
+    const requisition = await this.requisitionRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!requisition) {
       throw new BadRequestException('Requisition not found');
     }
@@ -308,7 +308,7 @@ export class RecruitingController {
     // so a fixed literal expectedState (like RejectJobRequisition's) isn't
     // possible here; without this, the FSM-evaluation pipeline step is
     // skipped entirely and concurrent state changes go undetected.
-    const candidate = await this.candidateRepo.findById(new Uuid(id));
+    const candidate = await this.candidateRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!candidate) {
       throw new BadRequestException('Candidate not found');
     }
@@ -330,7 +330,7 @@ export class RecruitingController {
     @Req() req: Request,
   ) {
     // See rejectCandidate() above for why the aggregate is loaded first.
-    const candidate = await this.candidateRepo.findById(new Uuid(id));
+    const candidate = await this.candidateRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!candidate) {
       throw new BadRequestException('Candidate not found');
     }
@@ -395,14 +395,18 @@ export class RecruitingController {
   @ApiQuery({ name: 'requisition', required: false })
   @ApiQuery({ name: 'status', required: false })
   async listCandidates(
+    @Req() req: Request,
     @Query('requisition') requisitionId?: string,
     @Query('status') status?: string,
   ) {
     if (requisitionId) {
-      return this.candidateRepo.findByRequisition(new Uuid(requisitionId));
+      return this.candidateRepo.findByRequisitionForTenant(new Uuid(requisitionId), this.tenantId(req));
     }
     if (status) {
-      return this.candidateRepo.findByStatus(status as import('../aggregates/candidate.aggregate.js').CandidateStatus);
+      return this.candidateRepo.findByStatusForTenant(
+        status as import('../aggregates/candidate.aggregate.js').CandidateStatus,
+        this.tenantId(req),
+      );
     }
     return [];
   }
@@ -410,8 +414,8 @@ export class RecruitingController {
   @Get('candidates/:id')
   @ApiOperation({ summary: 'Get a candidate by ID' })
   @ApiParam({ name: 'id', description: 'Candidate UUID' })
-  async getCandidate(@Param('id') id: string) {
-    const candidate = await this.candidateRepo.findById(new Uuid(id));
+  async getCandidate(@Param('id') id: string, @Req() req: Request) {
+    const candidate = await this.candidateRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!candidate) {
       throw new BadRequestException('Candidate not found');
     }
@@ -466,7 +470,7 @@ export class RecruitingController {
     @Param('id') id: string,
     @Req() req: Request,
   ) {
-    const plan = await this.interviewPlanRepo.findById(new Uuid(id));
+    const plan = await this.interviewPlanRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!plan) throw new BadRequestException('Interview plan not found');
     const envelope = this.buildCommand('StartInterview', req, { interviewId: id }, {
       aggregateType: 'InterviewPlan',
@@ -484,7 +488,7 @@ export class RecruitingController {
     @Param('id') id: string,
     @Req() req: Request,
   ) {
-    const plan = await this.interviewPlanRepo.findById(new Uuid(id));
+    const plan = await this.interviewPlanRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!plan) throw new BadRequestException('Interview plan not found');
     const envelope = this.buildCommand('CompleteInterview', req, { interviewId: id }, {
       aggregateType: 'InterviewPlan',
@@ -502,7 +506,7 @@ export class RecruitingController {
     @Param('id') id: string,
     @Req() req: Request,
   ) {
-    const plan = await this.interviewPlanRepo.findById(new Uuid(id));
+    const plan = await this.interviewPlanRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!plan) throw new BadRequestException('Interview plan not found');
     const envelope = this.buildCommand('CancelInterview', req, { interviewId: id }, {
       aggregateType: 'InterviewPlan',
@@ -631,7 +635,7 @@ export class RecruitingController {
     // literal expectedState isn't possible here; without this, the
     // FSM-evaluation pipeline step is skipped entirely and concurrent state
     // changes go undetected.
-    const offer = await this.offerRepo.findById(new Uuid(id));
+    const offer = await this.offerRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!offer) {
       throw new BadRequestException('Offer not found');
     }
@@ -649,23 +653,24 @@ export class RecruitingController {
   @ApiQuery({ name: 'candidate', required: false })
   @ApiQuery({ name: 'requisition', required: false })
   async listOffers(
+    @Req() req: Request,
     @Query('candidate') candidateId?: string,
     @Query('requisition') requisitionId?: string,
   ) {
     if (candidateId) {
-      return this.offerRepo.findByCandidate(new Uuid(candidateId));
+      return this.offerRepo.findByCandidateForTenant(new Uuid(candidateId), this.tenantId(req));
     }
     if (requisitionId) {
-      return this.offerRepo.findByRequisition(new Uuid(requisitionId));
+      return this.offerRepo.findByRequisitionForTenant(new Uuid(requisitionId), this.tenantId(req));
     }
-    return this.offerRepo.findPending();
+    return this.offerRepo.findPendingForTenant(this.tenantId(req));
   }
 
   @Get('offers/:id')
   @ApiOperation({ summary: 'Get an offer by ID' })
   @ApiParam({ name: 'id', description: 'Offer UUID' })
-  async getOffer(@Param('id') id: string) {
-    const offer = await this.offerRepo.findById(new Uuid(id));
+  async getOffer(@Param('id') id: string, @Req() req: Request) {
+    const offer = await this.offerRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!offer) {
       throw new BadRequestException('Offer not found');
     }
@@ -692,8 +697,22 @@ export class RecruitingController {
     @Body(new ZodValidationPipe(AnalyzeRequisitionAdverseImpactDtoSchema)) dto: AnalyzeRequisitionAdverseImpactDto,
     @Req() req: Request,
   ) {
+    // Same admin/DEI/compliance role-scope gate as this domain's other
+    // adverse-impact-analysis endpoints (see getRequisitionAdverseImpactAnalysis
+    // / listRequisitionAdverseImpactAnalyses below) -- this endpoint both
+    // reads candidate EEO self-identification data and durably persists a
+    // new EEOC-protected-class analysis, so it needs the same gate.
+    this.assertAdverseImpactAnalyticsScope(req);
     const envelope = this.buildCommand('AnalyzeRequisitionAdverseImpact', req, { requisitionId: id, ...dto }, {
       aggregateType: 'RequisitionAdverseImpactAnalysis',
+      // Associates the command with the requisition it targets so the
+      // command-bus's tenant-filtering aggregate-load step has an id to
+      // work with. The authoritative tenant check for the referenced
+      // requisition (and its candidates/interviews/offers) happens inside
+      // AnalyzeRequisitionAdverseImpactHandler via findByIdForTenant /
+      // findByRequisitionForTenant -- this aggregateId is defense-in-depth,
+      // not the sole guard.
+      aggregateId: id,
       reason: 'Run adverse-impact analysis via API',
     });
     return this.commandBus.execute(envelope);
@@ -727,7 +746,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Requisition UUID' })
   async listRequisitionAdverseImpactAnalyses(@Param('id') id: string, @Req() req: Request) {
     this.assertAdverseImpactAnalyticsScope(req);
-    return this.adverseImpactAnalysisRepo.findByRequisition(new Uuid(id));
+    return this.adverseImpactAnalysisRepo.findByRequisitionForTenant(new Uuid(id), this.tenantId(req));
   }
 
   @Get('adverse-impact-analyses/:id')
@@ -735,7 +754,7 @@ export class RecruitingController {
   @ApiParam({ name: 'id', description: 'Adverse impact analysis UUID' })
   async getRequisitionAdverseImpactAnalysis(@Param('id') id: string, @Req() req: Request) {
     this.assertAdverseImpactAnalyticsScope(req);
-    const analysis = await this.adverseImpactAnalysisRepo.findById(new Uuid(id));
+    const analysis = await this.adverseImpactAnalysisRepo.findByIdForTenant(new Uuid(id), this.tenantId(req));
     if (!analysis) {
       throw new BadRequestException('Adverse impact analysis not found');
     }
