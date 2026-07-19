@@ -107,4 +107,25 @@ describe('AdminHrServiceDelivery', () => {
     ));
     expect(addNotificationMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Case updated' }));
   });
+
+  it('escalates a case through the reason dialog', async () => {
+    renderAdminServiceDelivery();
+
+    expect(await screen.findByText('HR-20260614-ABC12345')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Escalate/ }));
+
+    expect(await screen.findByRole('heading', { name: 'Escalate service case' })).toBeInTheDocument();
+    const submitButton = screen.getByRole('button', { name: 'Escalate case' });
+    expect(submitButton).toBeDisabled();
+
+    await userEvent.type(screen.getByLabelText('Escalation reason'), 'Employee is threatening legal action.');
+    expect(submitButton).toBeEnabled();
+    await userEvent.click(submitButton);
+
+    await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
+      `/hr-service-delivery/cases/${caseId}/commands/escalate`,
+      { escalationReason: 'Employee is threatening legal action.' },
+    ));
+    expect(addNotificationMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Case escalated' }));
+  });
 });

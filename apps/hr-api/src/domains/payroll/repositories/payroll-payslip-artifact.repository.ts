@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { createKyselyInstance, getCurrentTenantId, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -117,8 +117,8 @@ export class PayrollPayslipArtifactRepository {
       employee_id: record.employeeId,
       artifact_format: record.artifactFormat,
       status: record.status,
-      gross_pay: record.grossPay,
-      net_pay: record.netPay,
+      gross_pay: String(record.grossPay),
+      net_pay: String(record.netPay),
       currency: record.currency,
       content_hash: record.contentHash,
       html_content: record.htmlContent,
@@ -141,8 +141,8 @@ export class PayrollPayslipArtifactRepository {
       employeeId: row.employee_id,
       artifactFormat: row.artifact_format as PayrollPayslipArtifactRecord['artifactFormat'],
       status: row.status as PayrollPayslipArtifactRecord['status'],
-      grossPay: row.gross_pay,
-      netPay: row.net_pay,
+      grossPay: parseNumeric(row.gross_pay),
+      netPay: parseNumeric(row.net_pay),
       currency: row.currency,
       contentHash: row.content_hash,
       htmlContent: row.html_content,

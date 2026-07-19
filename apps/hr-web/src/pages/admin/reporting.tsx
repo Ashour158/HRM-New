@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { generateUUID } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
 import { ReportCard, ReportCardGrid } from '@/components/reports/report-card';
+import { validateCalculatedFieldExpression } from '@/lib/calculated-field-expression';
 import { ReportingOverviewTab } from './reporting/reporting-overview-tab';
 import { ReportingPageHeader, ReportingTabs } from './reporting/reporting-shell';
 import { readinessTone, type HrReportsDashboard, type ReportingTab } from './reporting/reporting-model';
@@ -341,6 +342,7 @@ type CalculatedFieldDefinition = {
   fieldName?: string;
   expression?: string;
   dataType?: string;
+  dataSource?: string;
   sourceFields?: string[];
   status?: string;
 };
@@ -484,9 +486,9 @@ export function AdminReporting() {
   const [selectedPackCode, setSelectedPackCode] = useState('FULL_HR_ANALYTICS');
   const [selectedSmartCategoryCode, setSelectedSmartCategoryCode] = useState('WORKFORCE_COMPOSITION');
   const [selectedReportCodes, setSelectedReportCodes] = useState<string[]>([]);
-  const [calculatedFieldName, setCalculatedFieldName] = useState('Custom metric');
-  const [calculatedFieldExpression, setCalculatedFieldExpression] = useState('grossPay - deductionAmount');
-  const [calculatedFieldType, setCalculatedFieldType] = useState('currency');
+  const [calculatedFieldName, setCalculatedFieldName] = useState('Attendance risk score');
+  const [calculatedFieldExpression, setCalculatedFieldExpression] = useState('lateMinutes + exceptions');
+  const [calculatedFieldType, setCalculatedFieldType] = useState('number');
   const [scheduleFrequency, setScheduleFrequency] = useState('MONTHLY');
   const [scheduleRecipients, setScheduleRecipients] = useState('hr.operations@example.com');
   const [expandedReportId, setExpandedReportId] = useState<string | undefined>();
@@ -524,6 +526,26 @@ export function AdminReporting() {
     () => catalog?.analyticsPacks.find((pack) => pack.code === selectedPackCode) ?? catalog?.analyticsPacks[0],
     [catalog?.analyticsPacks, selectedPackCode],
   );
+  const calculatedFieldAvailableFields = useMemo(
+    () => (currentSource ? [...currentSource.fields, ...currentSource.metrics, ...currentSource.groupBy] : []),
+    [currentSource],
+  );
+  const calculatedFieldKnownCodes = useMemo(
+    () => [...new Set(calculatedFieldAvailableFields.map((field) => field.code))],
+    [calculatedFieldAvailableFields],
+  );
+  const calculatedFieldValidation = useMemo(
+    () => validateCalculatedFieldExpression(calculatedFieldExpression, calculatedFieldKnownCodes),
+    [calculatedFieldExpression, calculatedFieldKnownCodes],
+  );
+  const insertCalculatedFieldToken = (code: string) => {
+    setCalculatedFieldExpression((current) => {
+      const trimmed = current.trimEnd();
+      if (trimmed.length === 0) return code;
+      const needsOperator = /[A-Za-z0-9_)]$/.test(trimmed);
+      return `${trimmed}${needsOperator ? ' + ' : ' '}${code}`;
+    });
+  };
   const currentSmartCategory = useMemo(
     () => catalog?.smartCategories.find((category) => category.code === selectedSmartCategoryCode) ?? catalog?.smartCategories[0],
     [catalog?.smartCategories, selectedSmartCategoryCode],
@@ -683,7 +705,8 @@ export function AdminReporting() {
       fieldName: calculatedFieldName.trim() || 'Custom metric',
       expression: calculatedFieldExpression.trim(),
       dataType: calculatedFieldType,
-      sourceFields: [...fieldsForQuery, ...metricsForQuery],
+      dataSource: currentSource?.code ?? dataSourceCode,
+      sourceFields: calculatedFieldValidation.referencedFields,
     })).data),
     onSuccess: async () => {
       addNotification({ title: 'Calculated field saved', message: 'The custom metric is now available for report design.', type: 'success', read: false });
@@ -2002,6 +2025,9 @@ export function AdminReporting() {
                   <Card className="rounded-2xl border-border">
                     <CardHeader>
                       <CardTitle>Calculated Fields</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Formulas are validated and evaluated against <span className="font-medium text-foreground">{currentSource?.title ?? 'the selected data source'}</span>. Use field codes below, arithmetic (+ - * /), comparisons, and parentheses only — no functions or text.
+                      </p>
                     </CardHeader>
                     <CardContent className="grid gap-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
                       <div className="space-y-2">
@@ -2010,7 +2036,13 @@ export function AdminReporting() {
                       </div>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground" htmlFor="calculated-field-expression">Formula</label>
-                        <Input id="calculated-field-expression" value={calculatedFieldExpression} onChange={(event) => setCalculatedFieldExpression(event.target.value)} />
+                        <Input
+                          id="calculated-field-expression"
+                          value={calculatedFieldExpression}
+                          onChange={(event) => setCalculatedFieldExpression(event.target.value)}
+                          aria-invalid={!calculatedFieldValidation.valid}
+                          className={cn(!calculatedFieldValidation.valid && 'border-destructive focus-visible:ring-destructive')}
+                        />
                       </div>
                       <div className="flex gap-2">
                         <Select value={calculatedFieldType} onValueChange={setCalculatedFieldType}>
@@ -2026,10 +2058,34 @@ export function AdminReporting() {
                         <Button
                           variant="outline"
                           onClick={() => createCalculatedFieldMutation.mutate()}
-                          disabled={createCalculatedFieldMutation.isPending || calculatedFieldExpression.trim().length === 0}
+                          disabled={createCalculatedFieldMutation.isPending || !calculatedFieldValidation.valid}
                         >
                           Save Metric
                         </Button>
+                      </div>
+                      <div className="lg:col-span-3 space-y-1">
+                        {!calculatedFieldValidation.valid ? (
+                          <div role="alert" className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/10 p-2 text-sm text-destructive">
+                            {calculatedFieldValidation.errors.map((error) => <p key={error}>{error}</p>)}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-success">Formula is valid for {currentSource?.title ?? 'this data source'}.</p>
+                        )}
+                      </div>
+                      <div className="lg:col-span-3 space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Available fields for {currentSource?.title ?? 'this data source'}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {calculatedFieldAvailableFields.map((field) => (
+                            <button
+                              key={field.code}
+                              type="button"
+                              onClick={() => insertCalculatedFieldToken(field.code)}
+                              className="rounded-full border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground transition hover:border-primary/50 hover:bg-primary/10"
+                            >
+                              {field.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                       <div className="lg:col-span-3">
                         {(calculatedFieldsQuery.data ?? []).length > 0 ? (

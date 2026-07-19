@@ -4,49 +4,42 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { resolvePortalSearchPath } from '@/lib/portal-search';
 import { buildCommandActions } from '@/lib/command-actions';
-import { commercialModules, moduleCategories } from '@/lib/commercial-modules';
+import { ADMIN_MORE_LINKS, ADMIN_MORE_MODULE, ADMIN_PRIMARY_MODULES } from '@/lib/admin-nav-modules';
 import type { MeInbox } from '@/lib/me-inbox';
 import { useAuth } from '@/hooks/use-auth';
 import { useApiQuery } from '@/hooks/use-api';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { AdminPrimaryNav } from '@/components/admin/admin-primary-nav';
 import { CommandPalette, type CommandPaletteItem } from '@/components/ui/command-palette';
 import { NotificationCenter } from '@/components/ui/notification-center';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { LanguageSwitcher } from '@/i18n/language-switcher';
 import {
   BarChart3,
-  BadgeDollarSign,
-  BrainCircuit,
   Briefcase,
   ChevronDown,
   ChevronUp,
   Clock3,
   FileText,
+  GraduationCap,
   HelpCircle,
   Home,
+  Landmark,
   LifeBuoy,
   LogOut,
   Menu,
+  MessageSquare,
   Search,
   Settings,
-  GraduationCap,
-  Globe2,
-  X,
-  Heart,
+  Sparkles,
+  TrendingUp,
   Umbrella,
   UserCircle,
   UserRoundCheck,
   Users,
-  TrendingUp,
-  Network,
-  MessageSquare,
-  Landmark,
-  Scale,
-  ShieldCheck,
-  ShieldAlert,
-  EyeOff,
-  Sparkles,
+  X,
+  Heart,
 } from 'lucide-react';
 
 interface PortalNavItem {
@@ -215,82 +208,37 @@ const managerRailGroups: PortalRailGroup[] = [
   { label: 'Manager Hub', items: managerRailItems },
 ];
 
-const adminFoundationRailItems: PortalRailItem[] = [
-  { label: 'Home', path: '/admin', icon: Home },
-  { label: 'Get started', path: '/admin/get-started', icon: Sparkles },
-  { label: 'Dashboard', path: '/admin/dashboard', icon: BarChart3 },
-  { label: 'Workforce Insights', path: '/admin/insights', icon: BrainCircuit },
-  { label: 'Modules', path: '/admin/modules', icon: UserRoundCheck },
+/**
+ * Sidebar/mobile-drawer fallback for the admin portal, and the source of the
+ * admin entries fed into the command palette. Generated directly from the
+ * same ADMIN_PRIMARY_MODULES / ADMIN_MORE_LINKS data that drives the desktop
+ * AdminPrimaryNav bar, so the two surfaces can never drift out of sync -
+ * one group per primary-bar module, plus a trailing "More" group.
+ * `systemOnly` is preserved per-item so the existing generic
+ * `!item.systemOnly || canSeeSystemConsole` filter below still applies.
+ */
+const adminModuleRailGroups: PortalRailGroup[] = [
+  ...ADMIN_PRIMARY_MODULES.map((module) => ({
+    label: module.label,
+    items: module.links.map((link) => ({
+      label: link.label,
+      path: link.path,
+      icon: module.icon,
+      systemOnly: link.systemOnly,
+    })),
+  })),
+  {
+    label: ADMIN_MORE_MODULE.label,
+    items: ADMIN_MORE_LINKS.map((link) => ({
+      label: link.label,
+      path: link.path,
+      icon: ADMIN_MORE_MODULE.icon,
+      systemOnly: link.systemOnly,
+    })),
+  },
 ];
 
-const adminSystemRailItems: PortalRailItem[] = [
-  { label: 'System Console', path: '/admin/system-console', icon: Settings, systemOnly: true },
-  { label: 'Policy Builder', path: '/admin/system-console/policies', icon: ShieldCheck, systemOnly: true },
-  { label: 'SoD Rules', path: '/admin/system-console/sod-rules', icon: ShieldAlert, systemOnly: true },
-  { label: 'Field Access', path: '/admin/system-console/field-access', icon: EyeOff, systemOnly: true },
-];
-
-const adminModuleIconById: Record<string, React.ElementType> = {
-  employees: Users,
-  organization: Network,
-  'position-control': Network,
-  attendance: Clock3,
-  leave: Umbrella,
-  'workforce-management': Clock3,
-  payroll: FileText,
-  compensation: BadgeDollarSign,
-  benefits: Umbrella,
-  recruiting: Briefcase,
-  onboarding: UserRoundCheck,
-  performance: TrendingUp,
-  learning: GraduationCap,
-  'skills-talent': Sparkles,
-  engagement: MessageSquare,
-  'employee-relations': ShieldCheck,
-  compliance: ShieldCheck,
-  'global-hr': Globe2,
-  'country-policy': Globe2,
-  'dei-analytics': Users,
-  'hr-ai-governance': BrainCircuit,
-  reporting: BarChart3,
-  'service-delivery': LifeBuoy,
-  scheduler: Settings,
-  'contingent-workforce': Briefcase,
-  'wellbeing-eap': Heart,
-  'union-labor': Scale,
-};
-
-const adminModulePathOverrides: Record<string, string> = {
-  benefits: '/admin/benefits',
-  engagement: '/admin/engagement',
-  performance: '/admin/performance/operations',
-};
-
-const adminCategoryRailSupplements: Partial<Record<(typeof moduleCategories)[number], PortalRailItem[]>> = {
-  Talent: [
-    { label: 'Feedback 360', path: '/admin/feedback-360', icon: MessageSquare },
-  ],
-};
-
-const adminModuleRailGroups: PortalRailGroup[] = moduleCategories.map((category) => ({
-  label: category,
-  items: [
-    ...commercialModules
-      .filter((module) => module.category === category)
-      .map((module) => ({
-        label: module.label,
-        path: adminModulePathOverrides[module.id] ?? module.nativePath ?? `/admin/modules/${module.id}`,
-        icon: adminModuleIconById[module.id] ?? UserRoundCheck,
-      })),
-    ...(adminCategoryRailSupplements[category] ?? []),
-  ],
-}));
-
-const adminRailGroups: PortalRailGroup[] = [
-  { label: 'Admin Panel', items: adminFoundationRailItems },
-  ...adminModuleRailGroups,
-  { label: 'System Console', items: adminSystemRailItems },
-];
+const adminRailGroups: PortalRailGroup[] = adminModuleRailGroups;
 
 const recruiterRailItems: PortalRailItem[] = [
   { label: 'Dashboard', path: '/recruiter', icon: Home },
@@ -705,6 +653,14 @@ function WorkspaceShell({
             </div>
           </div>
         </header>
+
+        {portalType === 'admin' ? (
+          <div className="sticky top-14 z-20 border-b border-white/30 fusion-glass">
+            <div className="mx-auto w-full max-w-[1440px] px-2 md:px-4 lg:px-6">
+              <AdminPrimaryNav canSeeSystemConsole={canSeeSystemConsole} />
+            </div>
+          </div>
+        ) : null}
 
         <main className="flex-1">{children}</main>
 
