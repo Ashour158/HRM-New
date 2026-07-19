@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { LanguageSwitcher } from '@/i18n/language-switcher';
 import { Spinner } from '@/components/ui/loading-state';
 import { AlertCircle, ArrowRight, Building2, KeyRound, Lock, Mail, ShieldCheck, FlaskConical } from 'lucide-react';
+import type { User } from '@/types';
 
 const DEMO_MODE = import.meta.env.DEV && import.meta.env.VITE_DEMO_MODE === 'true';
 const DEMO_PASSWORD = 'Password123!';
@@ -22,6 +23,13 @@ const DEMO_ACCOUNTS = [
   { label: 'Manager', email: 'manager@example.com', description: 'Team management & approvals', color: '#6366f1', redirect: '/manager' },
   { label: 'Employee', email: 'employee@example.com', description: 'Self-service portal', color: '#f59e0b', redirect: '/employee' },
 ];
+
+function landingPathForUser(user: User | null): string {
+  const roles = new Set((user?.roles ?? []).map((role) => role.name));
+  if (roles.has('HR_ADMIN') || roles.has('APP_ADMIN') || roles.has('SUPER_ADMIN')) return '/admin';
+  if (roles.has('MANAGER')) return '/manager';
+  return '/employee';
+}
 
 function createLoginSchema(t: (key: string) => string) {
   return z.object({
@@ -70,7 +78,7 @@ interface LoginFormData {
 export function LoginPage() {
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const { tenants, isLoading: tenantsLoading } = useTenant();
   const loginSchema = React.useMemo(() => createLoginSchema(t), [t]);
 
@@ -86,9 +94,9 @@ export function LoginPage() {
 
   React.useEffect(() => {
     if (isAuthenticated) {
-      navigate('/employee');
+      navigate(landingPathForUser(user));
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, user]);
 
   React.useEffect(() => {
     if (tenants.length === 1 && !formData.tenantId) {
@@ -444,9 +452,7 @@ export function LoginPage() {
             <div className="mt-8 border-t border-border/40 pt-6 text-center text-sm leading-6 text-muted-foreground">
               {t('login.needAccess')}
               <br />
-              <Link className="font-semibold text-primary underline-offset-4 hover:underline" to="/register">
-                {t('login.createEmployeeAccount')}
-              </Link>
+              {t('login.contactYourAdministrator')}
             </div>
 
             <footer className="mt-8 border-t border-border/60 pt-5">
