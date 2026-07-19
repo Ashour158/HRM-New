@@ -261,7 +261,7 @@ function RecordActions({
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((action) => {
-        const enabled = (selected.tab === 'plans' && action === 'Activate') || (selected.tab === 'changes' && action === 'Approve');
+        const enabled = (selected.tab === 'plans' && action === 'Activate') || (selected.tab === 'changes' && (action === 'Submit' || action === 'Approve'));
         return (
           <Button
             key={action}
@@ -464,6 +464,10 @@ export function AdminCompensation() {
     const id = recordId(record);
     if (tab === 'plans' && action === 'Activate') {
       mutation.mutate({ url: `/hr/compensation/plans/${id}/commands/activate`, payload: {} });
+      return;
+    }
+    if (tab === 'changes' && action === 'Submit') {
+      mutation.mutate({ url: `/hr/compensation/changes/${id}/commands/submit`, payload: {} });
       return;
     }
     if (tab === 'changes' && action === 'Approve') {
