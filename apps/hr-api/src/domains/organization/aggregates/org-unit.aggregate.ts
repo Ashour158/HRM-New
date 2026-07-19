@@ -1,4 +1,4 @@
-import { AggregateRoot, DomainEvent, Uuid } from '@hcm/shared-kernel';
+import { AggregateRoot, ConflictError, DomainEvent, Uuid } from '@hcm/shared-kernel';
 
 /**
  * Domain event emitted when a new OrgUnit is created.
@@ -272,6 +272,15 @@ export class OrgUnit extends AggregateRoot {
   ): void {
     if (this.status !== 'ACTIVE') {
       throw new Error(`Cannot restructure OrgUnit from state ${this.status}`);
+    }
+    // Cheapest possible cycle guard (no DB access available here): an org
+    // unit can never be its own parent. Full ancestor-chain cycle detection
+    // (A -> B -> A) requires walking the tree via the repository and is
+    // enforced in RestructureOrgUnitHandler before this is called.
+    if (newParentId && newParentId.equals(this.id)) {
+      throw new ConflictError('An org unit cannot be restructured to be its own parent', {
+        orgUnitId: this.id.value,
+      });
     }
     const previousParentId = this.parentId;
     if (newParentId !== undefined) {
