@@ -1605,6 +1605,7 @@ export interface PayrollCyclesTable {
   closed_at: Date | null;
   approved_by: string | null;
   approved_at: Date | null;
+  created_by: string | null;
   aggregate_version: number;
   created_at: Date;
   updated_at: Date;
