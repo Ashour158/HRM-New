@@ -45,7 +45,7 @@ export class SubmitCountryPolicyPackForLegalReviewHandler implements ICommandHan
         'SubmitForBenefitsReview',
         'SubmitForAbsenceReview',
         'SubmitForComplianceReview',
-        'SubmitForApproval',
+        'SubmitCountryPolicyPackForApproval',
       ],
       fieldAccessDecisions: {},
       eventsEmitted: pack.domainEvents.map((e) => e.eventName),

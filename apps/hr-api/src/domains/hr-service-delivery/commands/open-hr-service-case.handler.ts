@@ -6,13 +6,16 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { toOptionalDate, toOptionalUuid, toUuid } from '../../common/uuid-normalizer.js';
 import { HrServiceCase } from '../aggregates/hr-service-case.aggregate.js';
 import { HrServiceCaseRepository } from '../repositories/hr-service-case.repository.js';
+import { HrServiceCatalogItemRepository } from '../repositories/hr-service-catalog-item.repository.js';
 import { HrServiceDeliveryEventsPublisher } from '../events/hr-service-delivery-events.publisher.js';
+import { deriveOwnerGroupFromCatalogItem, deriveSlaDeadlineFromCatalogItem } from './catalog-linkage.util.js';
 
 @CommandHandler('OpenHrServiceCase')
 @Injectable()
 export class OpenHrServiceCaseHandler {
   constructor(
     private readonly repo: HrServiceCaseRepository,
+    private readonly catalogItemRepo: HrServiceCatalogItemRepository,
     private readonly fsm: FsmFramework,
     private readonly publisher: HrServiceDeliveryEventsPublisher,
   ) {}
@@ -26,7 +29,26 @@ export class OpenHrServiceCaseHandler {
       description: string;
       assignedTo?: Uuid | string;
       slaDeadline?: Date | string;
+      catalogItemId?: Uuid | string;
+      ownerGroup?: string;
     };
+
+    const catalogItemId = toOptionalUuid(payload.catalogItemId);
+    let slaDeadline = toOptionalDate(payload.slaDeadline);
+    let ownerGroup = payload.ownerGroup;
+
+    if (catalogItemId) {
+      const catalogItem = await this.catalogItemRepo.findById(catalogItemId);
+      if (!catalogItem) throw new Error('HR service catalog item not found');
+      // Auto-derive the SLA target from the catalog item's configured SLA
+      // hours unless the caller explicitly supplied a deadline override.
+      slaDeadline = slaDeadline ?? deriveSlaDeadlineFromCatalogItem(catalogItem);
+      // Auto-suggest the owner group from the catalog item's configured
+      // default owner group (or category as a fallback) unless the caller
+      // explicitly supplied one.
+      ownerGroup = ownerGroup ?? deriveOwnerGroupFromCatalogItem(catalogItem);
+    }
+
     const ar = HrServiceCase.open(
       {
         id: Uuid.generate(),
@@ -37,7 +59,9 @@ export class OpenHrServiceCaseHandler {
         priority: payload.priority,
         description: payload.description,
         assignedTo: toOptionalUuid(payload.assignedTo),
-        slaDeadline: toOptionalDate(payload.slaDeadline),
+        slaDeadline,
+        catalogItemId,
+        ownerGroup,
       },
       command.correlationId,
     );
@@ -51,6 +75,9 @@ export class OpenHrServiceCaseHandler {
         caseType: ar.caseType,
         priority: ar.priority,
         status: ar.status,
+        catalogItemId: ar.catalogItemId?.value,
+        ownerGroup: ar.ownerGroup,
+        slaDeadline: ar.slaDeadline?.toISOString(),
       },
       commandId: command.commandId,
       correlationId: command.correlationId,

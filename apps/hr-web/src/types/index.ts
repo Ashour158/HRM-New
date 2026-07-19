@@ -64,6 +64,20 @@ export interface Worker {
   legalEntityName?: string;
 }
 
+/**
+ * Minimal disambiguation shape returned by the worker directory search
+ * (`GET /hr/core/workers/directory-search`), open to any authenticated
+ * workforce role. Deliberately excludes email, status, and other fields
+ * reserved for the full HR-core admin `Worker` payload.
+ */
+export interface WorkerDirectoryEntry {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  jobTitle?: string;
+}
+
 export interface EmployeeMassUpdateRow {
   employeeId?: string;
   firstName?: string;

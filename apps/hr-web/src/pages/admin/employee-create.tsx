@@ -21,6 +21,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import { useApiMutation, useApiQuery } from '@/hooks/use-api';
 import { useAuth } from '@/hooks/use-auth';
 import { useUIStore } from '@/stores/ui-store';
@@ -149,6 +150,18 @@ interface CreateEmployeeResult {
   workerId: string;
   status: string;
 }
+
+// Narrowed to the specific worker-reference fields the hierarchy pickers below write
+// to (all `string`, "none" meaning "unset"), so `update(fieldKey, ...)` type-checks
+// without widening to `keyof EmployeeCreateForm` and needing an `as never` cast.
+type HierarchyFieldKey = 'managerId' | 'dottedLineManagerId' | 'hrbpId' | 'mentorId';
+
+const hierarchyFields: ReadonlyArray<readonly [label: string, fieldKey: HierarchyFieldKey]> = [
+  ['Direct Manager', 'managerId'],
+  ['Dotted-Line Manager', 'dottedLineManagerId'],
+  ['HR Business Partner', 'hrbpId'],
+  ['Mentor / Buddy', 'mentorId'],
+];
 
 const steps = [
   { id: 'identity', label: 'Identity', icon: Contact },
@@ -1258,27 +1271,19 @@ export function AdminEmployeeCreate() {
             <section className="border-t pt-6">
               <h3 className="mb-4 text-base font-semibold">Hierarchy</h3>
               <div className="grid gap-4 md:grid-cols-4">
-                {[
-                  ['Direct Manager', 'managerId'],
-                  ['Dotted-Line Manager', 'dottedLineManagerId'],
-                  ['HR Business Partner', 'hrbpId'],
-                  ['Mentor / Buddy', 'mentorId'],
-                ].map(([label, key]) => (
-                  <div key={key} className="grid gap-2">
-                    <Label>{label}</Label>
-                    <Select value={String(form[key as keyof EmployeeCreateForm])} onValueChange={(value) => update(key as keyof EmployeeCreateForm, value as never)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">None</SelectItem>
-                        {workers.map((worker) => (
-                          <SelectItem key={worker.id} value={worker.id}>{workerName(worker)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
+                {hierarchyFields.map(([label, fieldKey]) => {
+                  const rawValue = form[fieldKey];
+                  return (
+                    <div key={fieldKey} className="grid gap-2">
+                      <Label htmlFor={`${fieldKey}-picker`}>{label}</Label>
+                      <WorkerPicker
+                        id={`${fieldKey}-picker`}
+                        value={rawValue === 'none' ? '' : rawValue}
+                        onChange={(workerId) => update(fieldKey, workerId || 'none')}
+                      />
+                    </div>
+                  );
+                })}
               </div>
               <div className="mt-5">
                 <div className="mb-2 flex items-center gap-2">
