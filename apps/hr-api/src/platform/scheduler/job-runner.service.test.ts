@@ -99,7 +99,7 @@ describe('JobRunner', () => {
     expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
       actor: expect.objectContaining({
         actorType: 'SYSTEM',
-        roles: ['SYSTEM_SCHEDULER'],
+        roles: ['SYSTEM_ACTOR'],
         permissions: expect.arrayContaining(['SCHEDULER_RUN', 'ABSENCE_ACCRUAL_CLOSE']),
       }),
       metadata: expect.objectContaining({ clientType: 'SYSTEM_SCHEDULER' }),
