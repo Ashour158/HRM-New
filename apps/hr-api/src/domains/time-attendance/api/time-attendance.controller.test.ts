@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import { DEFAULT_HCM_SETUP } from '../../hcm-setup/hcm-setup.defaults.js';
+import { AttendanceException } from '../aggregates/attendance-exception.aggregate.js';
 import { TimeClockEvent } from '../aggregates/time-clock-event.aggregate.js';
 import { AttendanceGeolocationExportService } from '../services/attendance-geolocation-export.service.js';
 import { AttendanceReportingService } from '../services/attendance-reporting.service.js';
@@ -51,6 +52,12 @@ function makeController(overrides: {
   openShiftRepo?: { findByTenantScoped: ReturnType<typeof vi.fn> };
   coverageGapRepo?: { findByTenantScoped: ReturnType<typeof vi.fn> };
   wfmOvertimeApprovalRepo?: { findByTenant: ReturnType<typeof vi.fn> };
+  workerRepo?: {
+    findById?: ReturnType<typeof vi.fn>;
+    findByEmail?: ReturnType<typeof vi.fn>;
+    findByManager?: ReturnType<typeof vi.fn>;
+  };
+  attendanceExceptionRepo?: { findById: ReturnType<typeof vi.fn> };
 } = {}) {
   const commandBus = overrides.commandBus ?? { execute: vi.fn(async () => ({ success: true })) };
   const hcmSetupService = overrides.hcmSetupService ?? { getSetup: vi.fn(async () => DEFAULT_HCM_SETUP) };
@@ -67,17 +74,23 @@ function makeController(overrides: {
   const openShiftRepo = overrides.openShiftRepo ?? { findByTenantScoped: vi.fn(async () => []) };
   const coverageGapRepo = overrides.coverageGapRepo ?? { findByTenantScoped: vi.fn(async () => []) };
   const wfmOvertimeApprovalRepo = overrides.wfmOvertimeApprovalRepo ?? { findByTenant: vi.fn(async () => []) };
+  const workerRepo = overrides.workerRepo ?? {
+    findById: vi.fn(async () => undefined),
+    findByEmail: vi.fn(async () => undefined),
+    findByManager: vi.fn(async () => []),
+  };
+  const attendanceExceptionRepo = overrides.attendanceExceptionRepo ?? { findById: vi.fn(async () => undefined) };
 
   return new TimeAttendanceController(
     commandBus as never,
     hcmSetupService as never,
     {} as never,
     attendanceLedgerBuilder as never,
-    {} as never,
+    workerRepo as never,
     {} as never,
     {} as never,
     timeClockEventRepo as never,
-    {} as never,
+    attendanceExceptionRepo as never,
     {} as never,
     {} as never,
     {} as never,
@@ -406,5 +419,95 @@ describe('TimeAttendanceController geolocation evidence', () => {
       tenantId,
       expect.objectContaining({ date: '2026-05-26', workplaceCode: 'CAIRO_HQ' }),
     );
+  });
+});
+
+describe('TimeAttendanceController attendance exception command RBAC', () => {
+  const exceptionId = new Uuid('55555555-5555-5555-5555-555555555555');
+  const otherManagerId = new Uuid('66666666-6666-6666-6666-666666666666');
+
+  function makeException(): AttendanceException {
+    return new AttendanceException({
+      id: exceptionId,
+      tenantId,
+      workerId,
+      exceptionType: 'MISSING_CHECKOUT',
+      description: 'Missing checkout on 2026-05-25',
+      detectedAt: new Date('2026-05-25T08:00:00.000Z'),
+      status: 'OPEN',
+      aggregateVersion: 0,
+    });
+  }
+
+  function workerRepoWithManager(managerId: Uuid) {
+    const targetWorker = { id: workerId, managerId } as unknown as { id: Uuid; managerId: Uuid };
+    return {
+      findById: vi.fn(async (id: Uuid) => (id.value === workerId.value ? targetWorker : undefined)),
+      findByEmail: vi.fn(async () => undefined),
+      findByManager: vi.fn(async () => []),
+    };
+  }
+
+  const handlers: Array<{
+    label: string;
+    invoke: (controller: TimeAttendanceController, req: Request) => Promise<unknown>;
+    commandName: string;
+  }> = [
+    {
+      label: 'review',
+      invoke: (controller, req) => controller.reviewAttendanceException(exceptionId.value, req),
+      commandName: 'ReviewAttendanceException',
+    },
+    {
+      label: 'resolve',
+      invoke: (controller, req) => controller.resolveAttendanceException(exceptionId.value, req),
+      commandName: 'ResolveAttendanceException',
+    },
+    {
+      label: 'escalate',
+      invoke: (controller, req) => controller.escalateAttendanceException(exceptionId.value, req),
+      commandName: 'EscalateAttendanceException',
+    },
+  ];
+
+  it.each(handlers)('allows an HR/admin-scoped actor to $label any tenant worker\'s attendance exception', async ({ invoke, commandName }) => {
+    const commandBus = { execute: vi.fn(async (command) => ({ success: true, data: command.payload })) };
+    const attendanceExceptionRepo = { findById: vi.fn(async () => makeException()) };
+    const controller = makeController({ commandBus, attendanceExceptionRepo });
+
+    await invoke(controller, requestWithRoles(['HR_ADMIN']));
+
+    expect(commandBus.execute).toHaveBeenCalledTimes(1);
+    expect(commandBus.execute.mock.calls[0]?.[0]?.commandName).toBe(commandName);
+  });
+
+  it.each(handlers)('allows a manager to $label their direct report\'s attendance exception', async ({ invoke }) => {
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
+    const attendanceExceptionRepo = { findById: vi.fn(async () => makeException()) };
+    const workerRepo = workerRepoWithManager(actorId);
+    const controller = makeController({ commandBus, attendanceExceptionRepo, workerRepo });
+
+    await invoke(controller, requestWithRoles(['MANAGER']));
+
+    expect(commandBus.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(handlers)('rejects a manager who is not that worker\'s manager from $label', async ({ invoke }) => {
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
+    const attendanceExceptionRepo = { findById: vi.fn(async () => makeException()) };
+    const workerRepo = workerRepoWithManager(otherManagerId);
+    const controller = makeController({ commandBus, attendanceExceptionRepo, workerRepo });
+
+    await expect(invoke(controller, requestWithRoles(['MANAGER']))).rejects.toBeInstanceOf(ForbiddenException);
+    expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it.each(handlers)('rejects a non-manager, non-admin actor from $label', async ({ invoke }) => {
+    const commandBus = { execute: vi.fn(async () => ({ success: true })) };
+    const attendanceExceptionRepo = { findById: vi.fn(async () => makeException()) };
+    const controller = makeController({ commandBus, attendanceExceptionRepo });
+
+    await expect(invoke(controller, requestWithRoles(['EMPLOYEE']))).rejects.toBeInstanceOf(ForbiddenException);
+    expect(commandBus.execute).not.toHaveBeenCalled();
   });
 });

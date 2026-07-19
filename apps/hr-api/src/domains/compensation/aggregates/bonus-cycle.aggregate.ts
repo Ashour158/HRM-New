@@ -71,6 +71,12 @@ export class BonusCyclePaid extends DomainEvent {
   }
 }
 
+export class BonusCycleClosed extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'BonusCycleClosed', tenantId: props.tenantId, aggregateType: 'BonusCycle', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Aggregate                                                          */
 /* ------------------------------------------------------------------ */
@@ -177,12 +183,13 @@ export class BonusCycle extends AggregateRoot {
     this.addDomainEvent(new BonusCyclePaid({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
   }
 
-  close(_correlationId: Uuid): void {
+  close(correlationId: Uuid): void {
     if (this.status !== 'PAID') {
       throw new Error(`Cannot close BonusCycle from state ${this.status}`);
     }
     this.status = 'CLOSED';
     this.updatedAt = new Date();
     this.incrementVersion();
+    this.addDomainEvent(new BonusCycleClosed({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
   }
 }

@@ -127,6 +127,24 @@ export type {
 export { HrAiGovernanceEngine, evaluateHrAiGovernanceBiasAudit } from './engines/hr-ai-governance.engine.js';
 
 export type {
+  RecruitingFairnessDecisionCode,
+  EeoDemographicDimension,
+  FunnelStageGroupCounts,
+  FunnelStageInput,
+  AdverseImpactAnalysisInput,
+  FunnelStageGroupResult,
+  FunnelStageResult,
+  AdverseImpactAnalysisResult,
+} from './engines/recruiting-fairness-compliance.engine.js';
+
+export {
+  RecruitingFairnessComplianceEngine,
+  evaluateRequisitionAdverseImpact,
+  evaluateFunnelStageAdverseImpact,
+  DEFAULT_SMALL_CELL_THRESHOLD,
+} from './engines/recruiting-fairness-compliance.engine.js';
+
+export type {
   DeiPayTransparencyDecisionCode,
   DeiPayTransparencyInput,
   DeiPayTransparencyViolation,
@@ -144,5 +162,6 @@ export {
   countryPolicyValidationEngine,
   offerCompensationEngine,
   hrAiGovernanceEngine,
+  recruitingFairnessComplianceEngine,
   deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

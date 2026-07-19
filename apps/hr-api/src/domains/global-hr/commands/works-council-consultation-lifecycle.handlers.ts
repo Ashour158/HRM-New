@@ -12,6 +12,19 @@ type WorksCouncilConsultationPayload = {
   blockingUntil?: Date;
 };
 
+/**
+ * Default consultation window used when neither the command payload nor the
+ * consultation record already carries a deadline. Deliberately NOT derived
+ * from the wall clock (`Date.now()`) — a command replay/retry must compute
+ * the exact same deadline every time it runs, and the wall clock is
+ * different on every invocation. The basis date is either
+ * `command.effectiveDate` (fixed at command-creation time, part of the
+ * envelope that is replayed byte-for-byte on retry) or, if that is absent
+ * too, the consultation's own persisted `createdAt` — both are deterministic
+ * given the same command/aggregate state, unlike `Date.now()`.
+ */
+const DEFAULT_CONSULTATION_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 function worksCouncilConsultationResult(
   command: HrCommandEnvelope<unknown>,
   fsm: FsmFramework,
@@ -52,9 +65,19 @@ export class InitiateWorksCouncilConsultationHandler {
     const payload = command.payload as WorksCouncilConsultationPayload;
     const consultation = await this.repo.findById(payload.consultationId);
     if (!consultation) throw new Error('Works council consultation not found');
+    if (consultation.status === 'INITIATED') {
+      // Idempotent retry: a prior attempt already completed this transition
+      // (state persisted) but the caller never observed the success (e.g.
+      // response lost in transit). Re-invoking `initiate()` would throw
+      // (REQUIRED -> INITIATED is no longer a valid transition from
+      // INITIATED), turning a successful retry into a spurious failure.
+      // Return the current state as the result instead of re-transitioning.
+      return worksCouncilConsultationResult(command, this.fsm, consultation);
+    }
+    const deadlineBasis = command.effectiveDate ?? consultation.createdAt;
     const deadline = payload.deadlineDate
       ?? consultation.deadlineDate
-      ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      ?? new Date(deadlineBasis.getTime() + DEFAULT_CONSULTATION_WINDOW_MS);
     consultation.initiate(command.correlationId, deadline);
     await this.repo.save(consultation);
     await this.eventsPublisher.publishUncommitted(consultation, command.tenantId, command.correlationId);
@@ -81,6 +104,10 @@ export class StartWorksCouncilProgressHandler {
     const payload = command.payload as WorksCouncilConsultationPayload;
     const consultation = await this.repo.findById(payload.consultationId);
     if (!consultation) throw new Error('Works council consultation not found');
+    if (consultation.status === 'IN_PROGRESS') {
+      // Idempotent retry — see InitiateWorksCouncilConsultationHandler for rationale.
+      return worksCouncilConsultationResult(command, this.fsm, consultation);
+    }
     consultation.startProgress(command.correlationId);
     await this.repo.save(consultation);
     await this.eventsPublisher.publishUncommitted(consultation, command.tenantId, command.correlationId);
@@ -108,6 +135,10 @@ export class CompleteWorksCouncilConsultationHandler {
     const payload = command.payload as WorksCouncilConsultationPayload;
     const consultation = await this.repo.findById(payload.consultationId);
     if (!consultation) throw new Error('Works council consultation not found');
+    if (consultation.status === 'COMPLETED') {
+      // Idempotent retry — see InitiateWorksCouncilConsultationHandler for rationale.
+      return worksCouncilConsultationResult(command, this.fsm, consultation);
+    }
     consultation.complete(command.correlationId);
     await this.repo.save(consultation);
     await this.eventsPublisher.publishUncommitted(consultation, command.tenantId, command.correlationId);
@@ -140,6 +171,10 @@ export class BlockWorksCouncilActionHandler {
     const payload = command.payload as WorksCouncilConsultationPayload;
     const consultation = await this.repo.findById(payload.consultationId);
     if (!consultation) throw new Error('Works council consultation not found');
+    if (consultation.status === 'BLOCKED') {
+      // Idempotent retry — see InitiateWorksCouncilConsultationHandler for rationale.
+      return worksCouncilConsultationResult(command, this.fsm, consultation);
+    }
     consultation.block(command.correlationId, payload.blockingUntil);
     await this.repo.save(consultation);
     await this.eventsPublisher.publishUncommitted(consultation, command.tenantId, command.correlationId);

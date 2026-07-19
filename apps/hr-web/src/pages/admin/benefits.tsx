@@ -1,4 +1,5 @@
 import { AdminDomainWorkspace, type DomainWorkspaceConfig } from './domain-workspace';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 
 /**
  * Native benefits workspace (config-driven, like union-labor / engagement).
@@ -34,6 +35,14 @@ const benefitsConfig: DomainWorkspaceConfig = {
       commandMappings: [],
     },
   ],
+  headerExtra: (
+    <ModuleConfigureLauncher
+      moduleName="Benefits"
+      policyArea="BENEFITS"
+      approvalCommandKeyword="Benefits"
+      fieldAccessEntity="benefits"
+    />
+  ),
 };
 
 export function AdminBenefits() {

@@ -26,10 +26,7 @@ import { LegalEntityFsm } from '../fsm/legal-entity.fsm.js';
 import { LegalEntityProjection } from '../projections/legal-entity.projection.js';
 import type { OrgUnit } from '../aggregates/org-unit.aggregate.js';
 import type { ManagerRelationship } from '../aggregates/manager-relationship.aggregate.js';
-import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
-import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
-import type { WorkerProfile } from '../../hr-core/aggregates/worker-profile.aggregate.js';
-import type { PersonalDataRecord } from '../../hr-core/aggregates/personal-data-record.aggregate.js';
+import { HrCoreDirectoryQueryService, type WorkerProfile, type PersonalDataRecord } from '../../hr-core/hr-core-directory.query-service.js';
 import { PositionRepository } from '../../position-control/repositories/position.repository.js';
 import { HeadcountRequestRepository } from '../../position-control/repositories/headcount-request.repository.js';
 import { AuthGuard } from '../../../guards/auth.guard.js';
@@ -101,8 +98,7 @@ export class OrganizationController {
     private readonly legalEntityRepo: LegalEntityRepository,
     private readonly orgUnitRepo: OrgUnitRepository,
     private readonly managerRelationshipRepo: ManagerRelationshipRepository,
-    private readonly workerRepo: WorkerRepository,
-    private readonly personalDataRepo: PersonalDataRecordRepository,
+    private readonly hrCoreDirectory: HrCoreDirectoryQueryService,
     private readonly positionRepo: PositionRepository,
     private readonly headcountRepo: HeadcountRequestRepository,
     private readonly legalEntityFsm: LegalEntityFsm,
@@ -309,7 +305,7 @@ export class OrganizationController {
   ) {
     const tenantId = this.requireTenant(req);
     const workerUuid = new Uuid(workerId);
-    const worker = await this.workerRepo.findById(workerUuid);
+    const worker = await this.hrCoreDirectory.findWorkerById(workerUuid);
     if (!worker) throw new NotFoundException('Worker not found');
     if (worker.tenantId.value !== tenantId.value) {
       throw new BadRequestException('Worker belongs to a different tenant');
@@ -481,13 +477,13 @@ export class OrganizationController {
     const [legalEntityAggregates, orgUnitAggregates, workers, positions, headcountRequests, managerRelationships] = await Promise.all([
       this.legalEntityRepo.findByTenant(tenantId),
       this.orgUnitRepo.findByTenant(tenantId),
-      this.workerRepo.searchForTenant('', tenantId, { limit: 5000 }),
+      this.hrCoreDirectory.searchWorkersForTenant('', tenantId, { limit: 5000 }),
       this.positionRepo.findAll(tenantId),
       this.headcountRepo.findAll(tenantId),
       this.managerRelationshipRepo.findByTenant(tenantId),
     ]);
     const profiles = await Promise.all(workers.map(async (worker) => {
-      const records = await this.personalDataRepo.findByWorkerForTenant(worker.id, tenantId);
+      const records = await this.hrCoreDirectory.findPersonalDataRecordsForWorkerForTenant(worker.id, tenantId);
       return { worker, records: this.recordsByCategory(records) };
     }));
 
@@ -1029,8 +1025,8 @@ export class OrganizationController {
 
   private async toManagerRelationshipDisplay(entity: ManagerRelationship) {
     const [worker, manager] = await Promise.all([
-      this.workerRepo.findById(entity.workerId),
-      this.workerRepo.findById(entity.managerId),
+      this.hrCoreDirectory.findWorkerById(entity.workerId),
+      this.hrCoreDirectory.findWorkerById(entity.managerId),
     ]);
     return {
       ...this.toManagerRelationshipView(entity),

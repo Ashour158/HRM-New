@@ -14,6 +14,7 @@ import { StatTile } from '@/components/ui/stat-tile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { useUIStore } from '@/stores/ui-store';
 import { cn, generateUUID } from '@/lib/utils';
 import {
@@ -470,6 +471,13 @@ export function AdminOnboarding() {
             />
           </div>
         </section>
+
+        <ModuleConfigureLauncher
+          moduleName="Onboarding"
+          policyArea="EMPLOYEE_SETUP"
+          approvalCommandKeyword="Onboarding"
+          fieldAccessEntity="onboarding"
+        />
 
         <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
           <div className="space-y-6">

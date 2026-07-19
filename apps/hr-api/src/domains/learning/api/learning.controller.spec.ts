@@ -8,8 +8,8 @@ import type { LearningCourseRepository } from '../repositories/learning-course.r
 import type { LearningAssignmentRepository } from '../repositories/learning-assignment.repository.js';
 import type { CertificationRepository } from '../repositories/certification.repository.js';
 import type { LearningContentPackageRepository } from '../repositories/learning-content-package.repository.js';
-import type { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
-import type { LegalEntityRepository } from '../../organization/repositories/legal-entity.repository.js';
+import type { HrCoreDirectoryQueryService } from '../../hr-core/hr-core-directory.query-service.js';
+import type { OrganizationDirectoryQueryService } from '../../organization/organization-directory.query-service.js';
 import type { DocumentExportService } from '../../../platform/export/document-export.service.js';
 import { LearningContentStorageService, LearningContentStorageValidationError } from '../services/learning-content-storage.service.js';
 
@@ -93,12 +93,12 @@ function makeController() {
     findByTenant: vi.fn(),
   } as unknown as LearningContentPackageRepository;
   const workerRepo = {
-    findById: vi.fn(),
-    findByEmail: vi.fn(),
-  } as unknown as WorkerRepository;
+    findWorkerById: vi.fn(),
+    findWorkerByEmail: vi.fn(),
+  } as unknown as HrCoreDirectoryQueryService;
   const legalEntityRepo = {
-    findByTenant: vi.fn(async () => []),
-  } as unknown as LegalEntityRepository;
+    findLegalEntitiesForTenant: vi.fn(async () => []),
+  } as unknown as OrganizationDirectoryQueryService;
   const documentExport = {
     toCertificatePdf: vi.fn(async () => Buffer.from('%PDF-1.7 fake')),
   } as unknown as DocumentExportService;
@@ -376,8 +376,8 @@ describe('LearningController', () => {
     it('generates and streams a certificate PDF for an HR admin', async () => {
       const { controller, certificationRepo, workerRepo, legalEntityRepo, documentExport } = makeController();
       (certificationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(activeCertification());
-      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), firstName: 'Maya', lastName: 'Hassan' });
-      (legalEntityRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ name: 'Acme Health', status: 'ACTIVE' }]);
+      (workerRepo.findWorkerById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), firstName: 'Maya', lastName: 'Hassan' });
+      (legalEntityRepo.findLegalEntitiesForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([{ name: 'Acme Health', status: 'ACTIVE' }]);
       const res = mockResponse();
 
       await controller.getCertificatePdf(certificationId, request(), res);
@@ -397,8 +397,8 @@ describe('LearningController', () => {
     it('allows the certificate holder to download their own certificate', async () => {
       const { controller, certificationRepo, workerRepo, legalEntityRepo, documentExport } = makeController();
       (certificationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(activeCertification());
-      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), firstName: 'Maya', lastName: 'Hassan' });
-      (legalEntityRepo.findByTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (workerRepo.findWorkerById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), firstName: 'Maya', lastName: 'Hassan' });
+      (legalEntityRepo.findLegalEntitiesForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([]);
       const res = mockResponse();
 
       const selfReq = request({ actorId: new Uuid(workerId), roles: ['EMPLOYEE'], email: 'maya.hassan@example.com' });
@@ -411,8 +411,8 @@ describe('LearningController', () => {
     it('denies certificate access to an unrelated non-admin worker', async () => {
       const { controller, certificationRepo, workerRepo } = makeController();
       (certificationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(activeCertification());
-      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
-      (workerRepo.findByEmail as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      (workerRepo.findWorkerById as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+      (workerRepo.findWorkerByEmail as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
       const otherWorkerId = '00000000-0000-0000-0000-000000000999';
       const req = request({ actorId: new Uuid(otherWorkerId), roles: ['EMPLOYEE'], email: 'someone.else@example.com' });
@@ -449,7 +449,7 @@ describe('LearningController', () => {
       const { controller, assignmentRepo, certificationRepo, workerRepo } = makeController();
       (assignmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(assignmentId), workerId: new Uuid(workerId) });
       (certificationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(certificationId), workerId: new Uuid(workerId) });
-      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), managerId: undefined });
+      (workerRepo.findWorkerById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), managerId: undefined });
 
       const coworker = request(employeeActor(otherWorkerId));
 
@@ -470,7 +470,7 @@ describe('LearningController', () => {
     it('allows a manager to read their direct report learning assignment', async () => {
       const { controller, assignmentRepo, workerRepo } = makeController();
       (assignmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(assignmentId), workerId: new Uuid(workerId) });
-      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), managerId: new Uuid(managerId) });
+      (workerRepo.findWorkerById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), managerId: new Uuid(managerId) });
 
       await expect(controller.getAssignment(assignmentId, request(managerActor(managerId)))).resolves.toBeDefined();
     });

@@ -85,6 +85,27 @@ export class HeadcountRequestRepository {
   }
 
   /**
+   * Compute the current total approved headcount for an org unit (department).
+   *
+   * Sums `positionsApproved` (falling back to `positionsRequested` for legacy
+   * rows with no explicit approved count) across every still-active APPROVED
+   * request for the department. REJECTED/CANCELLED/DRAFT/SUBMITTED/UNDER_REVIEW
+   * requests do not contribute — only requests that already cleared approval
+   * count against the budget.
+   */
+  async sumApprovedPositionsByDepartment(tenantId: Uuid, departmentId: Uuid): Promise<number> {
+    const rows = await this.db
+      .selectFrom('hr_position.headcount_requests')
+      .select(['positions_requested', 'positions_approved'])
+      .where('tenant_id', '=', tenantId.value)
+      .where('department_id', '=', departmentId.value)
+      .where('status', '=', 'APPROVED')
+      .execute();
+
+    return rows.reduce((sum, row: any) => sum + (Number(row.positions_approved ?? row.positions_requested) || 0), 0);
+  }
+
+  /**
    * Generate the next request number in the sequence HC-{year}-{sequence}.
    */
   async generateRequestNumber(tenantId: Uuid): Promise<string> {

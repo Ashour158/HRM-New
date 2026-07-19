@@ -45,16 +45,18 @@ import { getCurrentTransaction } from '../connection/transaction-context.js';
  *      `private get executor() { return resolveTransactionAwareExecutor(this.db); }`
  *      — and use `this.executor` instead of `this.db` in its query methods.
  *
- * Adopted so far (this PR): the `payroll`, `compensation`, and `hr-core`
- * (`WorkerRepository`, `PersonalDataRecordRepository`) domains — see each
- * repository file for the `executor` getter / inherited `BaseRepository`
- * usage. All other repositories in the codebase (~120+ across the remaining
- * 30 domains) still construct their own pooled `Kysely` instance and write
- * outside the command's transaction; adopting this pattern for them is
- * intentionally NOT part of this PR (see the task description: a repo-wide
- * rollout needs its own staged PR, not a drive-by change bundled with a
- * command-bus refactor). Do not assume any repository outside the three
- * domains above is transaction-safe.
+ * Adopted so far: the `payroll`, `compensation`, and `hr-core`
+ * (`WorkerRepository`, `PersonalDataRecordRepository`) domains from the
+ * original command-bus tx-atomicity decomposition, plus `CountryRuleSetRepository`
+ * and `StatutoryLeaveTypeRepository` in the `global-hr` domain (tenant-isolation
+ * hardening follow-up to PR #117) — see each repository file for the `executor`
+ * getter / inherited `BaseRepository` usage. All other repositories in the
+ * codebase (~120+ across the remaining domains) still construct their own
+ * pooled `Kysely` instance and write outside the command's transaction;
+ * adopting this pattern for them is intentionally out of scope here (a
+ * repo-wide rollout needs its own staged effort, not a drive-by change
+ * bundled with an unrelated fix). Do not assume any repository outside the
+ * ones named above is transaction-safe.
  */
 export function resolveTransactionAwareExecutor<DB = Database>(
   pooledDb: Kysely<DB>,

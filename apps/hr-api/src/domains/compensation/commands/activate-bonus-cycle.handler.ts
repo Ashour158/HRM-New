@@ -9,6 +9,7 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
 
 /**
  * Command handler for activating a BonusCycle.
+ * DRAFT → ACTIVE.
  */
 @Injectable()
 @CommandHandler('ActivateBonusCycle')

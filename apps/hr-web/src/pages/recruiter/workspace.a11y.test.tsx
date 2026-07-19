@@ -59,6 +59,16 @@ const offers = [
   },
 ];
 
+const interviewerWorker = {
+  id: '00000000-0000-0000-0000-000000000901',
+  employeeId: 'EMP-901',
+  firstName: 'Dana',
+  lastName: 'Iqbal',
+  email: 'dana.iqbal@example.com',
+  hireDate: '2020-01-01',
+  status: 'ACTIVE',
+};
+
 describe('RecruiterWorkspace accessibility', () => {
   beforeEach(() => {
     addNotificationMock.mockReset();
@@ -71,6 +81,7 @@ describe('RecruiterWorkspace accessibility', () => {
       if (key === 'recruiter-candidates') return { data: candidates, isLoading: false, isError: false, refetch: vi.fn() };
       if (key === 'recruiter-offers') return { data: offers, isLoading: false, isError: false, refetch: vi.fn() };
       if (key === 'recruiter-requisition-detail') return { data: requisition, isLoading: false, isError: false, refetch: vi.fn() };
+      if (key === 'recruiter-interviewer-search') return { data: [interviewerWorker], isLoading: false, isError: false, refetch: vi.fn() };
       throw new Error(`Unexpected query ${String(key)} ${url}`);
     });
   });
