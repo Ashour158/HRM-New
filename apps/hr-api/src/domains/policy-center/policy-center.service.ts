@@ -5,6 +5,7 @@ import { createPrivacyForEvent, type HrEventEnvelope } from '@hcm/event-schemas'
 import { createHash } from 'node:crypto';
 import { PlatformNotificationRepository } from '../../platform/notifications/platform-notification.repository.js';
 import { OutboxPublisher } from '../../platform/outbox-inbox/outbox-publisher.js';
+import { StructuredLoggerService } from '../../observability/structured-logger.service.js';
 import { HcmSetupService } from '../hcm-setup/hcm-setup.service.js';
 import type {
   AttendanceDeviceTrustRule,
@@ -1102,19 +1103,6 @@ function replacementRevisionId(revision: PolicyRevisionRecord): string | undefin
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-function emptyImpactRecords(): PolicyImpactRecords {
-  return {
-    workers: [],
-    leaveRequests: [],
-    attendanceDays: [],
-    payrollCycles: [],
-    complianceAcknowledgements: [],
-    accessGrants: [],
-    benefitsEnrollments: [],
-    benefitsLifeEvents: [],
-  };
-}
-
 function impactRiskSummary(records: PolicyImpactRecords) {
   const summary = {
     safe: 0,
@@ -1268,6 +1256,7 @@ export class PolicyCenterService {
     @Optional() private readonly notificationRepository: Pick<PlatformNotificationRepository, 'createMany'> = new PlatformNotificationRepository(),
     @Optional() @Inject(AuditLedgerService) private readonly auditLedger?: Pick<AuditLedgerService, 'write'>,
     @Optional() @Inject(OutboxPublisher) private readonly outbox?: Pick<OutboxPublisher, 'schedule'>,
+    @Optional() @Inject(StructuredLoggerService) private readonly logger: Pick<StructuredLoggerService, 'error'> = new StructuredLoggerService(),
   ) {}
 
   async getSummary(tenantId: Uuid) {
@@ -1824,10 +1813,34 @@ export class PolicyCenterService {
     };
   }
 
+  // The high-risk-apply confirmation gate in applyRevision() is derived entirely from
+  // the records this loads (via impactRiskSummary()). A query failure here MUST NOT be
+  // read as "nothing at risk" -- that would silently let a high-risk revision (e.g. one
+  // touching open payroll cycles) apply with zero human confirmation. So we fail closed:
+  // log the underlying error for observability, then throw a safe, specific error that
+  // blocks the apply/simulate call instead of leaking a raw DB error to the client. See C-5.
+  private async loadImpactRecordsOrFailClosed(tenantId: Uuid, revision: PolicyRevisionRecord): Promise<PolicyImpactRecords> {
+    try {
+      return await this.repository.listImpactRecords(tenantId.value, revision.area, revision.scope);
+    } catch (error) {
+      this.logger.error({
+        eventType: 'POLICY_IMPACT_ASSESSMENT_FAILED',
+        tenantId: tenantId.value,
+        policyRevisionId: revision.id,
+        area: revision.area,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      throw new BadRequestException(
+        'Policy impact assessment could not be computed because of a data error. The policy apply is blocked until this is resolved.',
+      );
+    }
+  }
+
   private async simulatePolicyRevision(tenantId: Uuid, revision: PolicyRevisionRecord): Promise<PolicyImpactSimulationResult> {
     const impacted = await this.repository.countImpactedWorkers(tenantId.value, revision.scope);
     const pendingRecords = await this.repository.countPendingDomainRecords(tenantId.value, revision.area, revision.scope);
-    const impactedRecords = await this.repository.listImpactRecords(tenantId.value, revision.area, revision.scope).catch(() => emptyImpactRecords());
+    const impactedRecords = await this.loadImpactRecordsOrFailClosed(tenantId, revision);
     if (impactedRecords.workers.length === 0 && impacted.workerIds.length > 0) {
       impactedRecords.workers = impacted.workerIds.map((workerId) => ({
         workerId,
