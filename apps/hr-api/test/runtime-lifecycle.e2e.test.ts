@@ -312,16 +312,7 @@ function expectSuccessful(response: request.Response, label: string): JsonRecord
     throw new Error(`${label} returned ${response.status}: ${JSON.stringify(response.body)}`);
   }
   const data = bodyData(response.body);
-  const success = response.body?.success ?? data.success ?? true;
-  if (success === false) {
-    // TEMPORARY DIAGNOSTIC LOGGING -- HCM-P0-5 round 3 investigation.
-    // Remove once the real root cause of the CI-only failure is found.
-    console.error(
-      `DEBUG PAYROLL APPROVAL FAILURE (${label}):`,
-      JSON.stringify({ status: response.status, body: response.body }, null, 2),
-    );
-  }
-  expect(success).not.toBe(false);
+  expect(response.body?.success ?? data.success ?? true).not.toBe(false);
   return data;
 }
 

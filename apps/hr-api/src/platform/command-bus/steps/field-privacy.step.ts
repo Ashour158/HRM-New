@@ -14,7 +14,21 @@ export const SENSITIVE_FIELD_RULES: Array<{
     policyField: 'worker.compensation.salary',
     dataClassification: 'HIGH_SENSITIVITY',
     allowedWriterRoles: ['HR_ADMIN', 'PAYROLL_ADMIN', 'COMPENSATION_ADMIN', 'SUPER_ADMIN'],
-    patterns: [/salary/i, /gross/i, /net/i, /taxAmount/i, /insuranceAmount/i, /deduction/i, /payroll/i],
+    // NOTE: no bare /payroll/i pattern here (HCM-P0-5 round 3). Every payroll
+    // command payload carries an id-reference field whose name merely
+    // contains the substring "payroll" (payrollCycleId, payrollInputId,
+    // payrollCalculationRunId, payrollResultLineId, ...) -- a bare /payroll/i
+    // pattern false-positives on those structural id fields and treats them
+    // as a compensation.salary mutation, even though none of them carry
+    // salary data. That silently required every payroll command to be run by
+    // an allowedWriterRoles actor (previously always true, since every
+    // payroll actor also held HR_ADMIN/PAYROLL_ADMIN) and broke the first
+    // actor that legitimately doesn't -- PAYROLL_APPROVER (HCM-P0-5), which
+    // holds PAYROLL_APPROVE without PAYROLL_CREATE/HR_ADMIN/PAYROLL_ADMIN by
+    // design so it can pass the preparer/approver SoD check. Actual
+    // money-bearing fields are already covered by the specific patterns
+    // below (salary/gross/net/taxAmount/insuranceAmount/deduction).
+    patterns: [/salary/i, /gross/i, /net/i, /taxAmount/i, /insuranceAmount/i, /deduction/i],
   },
   {
     policyField: 'worker.compensation.bankAccount',
