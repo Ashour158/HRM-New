@@ -230,6 +230,14 @@ export class CreateEmploymentRelationshipDto {
   @ApiPropertyOptional() probationEndDate?: Date;
 }
 
+export const StartProbationEmploymentRelationshipDtoSchema = z.object({
+  probationEndDate: z.coerce.date(),
+});
+
+export class StartProbationEmploymentRelationshipDto {
+  @ApiProperty() probationEndDate!: Date;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Employment Contract DTOs                                           */
 /* ------------------------------------------------------------------ */

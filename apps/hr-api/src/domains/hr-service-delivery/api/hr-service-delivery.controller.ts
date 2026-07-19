@@ -11,6 +11,7 @@ import type { WorkerProfile } from '../../hr-core/aggregates/worker-profile.aggr
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import type { HrServiceCase } from '../aggregates/hr-service-case.aggregate.js';
 import type { HrServiceCatalogItem } from '../aggregates/hr-service-catalog-item.aggregate.js';
+import type { HrKnowledgeArticle } from '../aggregates/hr-knowledge-article.aggregate.js';
 import { HrServiceCaseRepository } from '../repositories/hr-service-case.repository.js';
 import { HrCaseTaskRepository } from '../repositories/hr-case-task.repository.js';
 import { HrKnowledgeArticleRepository } from '../repositories/hr-knowledge-article.repository.js';
@@ -20,7 +21,8 @@ import type * as dtos from './dtos.js';
 import {
   OpenHrServiceCaseDtoSchema, CreateHrCaseTaskDtoSchema,
   CreateHrKnowledgeArticleDtoSchema, CreateHrServiceCatalogItemDtoSchema,
-  CreateHrCaseSlaInstanceDtoSchema, ZodValidationPipe,
+  CreateHrCaseSlaInstanceDtoSchema, EscalateHrServiceCaseDtoSchema,
+  ReassignHrServiceCaseDtoSchema, ZodValidationPipe,
 } from './dtos.js';
 
 @ApiTags('HR Service Delivery')
@@ -109,6 +111,14 @@ export class HrServiceDeliveryController {
     throw new ForbiddenException('Employees can only update HR case tasks assigned to them');
   }
 
+  /** Escalation can be triggered by the currently assigned agent or an HR service delivery administrator. */
+  private async assertCaseEscalationScope(req: Request, serviceCase: { assignedTo?: Uuid }): Promise<void> {
+    if (this.hasServiceAdminScope(req)) return;
+    const self = await this.resolveSelfWorker(req);
+    if (serviceCase.assignedTo?.value === self.id.value) return;
+    throw new ForbiddenException('Only the assigned agent or HR service delivery administrators can escalate a case');
+  }
+
   private async resolveSelfWorker(req: Request): Promise<WorkerProfile> {
     const tenantId = this.getTenantId(req);
     const actorId = this.getActorId(req);
@@ -173,6 +183,11 @@ export class HrServiceDeliveryController {
       assignedTo: serviceCase.assignedTo?.value,
       slaDeadline: this.serializeDate(serviceCase.slaDeadline),
       resolvedAt: this.serializeDate(serviceCase.resolvedAt),
+      catalogItemId: serviceCase.catalogItemId?.value,
+      ownerGroup: serviceCase.ownerGroup,
+      escalationReason: serviceCase.escalationReason,
+      escalatedAt: this.serializeDate(serviceCase.escalatedAt),
+      escalatedBy: serviceCase.escalatedBy?.value,
       status: serviceCase.status,
       createdAt: this.serializeDate(serviceCase.createdAt),
       updatedAt: this.serializeDate(serviceCase.updatedAt),
@@ -188,9 +203,24 @@ export class HrServiceDeliveryController {
       category: item.category,
       slaHours: item.slaHours,
       fulfillmentProcess: item.fulfillmentProcess,
+      defaultOwnerGroup: item.defaultOwnerGroup,
       status: item.status,
       createdAt: this.serializeDate(item.createdAt),
       updatedAt: this.serializeDate(item.updatedAt),
+    };
+  }
+
+  private serializeHrKnowledgeArticle(article: HrKnowledgeArticle) {
+    return {
+      id: article.id.value,
+      title: article.title,
+      content: article.content,
+      category: article.category,
+      tags: article.tags ?? [],
+      status: article.status,
+      viewCount: article.viewCount,
+      createdAt: this.serializeDate(article.createdAt),
+      updatedAt: this.serializeDate(article.updatedAt),
     };
   }
 
@@ -264,6 +294,42 @@ export class HrServiceDeliveryController {
     return this.commandBus.execute(this.buildCommand('CloseHrServiceCase', 'HrServiceCase', { hrServiceCaseId: new Uuid(id) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Post('cases/:id/commands/escalate')
+  async escalateHrServiceCase(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(EscalateHrServiceCaseDtoSchema)) body: dtos.EscalateHrServiceCaseDto,
+    @Req() req: Request,
+  ) {
+    const ar = await this.hrServiceCaseRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('HR service case not found');
+    await this.assertCaseEscalationScope(req, ar);
+    return this.commandBus.execute(this.buildCommand(
+      'EscalateHrServiceCase',
+      'HrServiceCase',
+      { hrServiceCaseId: new Uuid(id), escalationReason: body.escalationReason },
+      req,
+      { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion },
+    ));
+  }
+
+  @Post('cases/:id/commands/reassign')
+  async reassignHrServiceCase(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(ReassignHrServiceCaseDtoSchema)) body: dtos.ReassignHrServiceCaseDto,
+    @Req() req: Request,
+  ) {
+    this.assertServiceAdminScope(req);
+    const ar = await this.hrServiceCaseRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('HR service case not found');
+    return this.commandBus.execute(this.buildCommand(
+      'ReassignHrServiceCase',
+      'HrServiceCase',
+      { hrServiceCaseId: new Uuid(id), assignedTo: body.assignedTo, ownerGroup: body.ownerGroup },
+      req,
+      { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion },
+    ));
+  }
+
   @Get('cases/:id')
   async getHrServiceCase(@Param('id') id: string, @Req() req: Request) {
     const serviceCase = await this.hrServiceCaseRepo.findById(new Uuid(id));
@@ -322,6 +388,20 @@ export class HrServiceDeliveryController {
   }
 
   /* HR Knowledge Articles */
+  @Get('knowledge-articles')
+  async listHrKnowledgeArticles(
+    @Req() req: Request,
+    @Query('category') category?: string,
+    @Query('q') q?: string,
+  ) {
+    const tenantId = this.getTenantId(req);
+    if (this.hasServiceAdminScope(req)) {
+      return (await this.hrKnowledgeArticleRepo.findByTenant(tenantId)).map((article) => this.serializeHrKnowledgeArticle(article));
+    }
+    // Employee self-service: only published articles are searchable/browsable.
+    return (await this.hrKnowledgeArticleRepo.findPublished(tenantId, { category, query: q })).map((article) => this.serializeHrKnowledgeArticle(article));
+  }
+
   @Post('knowledge-articles')
   async createHrKnowledgeArticle(@Body(new ZodValidationPipe(CreateHrKnowledgeArticleDtoSchema)) dto: dtos.CreateHrKnowledgeArticleDto, @Req() req: Request) {
     this.assertServiceAdminScope(req);
@@ -346,7 +426,9 @@ export class HrServiceDeliveryController {
 
   @Get('knowledge-articles/:id')
   async getHrKnowledgeArticle(@Param('id') id: string) {
-    return this.hrKnowledgeArticleRepo.findById(new Uuid(id));
+    const article = await this.hrKnowledgeArticleRepo.findById(new Uuid(id));
+    if (!article) throw new NotFoundException('HR knowledge article not found');
+    return this.serializeHrKnowledgeArticle(article);
   }
 
   /* HR Service Catalog Items */

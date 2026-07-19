@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -91,11 +91,11 @@ function apiResponse(data: unknown) {
   return Promise.resolve({ data: { success: true, data } });
 }
 
-function renderTeam() {
+function renderTeam(path: string = `/manager/team?worker=${selectedWorkerId}`) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/manager/team?worker=${selectedWorkerId}`]}>
+      <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/manager/team" element={<ManagerTeam />} />
         </Routes>
@@ -119,6 +119,117 @@ describe('ManagerTeam', () => {
       return apiResponse({});
     });
     apiClientPostMock.mockResolvedValue({ data: { success: true, data: {} } });
+  });
+
+  describe('team activity widget on the list view', () => {
+    it('renders upcoming anniversaries and recent joins from the already-fetched roster', async () => {
+      // Compute dates relative to "now" (UTC, calendar-day granularity) so the
+      // assertions stay true no matter when the suite runs, mirroring the exact
+      // day-math `computeUpcomingTeamEvents` itself uses.
+      const now = new Date();
+      const anniversaryTarget = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 8),
+      );
+      const anniversaryHireDate = new Date(
+        Date.UTC(
+          anniversaryTarget.getUTCFullYear() - 4,
+          anniversaryTarget.getUTCMonth(),
+          anniversaryTarget.getUTCDate(),
+        ),
+      ).toISOString(); // 8 days away, 4th anniversary
+      const recentHireDate = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 7),
+      ).toISOString(); // 7 days ago
+
+      apiClientGetMock.mockImplementation((url: string) => {
+        if (url.startsWith('/manager/team')) {
+          return apiResponse({
+            directReports: [
+              {
+                id: 'w-anniversary',
+                employeeId: 'EMP-200',
+                firstName: 'Anniversary',
+                lastName: 'Worker',
+                email: 'anniversary@example.com',
+                hireDate: anniversaryHireDate,
+                status: 'ACTIVE',
+              },
+              {
+                id: 'w-new-hire',
+                employeeId: 'EMP-201',
+                firstName: 'Newly',
+                lastName: 'Hired',
+                email: 'newly.hired@example.com',
+                hireDate: recentHireDate,
+                status: 'ACTIVE',
+              },
+            ],
+          });
+        }
+        if (url.startsWith('/intelligence/attrition-risk/tenant/')) {
+          return apiResponse([]);
+        }
+        return apiResponse({});
+      });
+
+      renderTeam('/manager/team');
+
+      const cardTitle = await screen.findByText('Team Activity');
+      const card = cardTitle.parentElement?.parentElement as HTMLElement;
+
+      expect(within(card).getByText('Upcoming work anniversaries')).toBeInTheDocument();
+      expect(within(card).getByText('Anniversary Worker')).toBeInTheDocument();
+      expect(within(card).getByText('4 years')).toBeInTheDocument();
+
+      expect(within(card).getByText('Recent joins')).toBeInTheDocument();
+      expect(within(card).getByText('Newly Hired')).toBeInTheDocument();
+      expect(within(card).getByText('7 days ago')).toBeInTheDocument();
+
+      // Both workers still show up in the direct-reports table below the card.
+      expect(screen.getAllByText('Anniversary Worker')).toHaveLength(2);
+      expect(screen.getAllByText('Newly Hired')).toHaveLength(2);
+    });
+
+    it('shows the empty state when no direct reports have upcoming activity', async () => {
+      const now = new Date();
+      // ~183 days from today's month/day, several years ago: comfortably outside
+      // the 30-day anniversary and recent-join windows regardless of when the
+      // suite runs.
+      const tenuredHireDate = new Date(
+        Date.UTC(now.getUTCFullYear() - 8, now.getUTCMonth(), now.getUTCDate() + 183),
+      ).toISOString();
+
+      apiClientGetMock.mockImplementation((url: string) => {
+        if (url.startsWith('/manager/team')) {
+          return apiResponse({
+            directReports: [
+              {
+                id: 'w-tenured',
+                employeeId: 'EMP-300',
+                firstName: 'Long',
+                lastName: 'Tenured',
+                email: 'long.tenured@example.com',
+                hireDate: tenuredHireDate,
+                status: 'ACTIVE',
+              },
+            ],
+          });
+        }
+        if (url.startsWith('/intelligence/attrition-risk/tenant/')) {
+          return apiResponse([]);
+        }
+        return apiResponse({});
+      });
+
+      renderTeam('/manager/team');
+
+      await screen.findByText('Team Activity');
+      expect(
+        screen.getByText('No upcoming anniversaries or new joins in the next 30 days.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('Upcoming work anniversaries')).not.toBeInTheDocument();
+      expect(screen.queryByText('Recent joins')).not.toBeInTheDocument();
+    });
   });
 
   it('shows selected member 360 and action-plan impact in the performance tab', async () => {

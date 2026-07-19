@@ -102,6 +102,45 @@ describe('AuditInterceptor', () => {
     expect(response.setHeader).toHaveBeenCalledWith('X-Audit-Record-Id', expect.any(String));
   });
 
+  it('redacts auth-secret and password-change field variants in fallback HTTP mutation audit', async () => {
+    const auditLedger = { write: vi.fn(async () => undefined) };
+    const response = { setHeader: vi.fn() };
+    const interceptor = new AuditInterceptor(auditLedger as never, reflector() as never);
+
+    await lastValueFrom(interceptor.intercept(
+      contextFor({
+        method: 'POST',
+        tenantId,
+        correlationId,
+        actor: { actorType: 'USER', actorId },
+        route: { path: '/auth/change-password' },
+        path: '/auth/change-password',
+        body: {
+          currentPassword: 'OldPassword123!',
+          newPassword: 'NewPassword123!',
+          confirmPassword: 'NewPassword123!',
+          accessToken: 'access-token-value',
+          sessionToken: 'session-token-value',
+        },
+        params: {},
+      }, response),
+      handler({ ok: true }),
+    ));
+
+    expect(auditLedger.write).toHaveBeenCalledWith(expect.objectContaining({
+      payload: {
+        body: {
+          currentPassword: '***REDACTED***',
+          newPassword: '***REDACTED***',
+          confirmPassword: '***REDACTED***',
+          accessToken: '***REDACTED***',
+          sessionToken: '***REDACTED***',
+        },
+        resourceIdSource: 'tenant',
+      },
+    }));
+  });
+
   it('propagates fallback audit write failures for non-command mutations', async () => {
     const auditLedger = { write: vi.fn(async () => { throw new Error('audit store unavailable'); }) };
     const response = { setHeader: vi.fn() };

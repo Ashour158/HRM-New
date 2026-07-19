@@ -156,6 +156,7 @@ export const CreateCalculatedFieldDtoSchema = z.object({
   fieldName: z.string().min(1),
   expression: z.string().min(1),
   dataType: z.string().min(1),
+  dataSource: z.string().min(1),
   sourceFields: z.array(z.string()).optional(),
 });
 export class CreateCalculatedFieldDto {
@@ -163,6 +164,7 @@ export class CreateCalculatedFieldDto {
   @ApiProperty() fieldName!: string;
   @ApiProperty() expression!: string;
   @ApiProperty() dataType!: string;
+  @ApiProperty() dataSource!: string;
   @ApiPropertyOptional() sourceFields?: string[];
 }
 
