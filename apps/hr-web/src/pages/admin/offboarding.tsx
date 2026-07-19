@@ -452,9 +452,9 @@ export function AdminOffboarding() {
               <CardContent className="p-5 pt-0">
                 <form className="space-y-4" onSubmit={submitPlan}>
                   <div className="space-y-2">
-                    <Label>Departing worker</Label>
+                    <Label htmlFor="offboarding-worker">Departing worker</Label>
                     <Select value={form.workerId} onValueChange={(workerId) => setForm({ ...form, workerId })}>
-                      <SelectTrigger><SelectValue placeholder="Select worker" /></SelectTrigger>
+                      <SelectTrigger id="offboarding-worker"><SelectValue placeholder="Select worker" /></SelectTrigger>
                       <SelectContent>
                         {workers.map((worker) => (
                           <SelectItem key={worker.id} value={worker.id}>{workerName(worker)} - {worker.employeeId}</SelectItem>
@@ -467,18 +467,18 @@ export function AdminOffboarding() {
                     <Input id="last-working-day" type="date" value={form.lastWorkingDay} onChange={(event) => setForm({ ...form, lastWorkingDay: event.target.value })} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Reason category</Label>
+                    <Label htmlFor="offboarding-reason-category">Reason category</Label>
                     <Select value={form.reasonCategory} onValueChange={(reasonCategory) => setForm({ ...form, reasonCategory: reasonCategory as ReasonCategory })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectTrigger id="offboarding-reason-category"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {reasonCategories.map((reason) => <SelectItem key={reason} value={reason}>{reason.replace(/_/g, ' ')}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label>Reviewing manager</Label>
+                    <Label htmlFor="offboarding-manager">Reviewing manager</Label>
                     <Select value={form.managerId} onValueChange={(managerId) => setForm({ ...form, managerId })}>
-                      <SelectTrigger><SelectValue placeholder="Assign later" /></SelectTrigger>
+                      <SelectTrigger id="offboarding-manager"><SelectValue placeholder="Assign later" /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">Assign later</SelectItem>
                         {workers.filter((worker) => worker.id !== form.workerId).map((worker) => (
@@ -611,9 +611,9 @@ export function AdminOffboarding() {
                         <Input id="task-title" value={taskForm.title} onChange={(event) => setTaskForm({ ...taskForm, title: event.target.value })} />
                       </div>
                       <div className="space-y-2">
-                        <Label>Owner</Label>
+                        <Label htmlFor="offboarding-task-owner">Owner</Label>
                         <Select value={taskForm.ownerGroup} onValueChange={(ownerGroup) => setTaskForm({ ...taskForm, ownerGroup: ownerGroup as OwnerGroup })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectTrigger id="offboarding-task-owner"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {ownerGroups.map((ownerGroup) => <SelectItem key={ownerGroup} value={ownerGroup}>{ownerGroup}</SelectItem>)}
                           </SelectContent>
