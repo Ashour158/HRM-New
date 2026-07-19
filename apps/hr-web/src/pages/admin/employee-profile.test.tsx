@@ -154,6 +154,7 @@ describe('AdminEmployeeProfile lifecycle dialogs', () => {
     apiClientGetMock.mockImplementation((url: string) => {
       if (url === `/hr/core/workers/${workerId}/profile`) return apiResponse(profileData);
       if (url === `/hr/core/workers/${workerId}/master-profile`) return apiResponse({});
+      if (url === '/admin/hcm-setup') return apiResponse(DEFAULT_HCM_SETUP);
       if (url === '/audit') return apiResponse([]);
       if (url === '/policy/allowed-actions') return apiResponse([]);
       return apiResponse({});
