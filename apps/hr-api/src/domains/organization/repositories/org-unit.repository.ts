@@ -96,14 +96,31 @@ export class OrgUnitRepository extends BaseRepository<'hr_org.org_units', OrgUni
     }
 
     for (const node of map.values()) {
-      if (node.parentId && map.has(node.parentId)) {
+      if (node.parentId && map.has(node.parentId) && !this.wouldCreateCycle(node, map)) {
         map.get(node.parentId)!.children.push(node);
       } else {
+        // No parent, parent missing, or linking this node would close a
+        // cycle in the parentId chain (should be prevented at write time by
+        // RestructureOrgUnitHandler, but defended here too: a bad row must
+        // never be able to crash JSON serialization for the whole tenant --
+        // HCM-P0-6). Surface it as a root rather than dropping it silently.
         roots.push(node);
       }
     }
 
     return roots;
+  }
+
+  /** True if walking node's parentId chain leads back to node itself. */
+  private wouldCreateCycle(node: OrgUnitNode, map: Map<string, OrgUnitNode>): boolean {
+    const visited = new Set<string>([node.id]);
+    let currentParentId = node.parentId;
+    while (currentParentId) {
+      if (visited.has(currentParentId)) return true;
+      visited.add(currentParentId);
+      currentParentId = map.get(currentParentId)?.parentId ?? null;
+    }
+    return false;
   }
 
   async save(entity: OrgUnit): Promise<void> {
