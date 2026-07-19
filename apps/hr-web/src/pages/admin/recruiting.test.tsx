@@ -149,7 +149,12 @@ describe('AdminRecruiting', () => {
     renderRecruiting();
 
     expect((await screen.findAllByText('Senior Nurse')).length).toBeGreaterThan(0);
-    await userEvent.click(screen.getByRole('button', { name: 'Approve Offer' }));
+    // The requisition auto-select effect and the candidates/offers queries it gates
+    // resolve on later render passes than the initial "Senior Nurse" text above, so
+    // the "Approve Offer" button (rendered only once the offer data has loaded) must
+    // be awaited rather than fetched synchronously -- otherwise this races and is
+    // flaky under slower CI runners even though it's reliable on a fast local machine.
+    await userEvent.click(await screen.findByRole('button', { name: 'Approve Offer' }));
 
     await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith(
       `/hr/recruiting/offers/${offerId}/commands/approve`,
