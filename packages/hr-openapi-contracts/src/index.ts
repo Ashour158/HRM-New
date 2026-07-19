@@ -58,16 +58,6 @@ export interface AuthRefreshResponse {
   session?: AuthSessionResponse;
 }
 
-export interface AuthRegisterRequest {
-  tenantId?: string;
-  email: string;
-  password: string;
-  firstName?: string;
-  lastName?: string;
-}
-
-export type AuthRegisterResponse = AuthLoginResponse;
-
 export interface AuthPasswordResetRequest {
   tenantId?: string;
   email: string;
