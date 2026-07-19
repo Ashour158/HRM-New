@@ -8,6 +8,8 @@ import type { WorkerProfile } from '../../hr-core/aggregates/worker-profile.aggr
 import { CompensationChangeRepository } from '../../compensation/repositories/compensation-change.repository.js';
 import { LegalEntityRepository } from '../../organization/repositories/legal-entity.repository.js';
 import { PositionRepository } from '../../position-control/repositories/position.repository.js';
+import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import type { PayGapReportProps } from '../aggregates/pay-gap-report.aggregate.js';
 
 /**
@@ -98,6 +100,7 @@ export class PayGapCalculationService {
     private readonly compensationChangeRepo: CompensationChangeRepository,
     private readonly legalEntityRepo: LegalEntityRepository,
     private readonly positionRepo: PositionRepository,
+    private readonly hcmSetupService: HcmSetupService,
   ) {}
 
   /**
@@ -131,6 +134,12 @@ export class PayGapCalculationService {
       (worker) => worker.legalEntityId && countryByLegalEntity.get(worker.legalEntityId.value) === countryCode.toUpperCase(),
     );
     if (scopedWorkers.length === 0) return [];
+
+    // Resolved once per report calculation (mirrors PayrollCloseWorkflowService.resolvePayrollCurrency)
+    // and used only as the fallback when a worker's compensation record predates
+    // per-record currency tracking; the tenant's actual configured currency is
+    // always preferred over any invented default.
+    const tenantCurrency = resolveTenantCurrency(await this.hcmSetupService.getSetup(tenantId));
 
     const latestEffectiveByWorker = new Map<string, { amount: number; currency: string; effectiveDate: Date }>();
     for (const change of compensationChanges) {
@@ -168,7 +177,7 @@ export class PayGapCalculationService {
     const tuples: WorkerPayEquityTuple[] = [];
     for (const worker of scopedWorkers) {
       const records = recordsByWorker.get(worker.id.value) ?? [];
-      const salary = this.resolveAnnualSalary(worker, records, latestEffectiveByWorker);
+      const salary = this.resolveAnnualSalary(worker, records, latestEffectiveByWorker, tenantCurrency);
       if (!salary || salary.amount <= 0) continue;
 
       const protectedClassGroup = this.resolveProtectedClassGroup(reportType, records);
@@ -192,6 +201,7 @@ export class PayGapCalculationService {
     worker: WorkerProfile,
     records: PersonalDataRecord[],
     latestEffectiveByWorker: Map<string, { amount: number; currency: string; effectiveDate: Date }>,
+    tenantCurrency: string,
   ): { amount: number; currency: string } | undefined {
     const effective = latestEffectiveByWorker.get(worker.id.value);
     if (effective) return { amount: effective.amount, currency: effective.currency };
@@ -202,7 +212,7 @@ export class PayGapCalculationService {
     if (raw === undefined || raw === null || raw === '') return undefined;
     return {
       amount: parseNumeric(raw as string | number),
-      currency: typeof payload?.salaryCurrency === 'string' ? payload.salaryCurrency : 'USD',
+      currency: typeof payload?.salaryCurrency === 'string' ? payload.salaryCurrency : tenantCurrency,
     };
   }
 

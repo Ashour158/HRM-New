@@ -12,6 +12,7 @@ import type { PersonalDataRecordRepository } from '../../hr-core/repositories/pe
 import type { CompensationChangeRepository } from '../../compensation/repositories/compensation-change.repository.js';
 import type { LegalEntityRepository } from '../../organization/repositories/legal-entity.repository.js';
 import type { PositionRepository } from '../../position-control/repositories/position.repository.js';
+import type { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 
 const FULL_TIME_ANNUAL_HOURS = 2080;
 const PART_TIME_ANNUAL_HOURS = 1040;
@@ -144,11 +145,14 @@ describe('PayGapCalculationService.computeForReport (data sourcing)', () => {
     const compensationChangeRepo = { findByTenant: vi.fn() } as unknown as CompensationChangeRepository;
     const legalEntityRepo = { findByTenant: vi.fn() } as unknown as LegalEntityRepository;
     const positionRepo = { findAll: vi.fn() } as unknown as PositionRepository;
-    return { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo };
+    const hcmSetupService = {
+      getSetup: vi.fn().mockResolvedValue({ locations: [{ active: true, currency: 'USD' }] }),
+    } as unknown as HcmSetupService;
+    return { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService };
   }
 
   it('scopes to the report country via legal entity, prefers the latest EFFECTIVE comp change (parsing NUMERIC-as-string), and falls back to the hire-time COMPENSATION record', async () => {
-    const { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo } = makeRepos();
+    const { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService } = makeRepos();
 
     vi.mocked(workerRepo.findByStatusForTenant).mockResolvedValue([
       baseWorker(worker1Id, usLegalEntityId, 'FULL_TIME'),
@@ -186,7 +190,7 @@ describe('PayGapCalculationService.computeForReport (data sourcing)', () => {
       },
     ] as any);
 
-    const service = new PayGapCalculationService(workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo);
+    const service = new PayGapCalculationService(workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService);
     const result = await service.computeForReport({ tenantId, countryCode: 'US', reportType: 'GENDER_PAY_GAP' });
 
     // Only the two US-scoped workers are read for PII, never the EG worker.
@@ -210,7 +214,7 @@ describe('PayGapCalculationService.computeForReport (data sourcing)', () => {
   });
 
   it('resolves ETHNICITY_PAY_GAP groups from the decrypted SPECIAL_CATEGORY record, not gender', async () => {
-    const { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo } = makeRepos();
+    const { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService } = makeRepos();
 
     vi.mocked(workerRepo.findByStatusForTenant).mockResolvedValue([
       baseWorker(worker1Id, usLegalEntityId, 'FULL_TIME'),
@@ -233,7 +237,7 @@ describe('PayGapCalculationService.computeForReport (data sourcing)', () => {
       { workerId: worker1Id, dataCategory: 'BASIC', state: 'ACTIVE', updatedAt: new Date('2025-01-01'), payload: { gender: 'Female' } },
     ] as any);
 
-    const service = new PayGapCalculationService(workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo);
+    const service = new PayGapCalculationService(workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService);
     const result = await service.computeForReport({ tenantId, countryCode: 'US', reportType: 'ETHNICITY_PAY_GAP' });
 
     const dist = result.quartileDistribution as { referenceGroup: string };
@@ -241,14 +245,14 @@ describe('PayGapCalculationService.computeForReport (data sourcing)', () => {
   });
 
   it('throws when no worker in the tenant matches the report country', async () => {
-    const { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo } = makeRepos();
+    const { workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService } = makeRepos();
     vi.mocked(workerRepo.findByStatusForTenant).mockResolvedValue([baseWorker(worker3Id, egLegalEntityId, 'FULL_TIME')]);
     vi.mocked(legalEntityRepo.findByTenant).mockResolvedValue([{ id: egLegalEntityId, countryCode: 'EG' }] as any);
     vi.mocked(compensationChangeRepo.findByTenant).mockResolvedValue([]);
     vi.mocked(positionRepo.findAll).mockResolvedValue([]);
     vi.mocked(personalDataRepo.findByWorkers).mockResolvedValue([]);
 
-    const service = new PayGapCalculationService(workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo);
+    const service = new PayGapCalculationService(workerRepo, personalDataRepo, compensationChangeRepo, legalEntityRepo, positionRepo, hcmSetupService);
     await expect(service.computeForReport({ tenantId, countryCode: 'US', reportType: 'GENDER_PAY_GAP' })).rejects.toThrow(
       /no active worker/i,
     );

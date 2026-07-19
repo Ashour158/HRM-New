@@ -4,6 +4,7 @@ import { HrCoreModule } from '../hr-core/hr-core.module.js';
 import { CompensationModule } from '../compensation/compensation.module.js';
 import { OrganizationModule } from '../organization/organization.module.js';
 import { PositionControlModule } from '../position-control/position-control.module.js';
+import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { DeiAnalyticsController } from './api/dei-analytics.controller.js';
 import { DeiReportFsmRegistrar } from './fsm/dei-report.fsm.js';
 import { PayGapReportFsmRegistrar } from './fsm/pay-gap-report.fsm.js';
@@ -33,7 +34,7 @@ import { DeiAnalyticsEventsPublisher } from './events/dei-analytics-events.publi
 import { PayGapCalculationService } from './services/pay-gap-calculation.service.js';
 
 @Module({
-  imports: [PlatformModule, HrCoreModule, CompensationModule, OrganizationModule, PositionControlModule],
+  imports: [PlatformModule, HrCoreModule, CompensationModule, OrganizationModule, PositionControlModule, HcmSetupModule],
   controllers: [DeiAnalyticsController],
   providers: [
     DeiReportFsmRegistrar, PayGapReportFsmRegistrar, PayEquityReviewFsmRegistrar, AttritionSegmentReportFsmRegistrar,
