@@ -9,6 +9,7 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
 
 /**
  * Command handler for closing a CompensationBand.
+ * ACTIVE or REVISED → CLOSED (terminal).
  */
 @Injectable()
 @CommandHandler('CloseCompensationBand')

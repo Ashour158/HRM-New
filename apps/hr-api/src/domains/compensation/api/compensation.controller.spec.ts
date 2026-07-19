@@ -61,7 +61,7 @@ function buildController() {
     fsm as never,
   );
 
-  return { controller, commandBus, planRepo, planFsm };
+  return { controller, commandBus, planRepo, planFsm, totalCompStatementRepo };
 }
 
 describe('CompensationController', () => {
@@ -108,5 +108,71 @@ describe('CompensationController', () => {
     }));
     expect(planRepo.findById).toHaveBeenCalledWith(new Uuid(planId));
     expect(planFsm.getAllowedActions).toHaveBeenCalledWith('DRAFT');
+  });
+
+  describe('total compensation statement self-service acknowledge', () => {
+    const statementId = '00000000-0000-0000-0000-000000000200';
+    const workerId = '00000000-0000-0000-0000-000000000201';
+
+    function statementRecord() {
+      return { id: new Uuid(statementId), tenantId: new Uuid(tenantId), workerId: new Uuid(workerId), status: 'DELIVERED', aggregateVersion: 1 };
+    }
+
+    it('allows the statement owner (non-admin worker) to acknowledge their own statement', async () => {
+      const { controller, commandBus, totalCompStatementRepo } = buildController();
+      totalCompStatementRepo.findById.mockResolvedValue(statementRecord());
+      const workerRequest = {
+        tenantId,
+        actor: { actorType: 'USER', actorId: new Uuid(workerId), roles: ['EMPLOYEE'], permissions: [], mfaAuthenticated: true },
+        headers: {},
+      } as unknown as Request;
+
+      await controller.acknowledgeTotalCompStatement(statementId, workerRequest);
+
+      expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+        commandName: 'AcknowledgeTotalCompensationStatement',
+        subjectWorkerId: new Uuid(workerId),
+      }));
+    });
+
+    it('rejects a non-owner, non-admin actor from acknowledging someone else\'s statement', async () => {
+      const { controller, totalCompStatementRepo } = buildController();
+      totalCompStatementRepo.findById.mockResolvedValue(statementRecord());
+      const otherWorkerRequest = {
+        tenantId,
+        actor: { actorType: 'USER', actorId: new Uuid('00000000-0000-0000-0000-000000000999'), roles: ['EMPLOYEE'], permissions: [], mfaAuthenticated: true },
+        headers: {},
+      } as unknown as Request;
+
+      await expect(controller.acknowledgeTotalCompStatement(statementId, otherWorkerRequest)).rejects.toThrow(
+        /Only the record owner or compensation administrators may perform this action/,
+      );
+    });
+
+    it('allows a compensation administrator to acknowledge on behalf of a worker', async () => {
+      const { controller, commandBus, totalCompStatementRepo } = buildController();
+      totalCompStatementRepo.findById.mockResolvedValue(statementRecord());
+
+      await controller.acknowledgeTotalCompStatement(statementId, request());
+
+      expect(commandBus.execute).toHaveBeenCalledWith(expect.objectContaining({
+        commandName: 'AcknowledgeTotalCompensationStatement',
+        subjectWorkerId: new Uuid(workerId),
+      }));
+    });
+
+    it('still requires compensation admin scope to deliver a statement', async () => {
+      const { controller, totalCompStatementRepo } = buildController();
+      totalCompStatementRepo.findById.mockResolvedValue(statementRecord());
+      const workerRequest = {
+        tenantId,
+        actor: { actorType: 'USER', actorId: new Uuid(workerId), roles: ['EMPLOYEE'], permissions: [], mfaAuthenticated: true },
+        headers: {},
+      } as unknown as Request;
+
+      await expect(controller.deliverTotalCompStatement(statementId, workerRequest)).rejects.toThrow(
+        /Only HR, payroll, or compensation administrators can access compensation administration/,
+      );
+    });
   });
 });
