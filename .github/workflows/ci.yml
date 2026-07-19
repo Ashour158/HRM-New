@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -100,7 +100,7 @@ jobs:
       DATABASE_URL: postgresql://hcm_admin:hcm_ci_password@localhost:5432/hcm_platform
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -154,7 +154,7 @@ jobs:
       MFA_REQUIRED: "false"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -234,7 +234,7 @@ jobs:
       MFA_REQUIRED: "false"
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -299,7 +299,7 @@ jobs:
       KAFKA_BROKERS: localhost:9092
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -329,7 +329,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -370,7 +370,7 @@ jobs:
             dockerfile: apps/hr-web/Dockerfile
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -421,7 +421,7 @@ jobs:
       LOG_LEVEL: error
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
