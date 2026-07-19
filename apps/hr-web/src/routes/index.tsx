@@ -23,6 +23,7 @@ const EmployeeRecognition = lazy(() => import('@/pages/employee/recognition').th
 const EmployeePulse = lazy(() => import('@/pages/employee/pulse').then((module) => ({ default: module.EmployeePulse })));
 const EmployeeLearning = lazy(() => import('@/pages/employee/learning').then((module) => ({ default: module.EmployeeLearning })));
 const EmployeeOnboarding = lazy(() => import('@/pages/employee/onboarding').then((module) => ({ default: module.EmployeeOnboarding })));
+const EmployeeOffboarding = lazy(() => import('@/pages/employee/offboarding').then((module) => ({ default: module.EmployeeOffboarding })));
 const EmployeeServices = lazy(() => import('@/pages/employee/services').then((module) => ({ default: module.EmployeeServices })));
 const EmployeeReports = lazy(() => import('@/pages/employee/reports').then((module) => ({ default: module.EmployeeReports })));
 const ManagerDashboard = lazy(() => import('@/pages/manager/dashboard').then((module) => ({ default: module.ManagerDashboard })));
@@ -39,6 +40,7 @@ const AdminAttendance = lazy(() => import('@/pages/admin/attendance').then((modu
 const AdminWorkforceManagement = lazy(() => import('@/pages/admin/workforce-management').then((module) => ({ default: module.AdminWorkforceManagement })));
 const AdminLeaveManagement = lazy(() => import('@/pages/admin/leave-management').then((module) => ({ default: module.AdminLeaveManagement })));
 const AdminOnboarding = lazy(() => import('@/pages/admin/onboarding').then((module) => ({ default: module.AdminOnboarding })));
+const AdminOffboarding = lazy(() => import('@/pages/admin/offboarding').then((module) => ({ default: module.AdminOffboarding })));
 const AdminPayroll = lazy(() => import('@/pages/admin/payroll').then((module) => ({ default: module.AdminPayroll })));
 const AdminCompensation = lazy(() => import('@/pages/admin/compensation').then((module) => ({ default: module.AdminCompensation })));
 const AdminBenefits = lazy(() => import('@/pages/admin/benefits').then((module) => ({ default: module.AdminBenefits })));
@@ -195,6 +197,7 @@ export function AppRoutes() {
                   <Route path="attendance" element={<EmployeeAttendance />} />
                   <Route path="attendance/:direction" element={<EmployeeAttendanceAction />} />
                   <Route path="onboarding" element={<EmployeeOnboarding />} />
+                  <Route path="offboarding" element={<EmployeeOffboarding />} />
                   <Route path="performance" element={<EmployeePerformance />} />
                   <Route path="feedback-360" element={<EmployeeFeedback360 />} />
                   <Route path="surveys" element={<EmployeeSurveys />} />
@@ -400,6 +403,7 @@ export function AppRoutes() {
                     <Route path="workforce-management" element={<AdminWorkforceManagement />} />
                     <Route path="leave" element={<AdminLeaveManagement />} />
                     <Route path="onboarding" element={<AdminOnboarding />} />
+                    <Route path="offboarding" element={<AdminOffboarding />} />
                     <Route path="payroll" element={<AdminPayroll />} />
                     <Route path="compensation" element={<AdminCompensation />} />
                     <Route path="benefits" element={<AdminBenefits />} />

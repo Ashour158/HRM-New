@@ -9,6 +9,7 @@ import {
   HR_CONTINGENT,
   HR_LEARNING,
   HR_ONBOARDING,
+  HR_OFFBOARDING,
   HR_PAYROLL,
   HR_WELLBEING,
   HR_ANALYTICS,
@@ -21,6 +22,7 @@ import {
 describe('getTopicForEvent', () => {
   it('includes every canonical bounded-context topic in the all-topics subscription list', () => {
     expect(AllHrTopics).toContain(HR_ONBOARDING);
+    expect(AllHrTopics).toContain(HR_OFFBOARDING);
     expect(new Set(AllHrTopics).size).toBe(AllHrTopics.length);
   });
 
@@ -48,6 +50,9 @@ describe('getTopicForEvent', () => {
     ['LearningAssignment', 'LearningAssignmentAssigned', HR_LEARNING],
     ['OnboardingPlan', 'OnboardingPlanStarted', HR_ONBOARDING],
     ['OnboardingTask', 'OnboardingTaskEvidenceRecorded', HR_ONBOARDING],
+    ['OffboardingPlan', 'OffboardingPlanStarted', HR_OFFBOARDING],
+    ['OffboardingTask', 'OffboardingTaskEvidenceRecorded', HR_OFFBOARDING],
+    ['offboardingPlan', 'OffboardingPlanCreated', HR_OFFBOARDING],
     ['learningCourse', 'LearningCoursePublished', HR_LEARNING],
     ['LearningContentPackage', 'ContentPackagePublished', HR_LEARNING],
     ['MentalHealthCase', 'MentalHealthCaseOpened', HR_WELLBEING],
@@ -88,6 +93,8 @@ describe('getTopicForEvent', () => {
     expect(getTopicForEvent({ eventName: 'ServiceUsageMetricRecorded' })).toBe(HR_ANALYTICS);
     expect(getTopicForEvent({ eventName: 'ServiceUsageSummaryGenerated' })).toBe(HR_ANALYTICS);
     expect(getTopicForEvent({ eventName: 'CalculatedFieldDeprecated' })).toBe(HR_ANALYTICS);
+    expect(getTopicForEvent({ eventName: 'OffboardingPlanCompleted' })).toBe(HR_OFFBOARDING);
+    expect(getTopicForEvent({ eventName: 'OffboardingTaskSkipped' })).toBe(HR_OFFBOARDING);
   });
 
   it('prefers a stored metadata topic so outbox replay keeps the original route', () => {

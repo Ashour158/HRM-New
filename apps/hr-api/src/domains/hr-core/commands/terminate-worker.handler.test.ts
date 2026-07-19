@@ -12,6 +12,7 @@ import { Uuid, ConflictError } from '@hcm/shared-kernel';
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
 const workerId = new Uuid('550e8400-e29b-41d4-a716-446655440001');
 const legalEntityId = new Uuid('00000000-0000-0000-0000-000000000100');
+const actorId = new Uuid('00000000-0000-0000-0000-000000000900');
 
 function command(): HrCommandEnvelope<unknown> {
   return {
@@ -19,6 +20,13 @@ function command(): HrCommandEnvelope<unknown> {
     tenantId,
     correlationId: Uuid.generate(),
     commandId: Uuid.generate(),
+    actor: {
+      actorType: 'USER',
+      actorId,
+      roles: ['HR_ADMIN'],
+      permissions: ['WORKER_TERMINATE'],
+      mfaAuthenticated: true,
+    },
   } as unknown as HrCommandEnvelope<unknown>;
 }
 
