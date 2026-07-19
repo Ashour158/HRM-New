@@ -8,6 +8,7 @@ import { WorkerRepository } from '../repositories/worker.repository.js';
 import { JobAssignmentRepository } from '../repositories/job-assignment.repository.js';
 import { EmploymentRelationshipRepository } from '../repositories/employment-relationship.repository.js';
 import { WorkerEventsPublisher } from '../events/worker-events.publisher.js';
+import { WorksCouncilConsultationGuard } from '../../global-hr/services/works-council-consultation-guard.service.js';
 
 /**
  * Handler for the TerminateWorker command.
@@ -22,6 +23,7 @@ export class TerminateWorkerHandler {
     private readonly employmentRelationshipRepo: EmploymentRelationshipRepository,
     private readonly fsm: FsmFramework,
     private readonly eventPublisher: WorkerEventsPublisher,
+    private readonly worksCouncilGuard: WorksCouncilConsultationGuard,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -30,6 +32,15 @@ export class TerminateWorkerHandler {
     const worker = await this.workerRepo.findByIdForTenant(payload.workerId, command.tenantId);
     if (!worker) {
       throw new NotFoundError('Worker not found');
+    }
+
+    // Compliance gate: termination cannot proceed while the worker's legal
+    // entity has a required works-council consultation that has not
+    // completed. Workers with no legal entity on file are not scoped by this
+    // guard (see WorksCouncilConsultationGuard for the scoping rationale) —
+    // we only ever block against the legal entity we can cleanly resolve.
+    if (worker.legalEntityId) {
+      await this.worksCouncilGuard.assertNotBlocked(worker.legalEntityId, command.tenantId, 'terminate worker');
     }
 
     worker.terminate(payload.terminationDate, payload.reason, command.correlationId);

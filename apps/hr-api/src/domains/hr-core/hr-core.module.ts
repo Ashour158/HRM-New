@@ -2,6 +2,7 @@ import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
 import { HcmSetupModule } from '../hcm-setup/hcm-setup.module.js';
 import { ComplianceModule } from '../compliance/compliance.module.js';
+import { GlobalHrModule } from '../global-hr/global-hr.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
 import { HrCoreController } from './api/hr-core.controller.js';
 import { WorkerRepository } from './repositories/worker.repository.js';
@@ -42,7 +43,7 @@ import { registerJobAssignmentFsm } from './fsm/job-assignment.fsm.js';
 import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js';
 
 @Module({
-  imports: [PlatformModule, HcmSetupModule, ComplianceModule],
+  imports: [PlatformModule, HcmSetupModule, ComplianceModule, GlobalHrModule],
   controllers: [HrCoreController],
   providers: [
     WorkerRepository,
