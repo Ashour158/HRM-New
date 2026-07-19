@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { EquityGrant, type EquityGrantStatus, type VestingScheduleEntry } from '../aggregates/equity-grant.aggregate.js';
-import { StartEquityGrantVestingHandler } from './start-equity-grant-vesting.handler.js';
-import { RecordEquityGrantVestingHandler } from './record-equity-grant-vesting.handler.js';
+import { StartVestingEquityGrantHandler } from './start-vesting-equity-grant.handler.js';
+import { RecordVestingEquityGrantHandler } from './record-vesting-equity-grant.handler.js';
 import { ExerciseEquityGrantHandler } from './exercise-equity-grant.handler.js';
 import { ExpireEquityGrantHandler } from './expire-equity-grant.handler.js';
 import { ForfeitEquityGrantHandler } from './forfeit-equity-grant.handler.js';
@@ -61,14 +61,14 @@ function deps() {
   return { repo, publisher, fsm, findById, save };
 }
 
-describe('StartEquityGrantVestingHandler', () => {
+describe('StartVestingEquityGrantHandler', () => {
   it('starts vesting on a GRANTED grant', async () => {
     const { repo, publisher, fsm, findById, save } = deps();
     const grant = buildGrant('GRANTED');
     findById.mockResolvedValue(grant);
-    const handler = new StartEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new StartVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    const result = await handler.handle(buildCommand('StartEquityGrantVesting'));
+    const result = await handler.handle(buildCommand('StartVestingEquityGrant'));
 
     expect(result).toMatchObject({ success: true, newState: 'VESTING', eventsEmitted: expect.arrayContaining(['EquityGrantVestingStarted']) });
     expect(save).toHaveBeenCalledWith(grant);
@@ -77,20 +77,20 @@ describe('StartEquityGrantVestingHandler', () => {
   it('rejects starting vesting twice', async () => {
     const { repo, publisher, fsm, findById } = deps();
     findById.mockResolvedValue(buildGrant('VESTING'));
-    const handler = new StartEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new StartVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('StartEquityGrantVesting'))).rejects.toThrow(/Cannot start vesting for EquityGrant from state VESTING/);
+    await expect(handler.handle(buildCommand('StartVestingEquityGrant'))).rejects.toThrow(/Cannot start vesting for EquityGrant from state VESTING/);
   });
 });
 
-describe('RecordEquityGrantVestingHandler', () => {
+describe('RecordVestingEquityGrantHandler', () => {
   it('records a first tranche of 250 units and stays VESTING', async () => {
     const { repo, publisher, fsm, findById, save } = deps();
     const grant = buildGrant('VESTING');
     findById.mockResolvedValue(grant);
-    const handler = new RecordEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new RecordVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    const result = await handler.handle(buildCommand('RecordEquityGrantVesting', { units: 250 }));
+    const result = await handler.handle(buildCommand('RecordVestingEquityGrant', { units: 250 }));
 
     expect(result).toMatchObject({
       success: true,
@@ -106,9 +106,9 @@ describe('RecordEquityGrantVestingHandler', () => {
     const { repo, publisher, fsm, findById, save } = deps();
     const grant = buildGrant('VESTING', { vestedUnits: 750 });
     findById.mockResolvedValue(grant);
-    const handler = new RecordEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new RecordVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    const result = await handler.handle(buildCommand('RecordEquityGrantVesting', { units: 250 }));
+    const result = await handler.handle(buildCommand('RecordVestingEquityGrant', { units: 250 }));
 
     expect(result.newState).toBe('VESTED');
     expect(grant.vestedUnits).toBe(1000);
@@ -118,10 +118,10 @@ describe('RecordEquityGrantVestingHandler', () => {
     const { repo, publisher, fsm, findById } = deps();
     const grant = buildGrant('VESTED', { vestedUnits: 1000 });
     findById.mockResolvedValue(grant);
-    const handler = new RecordEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new RecordVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
     // Recording 0 additional units is a valid no-op tranche (e.g. replay safety).
-    const result = await handler.handle(buildCommand('RecordEquityGrantVesting', { units: 0 }));
+    const result = await handler.handle(buildCommand('RecordVestingEquityGrant', { units: 0 }));
     expect(result.newState).toBe('VESTED');
   });
 
@@ -129,26 +129,26 @@ describe('RecordEquityGrantVestingHandler', () => {
     const { repo, publisher, fsm, findById } = deps();
     const grant = buildGrant('VESTING', { vestedUnits: 900 });
     findById.mockResolvedValue(grant);
-    const handler = new RecordEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new RecordVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('RecordEquityGrantVesting', { units: 200 }))).rejects.toThrow(/Invalid vesting units/);
+    await expect(handler.handle(buildCommand('RecordVestingEquityGrant', { units: 200 }))).rejects.toThrow(/Invalid vesting units/);
     expect(grant.vestedUnits).toBe(900);
   });
 
   it('rejects negative vesting units', async () => {
     const { repo, publisher, fsm, findById } = deps();
     findById.mockResolvedValue(buildGrant('VESTING'));
-    const handler = new RecordEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new RecordVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('RecordEquityGrantVesting', { units: -50 }))).rejects.toThrow(/Invalid vesting units/);
+    await expect(handler.handle(buildCommand('RecordVestingEquityGrant', { units: -50 }))).rejects.toThrow(/Invalid vesting units/);
   });
 
   it('rejects recording vesting on a GRANTED (not-yet-vesting) grant', async () => {
     const { repo, publisher, fsm, findById } = deps();
     findById.mockResolvedValue(buildGrant('GRANTED'));
-    const handler = new RecordEquityGrantVestingHandler(repo as never, publisher as never, fsm as never);
+    const handler = new RecordVestingEquityGrantHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('RecordEquityGrantVesting', { units: 100 }))).rejects.toThrow(/Cannot record vesting for EquityGrant from state GRANTED/);
+    await expect(handler.handle(buildCommand('RecordVestingEquityGrant', { units: 100 }))).rejects.toThrow(/Cannot record vesting for EquityGrant from state GRANTED/);
   });
 });
 

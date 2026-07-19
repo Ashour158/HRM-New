@@ -3,10 +3,10 @@ import { Uuid } from '@hcm/shared-kernel';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { BonusCycle, type BonusCycleStatus } from '../aggregates/bonus-cycle.aggregate.js';
 import { ActivateBonusCycleHandler } from './activate-bonus-cycle.handler.js';
-import { StartBonusCycleCalculationHandler } from './start-bonus-cycle-calculation.handler.js';
-import { StartBonusCycleReviewHandler } from './start-bonus-cycle-review.handler.js';
+import { StartCalculationBonusCycleHandler } from './start-calculation-bonus-cycle.handler.js';
+import { StartReviewBonusCycleHandler } from './start-review-bonus-cycle.handler.js';
 import { ApproveBonusCycleHandler } from './approve-bonus-cycle.handler.js';
-import { MarkBonusCyclePaidHandler } from './mark-bonus-cycle-paid.handler.js';
+import { MarkPaidBonusCycleHandler } from './mark-paid-bonus-cycle.handler.js';
 import { CloseBonusCycleHandler } from './close-bonus-cycle.handler.js';
 
 const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
@@ -75,14 +75,14 @@ describe('ActivateBonusCycleHandler', () => {
   });
 });
 
-describe('StartBonusCycleCalculationHandler', () => {
+describe('StartCalculationBonusCycleHandler', () => {
   it('moves an ACTIVE cycle into CALCULATION', async () => {
     const { repo, publisher, fsm, findById, save } = deps();
     const cycle = buildCycle('ACTIVE');
     findById.mockResolvedValue(cycle);
-    const handler = new StartBonusCycleCalculationHandler(repo as never, publisher as never, fsm as never);
+    const handler = new StartCalculationBonusCycleHandler(repo as never, publisher as never, fsm as never);
 
-    const result = await handler.handle(buildCommand('StartBonusCycleCalculation'));
+    const result = await handler.handle(buildCommand('StartCalculationBonusCycle'));
 
     expect(result).toMatchObject({ success: true, newState: 'CALCULATION', eventsEmitted: expect.arrayContaining(['BonusCycleCalculated']) });
     expect(save).toHaveBeenCalledWith(cycle);
@@ -91,20 +91,20 @@ describe('StartBonusCycleCalculationHandler', () => {
   it('rejects starting calculation from DRAFT', async () => {
     const { repo, publisher, fsm, findById } = deps();
     findById.mockResolvedValue(buildCycle('DRAFT'));
-    const handler = new StartBonusCycleCalculationHandler(repo as never, publisher as never, fsm as never);
+    const handler = new StartCalculationBonusCycleHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('StartBonusCycleCalculation'))).rejects.toThrow(/Cannot start calculation for BonusCycle from state DRAFT/);
+    await expect(handler.handle(buildCommand('StartCalculationBonusCycle'))).rejects.toThrow(/Cannot start calculation for BonusCycle from state DRAFT/);
   });
 });
 
-describe('StartBonusCycleReviewHandler', () => {
+describe('StartReviewBonusCycleHandler', () => {
   it('moves a CALCULATION cycle into REVIEW', async () => {
     const { repo, publisher, fsm, findById, save } = deps();
     const cycle = buildCycle('CALCULATION');
     findById.mockResolvedValue(cycle);
-    const handler = new StartBonusCycleReviewHandler(repo as never, publisher as never, fsm as never);
+    const handler = new StartReviewBonusCycleHandler(repo as never, publisher as never, fsm as never);
 
-    const result = await handler.handle(buildCommand('StartBonusCycleReview'));
+    const result = await handler.handle(buildCommand('StartReviewBonusCycle'));
 
     expect(result).toMatchObject({ success: true, newState: 'REVIEW', eventsEmitted: expect.arrayContaining(['BonusCycleReviewed']) });
     expect(save).toHaveBeenCalledWith(cycle);
@@ -113,9 +113,9 @@ describe('StartBonusCycleReviewHandler', () => {
   it('rejects starting review from ACTIVE', async () => {
     const { repo, publisher, fsm, findById } = deps();
     findById.mockResolvedValue(buildCycle('ACTIVE'));
-    const handler = new StartBonusCycleReviewHandler(repo as never, publisher as never, fsm as never);
+    const handler = new StartReviewBonusCycleHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('StartBonusCycleReview'))).rejects.toThrow(/Cannot start review for BonusCycle from state ACTIVE/);
+    await expect(handler.handle(buildCommand('StartReviewBonusCycle'))).rejects.toThrow(/Cannot start review for BonusCycle from state ACTIVE/);
   });
 });
 
@@ -141,14 +141,14 @@ describe('ApproveBonusCycleHandler', () => {
   });
 });
 
-describe('MarkBonusCyclePaidHandler', () => {
+describe('MarkPaidBonusCycleHandler', () => {
   it('marks an APPROVED cycle as PAID', async () => {
     const { repo, publisher, fsm, findById, save } = deps();
     const cycle = buildCycle('APPROVED');
     findById.mockResolvedValue(cycle);
-    const handler = new MarkBonusCyclePaidHandler(repo as never, publisher as never, fsm as never);
+    const handler = new MarkPaidBonusCycleHandler(repo as never, publisher as never, fsm as never);
 
-    const result = await handler.handle(buildCommand('MarkBonusCyclePaid'));
+    const result = await handler.handle(buildCommand('MarkPaidBonusCycle'));
 
     expect(result).toMatchObject({ success: true, newState: 'PAID', eventsEmitted: expect.arrayContaining(['BonusCyclePaid']) });
     expect(save).toHaveBeenCalledWith(cycle);
@@ -157,9 +157,9 @@ describe('MarkBonusCyclePaidHandler', () => {
   it('rejects marking a REVIEW cycle as paid', async () => {
     const { repo, publisher, fsm, findById } = deps();
     findById.mockResolvedValue(buildCycle('REVIEW'));
-    const handler = new MarkBonusCyclePaidHandler(repo as never, publisher as never, fsm as never);
+    const handler = new MarkPaidBonusCycleHandler(repo as never, publisher as never, fsm as never);
 
-    await expect(handler.handle(buildCommand('MarkBonusCyclePaid'))).rejects.toThrow(/Cannot mark BonusCycle as paid from state REVIEW/);
+    await expect(handler.handle(buildCommand('MarkPaidBonusCycle'))).rejects.toThrow(/Cannot mark BonusCycle as paid from state REVIEW/);
   });
 });
 

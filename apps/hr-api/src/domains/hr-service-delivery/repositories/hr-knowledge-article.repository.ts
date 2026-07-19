@@ -36,7 +36,29 @@ export class HrKnowledgeArticleRepository extends BaseRepository<'hr_knowledge_a
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_knowledge_articles']));
   }
 
-
+  /**
+   * Employee-facing self-serve search: published articles only, optionally
+   * narrowed by category and/or a case-insensitive title/category match.
+   */
+  async findPublished(tenantId: Uuid, options?: { category?: string; query?: string }): Promise<HrKnowledgeArticle[]> {
+    let query = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value)
+      .where('status', '=', 'PUBLISHED');
+    if (options?.category) {
+      query = query.where('category', '=', options.category);
+    }
+    if (options?.query) {
+      const like = `%${options.query}%`;
+      query = query.where((eb: any) => eb.or([
+        eb('title', 'ilike', like),
+        eb('category', 'ilike', like),
+      ]));
+    }
+    const rows = await query.orderBy('title', 'asc').execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['hr_knowledge_articles']));
+  }
 
   async save(entity: HrKnowledgeArticle): Promise<void> {
     const row = this.toRow(entity);

@@ -4,7 +4,6 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PayrollInputRepository } from '../repositories/payroll-input.repository.js';
-import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
 
 @CommandHandler('ApprovePayrollInput')
 @Injectable()
@@ -12,7 +11,6 @@ export class ApprovePayrollInputHandler {
   constructor(
     private readonly repo: PayrollInputRepository,
     private readonly fsm: FsmFramework,
-    private readonly publisher: PayrollEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -21,7 +19,6 @@ export class ApprovePayrollInputHandler {
     if (!pi) throw new Error('Payroll input not found');
     pi.approve(command.correlationId);
     await this.repo.save(pi);
-    await this.publisher.publishFromAggregate(pi);
     return {
       success: true,
       data: { payrollInputId: pi.id.value, status: pi.status },

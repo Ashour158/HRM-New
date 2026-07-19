@@ -17,6 +17,7 @@ const workerId = '00000000-0000-4000-8000-000000000501';
 const surveyId = '00000000-0000-4000-8000-000000000701';
 const responseId = '00000000-0000-4000-8000-000000000801';
 const programId = '00000000-0000-4000-8000-000000000901';
+const recipientWorkerId = '00000000-0000-4000-8000-000000000777';
 
 vi.mock('@/lib/api-client', () => ({
   apiClient: {
@@ -95,6 +96,17 @@ describe('employee engagement pages', () => {
       if (url === `/engagement/recognition-records/worker/${workerId}`) {
         return apiResponse([{ id: { value: 'record-1' }, message: 'Great teamwork', points: 25, status: 'AWARDED' }]);
       }
+      if (url === '/hr/core/workers/directory-search?search=jordan&pageSize=10') {
+        return apiResponse([
+          {
+            id: recipientWorkerId,
+            employeeId: 'EMP-4004',
+            firstName: 'Jordan',
+            lastName: 'Lee',
+            jobTitle: 'Support Specialist',
+          },
+        ]);
+      }
       return apiResponse([]);
     });
     apiClientPostMock.mockImplementation((url: string) => {
@@ -139,13 +151,14 @@ describe('employee engagement pages', () => {
     expect(await screen.findByRole('heading', { name: 'Recognition' })).toBeInTheDocument();
     expect(await screen.findByText('Great teamwork')).toBeInTheDocument();
 
-    await userEvent.type(screen.getByLabelText('Recipient worker ID'), '00000000-0000-4000-8000-000000000777');
+    await userEvent.type(screen.getByLabelText('Recipient worker ID'), 'jordan');
+    await userEvent.click(await screen.findByText('Jordan Lee', {}, { timeout: 5000 }));
     await userEvent.type(screen.getByLabelText('Message'), 'Thank you for helping the team');
     await userEvent.click(screen.getByRole('button', { name: 'Send recognition' }));
 
     await waitFor(() => expect(apiClientPostMock).toHaveBeenCalledWith('/engagement/recognition-records', {
       fromWorkerId: workerId,
-      toWorkerId: '00000000-0000-4000-8000-000000000777',
+      toWorkerId: recipientWorkerId,
       programId,
       points: 10,
       message: 'Thank you for helping the team',

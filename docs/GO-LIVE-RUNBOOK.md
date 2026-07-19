@@ -45,14 +45,30 @@ secrets from files.
 **Acceptance:** on-call receives the page; capture the PagerDuty incident id + Slack message in the release record.
 
 ## 3. Enable WAL archiving / PITR (closes SRE-2, 15-min RPO)
-Logical backup + restore drill are automated and **proven** (`restore-drill-cronjob`, live PASS).
+Logical backup + restore drill logic is implemented and has been **proven manually**: the
+standalone script (`scripts/backup/pg-restore-drill.mjs`, `pnpm db:restore-drill`), run by
+hand against the live database on 2026-06-25 with an admin/superuser connection, restored
+168 hr_* tables + 73 migrations → PASS (see `docs/disaster-recovery.md`).
+
+The in-cluster automation of the same drill (`restore-drill-cronjob`, a weekly CronJob) is
+newer and has **not yet had a successful live run**: as shipped, it authenticated as the
+RLS-restricted `hcm_system` role, which lacked the `CREATEDB` privilege its own `CREATE
+DATABASE`/`DROP DATABASE` steps need — a permission-denied bug that this repo's SQL grant
+fix (`infra/rls/provision-app-role.sql`, `hcm_system` now has `CREATEDB`) resolves. That
+fix unblocks the CronJob; it does not itself constitute a passing drill. Before crediting
+this item's "logical backup + restore drill" half as proven for the in-cluster path, run
+`hcm-db-restore-drill` for real (e.g. `kubectl create job --from=cronjob/hcm-db-restore-drill
+hcm-db-restore-drill-manual-verify -n <namespace>`) and confirm it exits 0 with `RESTORE
+DRILL PASS` in its logs.
+
 PITR is configured at the Postgres layer per `docs/postgres-pitr.md`:
 
 1. Enable managed-PG PITR (or `wal-g` `archive_command`) with ≥7-day retention.
 2. Drill a restore to an arbitrary timestamp.
 
 **Acceptance:** `pg_stat_archiver.failed_count = 0`, recent `last_archived_time`; a PITR
-restore to a chosen timestamp succeeds. Record achieved RPO/RTO.
+restore to a chosen timestamp succeeds; a live run of the in-cluster `hcm-db-restore-drill`
+CronJob exits 0 with `RESTORE DRILL PASS` logged. Record achieved RPO/RTO.
 
 ## 4. Record a staging load baseline (extends PERF-1)
 `load-smoke` CI job runs a health-endpoint smoke on every push (see `docs/perf-baseline.md`).

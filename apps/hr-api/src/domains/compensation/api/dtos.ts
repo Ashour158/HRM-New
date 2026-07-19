@@ -49,6 +49,18 @@ export class CreateCompensationBandDto {
   @ApiProperty() currency!: string;
 }
 
+export class ReviseCompensationBandDto {
+  static zodSchema = z.object({
+    minSalary: z.number().nonnegative(),
+    midSalary: z.number().nonnegative(),
+    maxSalary: z.number().nonnegative(),
+  });
+
+  @ApiProperty() minSalary!: number;
+  @ApiProperty() midSalary!: number;
+  @ApiProperty() maxSalary!: number;
+}
+
 /* ------------------------------------------------------------------ */
 /*  CompensationChange DTOs                                            */
 /* ------------------------------------------------------------------ */
@@ -151,7 +163,7 @@ export class CreateEquityGrantDto {
   @ApiPropertyOptional() strikePrice?: number;
 }
 
-export class RecordEquityGrantVestingDto {
+export class RecordVestingEquityGrantDto {
   static zodSchema = z.object({
     units: z.number().nonnegative(),
   });

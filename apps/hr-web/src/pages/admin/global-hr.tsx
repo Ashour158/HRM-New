@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable } from '@/components/common/data-table';
 import { ErrorState } from '@/components/common/error-state';
+import { StatTile } from '@/components/ui/stat-tile';
 import { formatDate } from '@/lib/utils';
 import { CheckCircle2, Globe2, Plane, ShieldCheck, TimerReset } from 'lucide-react';
 
@@ -349,22 +350,18 @@ export function AdminGlobalHr() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        {metricCards.map((metric) => {
-          const Icon = metric.icon;
-          return (
-            <Card key={metric.label} className="rounded-xl border-border">
-              <CardContent className="flex items-center justify-between p-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{metric.label}</p>
-                  <p className="text-2xl font-bold text-slate-950">{metric.value}</p>
-                </div>
-                <span className="grid h-10 w-10 place-items-center rounded-lg bg-info/10 text-info">
-                  <Icon className="h-5 w-5" />
-                </span>
-              </CardContent>
-            </Card>
-          );
-        })}
+        {metricCards.map((metric) => (
+          <StatTile
+            key={metric.label}
+            icon={metric.icon}
+            label={metric.label}
+            value={metric.value}
+            tone="info"
+            className="rounded-xl border-border"
+            labelClassName="text-xs font-semibold uppercase tracking-wide text-slate-500"
+            valueClassName="text-2xl font-bold text-slate-950"
+          />
+        ))}
       </div>
 
       {permitsQuery.isError ? <ErrorState error={permitsQuery.error} onRetry={() => permitsQuery.refetch()} /> : null}

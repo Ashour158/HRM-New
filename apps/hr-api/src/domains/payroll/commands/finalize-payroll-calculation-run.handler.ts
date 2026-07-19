@@ -4,7 +4,6 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PayrollCalculationRunRepository } from '../repositories/payroll-calculation-run.repository.js';
-import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
 
 @CommandHandler('FinalizePayrollCalculationRun')
 @Injectable()
@@ -12,7 +11,6 @@ export class FinalizePayrollCalculationRunHandler {
   constructor(
     private readonly repo: PayrollCalculationRunRepository,
     private readonly fsm: FsmFramework,
-    private readonly publisher: PayrollEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -21,7 +19,6 @@ export class FinalizePayrollCalculationRunHandler {
     if (!run) throw new Error('Payroll calculation run not found');
     run.finalize(command.correlationId);
     await this.repo.save(run);
-    await this.publisher.publishFromAggregate(run);
     return {
       success: true,
       data: { payrollCalculationRunId: run.id.value, status: run.status },

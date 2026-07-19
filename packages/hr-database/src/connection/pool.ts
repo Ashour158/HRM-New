@@ -1,4 +1,20 @@
-import { Pool } from 'pg';
+import { Pool, types } from 'pg';
+
+/**
+ * NUMERIC/DECIMAL (OID 1700) columns hold arbitrary-precision decimal values
+ * (money, rates) that a JS `number` (IEEE 754 double) cannot always represent
+ * exactly. node-postgres already returns these as strings by default for
+ * this reason -- this registration doesn't change that behavior, it makes it
+ * explicit and centralizes the OID mapping in one documented place instead
+ * of relying on an implicit, easy-to-miss driver default. Application code
+ * must convert deliberately at each use site (Number()/parseFloat() for
+ * display, the Money value object for precision-sensitive arithmetic) --
+ * see packages/hr-database/src/types/platform-tables.ts, where every
+ * NUMERIC column is typed `string`, not `number`, to make that conversion a
+ * compile-time requirement rather than a silent runtime string-concatenation
+ * bug (the actual P0 this registration exists to prevent regressing).
+ */
+types.setTypeParser(1700, (value: string) => value);
 
 let pool: Pool | null = null;
 let systemPool: Pool | null = null;
