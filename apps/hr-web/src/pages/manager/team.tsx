@@ -799,10 +799,10 @@ export function ManagerTeam() {
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatTile icon={Users} label="Team size" value={teamAttendance?.workers.length ?? directReports.length} />
-              <StatTile icon={Clock3} label="Payable" value={teamAttendanceLoading ? '-' : formatHours(teamAttendance?.totals.payableHours)} />
-              <StatTile icon={AlertTriangle} label="Absences" value={teamAttendanceLoading ? '-' : teamAttendance?.totals.absent ?? 0} />
-              <StatTile icon={CheckCircle2} label="Exceptions" value={teamAttendanceLoading ? '-' : teamAttendance?.totals.exceptions ?? 0} />
+              <StatTile icon={Users} label="Team size" value={teamAttendance?.workers?.length ?? directReports.length} />
+              <StatTile icon={Clock3} label="Payable" value={teamAttendanceLoading ? '-' : formatHours(teamAttendance?.totals?.payableHours)} />
+              <StatTile icon={AlertTriangle} label="Absences" value={teamAttendanceLoading ? '-' : teamAttendance?.totals?.absent ?? 0} />
+              <StatTile icon={CheckCircle2} label="Exceptions" value={teamAttendanceLoading ? '-' : teamAttendance?.totals?.exceptions ?? 0} />
             </div>
 
             <div>
