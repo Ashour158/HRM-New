@@ -148,7 +148,7 @@ export function inferEmployeeDataCategory(aggregateType: string): HrEventPrivacy
   if (normalized.includes('performance') || normalized.includes('objective') || normalized.includes('goal')) return 'PERFORMANCE';
   if (normalized.includes('relations') || normalized.includes('disciplinary') || normalized.includes('grievance')) return 'ER_CASE';
   if (normalized.includes('medical') || normalized.includes('wellness') || normalized.includes('eap')) return 'MEDICAL';
-  if (normalized.includes('authorization') || normalized.includes('visa') || normalized.includes('immigration')) return 'IMMIGRATION';
+  if (normalized.includes('authorization') || normalized.includes('visa') || normalized.includes('immigration') || normalized.includes('i9case') || normalized.includes('everify')) return 'IMMIGRATION';
   if (normalized.includes('survey')) return 'SURVEY';
   return 'PROFILE';
 }

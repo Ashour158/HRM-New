@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { OfferToHireSaga } from './offer-to-hire.saga.js';
+import { uuidV5 } from './deterministic-uuid.js';
 import { Offer } from '../aggregates/offer.aggregate.js';
 import { Candidate } from '../aggregates/candidate.aggregate.js';
 import { JobRequisition } from '../aggregates/job-requisition.aggregate.js';
@@ -11,6 +12,10 @@ import type { EventBus, EventHandler } from '../../../platform/event-bus/event-b
 import type { HrEventEnvelope } from '@hcm/event-schemas';
 import { createPrivacyForEvent } from '@hcm/event-schemas';
 import { Uuid } from '@hcm/shared-kernel';
+import { getCurrentTenantId } from '@hcm/platform-core';
+
+/** Mirrors the private `I9_CASE_ID_NAMESPACE` constant in `offer-to-hire.saga.ts`. */
+const I9_CASE_ID_NAMESPACE = '9b1c9e2a-2f7a-5e3b-8f5a-6c2b7e4a1d90';
 
 describe('OfferToHireSaga', () => {
   const tenantId = new Uuid('00000000-0000-0000-0000-000000000001');
@@ -169,7 +174,54 @@ describe('OfferToHireSaga', () => {
       'CreateJobAssignment',
       'FillPosition',
       'CreateOnboardingPlan',
+      'CreateI9Case',
     ]);
+  });
+
+  it('dispatches every command inside the accepted offer tenant context and derives a deterministic CreateI9Case id from the worker id', async () => {
+    vi.mocked(offerRepo.findById).mockResolvedValue(offer());
+    vi.mocked(candidateRepo.findById).mockResolvedValue(candidateInState(candidateId, 'HIRED'));
+    vi.mocked(requisitionRepo.findById).mockResolvedValue(requisition());
+
+    const capturedCommands: Array<{ commandName: string; payload: unknown }> = [];
+    const observedTenantsDuringDispatch: Array<string | undefined> = [];
+    vi.mocked(commandBus.execute).mockImplementation(async (command) => {
+      observedTenantsDuringDispatch.push(getCurrentTenantId()?.value);
+      capturedCommands.push({
+        commandName: (command as { commandName: string }).commandName,
+        payload: (command as { payload: unknown }).payload,
+      });
+      return { success: true, data: {} } as never;
+    });
+
+    await capturedHandler!.handle(offerAcceptedEvent());
+
+    // Every command dispatched by the saga must run inside the accepted
+    // offer's own tenant context so tenant-scoped repositories (e.g.
+    // I9CaseRepository, which sources tenant_id from AsyncLocalStorage)
+    // don't reject the write.
+    expect(observedTenantsDuringDispatch.length).toBeGreaterThan(0);
+    expect(observedTenantsDuringDispatch.every((observed) => observed === tenantId.value)).toBe(true);
+
+    const createWorkerCommand = capturedCommands.find((c) => c.commandName === 'CreateWorker');
+    const createI9CaseCommand = capturedCommands.find((c) => c.commandName === 'CreateI9Case');
+    expect(createWorkerCommand).toBeDefined();
+    expect(createI9CaseCommand).toBeDefined();
+
+    const workerId = (createWorkerCommand!.payload as { workerId: Uuid }).workerId;
+    const i9CaseId = (createI9CaseCommand!.payload as { i9CaseId: Uuid }).i9CaseId;
+    expect(i9CaseId.value).toBe(uuidV5(workerId.value, I9_CASE_ID_NAMESPACE));
+  });
+
+  it('derives the same CreateI9Case id for a retried step targeting the same worker id (uuidV5 determinism)', () => {
+    const workerId = Uuid.generate().value;
+    const first = uuidV5(workerId, I9_CASE_ID_NAMESPACE);
+    const second = uuidV5(workerId, I9_CASE_ID_NAMESPACE);
+    expect(first).toBe(second);
+    expect(Uuid.isValid(first)).toBe(true);
+
+    const otherWorkerId = Uuid.generate().value;
+    expect(uuidV5(otherWorkerId, I9_CASE_ID_NAMESPACE)).not.toBe(first);
   });
 
   it('does not run the pipeline for events that are not OfferAccepted or JobRequisitionFilled', async () => {

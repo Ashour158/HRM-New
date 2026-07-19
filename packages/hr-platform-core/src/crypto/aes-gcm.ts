@@ -41,20 +41,21 @@ export function decryptWithKey(encrypted: string, key: Buffer): string {
 /**
  * Resolve a 32-byte AES key from a base64-encoded environment variable.
  *
- * In production a missing key throws. Outside production a deterministic
- * fallback is derived from the provided seed so local/test runs work without
- * configuration — the fallback is never used when `NODE_ENV === 'production'`.
+ * The deterministic fallback is only ever safe to use when NODE_ENV is
+ * explicitly 'development' or 'test'. Any other value -- including an
+ * absent or misspelled NODE_ENV -- must throw rather than silently
+ * encrypt real data with a public, seed-derived key.
  */
 export function resolveKeyFromEnv(envVar: string, nonProductionSeed: string): Buffer {
   const configured = process.env[envVar];
   if (!configured) {
-    // Fail closed in any production-like environment; the deterministic fallback
-    // is for local development and tests only.
     const env = process.env.NODE_ENV;
-    if (env === 'production' || env === 'staging') {
-      throw new Error(`${envVar} must be configured in ${env}`);
+    if (env === 'development' || env === 'test') {
+      return Buffer.from(nonProductionSeed.padEnd(32, '!')).subarray(0, 32);
     }
-    return Buffer.from(nonProductionSeed.padEnd(32, '!')).subarray(0, 32);
+    throw new Error(
+      `${envVar} must be configured unless NODE_ENV is 'development' or 'test' (got ${JSON.stringify(env)})`,
+    );
   }
   const key = Buffer.from(configured, 'base64');
   if (key.length !== 32) {

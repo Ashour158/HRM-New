@@ -301,6 +301,10 @@ describe.sequential('golden multi-domain workflow', () => {
         iban: `EG3800190005000000002631800${suffix.slice(-2).padStart(2, '0')}`,
       },
       taxProfile: { taxIdentifier: `TAX-${suffix}` },
+      // The employment-eligibility hire gate (I-9/E-Verify PR) fails closed on
+      // missing work-authorization data - this synthetic hire is a verified
+      // local national, so record that on file.
+      workAuthorization: { status: 'AUTHORIZED' },
     });
     const workerId = findId(workerCreate.body, ['workerId']);
     createdAggregateIds.add(workerId);
@@ -474,6 +478,9 @@ describe.sequential('golden multi-domain workflow', () => {
         iban: `EG3800190005000000002631900${suffix.slice(-2).padStart(2, '0')}`,
       },
       taxProfile: { taxIdentifier: `TAX-PAYOUT-${suffix}` },
+      // See the "employment-eligibility hire gate" comment on the first
+      // worker-create call above.
+      workAuthorization: { status: 'AUTHORIZED' },
     });
     const workerId = findId(workerCreate.body, ['workerId']);
     createdAggregateIds.add(workerId);
