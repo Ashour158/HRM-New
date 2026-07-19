@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { EmptyState } from '@/components/common/empty-state';
+import { StatTile } from '@/components/ui/stat-tile';
 import { cn } from '@/lib/utils';
 import { commercialModules, moduleCategories, type CommercialModule, type CommercialModuleMaturity } from '@/lib/commercial-modules';
 
@@ -62,20 +63,6 @@ function moduleMatches(module: CommercialModule, search: string, category: strin
   ].join(' ').toLowerCase();
 
   return (!category || module.category === category) && haystack.includes(search.toLowerCase());
-}
-
-function StatBlock({ label, value, icon: Icon }: { label: string; value: number | string; icon: React.ComponentType<{ className?: string }> }) {
-  return (
-    <div className="flex min-h-[88px] items-center gap-3 border-b border-border/50 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary/10 text-primary">
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="lumina-label">{label}</p>
-        <p className="mt-1 font-headline text-2xl font-bold text-foreground">{value}</p>
-      </div>
-    </div>
-  );
 }
 
 function ModuleCard({ module }: { module: CommercialModule }) {
@@ -197,10 +184,50 @@ export function AdminModuleCatalog() {
           </div>
 
           <div className="grid sm:grid-cols-2 xl:grid-cols-4">
-            <StatBlock label="Total Modules" value={commercialModules.length} icon={Layers3} />
-            <StatBlock label="Full Pages" value={nativeCount} icon={CheckCircle2} />
-            <StatBlock label="Operations" value={workbenchCount} icon={Activity} />
-            <StatBlock label="Setup Needed" value={apiReadyCount} icon={BarChart3} />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="sm"
+              tone="secondary"
+              icon={Layers3}
+              iconPosition="leading"
+              label="Total Modules"
+              value={commercialModules.length}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="sm"
+              tone="secondary"
+              icon={CheckCircle2}
+              iconPosition="leading"
+              label="Full Pages"
+              value={nativeCount}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="sm"
+              tone="secondary"
+              icon={Activity}
+              iconPosition="leading"
+              label="Operations"
+              value={workbenchCount}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="sm"
+              tone="secondary"
+              icon={BarChart3}
+              iconPosition="leading"
+              label="Setup Needed"
+              value={apiReadyCount}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
           </div>
         </section>
 

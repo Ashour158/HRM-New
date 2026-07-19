@@ -57,6 +57,72 @@ describe('JwtTenantResolver', () => {
   });
 });
 
+describe('HeaderTenantResolver actor-bound tenant trust (HCM-P0-4)', () => {
+  it('rejects a caller-supplied X-Tenant-ID header for a SYSTEM actor with no bound tenant', async () => {
+    const resolver = new HeaderTenantResolver();
+
+    const result = await resolver.resolve({
+      headers: { 'x-tenant-id': tenantId },
+      actor: { actorType: 'SYSTEM' },
+    });
+
+    expect(result.isErr()).toBe(true);
+    result.match(
+      () => undefined,
+      (error) => {
+        expect(error.message).toContain('not bound to a tenant');
+        expect(error.terminal).toBe(true);
+      },
+    );
+  });
+
+  it('rejects a caller-supplied X-Tenant-ID header for an INTEGRATION actor with no bound tenant', async () => {
+    const resolver = new HeaderTenantResolver();
+
+    const result = await resolver.resolve({
+      headers: { 'x-tenant-id': tenantId },
+      actor: { actorType: 'INTEGRATION' },
+    });
+
+    expect(result.isErr()).toBe(true);
+  });
+
+  it("uses a SERVICE_ACCOUNT actor's own bound tenant, ignoring a mismatched header", async () => {
+    const resolver = new HeaderTenantResolver();
+
+    const result = await resolver.resolve({
+      headers: { 'x-tenant-id': otherTenantId },
+      actor: { actorType: 'SERVICE_ACCOUNT', tenantId },
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(result.unwrap().value).toBe(tenantId);
+  });
+
+  it('still trusts the header for a plain USER actor (unaffected)', async () => {
+    const resolver = new HeaderTenantResolver();
+
+    const result = await resolver.resolve({
+      headers: { 'x-tenant-id': tenantId },
+      actor: { actorType: 'USER' },
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(result.unwrap().value).toBe(tenantId);
+  });
+
+  it('still trusts the header when no actor is present at all (unaffected)', async () => {
+    const resolver = new HeaderTenantResolver();
+
+    const result = await resolver.resolve({
+      headers: { 'x-tenant-id': tenantId },
+    });
+
+    expect(result.isOk()).toBe(true);
+    expect(result.unwrap().value).toBe(tenantId);
+  });
+});
+
 describe('ChainTenantResolver', () => {
   it('uses the verified JWT tenant instead of a mismatched tenant header', async () => {
     const resolver = new ChainTenantResolver([
