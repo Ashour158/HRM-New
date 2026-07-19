@@ -375,7 +375,7 @@ describe('Compensation lifecycle command handlers', () => {
       const result = await new CloseBonusCycleHandler(repo as never, publisher, fsm)
         .handle(command('CloseBonusCycle', 'BonusCycle', { cycleId }, cycleId));
       expect(existing.status).toBe('CLOSED');
-      expect(result).toEqual(expect.objectContaining({ newState: 'CLOSED', eventsEmitted: [] }));
+      expect(result).toEqual(expect.objectContaining({ newState: 'CLOSED', eventsEmitted: ['BonusCycleClosed'] }));
     });
   });
 

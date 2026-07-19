@@ -9,6 +9,7 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
 
 /**
  * Command handler for expiring an EquityGrant.
+ * GRANTED, VESTING, VESTED, or EXERCISED → EXPIRED (terminal).
  */
 @Injectable()
 @CommandHandler('ExpireEquityGrant')

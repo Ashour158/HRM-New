@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CheckCircle2, PlayCircle, Plus, Save, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, PlayCircle, Plus, Save, ShieldCheck, X } from 'lucide-react';
 import { useApiQuery } from '@/hooks/use-api';
 import { apiClient } from '@/lib/api-client';
 import { useTenant } from '@/hooks/use-tenant';
@@ -236,14 +237,42 @@ function listSummary(scope: PolicyScope, labels: { tenantDefault: string; entiti
   ].filter(Boolean).join(' · ') || labels.tenantDefault;
 }
 
+function isPolicyArea(value: string): value is PolicyArea {
+  return (policyAreas as string[]).includes(value);
+}
+
 export function AdminPolicies() {
   const { t } = useTranslation();
   const { tenantId } = useTenant();
   const queryClient = useQueryClient();
   const addNotification = useUIStore((state) => state.addNotification);
-  const [form, setForm] = React.useState<BuilderForm>(initialForm);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawAreaParam = (searchParams.get('area') ?? '').toUpperCase();
+  const scopedArea = isPolicyArea(rawAreaParam) ? rawAreaParam : undefined;
+  const [form, setForm] = React.useState<BuilderForm>(() => (
+    scopedArea ? { ...initialForm, area: scopedArea, rules: [createRuleRow(scopedArea)] } : initialForm
+  ));
   const [selectedRevisionId, setSelectedRevisionId] = React.useState<string>('');
   const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (scopedArea) {
+      setForm((current) => (current.area === scopedArea
+        ? current
+        // Regenerate the rule ledger's default row for the new area too --
+        // otherwise the builder keeps a stale rule row whose category came
+        // from the previous area's category set.
+        : { ...current, area: scopedArea, rules: [createRuleRow(scopedArea)] }));
+    }
+  }, [scopedArea]);
+
+  const clearAreaFilter = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('area');
+      return next;
+    });
+  };
 
   const { data: summary, isLoading: summaryLoading } = useApiQuery<PolicySummary>(
     ['policy-summary', tenantId],
@@ -262,6 +291,10 @@ export function AdminPolicies() {
   );
 
   const revisions = React.useMemo(() => revisionsData ?? [], [revisionsData]);
+  const displayedRevisions = React.useMemo(
+    () => (scopedArea ? revisions.filter((revision) => revision.area === scopedArea) : revisions),
+    [revisions, scopedArea],
+  );
   const templates = React.useMemo(() => templatesData ?? [], [templatesData]);
   const selectedRevision = React.useMemo(
     () => revisions.find((revision) => revision.id === selectedRevisionId),
@@ -437,21 +470,33 @@ export function AdminPolicies() {
         <Card>
           <CardHeader>
             <SectionHeading title={t('lowCode.policies.revisions')} />
+            {scopedArea ? (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Badge variant="secondary">Filtered to {scopedArea.replace(/_/g, ' ')} policies</Badge>
+                <Button type="button" variant="ghost" size="sm" onClick={clearAreaFilter}>
+                  <X className="mr-1 h-3 w-3" />
+                  Clear filter
+                </Button>
+              </div>
+            ) : null}
           </CardHeader>
           <CardContent>
             {isError ? (
               <ErrorState title={t('lowCode.policies.loadFailed')} error={error} onRetry={() => refetch()} />
-            ) : revisions.length === 0 && !isLoading ? (
-              <EmptyState title={t('lowCode.policies.emptyTitle')} description={t('lowCode.policies.emptyDescription')} />
+            ) : displayedRevisions.length === 0 && !isLoading ? (
+              <EmptyState
+                title={scopedArea ? `No ${scopedArea.replace(/_/g, ' ')} policies yet` : t('lowCode.policies.emptyTitle')}
+                description={t('lowCode.policies.emptyDescription')}
+              />
             ) : (
               <DataTable
                 columns={columns}
-                data={revisions}
+                data={displayedRevisions}
                 emptyMessage={t('lowCode.policies.emptyTitle')}
                 isLoading={isLoading}
                 keyExtractor={(row) => row.id}
                 listKey="admin.policy-builder"
-                total={revisions.length}
+                total={displayedRevisions.length}
               />
             )}
           </CardContent>

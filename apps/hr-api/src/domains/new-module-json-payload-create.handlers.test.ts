@@ -182,12 +182,30 @@ describe('new module create handlers with JSON command payloads', () => {
     await new CreateMisclassificationAssessmentHandler(assessment.repo as never, fsm, publisher() as never).handle(command({
       workerId,
       assessmentDate: dateIso,
-      riskScore: 62,
-      riskFactors: ['manager_control'],
+      factorInputs: {
+        instructionsControl: true,
+        trainingProvided: false,
+        workScheduleSetByCompany: false,
+        worksExclusivelyForCompany: false,
+        toolsProvidedByCompany: false,
+        expensesReimbursed: false,
+        paidFixedRegularWage: false,
+        opportunityForProfitOrLoss: true,
+        significantInvestment: true,
+        writtenContractIndicatesEmployee: false,
+        employeeBenefitsProvided: false,
+        relationshipIsIndefinite: false,
+        servicesKeyToBusiness: false,
+      },
     }));
     expectUuid(assessment.holder.saved.workerId, workerId);
     expectDate(assessment.holder.saved.assessmentDate, dateIso);
-    expect(assessment.holder.saved.riskFactors).toEqual(['manager_control']);
+    // riskScore/riskFactors are computed server-side from factorInputs (IRS common-law
+    // test), not accepted as raw caller-supplied values.
+    expect(assessment.holder.saved.riskScore).toBe(12);
+    expect(assessment.holder.saved.riskFactors).toEqual([
+      'Company gives detailed instructions on how, when, and where work is performed',
+    ]);
   });
 
   it('maps union labor create payload UUID strings into aggregate value objects', async () => {
@@ -360,12 +378,27 @@ describe('new module create handlers with JSON command payloads', () => {
       tenantId,
       workerId: new Uuid(workerId),
       assessmentDate: new Date(dateIso),
-      riskScore: 62,
-      riskFactors: ['manager_control'],
+      factorInputs: {
+        instructionsControl: true,
+        trainingProvided: false,
+        workScheduleSetByCompany: false,
+        worksExclusivelyForCompany: false,
+        toolsProvidedByCompany: false,
+        expensesReimbursed: false,
+        paidFixedRegularWage: false,
+        opportunityForProfitOrLoss: true,
+        significantInvestment: true,
+        writtenContractIndicatesEmployee: false,
+        employeeBenefitsProvided: false,
+        relationshipIsIndefinite: false,
+        servicesKeyToBusiness: false,
+      },
     }, correlationId);
     const assessmentRow = privateRow(Object.create(MisclassificationAssessmentRepository.prototype), assessment);
     expect(assessmentRow.worker_id).toBe(workerId);
-    expect(JSON.parse(String(assessmentRow.risk_factors))).toEqual(['manager_control']);
+    expect(JSON.parse(String(assessmentRow.risk_factors))).toEqual([
+      'Company gives detailed instructions on how, when, and where work is performed',
+    ]);
 
     const article = HrKnowledgeArticle.create({
       id: Uuid.generate(),

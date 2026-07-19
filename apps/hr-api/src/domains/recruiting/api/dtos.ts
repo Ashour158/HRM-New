@@ -80,6 +80,30 @@ export class SubmitCandidateDto {
   @ApiPropertyOptional() source?: string;
 }
 
+/**
+ * Voluntary EEO self-identification. Every field is optional by design — EEO
+ * self-ID data collection is legally required to be voluntary (29 CFR 1607,
+ * VEVRAA, Section 503). See `Candidate.recordEeoSelfIdentification` and
+ * `SENSITIVE_FIELD_RULES['candidate.eeoSelfIdentification']` for the
+ * access-restriction this endpoint is gated by (RECRUITER cannot submit this
+ * on a candidate's behalf).
+ */
+export const RecordCandidateEeoSelfIdentificationDtoSchema = z.object({
+  raceEthnicity: z.string().optional(),
+  genderIdentity: z.string().optional(),
+  veteranStatus: z.string().optional(),
+  disabilityStatus: z.string().optional(),
+  declinedToSelfIdentify: z.boolean().optional(),
+});
+
+export class RecordCandidateEeoSelfIdentificationDto {
+  @ApiPropertyOptional() raceEthnicity?: string;
+  @ApiPropertyOptional() genderIdentity?: string;
+  @ApiPropertyOptional() veteranStatus?: string;
+  @ApiPropertyOptional() disabilityStatus?: string;
+  @ApiPropertyOptional() declinedToSelfIdentify?: boolean;
+}
+
 export const ScreenCandidateDtoSchema = z.object({
   screenedByWorkerId: z.string().uuid(),
   outcome: z.string().min(1),
@@ -178,4 +202,36 @@ export const WithdrawOfferDtoSchema = z.object({
 
 export class WithdrawOfferDto {
   @ApiPropertyOptional() reason?: string;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Recruiting Fairness — Adverse Impact Analysis DTOs                 */
+/* ------------------------------------------------------------------ */
+
+export const EeoDemographicDimensionSchema = z.enum([
+  'RACE_ETHNICITY',
+  'GENDER_IDENTITY',
+  'VETERAN_STATUS',
+  'DISABILITY_STATUS',
+]);
+
+export const AnalyzeRequisitionAdverseImpactDtoSchema = z.object({
+  analysisId: z.string().uuid(),
+  dimension: EeoDemographicDimensionSchema,
+  smallCellThreshold: z.number().int().positive().optional(),
+});
+
+export class AnalyzeRequisitionAdverseImpactDto {
+  @ApiProperty() analysisId!: string;
+  @ApiProperty({ enum: ['RACE_ETHNICITY', 'GENDER_IDENTITY', 'VETERAN_STATUS', 'DISABILITY_STATUS'] })
+  dimension!: 'RACE_ETHNICITY' | 'GENDER_IDENTITY' | 'VETERAN_STATUS' | 'DISABILITY_STATUS';
+  @ApiPropertyOptional() smallCellThreshold?: number;
+}
+
+export const ReviewRequisitionAdverseImpactAnalysisDtoSchema = z.object({
+  reviewNotes: z.string().optional(),
+});
+
+export class ReviewRequisitionAdverseImpactAnalysisDto {
+  @ApiPropertyOptional() reviewNotes?: string;
 }

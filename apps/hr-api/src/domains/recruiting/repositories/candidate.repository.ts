@@ -3,7 +3,7 @@ import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
 import { getPool, createKyselyInstance, resolveTransactionAwareExecutor } from '@hcm/database';
-import { Candidate, type CandidateStatus } from '../aggregates/candidate.aggregate.js';
+import { Candidate, type CandidateStatus, type CandidateEeoSelfIdentification } from '../aggregates/candidate.aggregate.js';
 
 /**
  * Repository for {@link Candidate} aggregates.
@@ -105,6 +105,7 @@ export class CandidateRepository {
       source: entity.source ?? null,
       status: entity.status,
       requisition_id: entity.requisitionId.value,
+      eeo_self_identification: entity.eeoSelfIdentification ?? null,
       aggregate_version: entity.version,
       updated_at: new Date().toISOString(),
     };
@@ -138,9 +139,23 @@ export class CandidateRepository {
       source: (row.source as string) ?? undefined,
       status: (row.status as CandidateStatus) ?? undefined,
       requisitionId: new Uuid(row.requisition_id as string),
+      eeoSelfIdentification: this.toEeoSelfIdentification(row.eeo_self_identification),
       aggregateVersion: (row.aggregate_version as number) ?? undefined,
       createdAt: row.created_at ? new Date(row.created_at as string) : undefined,
       updatedAt: row.updated_at ? new Date(row.updated_at as string) : undefined,
     });
+  }
+
+  private toEeoSelfIdentification(value: unknown): CandidateEeoSelfIdentification | undefined {
+    if (!value || typeof value !== 'object') return undefined;
+    const raw = value as Record<string, unknown>;
+    return {
+      raceEthnicity: (raw.raceEthnicity as string) ?? undefined,
+      genderIdentity: (raw.genderIdentity as string) ?? undefined,
+      veteranStatus: (raw.veteranStatus as string) ?? undefined,
+      disabilityStatus: (raw.disabilityStatus as string) ?? undefined,
+      declinedToSelfIdentify: (raw.declinedToSelfIdentify as boolean) ?? undefined,
+      recordedAt: raw.recordedAt ? new Date(raw.recordedAt as string) : undefined,
+    };
   }
 }

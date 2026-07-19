@@ -13,6 +13,36 @@ export type CandidateStatus =
   | 'WITHDRAWN';
 
 /**
+ * Voluntary EEO self-identification data (race/ethnicity, gender identity,
+ * veteran status, disability status). U.S. EEO law (29 CFR 1607, VEVRAA,
+ * Section 503) requires this data collection to be voluntary and requires it
+ * be kept separate from the hiring decision-making process.
+ *
+ * ACCESS: governed as SPECIAL_CATEGORY data — see
+ * `SENSITIVE_FIELD_RULES['candidate.eeoSelfIdentification']` in
+ * platform/command-bus/command-bus.ts (write-side: RECRUITER cannot submit or
+ * mutate this data) and the `candidate.eeoSelfIdentification` FieldPolicy in
+ * @hcm/access-control (read-side: MANAGER/hiring-manager roles are denied).
+ * `RecruitingController.getCandidate()` never includes this field in its
+ * response — the only reader is the adverse-impact analysis pipeline, which
+ * only ever surfaces k-anonymity-suppressed, group-level aggregates, never
+ * individual self-identification records.
+ */
+export interface CandidateEeoSelfIdentification {
+  /** @hrDataClassification SPECIAL_CATEGORY */
+  raceEthnicity?: string;
+  /** @hrDataClassification SPECIAL_CATEGORY */
+  genderIdentity?: string;
+  /** @hrDataClassification SPECIAL_CATEGORY */
+  veteranStatus?: string;
+  /** @hrDataClassification SPECIAL_CATEGORY */
+  disabilityStatus?: string;
+  /** True when the candidate affirmatively chose not to self-identify. */
+  declinedToSelfIdentify?: boolean;
+  recordedAt?: Date;
+}
+
+/**
  * Properties required to construct or rehydrate a {@link Candidate} aggregate.
  */
 export interface CandidateProps {
@@ -26,6 +56,8 @@ export interface CandidateProps {
   source?: string;
   status?: CandidateStatus;
   requisitionId: Uuid;
+  /** @hrDataClassification SPECIAL_CATEGORY — voluntary EEO self-identification, access-restricted. */
+  eeoSelfIdentification?: CandidateEeoSelfIdentification;
   aggregateVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -130,6 +162,24 @@ export class CandidateWithdrew extends DomainEvent {
   }
 }
 
+/**
+ * Emitted when a candidate's voluntary EEO self-identification is recorded.
+ * Deliberately carries no demographic values — only the fact that a
+ * self-identification record now exists — so the event stream / outbox never
+ * propagates SPECIAL_CATEGORY data.
+ */
+export class CandidateEeoSelfIdentificationRecorded extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({
+      eventName: 'CandidateEeoSelfIdentificationRecorded',
+      tenantId: props.tenantId,
+      aggregateType: 'Candidate',
+      aggregateId: props.aggregateId,
+      correlationId: props.correlationId,
+    });
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Aggregate                                                          */
 /* ------------------------------------------------------------------ */
@@ -153,6 +203,8 @@ export class Candidate extends AggregateRoot {
   source?: string;
   status: CandidateStatus;
   requisitionId: Uuid;
+  /** @hrDataClassification SPECIAL_CATEGORY — voluntary EEO self-identification, access-restricted. */
+  eeoSelfIdentification?: CandidateEeoSelfIdentification;
   createdAt: Date;
   updatedAt: Date;
 
@@ -182,6 +234,7 @@ export class Candidate extends AggregateRoot {
     this.source = props.source;
     this.status = props.status ?? 'NEW';
     this.requisitionId = props.requisitionId;
+    this.eeoSelfIdentification = props.eeoSelfIdentification;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
     if (props.aggregateVersion !== undefined) {
@@ -339,6 +392,34 @@ export class Candidate extends AggregateRoot {
     this.bumpVersion();
     this.addDomainEvent(
       new CandidateWithdrew({
+        tenantId: this.tenantId,
+        aggregateId: this.id,
+        correlationId,
+      }),
+    );
+  }
+
+  /**
+   * Record (or update) the candidate's voluntary EEO self-identification.
+   *
+   * All fields are genuinely optional — a candidate may decline to answer any
+   * or all of them (`declinedToSelfIdentify: true` records the fact of a
+   * decline without inferring anything from it). Can be recorded at any point
+   * before a terminal state, independent of application-pipeline progress,
+   * since self-ID is deliberately decoupled from the hiring decision.
+   *
+   * Write access to this method's inputs is restricted at the command-bus
+   * layer (`SENSITIVE_FIELD_RULES['candidate.eeoSelfIdentification']`) —
+   * recruiters cannot submit this on a candidate's behalf.
+   */
+  recordEeoSelfIdentification(data: CandidateEeoSelfIdentification, correlationId: Uuid): void {
+    if (this.status === 'HIRED' || this.status === 'REJECTED' || this.status === 'WITHDRAWN') {
+      throw new ConflictError('Cannot record EEO self-identification for a candidate in a terminal state');
+    }
+    this.eeoSelfIdentification = { ...data, recordedAt: data.recordedAt ?? new Date() };
+    this.bumpVersion();
+    this.addDomainEvent(
+      new CandidateEeoSelfIdentificationRecorded({
         tenantId: this.tenantId,
         aggregateId: this.id,
         correlationId,

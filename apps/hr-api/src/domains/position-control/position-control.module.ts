@@ -4,6 +4,7 @@ import { PositionFsmRegistrar } from './fsm/position.fsm.js';
 import { HeadcountRequestFsmRegistrar } from './fsm/headcount-request.fsm.js';
 import { PositionRepository } from './repositories/position.repository.js';
 import { HeadcountRequestRepository } from './repositories/headcount-request.repository.js';
+import { HeadcountBudgetRepository } from './repositories/headcount-budget.repository.js';
 import { CreatePositionHandler } from './commands/create-position.handler.js';
 import { ActivatePositionHandler } from './commands/activate-position.handler.js';
 import { FreezePositionHandler } from './commands/freeze-position.handler.js';
@@ -17,6 +18,7 @@ import { StartReviewHeadcountRequestHandler } from './commands/start-review-head
 import { ApproveHeadcountRequestHandler } from './commands/approve-headcount-request.handler.js';
 import { RejectHeadcountRequestHandler } from './commands/reject-headcount-request.handler.js';
 import { CancelHeadcountRequestHandler } from './commands/cancel-headcount-request.handler.js';
+import { ConfigureHeadcountBudgetHandler } from './commands/configure-headcount-budget.handler.js';
 import { PositionEventsPublisher } from './events/position-events.publisher.js';
 import { PositionHeadcountSaga } from './sagas/position-headcount.saga.js';
 
@@ -35,6 +37,7 @@ import { PositionHeadcountSaga } from './sagas/position-headcount.saga.js';
     // Repositories
     PositionRepository,
     HeadcountRequestRepository,
+    HeadcountBudgetRepository,
     // Command handlers
     CreatePositionHandler,
     ActivatePositionHandler,
@@ -49,11 +52,12 @@ import { PositionHeadcountSaga } from './sagas/position-headcount.saga.js';
     ApproveHeadcountRequestHandler,
     RejectHeadcountRequestHandler,
     CancelHeadcountRequestHandler,
+    ConfigureHeadcountBudgetHandler,
     // Event publisher
     PositionEventsPublisher,
     // Saga
     PositionHeadcountSaga,
   ],
-  exports: [PositionRepository, HeadcountRequestRepository],
+  exports: [PositionRepository, HeadcountRequestRepository, HeadcountBudgetRepository],
 })
 export class PositionControlModule {}

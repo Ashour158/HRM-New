@@ -147,6 +147,21 @@ const DEFAULT_FIELD_POLICIES: FieldPolicy[] = [
     selfServiceDecision: FieldAccessDecision.VISIBLE,
     managerDecision: FieldAccessDecision.DENIED_SPECIAL_CATEGORY,
   },
+  {
+    // Voluntary candidate EEO self-identification. Recruiting's own read
+    // model (RecruitingController.getCandidate) never surfaces this field at
+    // all; this policy entry governs it wherever it is evaluated through the
+    // generic field-access pathway. Hiring managers (managerDecision) and any
+    // role not listed here (e.g. RECRUITER) are denied.
+    fieldPath: 'candidate.eeoSelfIdentification',
+    dataClassification: 'SPECIAL_CATEGORY',
+    roleDecisions: {
+      COMPLIANCE_OFFICER: FieldAccessDecision.REQUIRES_STEP_UP,
+      DEI_ANALYTICS_ADMIN: FieldAccessDecision.REQUIRES_STEP_UP,
+    },
+    selfServiceDecision: FieldAccessDecision.DENIED_NO_BUSINESS_NEED,
+    managerDecision: FieldAccessDecision.DENIED_SPECIAL_CATEGORY,
+  },
 ];
 
 /**

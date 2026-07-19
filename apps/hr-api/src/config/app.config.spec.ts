@@ -11,6 +11,7 @@ describe('loadAppConfig security defaults', () => {
     delete process.env.SYSTEM_API_KEY;
     delete process.env.INTEGRATION_API_KEY;
     delete process.env.CORS_ORIGINS;
+    delete process.env.PII_DATA_ENCRYPTION_KEY;
     delete process.env.WEB_APP_URL;
     process.env.NODE_ENV = 'development';
   });
@@ -61,13 +62,23 @@ describe('loadAppConfig security defaults', () => {
     process.env.JWT_SECRET = 'h8Q$2vNzR7pK!wL4mXbY9cF6tG1sD0jUaE5oI3w';
     process.env.SYSTEM_API_KEY = 'Zr7Z!q9Pk2Lm4Xv8Bn1';
     process.env.INTEGRATION_API_KEY = 'Wq3!Yt8Pn5Lk2Rm9Xb4';
+    process.env.PII_DATA_ENCRYPTION_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
     expect(() => loadAppConfig()).not.toThrow();
+  });
+
+  it('rejects a missing PII_DATA_ENCRYPTION_KEY in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.JWT_SECRET = 'h8Q$2vNzR7pK!wL4mXbY9cF6tG1sD0jUaE5oI3w';
+    process.env.SYSTEM_API_KEY = 'Zr7Z!q9Pk2Lm4Xv8Bn1';
+    process.env.INTEGRATION_API_KEY = 'Wq3!Yt8Pn5Lk2Rm9Xb4';
+    expect(() => loadAppConfig()).toThrow(/PII_DATA_ENCRYPTION_KEY/);
   });
 
   const setStrongSecrets = (): void => {
     process.env.JWT_SECRET = 'h8Q$2vNzR7pK!wL4mXbY9cF6tG1sD0jUaE5oI3w';
     process.env.SYSTEM_API_KEY = 'Zr7Z!q9Pk2Lm4Xv8Bn1';
     process.env.INTEGRATION_API_KEY = 'Wq3!Yt8Pn5Lk2Rm9Xb4';
+    process.env.PII_DATA_ENCRYPTION_KEY = 'MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=';
   };
 
   it('rejects a wildcard CORS origin in production (SEC-7)', () => {

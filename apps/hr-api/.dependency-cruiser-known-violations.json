@@ -1,0 +1,230 @@
+[
+  {
+    "type": "dependency",
+    "from": "src/domains/absence-leave/api/employee-leave.controller.ts",
+    "to": "src/domains/hr-core/aggregates/worker-profile.aggregate.ts",
+    "unresolvedTo": "../../hr-core/aggregates/worker-profile.aggregate.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/absence-leave/api/employee-leave.controller.ts",
+    "to": "src/domains/hr-core/repositories/worker.repository.ts",
+    "unresolvedTo": "../../hr-core/repositories/worker.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/hr-service-delivery/api/hr-service-delivery.controller.ts",
+    "to": "src/domains/hr-core/aggregates/worker-profile.aggregate.ts",
+    "unresolvedTo": "../../hr-core/aggregates/worker-profile.aggregate.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/hr-service-delivery/api/hr-service-delivery.controller.ts",
+    "to": "src/domains/hr-core/repositories/worker.repository.ts",
+    "unresolvedTo": "../../hr-core/repositories/worker.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/organization/api/organization.controller.ts",
+    "to": "src/domains/position-control/aggregates/headcount-request.aggregate.ts",
+    "unresolvedTo": "../../position-control/aggregates/headcount-request.aggregate.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/organization/api/organization.controller.ts",
+    "to": "src/domains/position-control/aggregates/position.aggregate.ts",
+    "unresolvedTo": "../../position-control/aggregates/position.aggregate.js",
+    "dependencyTypes": [
+      "local",
+      "type-only",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/organization/api/organization.controller.ts",
+    "to": "src/domains/position-control/repositories/headcount-request.repository.ts",
+    "unresolvedTo": "../../position-control/repositories/headcount-request.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/organization/api/organization.controller.ts",
+    "to": "src/domains/position-control/repositories/position.repository.ts",
+    "unresolvedTo": "../../position-control/repositories/position.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/payroll/api/employee-payroll.controller.ts",
+    "to": "src/domains/hr-core/repositories/personal-data-record.repository.ts",
+    "unresolvedTo": "../../hr-core/repositories/personal-data-record.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/payroll/api/employee-payroll.controller.ts",
+    "to": "src/domains/hr-core/repositories/worker.repository.ts",
+    "unresolvedTo": "../../hr-core/repositories/worker.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/performance/api/performance.controller.ts",
+    "to": "src/domains/hr-core/repositories/worker.repository.ts",
+    "unresolvedTo": "../../hr-core/repositories/worker.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/time-attendance/api/time-attendance.controller.ts",
+    "to": "src/domains/hr-core/repositories/worker.repository.ts",
+    "unresolvedTo": "../../hr-core/repositories/worker.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/time-attendance/api/time-attendance.controller.ts",
+    "to": "src/domains/workforce-management/repositories/coverage-gap.repository.ts",
+    "unresolvedTo": "../../workforce-management/repositories/coverage-gap.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/time-attendance/api/time-attendance.controller.ts",
+    "to": "src/domains/workforce-management/repositories/open-shift.repository.ts",
+    "unresolvedTo": "../../workforce-management/repositories/open-shift.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/time-attendance/api/time-attendance.controller.ts",
+    "to": "src/domains/workforce-management/repositories/overtime-approval.repository.ts",
+    "unresolvedTo": "../../workforce-management/repositories/overtime-approval.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  },
+  {
+    "type": "dependency",
+    "from": "src/domains/time-attendance/api/time-attendance.controller.ts",
+    "to": "src/domains/workforce-management/repositories/shift-schedule.repository.ts",
+    "unresolvedTo": "../../workforce-management/repositories/shift-schedule.repository.js",
+    "dependencyTypes": [
+      "local",
+      "import"
+    ],
+    "rule": {
+      "severity": "error",
+      "name": "no-cross-domain-controller-imports"
+    }
+  }
+]

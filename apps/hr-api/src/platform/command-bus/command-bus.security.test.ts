@@ -45,6 +45,15 @@ const governedPolicyCases = [
   ['performance', 'ACCESS_GOVERNANCE', 'CreateGoal', 'Goal'],
   ['service delivery', 'ACCESS_GOVERNANCE', 'OpenHrServiceCase', 'HrServiceCase'],
   ['reporting', 'ACCESS_GOVERNANCE', 'CreateReportDefinition', 'ReportDefinition'],
+  // Regression coverage for the Attach/Escalate/Reassign/Recalculate verb
+  // prefixes added to the catch-all governed-command pattern in PR #162.
+  // Without a dedicated case per prefix, a future edit to that regex could
+  // silently drop one of these verbs while the rest of this suite stays
+  // green.
+  ['document attachment', 'ACCESS_GOVERNANCE', 'AttachDocument', 'DocumentAttachment'],
+  ['case escalation', 'ACCESS_GOVERNANCE', 'EscalateCase', 'EscalationCase'],
+  ['ticket reassignment', 'ACCESS_GOVERNANCE', 'ReassignTicket', 'ServiceTicket'],
+  ['benefit recalculation', 'ACCESS_GOVERNANCE', 'RecalculateBenefit', 'BenefitAdjustmentRequest'],
 ] as const;
 
 function makeCommand(overrides: Partial<HrCommandEnvelope<unknown>> = {}): HrCommandEnvelope<unknown> {

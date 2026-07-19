@@ -26,6 +26,7 @@ import { ReviseContractorRateCardHandler } from './commands/revise-contractor-ra
 import { ExpireContractorRateCardHandler } from './commands/expire-contractor-rate-card.handler.js';
 import { CreateMisclassificationAssessmentHandler } from './commands/create-misclassification-assessment.handler.js';
 import { StartMisclassificationAssessmentHandler } from './commands/start-misclassification-assessment.handler.js';
+import { RecalculateMisclassificationScoreHandler } from './commands/recalculate-misclassification-score.handler.js';
 import { MarkReviewRequiredMisclassificationAssessmentHandler } from './commands/mark-review-required-misclassification-assessment.handler.js';
 import { ClearMisclassificationAssessmentHandler } from './commands/clear-misclassification-assessment.handler.js';
 import { FlagMisclassificationAssessmentHandler } from './commands/flag-misclassification-assessment.handler.js';
@@ -46,6 +47,7 @@ const HANDLERS = [
   ExpireContractorRateCardHandler,
   CreateMisclassificationAssessmentHandler,
   StartMisclassificationAssessmentHandler,
+  RecalculateMisclassificationScoreHandler,
   MarkReviewRequiredMisclassificationAssessmentHandler,
   ClearMisclassificationAssessmentHandler,
   FlagMisclassificationAssessmentHandler,

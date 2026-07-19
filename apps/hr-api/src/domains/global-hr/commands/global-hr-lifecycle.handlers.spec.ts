@@ -42,7 +42,7 @@ function envelope<T>(commandName: string, aggregateType: string, payload: T): Hr
     correlationId: Uuid.generate(),
     reason: 'spec',
     payload,
-    metadata: { clientType: 'API' },
+    metadata: { clientType: 'HR_ADMIN' },
   };
 }
 
@@ -88,6 +88,11 @@ describe('Global HR lifecycle command handlers', () => {
       status: 'APPROVED',
       documentNumber: 'WP-2026-001',
     }));
+    expect(publisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: caseId }),
+      tenantId,
+      expect.anything(),
+    );
   });
 
   it('activates international assignments and records the lifecycle event', async () => {
@@ -119,5 +124,10 @@ describe('Global HR lifecycle command handlers', () => {
     expect(result.newState).toBe('ACTIVE');
     expect(result.eventsEmitted).toContain('InternationalAssignmentActivated');
     expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACTIVE' }));
+    expect(publisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: assignmentId }),
+      tenantId,
+      expect.anything(),
+    );
   });
 });
