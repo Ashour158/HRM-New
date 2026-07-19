@@ -1,5 +1,22 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { z } from 'zod';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+
+/**
+ * NestJS pipe that validates a request body against an explicit Zod schema
+ * supplied at construction time (e.g. `@Body(new ZodValidationPipe(SomeDtoSchema))`).
+ * Unlike a metatype-based pipe, this can't silently no-op when a schema is
+ * missing — the schema is a required constructor argument.
+ */
+@Injectable()
+export class ZodValidationPipe implements PipeTransform {
+  constructor(private schema: z.ZodTypeAny) {}
+  transform(value: unknown): unknown {
+    const result = this.schema.safeParse(value);
+    if (!result.success) throw new BadRequestException(result.error.format());
+    return result.data;
+  }
+}
 
 /* ── Position DTOs ─────────────────────────────────────────────── */
 
@@ -15,8 +32,6 @@ export const CreatePositionDtoSchema = z.object({
 });
 
 export class CreatePositionDto {
-  static zodSchema = CreatePositionDtoSchema;
-
   @ApiProperty({ description: 'Unique position code per tenant' })
   positionCode!: string;
 
@@ -52,8 +67,6 @@ export const UpdatePositionDtoSchema = z.object({
 });
 
 export class UpdatePositionDto {
-  static zodSchema = UpdatePositionDtoSchema;
-
   @ApiPropertyOptional({ description: 'Position title' })
   title?: string;
 
@@ -78,8 +91,6 @@ export const FillPositionDtoSchema = z.object({
 });
 
 export class FillPositionDto {
-  static zodSchema = FillPositionDtoSchema;
-
   @ApiProperty({ description: 'Worker UUID to fill the position' })
   workerId!: string;
 }
@@ -89,8 +100,6 @@ export const VacatePositionDtoSchema = z.object({
 });
 
 export class VacatePositionDto {
-  static zodSchema = VacatePositionDtoSchema;
-
   @ApiPropertyOptional({ description: 'Reason for vacating' })
   reason?: string;
 }
@@ -105,8 +114,6 @@ export const SubmitHeadcountRequestDtoSchema = z.object({
 });
 
 export class SubmitHeadcountRequestDto {
-  static zodSchema = SubmitHeadcountRequestDtoSchema;
-
   @ApiPropertyOptional({ description: 'Department UUID' })
   departmentId?: string;
 
@@ -125,8 +132,6 @@ export const ApproveHeadcountRequestDtoSchema = z.object({
 });
 
 export class ApproveHeadcountRequestDto {
-  static zodSchema = ApproveHeadcountRequestDtoSchema;
-
   @ApiProperty({ description: 'Number of positions approved' })
   positionsApproved!: number;
 }
@@ -136,8 +141,6 @@ export const RejectHeadcountRequestDtoSchema = z.object({
 });
 
 export class RejectHeadcountRequestDto {
-  static zodSchema = RejectHeadcountRequestDtoSchema;
-
   @ApiProperty({ description: 'Rejection reason' })
   reason!: string;
 }
