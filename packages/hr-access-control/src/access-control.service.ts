@@ -189,7 +189,12 @@ export class AccessControlService {
 
     if (prefix === 'TIME') {
       if (commandName === 'RECORD_TIME_CLOCK_EVENT' || commandName === 'CREATE_ATTENDANCE_CORRECTION_REQUEST' || commandName === 'CREATE_ATTENDANCE_EXCEPTION') return ['TIME_READ'];
-      if (commandName === 'REVIEW_ATTENDANCE_CORRECTION_REQUEST') return ['TIME_APPROVE'];
+      if (
+        commandName === 'REVIEW_ATTENDANCE_CORRECTION_REQUEST' ||
+        commandName === 'REVIEW_ATTENDANCE_EXCEPTION' ||
+        commandName === 'RESOLVE_ATTENDANCE_EXCEPTION' ||
+        commandName === 'ESCALATE_ATTENDANCE_EXCEPTION'
+      ) return ['TIME_APPROVE'];
       if (commandName === 'FINALIZE_ATTENDANCE_DAILY_LEDGER') return ['PAYROLL_CREATE'];
       if (commandName.includes('APPROVE')) return ['TIME_APPROVE'];
       if (commandName.includes('GET') || commandName.includes('READ')) return ['TIME_READ'];

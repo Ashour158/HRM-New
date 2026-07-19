@@ -61,6 +61,39 @@ describe('AccessControlService time and attendance self-service commands', () =>
     expect(decision.allowed).toBe(true);
   });
 
+  it('allows managers to review, resolve, and escalate attendance exceptions (HCM-P0-9)', () => {
+    for (const commandName of ['ReviewAttendanceException', 'ResolveAttendanceException', 'EscalateAttendanceException']) {
+      const decision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'APPROVE',
+        aggregateType: 'AttendanceException',
+        payload: {},
+      }, {
+        actorType: 'MANAGER',
+        roles: ['MANAGER'],
+        employmentStatus: 'ACTIVE',
+      });
+
+      expect(decision.allowed, `expected ${commandName} to be allowed for MANAGER`).toBe(true);
+    }
+  });
+
+  it('allows HRBP to review, resolve, and escalate attendance exceptions (HCM-P0-9)', () => {
+    for (const commandName of ['ReviewAttendanceException', 'ResolveAttendanceException', 'EscalateAttendanceException']) {
+      const decision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'APPROVE',
+        aggregateType: 'AttendanceException',
+        payload: {},
+      }, {
+        actorType: 'HRBP',
+        roles: ['HRBP'],
+      });
+
+      expect(decision.allowed, `expected ${commandName} to be allowed for HRBP`).toBe(true);
+    }
+  });
+
   it('does not allow employees to finalize attendance ledgers', () => {
     const decision = service.evaluateCommandAccess({
       commandName: 'FinalizeAttendanceDailyLedger',
