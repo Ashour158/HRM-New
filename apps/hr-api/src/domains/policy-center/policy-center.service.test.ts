@@ -1012,4 +1012,166 @@ describe('PolicyCenterService', () => {
       }),
     }));
   });
+
+  // ---------------------------------------------------------------------
+  // Generic Policy Builder "Add rule" widget wiring.
+  //
+  // apps/hr-web/src/pages/admin/policies.tsx offers a generic condition/
+  // outcome rule builder. apps/hr-web/src/lib/policy-center-controls.ts's
+  // appendGenericPolicyRule()/buildDraftConfigFromGenericRules() turn each
+  // rule row into the real structured ledger shape below (code/label/active/
+  // outcomes/retroBehavior nested under the area's real runtime key). These
+  // tests reproduce that exact shape and prove the *real* simulate/validate
+  // engine in this service reads it and reacts to it — not just stores it.
+  // ---------------------------------------------------------------------
+  describe('generic rule builder ledger wiring', () => {
+    it('reads a LEAVE rule the generic builder attaches to a leave policy code, and reacts to its retroBehavior', async () => {
+      const withRevalidation = revision({
+        id: '00000000-0000-0000-0000-000000000401',
+        area: 'LEAVE',
+        status: 'DRAFT',
+        draftConfig: {
+          leavePolicies: [{
+            code: 'ANNUAL',
+            label: 'ANNUAL',
+            active: true,
+            unit: 'DAYS',
+            paid: true,
+            deductFromBalance: true,
+            requestableByEmployee: true,
+            payrollImpact: 'NO_PAYROLL_IMPACT',
+            approvalWorkflow: 'MANAGER',
+            accrualRules: [{
+              code: 'MONTHLY_ACCRUAL_CUSTOM',
+              label: 'Monthly accrual custom',
+              active: true,
+              outcomes: [{ action: 'CREATE_REVALIDATION', value: '1.75' }],
+              retroBehavior: 'REVALIDATE_PENDING',
+            }],
+          }],
+        },
+      });
+      const withFutureOnly = revision({
+        id: '00000000-0000-0000-0000-000000000402',
+        area: 'LEAVE',
+        status: 'DRAFT',
+        draftConfig: {
+          leavePolicies: [{
+            code: 'ANNUAL',
+            label: 'ANNUAL',
+            active: true,
+            unit: 'DAYS',
+            paid: true,
+            deductFromBalance: true,
+            requestableByEmployee: true,
+            payrollImpact: 'NO_PAYROLL_IMPACT',
+            approvalWorkflow: 'MANAGER',
+            accrualRules: [{
+              code: 'MONTHLY_ACCRUAL_CUSTOM',
+              label: 'Monthly accrual custom',
+              active: true,
+              outcomes: [{ action: 'CREATE_REVALIDATION', value: '1.75' }],
+              retroBehavior: 'FUTURE_ONLY',
+            }],
+          }],
+        },
+      });
+      const { service } = buildService([withRevalidation, withFutureOnly]);
+
+      const validation = await service.validateRevision(tenantId, withRevalidation.id, actor);
+      expect(validation.valid).toBe(true);
+
+      const revalidating = await service.simulateRevision(tenantId, withRevalidation.id, actor);
+      expect(revalidating.leavePolicySimulation).toEqual(expect.objectContaining({
+        ruleCodes: expect.arrayContaining(['ANNUAL', 'MONTHLY_ACCRUAL_CUSTOM']),
+        accrualRuleCodes: ['MONTHLY_ACCRUAL_CUSTOM'],
+        revalidationQueues: ['leave_requests', 'absence_accrual_balances'],
+      }));
+
+      const futureOnly = await service.simulateRevision(tenantId, withFutureOnly.id, actor);
+      expect(futureOnly.leavePolicySimulation?.accrualRuleCodes).toEqual(['MONTHLY_ACCRUAL_CUSTOM']);
+      // Same rule code, different retroBehavior chosen in the rule builder — the
+      // engine's revalidation queue output must track that choice, not ignore it.
+      expect(futureOnly.leavePolicySimulation?.revalidationQueues).toEqual([]);
+    });
+
+    it('reads an ATTENDANCE exception rule the generic builder attaches to attendancePolicy.exceptionRules', async () => {
+      const draft = revision({
+        id: '00000000-0000-0000-0000-000000000403',
+        area: 'ATTENDANCE',
+        status: 'DRAFT',
+        draftConfig: {
+          attendancePolicy: {
+            geofenceEnabled: false,
+            exceptionRules: [{
+              code: 'LATE_ARRIVAL_EXCEPTION_CUSTOM',
+              label: 'Late arrival exception custom',
+              active: true,
+              outcomes: [{ action: 'BLOCK', reason: 'Manager must clear the exception.' }],
+              retroBehavior: 'ADJUSTMENT_QUEUE',
+            }],
+          },
+        },
+      });
+      const { service } = buildService([draft]);
+
+      const simulation = await service.simulateRevision(tenantId, draft.id, actor);
+
+      expect(simulation.attendancePolicySimulation).toEqual(expect.objectContaining({
+        ruleCodes: ['LATE_ARRIVAL_EXCEPTION_CUSTOM'],
+        ledgerRuleCodes: ['LATE_ARRIVAL_EXCEPTION_CUSTOM'],
+        revalidationQueues: ['attendance_daily_ledgers', 'attendance_exceptions'],
+        workflowImpacts: expect.arrayContaining([
+          expect.objectContaining({ ruleCode: 'LATE_ARRIVAL_EXCEPTION_CUSTOM', risk: 'RETROACTIVE_ADJUSTMENT_REQUIRED' }),
+        ]),
+      }));
+    });
+
+    it('reads a GLOBAL_HR work authorization rule the generic builder attaches to globalHrPolicyRuntime, and blocks on BLOCK_RETROACTIVE', async () => {
+      const draft = revision({
+        id: '00000000-0000-0000-0000-000000000404',
+        area: 'GLOBAL_HR',
+        status: 'DRAFT',
+        draftConfig: {
+          globalHrPolicyRuntime: {
+            workAuthorizationRules: [{
+              code: 'WORK_AUTH_REQUIRED_CUSTOM',
+              label: 'Work auth required custom',
+              active: true,
+              outcomes: [{ action: 'REQUIRE_EVIDENCE' }],
+              retroBehavior: 'BLOCK_RETROACTIVE',
+            }],
+          },
+        },
+      });
+      const { service } = buildService([draft]);
+
+      const validation = await service.validateRevision(tenantId, draft.id, actor);
+      expect(validation.valid).toBe(true);
+
+      const simulation = await service.simulateRevision(tenantId, draft.id, actor);
+      expect(simulation.globalHrPolicySimulation).toEqual(expect.objectContaining({
+        workAuthorizationRuleCodes: ['WORK_AUTH_REQUIRED_CUSTOM'],
+        revalidationQueues: ['worker_assignments', 'work_authorization_cases', 'statutory_leave_bridges'],
+        workflowImpacts: expect.arrayContaining([
+          expect.objectContaining({ ruleCode: 'WORK_AUTH_REQUIRED_CUSTOM', risk: 'BLOCKED' }),
+        ]),
+      }));
+    });
+
+    it('rejects a GLOBAL_HR revision that has no rule ledger payload at all, so an empty generic builder cannot silently pass', async () => {
+      const empty = revision({
+        id: '00000000-0000-0000-0000-000000000405',
+        area: 'GLOBAL_HR',
+        status: 'DRAFT',
+        draftConfig: {},
+      });
+      const { service } = buildService([empty]);
+
+      const validation = await service.validateRevision(tenantId, empty.id, actor);
+
+      expect(validation.valid).toBe(false);
+      expect(validation.errors).toContain('Global HR policy revision must include work authorization, works council, or statutory leave bridge rules.');
+    });
+  });
 });

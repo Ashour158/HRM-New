@@ -24,6 +24,8 @@ import { ActivateJobAssignmentHandler } from './commands/activate-job-assignment
 import { EndJobAssignmentHandler } from './commands/end-job-assignment.handler.js';
 import { CreateEmploymentRelationshipHandler } from './commands/create-employment-relationship.handler.js';
 import { ActivateEmploymentRelationshipHandler } from './commands/activate-employment-relationship.handler.js';
+import { StartProbationEmploymentRelationshipHandler } from './commands/start-probation-employment-relationship.handler.js';
+import { CompleteProbationEmploymentRelationshipHandler } from './commands/complete-probation-employment-relationship.handler.js';
 import { EndEmploymentRelationshipHandler } from './commands/end-employment-relationship.handler.js';
 import { CreateEmploymentContractHandler } from './commands/create-employment-contract.handler.js';
 import { SignEmploymentContractHandler } from './commands/sign-employment-contract.handler.js';
@@ -58,6 +60,8 @@ import { registerEmploymentContractFsm } from './fsm/employment-contract.fsm.js'
     EndJobAssignmentHandler,
     CreateEmploymentRelationshipHandler,
     ActivateEmploymentRelationshipHandler,
+    StartProbationEmploymentRelationshipHandler,
+    CompleteProbationEmploymentRelationshipHandler,
     EndEmploymentRelationshipHandler,
     CreateEmploymentContractHandler,
     SignEmploymentContractHandler,

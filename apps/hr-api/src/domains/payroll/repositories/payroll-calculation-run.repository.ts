@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -49,8 +49,8 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
       startedAt: row.started_at ?? undefined,
       completedAt: row.completed_at ?? undefined,
       totalWorkers: row.total_workers,
-      totalGrossPay: row.total_gross_pay,
-      totalNetPay: row.total_net_pay,
+      totalGrossPay: parseNumeric(row.total_gross_pay),
+      totalNetPay: parseNumeric(row.total_net_pay),
       currency: row.currency,
       status: row.status as PayrollCalculationRunStatus,
       aggregateVersion: row.aggregate_version,

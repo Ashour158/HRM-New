@@ -4,6 +4,10 @@ import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 import { BenefitsEnrollment } from '../aggregates/benefits-enrollment.aggregate.js';
 import { BenefitsLifeEvent } from '../aggregates/benefits-life-event.aggregate.js';
+import { BenefitsProgram } from '../aggregates/benefits-program.aggregate.js';
+import { ActivateBenefitsProgramHandler } from './activate-benefits-program.handler.js';
+import { SuspendBenefitsProgramHandler } from './suspend-benefits-program.handler.js';
+import { CloseBenefitsProgramHandler } from './close-benefits-program.handler.js';
 import { CreateBenefitsEnrollmentHandler } from './create-benefits-enrollment.handler.js';
 import { ApproveBenefitsEnrollmentHandler } from './approve-benefits-enrollment.handler.js';
 import { MakeEffectiveBenefitsEnrollmentHandler } from './make-effective-benefits-enrollment.handler.js';
@@ -57,6 +61,17 @@ function enrollment(status: BenefitsEnrollment['status']) {
     coverageLevel: 'EMPLOYEE',
     dependents: [],
     effectiveDate: new Date('2026-01-01T00:00:00.000Z'),
+    status,
+    aggregateVersion: 1,
+  });
+}
+
+function program(status: BenefitsProgram['status']) {
+  return new BenefitsProgram({
+    id: programId,
+    tenantId,
+    programName: 'Gold Medical',
+    programType: 'MEDICAL',
     status,
     aggregateVersion: 1,
   });
@@ -198,6 +213,93 @@ describe('Benefits lifecycle command handlers', () => {
       programId: programId.value,
       status: 'EFFECTIVE',
     }));
+  });
+
+  it('activates a draft benefits program so employees can enroll (HCM-P0-14)', async () => {
+    const existing = program('DRAFT');
+    const repo = {
+      findById: vi.fn(async () => existing),
+      save: vi.fn(async () => undefined),
+    };
+    const handler = new ActivateBenefitsProgramHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => ['Suspend', 'Close']) } as never,
+    );
+
+    const result = await handler.handle(command('ActivateBenefitsProgram', 'BenefitsProgram', {
+      benefitsProgramId: programId,
+    }, programId));
+
+    expect(existing.status).toBe('ACTIVE');
+    expect(result).toEqual(expect.objectContaining({
+      newState: 'ACTIVE',
+      eventsEmitted: ['BenefitsProgramActivated'],
+    }));
+    expect(result.data).toEqual(expect.objectContaining({ programId: programId.value, status: 'ACTIVE' }));
+  });
+
+  it('suspends an active benefits program', async () => {
+    const existing = program('ACTIVE');
+    const repo = {
+      findById: vi.fn(async () => existing),
+      save: vi.fn(async () => undefined),
+    };
+    const handler = new SuspendBenefitsProgramHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => ['Activate', 'Close']) } as never,
+    );
+
+    const result = await handler.handle(command('SuspendBenefitsProgram', 'BenefitsProgram', {
+      benefitsProgramId: programId,
+    }, programId));
+
+    expect(existing.status).toBe('SUSPENDED');
+    expect(result).toEqual(expect.objectContaining({
+      newState: 'SUSPENDED',
+      eventsEmitted: ['BenefitsProgramSuspended'],
+    }));
+  });
+
+  it('closes an active benefits program', async () => {
+    const existing = program('ACTIVE');
+    const repo = {
+      findById: vi.fn(async () => existing),
+      save: vi.fn(async () => undefined),
+    };
+    const handler = new CloseBenefitsProgramHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    const result = await handler.handle(command('CloseBenefitsProgram', 'BenefitsProgram', {
+      benefitsProgramId: programId,
+    }, programId));
+
+    expect(existing.status).toBe('CLOSED');
+    expect(result).toEqual(expect.objectContaining({
+      newState: 'CLOSED',
+      eventsEmitted: ['BenefitsProgramClosed'],
+    }));
+  });
+
+  it('rejects activating a benefits program that is already closed', async () => {
+    const existing = program('CLOSED');
+    const repo = {
+      findById: vi.fn(async () => existing),
+      save: vi.fn(async () => undefined),
+    };
+    const handler = new ActivateBenefitsProgramHandler(
+      repo as never,
+      new BenefitsEventsPublisher(),
+      { getAllowedActions: vi.fn(() => []) } as never,
+    );
+
+    await expect(handler.handle(command('ActivateBenefitsProgram', 'BenefitsProgram', {
+      benefitsProgramId: programId,
+    }, programId))).rejects.toThrow('Cannot activate BenefitsProgram from state CLOSED');
   });
 
   it('records life events with schema-complete event payload fields', async () => {

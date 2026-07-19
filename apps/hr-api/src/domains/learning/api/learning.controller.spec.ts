@@ -8,6 +8,7 @@ import type { LearningCourseRepository } from '../repositories/learning-course.r
 import type { LearningAssignmentRepository } from '../repositories/learning-assignment.repository.js';
 import type { CertificationRepository } from '../repositories/certification.repository.js';
 import type { LearningContentPackageRepository } from '../repositories/learning-content-package.repository.js';
+import type { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 
 const tenantId = '00000000-0000-0000-0000-000000000001';
 const actorId = '00000000-0000-0000-0000-000000000010';
@@ -15,6 +16,8 @@ const courseId = '00000000-0000-0000-0000-000000000100';
 const assignmentId = '00000000-0000-0000-0000-000000000200';
 const certificationId = '00000000-0000-0000-0000-000000000300';
 const workerId = '00000000-0000-0000-0000-000000000400';
+const otherWorkerId = '00000000-0000-0000-0000-000000000500';
+const managerId = '00000000-0000-0000-0000-000000000600';
 
 function actor(): HrActor {
   return {
@@ -27,12 +30,34 @@ function actor(): HrActor {
   };
 }
 
-function request(): Request {
+function request(overrideActor?: HrActor): Request {
   return {
     tenantId,
-    actor: actor(),
+    actor: overrideActor ?? actor(),
     headers: {},
   } as unknown as Request;
+}
+
+function employeeActor(id: string): HrActor {
+  return {
+    actorType: 'USER',
+    actorId: new Uuid(id),
+    roles: ['EMPLOYEE'],
+    permissions: ['LEARNING_READ'],
+    email: 'employee@example.com',
+    mfaAuthenticated: true,
+  };
+}
+
+function managerActor(id: string): HrActor {
+  return {
+    actorType: 'USER',
+    actorId: new Uuid(id),
+    roles: ['MANAGER'],
+    permissions: ['LEARNING_READ'],
+    email: 'manager@example.com',
+    mfaAuthenticated: true,
+  };
 }
 
 function makeController() {
@@ -56,6 +81,9 @@ function makeController() {
     findById: vi.fn(),
     findByTenant: vi.fn(),
   } as unknown as LearningContentPackageRepository;
+  const workerRepo = {
+    findById: vi.fn(),
+  } as unknown as WorkerRepository;
 
   const controller = new LearningController(
     commandBus,
@@ -63,9 +91,10 @@ function makeController() {
     assignmentRepo,
     certificationRepo,
     contentPackageRepo,
+    workerRepo,
   );
 
-  return { controller, commandBus, courseRepo, assignmentRepo, certificationRepo, contentPackageRepo };
+  return { controller, commandBus, courseRepo, assignmentRepo, certificationRepo, contentPackageRepo, workerRepo };
 }
 
 describe('LearningController', () => {
@@ -195,5 +224,65 @@ describe('LearningController', () => {
 
     expect(assignmentRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
     expect(certificationRepo.findByTenant).toHaveBeenCalledWith(new Uuid(tenantId));
+  });
+
+  describe('worker-scoped authorization (HCM-P0-11)', () => {
+    it('allows an employee to read their own learning assignment and certification', async () => {
+      const { controller, assignmentRepo, certificationRepo } = makeController();
+      (assignmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(assignmentId), workerId: new Uuid(workerId) });
+      (certificationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(certificationId), workerId: new Uuid(workerId) });
+      (assignmentRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (certificationRepo.findByWorker as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      await expect(controller.getAssignment(assignmentId, request(employeeActor(workerId)))).resolves.toBeDefined();
+      await expect(controller.getCertification(certificationId, request(employeeActor(workerId)))).resolves.toBeDefined();
+      await expect(controller.getAssignmentsByWorker(workerId, request(employeeActor(workerId)))).resolves.toEqual([]);
+      await expect(controller.getCertificationsByWorker(workerId, request(employeeActor(workerId)))).resolves.toEqual([]);
+    });
+
+    it('denies an employee from reading a coworker learning assignment or certification', async () => {
+      const { controller, assignmentRepo, certificationRepo, workerRepo } = makeController();
+      (assignmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(assignmentId), workerId: new Uuid(workerId) });
+      (certificationRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(certificationId), workerId: new Uuid(workerId) });
+      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), managerId: undefined });
+
+      const coworker = request(employeeActor(otherWorkerId));
+
+      await expect(controller.getAssignment(assignmentId, coworker)).rejects.toThrow(
+        'Learning records are scoped to self, reporting line, or HR/Learning admin roles',
+      );
+      await expect(controller.getCertification(certificationId, coworker)).rejects.toThrow(
+        'Learning records are scoped to self, reporting line, or HR/Learning admin roles',
+      );
+      await expect(controller.getAssignmentsByWorker(workerId, coworker)).rejects.toThrow(
+        'Learning records are scoped to self, reporting line, or HR/Learning admin roles',
+      );
+      await expect(controller.getCertificationsByWorker(workerId, coworker)).rejects.toThrow(
+        'Learning records are scoped to self, reporting line, or HR/Learning admin roles',
+      );
+    });
+
+    it('allows a manager to read their direct report learning assignment', async () => {
+      const { controller, assignmentRepo, workerRepo } = makeController();
+      (assignmentRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(assignmentId), workerId: new Uuid(workerId) });
+      (workerRepo.findById as ReturnType<typeof vi.fn>).mockResolvedValue({ id: new Uuid(workerId), managerId: new Uuid(managerId) });
+
+      await expect(controller.getAssignment(assignmentId, request(managerActor(managerId)))).resolves.toBeDefined();
+    });
+
+    it('denies a non-admin actor from listing tenant-wide or course-wide learning rosters', async () => {
+      const { controller } = makeController();
+      const employee = request(employeeActor(workerId));
+
+      await expect(controller.getAssignmentsByCourse(courseId, employee)).rejects.toThrow(
+        'Learning administrative data requires HR or Learning admin scope',
+      );
+      await expect(controller.getAssignmentsByTenant(tenantId, employee)).rejects.toThrow(
+        'Learning administrative data requires HR or Learning admin scope',
+      );
+      await expect(controller.getCertificationsByTenant(tenantId, employee)).rejects.toThrow(
+        'Learning administrative data requires HR or Learning admin scope',
+      );
+    });
   });
 });
