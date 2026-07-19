@@ -93,6 +93,12 @@ describe('AdminAutomation', () => {
     expect(screen.getByText('policy missing')).toBeInTheDocument();
     expect(screen.getByLabelText('Enabled for leave-accrual-run')).not.toBeChecked();
 
+    // Stat tiles render through the shared StatTile component with the computed job summary.
+    expect(screen.getByText('Jobs').closest('div')).toHaveTextContent('2');
+    expect(screen.getByText('Enabled').closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Failed Last Run').closest('div')).toHaveTextContent('1');
+    expect(screen.getByText('Running').closest('div')).toHaveTextContent('0');
+
     await userEvent.clear(screen.getByLabelText('Cron for leave-accrual-run'));
     await userEvent.type(screen.getByLabelText('Cron for leave-accrual-run'), '0 7 1 * *');
     await userEvent.click(screen.getByLabelText('Enabled for leave-accrual-run'));
