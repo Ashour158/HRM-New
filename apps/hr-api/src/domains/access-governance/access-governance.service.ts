@@ -4,6 +4,7 @@ import { AuditLedgerService } from '@hcm/platform-core';
 import { Uuid } from '@hcm/shared-kernel';
 import { createPrivacyForEvent, type HrEventEnvelope } from '@hcm/event-schemas';
 import { OutboxPublisher } from '../../platform/outbox-inbox/outbox-publisher.js';
+import { UsersRepository } from '../../auth/users.repository.js';
 import { AccessGovernanceRepository } from './access-governance.repository.js';
 import type {
   AbacPolicyView,
@@ -75,6 +76,7 @@ export class AccessGovernanceService {
     private readonly repository: AccessGovernanceRepository,
     @Optional() @Inject(AuditLedgerService) private readonly auditLedger?: Pick<AuditLedgerService, 'write'>,
     @Optional() @Inject(OutboxPublisher) private readonly outbox?: Pick<OutboxPublisher, 'schedule'>,
+    @Optional() @Inject(UsersRepository) private readonly usersRepository?: Pick<UsersRepository, 'setRolesAndPermissions'>,
   ) {}
 
   async getSummary(tenantId: Uuid): Promise<AccessGovernanceSummary> {
@@ -171,35 +173,61 @@ export class AccessGovernanceService {
   async replaceRolePermissions(tenantId: Uuid, roleId: Uuid, permissionIds: string[]): Promise<RolePermissionView[]> {
     const permissionUuids = permissionIds.map((permissionId) => this.uuid(permissionId, 'permissionIds'));
     const assignments = await this.repository.replaceRolePermissions(tenantId, roleId, permissionUuids);
+    await this.syncUsersHoldingRole(tenantId, roleId);
     return assignments.map((assignment) => this.toRolePermissionView(assignment));
   }
 
   async assignRolePermission(tenantId: Uuid, roleId: Uuid, permissionId: Uuid): Promise<RolePermissionView[]> {
     await this.repository.assignRolePermission(tenantId, roleId, permissionId);
     const assignments = await this.repository.listRolePermissions(tenantId);
+    await this.syncUsersHoldingRole(tenantId, roleId);
     return assignments.map((assignment) => this.toRolePermissionView(assignment));
   }
 
   async removeRolePermission(tenantId: Uuid, roleId: Uuid, permissionId: Uuid): Promise<RolePermissionView[]> {
     await this.repository.removeRolePermission(tenantId, roleId, permissionId);
     const assignments = await this.repository.listRolePermissions(tenantId);
+    await this.syncUsersHoldingRole(tenantId, roleId);
     return assignments.map((assignment) => this.toRolePermissionView(assignment));
   }
 
   async assignUserRole(tenantId: Uuid, dto: AssignUserRoleDto, assignedBy?: Uuid): Promise<UserRoleView[]> {
+    const userId = this.uuid(this.requiredString(dto.userId, 'userId'), 'userId');
     const assignments = await this.repository.assignUserRole(
       tenantId,
-      this.uuid(this.requiredString(dto.userId, 'userId'), 'userId'),
+      userId,
       this.uuid(this.requiredString(dto.roleId, 'roleId'), 'roleId'),
       assignedBy,
       this.optionalDate(dto.expiresAt),
     );
+    await this.syncUserAccess(tenantId, userId);
     return assignments.map((assignment) => this.toUserRoleView(assignment));
   }
 
   async removeUserRole(tenantId: Uuid, userId: Uuid, roleId: Uuid): Promise<UserRoleView[]> {
     const assignments = await this.repository.removeUserRole(tenantId, userId, roleId);
+    await this.syncUserAccess(tenantId, userId);
     return assignments.map((assignment) => this.toUserRoleView(assignment));
+  }
+
+  /**
+   * Recomputes and persists one user's effective roles/permissions from their
+   * current role assignments, so the next JWT issuance/refresh reflects the
+   * change instead of the stale snapshot taken at invite/JIT-provisioning
+   * time (HCM-P0-2: Access Governance changes previously had zero runtime
+   * effect because nothing ever re-derived users.roles/permissions).
+   */
+  private async syncUserAccess(tenantId: Uuid, userId: Uuid): Promise<void> {
+    if (!this.usersRepository) return;
+    const { roles, permissions } = await this.repository.computeEffectiveUserAccess(tenantId, userId);
+    await this.usersRepository.setRolesAndPermissions(userId.value, roles, permissions);
+  }
+
+  /** Fans out a resync to every user holding a role whose permission set just changed. */
+  private async syncUsersHoldingRole(tenantId: Uuid, roleId: Uuid): Promise<void> {
+    if (!this.usersRepository) return;
+    const userIds = await this.repository.listUserIdsForRole(tenantId, roleId);
+    await Promise.all(userIds.map((userId) => this.syncUserAccess(tenantId, new Uuid(userId))));
   }
 
   async createServiceAccount(tenantId: Uuid, dto: CreateServiceAccountDto, createdBy?: Uuid): Promise<ServiceAccountView> {
@@ -636,6 +664,7 @@ export class AccessGovernanceService {
         : null;
     if (removedRoleId) {
       await this.repository.removeUserRole(tenantId, subjectUserId, removedRoleId);
+      await this.syncUserAccess(tenantId, subjectUserId);
     }
 
     const remediatedAt = new Date();
@@ -707,7 +736,9 @@ export class AccessGovernanceService {
     actorId?: Uuid,
   ): Promise<void> {
     if (item.subject_user_id && item.role_id) {
-      await this.repository.removeUserRole(tenantId, new Uuid(item.subject_user_id), new Uuid(item.role_id));
+      const subjectUserId = new Uuid(item.subject_user_id);
+      await this.repository.removeUserRole(tenantId, subjectUserId, new Uuid(item.role_id));
+      await this.syncUserAccess(tenantId, subjectUserId);
       await this.createAccessReviewWorkflowEvent(tenantId, new Uuid(item.campaign_id), {
         eventType: 'REVOKE_FULFILLED',
         actorId,
