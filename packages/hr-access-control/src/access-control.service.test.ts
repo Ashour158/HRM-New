@@ -361,3 +361,63 @@ describe('AccessControlService time and attendance self-service commands', () =>
     expect(approveDecision.allowed).toBe(true);
   });
 });
+
+describe('AccessControlService I9Case and EverifyCase RBAC mapping (C-3 regression)', () => {
+  const service = new AccessControlService();
+
+  const i9AndEverifyCommands = [
+    { commandName: 'CompleteI9CaseSection1', commandType: 'UPDATE', aggregateType: 'I9Case' },
+    { commandName: 'CompleteI9CaseSection2', commandType: 'UPDATE', aggregateType: 'I9Case' },
+    { commandName: 'RejectI9Case', commandType: 'UPDATE', aggregateType: 'I9Case' },
+    { commandName: 'SubmitEverifyCase', commandType: 'CREATE', aggregateType: 'EverifyCase' },
+    { commandName: 'RecordEverifyResult', commandType: 'UPDATE', aggregateType: 'EverifyCase' },
+    { commandName: 'ContestEverifyTentativeNonconfirmation', commandType: 'UPDATE', aggregateType: 'EverifyCase' },
+  ] as const;
+
+  for (const command of i9AndEverifyCommands) {
+    it(`allows HR_ADMIN to execute ${command.commandName}`, () => {
+      const decision = service.evaluateCommandAccess({
+        commandName: command.commandName,
+        commandType: command.commandType,
+        aggregateType: command.aggregateType,
+        payload: {},
+      }, {
+        actorType: 'HR_ADMIN',
+        roles: ['HR_ADMIN'],
+      });
+
+      expect(decision.allowed).toBe(true);
+      expect(decision.rbacAllowed).toBe(true);
+    });
+
+    it(`allows GLOBAL_HR_COMPLIANCE_OFFICER to execute ${command.commandName}`, () => {
+      const decision = service.evaluateCommandAccess({
+        commandName: command.commandName,
+        commandType: command.commandType,
+        aggregateType: command.aggregateType,
+        payload: {},
+      }, {
+        actorType: 'HR_ADMIN',
+        roles: ['GLOBAL_HR_COMPLIANCE_OFFICER'],
+      });
+
+      expect(decision.allowed).toBe(true);
+      expect(decision.rbacAllowed).toBe(true);
+    });
+
+    it(`denies an unrelated role (RECRUITER) for ${command.commandName}`, () => {
+      const decision = service.evaluateCommandAccess({
+        commandName: command.commandName,
+        commandType: command.commandType,
+        aggregateType: command.aggregateType,
+        payload: {},
+      }, {
+        actorType: 'HR_ADMIN',
+        roles: ['RECRUITER'],
+      });
+
+      expect(decision.allowed).toBe(false);
+      expect(decision.rbacAllowed).toBe(false);
+    });
+  }
+});
