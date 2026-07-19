@@ -30,6 +30,10 @@ function localBypassEmailForPath(pathname = window.location.pathname): string {
   return LOCAL_ADMIN_EMAIL;
 }
 
+function shouldAutoAuthenticate(pathname = window.location.pathname): boolean {
+  return !['/login', '/forgot-password'].some((path) => pathname.startsWith(path));
+}
+
 async function authenticateWithApi(email: string, password: string, tenantId?: string): Promise<{ user: User; token: string; refreshToken?: string }> {
   if (tenantId) {
     persistTenantId(tenantId);
@@ -117,6 +121,11 @@ export function useAuth() {
    */
   useEffect(() => {
     if (AUTH_BYPASS_ENABLED) {
+      if (!shouldAutoAuthenticate()) {
+        setLoading(false);
+        return;
+      }
+
       const desiredEmail = localBypassEmailForPath();
       if (user?.email === desiredEmail && token && token !== LOCAL_BYPASS_TOKEN) {
         validatedAuthToken = token;

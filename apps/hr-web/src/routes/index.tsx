@@ -5,7 +5,6 @@ import { PortalLayout } from '@/layouts/portal-layout';
 import { useAuth } from '@/hooks/use-auth';
 
 const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
-const RegisterPage = lazy(() => import('@/pages/register').then((module) => ({ default: module.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
 const SsoCallbackPage = lazy(() => import('@/pages/sso-callback').then((module) => ({ default: module.SsoCallbackPage })));
 const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
@@ -158,7 +157,6 @@ export function AppRoutes() {
     <Suspense fallback={<RouteLoading />}>
       <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
 
