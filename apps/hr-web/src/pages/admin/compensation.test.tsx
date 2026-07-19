@@ -80,16 +80,13 @@ describe('AdminCompensation', () => {
       if (url === '/hr/compensation/bands') return apiResponse([]);
       if (url === '/hr/compensation/bonus-cycles') return apiResponse([]);
       if (url.endsWith('/allowed-actions')) return apiResponse({ allowedActions: ['ACTIVATE'] });
-      if (url === `/hr/core/workers?search=ali&pageSize=10`) {
+      if (url === `/hr/core/workers/directory-search?search=ali&pageSize=10`) {
         return apiResponse([
           {
             id: workerId,
             employeeId: 'EMP-2001',
             firstName: 'Alice',
             lastName: 'Nguyen',
-            email: 'alice@example.com',
-            hireDate: '2025-01-01T00:00:00.000Z',
-            status: 'ACTIVE',
             jobTitle: 'Senior Engineer',
           },
         ]);

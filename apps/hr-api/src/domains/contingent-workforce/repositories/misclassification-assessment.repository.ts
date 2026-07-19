@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, parseNullableNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -54,7 +54,7 @@ export class MisclassificationAssessmentRepository extends BaseRepository<'miscl
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       assessmentDate: row.assessment_date,
-      riskScore: row.risk_score ?? undefined,
+      riskScore: parseNullableNumeric(row.risk_score),
       riskFactors: stringArrayFromJsonb(row.risk_factors),
       status: row.status as MisclassificationAssessmentStatus,
       aggregateVersion: row.aggregate_version,

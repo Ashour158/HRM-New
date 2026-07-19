@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ErrorState } from '@/components/common/error-state';
+import { StatTile } from '@/components/ui/stat-tile';
 import { apiClient } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/ui-store';
@@ -642,29 +643,6 @@ function recordActionsForOperations(record: OperationalRecord): RecordAction[] {
   }];
 }
 
-function MetricCard({ label, value, detail, icon: Icon }: {
-  label: string;
-  value: string | number;
-  detail: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <Card className="relative overflow-hidden border-transparent fusion-glass rounded-2xl fusion-hover">
-      <div className="absolute left-0 top-0 h-1 w-full bg-gradient-to-r from-indigo-500 via-violet-500 to-teal-400" />
-      <CardContent className="flex min-h-[132px] items-center gap-4 p-5">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary">
-          <Icon className="h-6 w-6" />
-        </div>
-        <div>
-          <p className="lumina-label">{label}</p>
-          <p className="mt-1 font-headline text-3xl font-bold text-foreground">{value}</p>
-          <p className="mt-1 text-sm leading-5 text-muted-foreground">{detail}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ChipList({ items }: { items: string[] }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -1091,10 +1069,66 @@ export function AdminModuleOperations() {
           </div>
 
           <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Live Records" value={records.length} detail="Persisted operational records in this workspace" icon={Database} />
-            <MetricCard label="Live Workflows" value={queue.length} detail="Persisted business flows with visible ownership" icon={Workflow} />
-            <MetricCard label="Blocked Items" value={blockedCount} detail="Records needing policy or manager action" icon={ShieldCheck} />
-            <MetricCard label="Event Hooks" value={eventTriggers.length} detail="Notification and audit triggers represented" icon={BellRing} />
+            <StatTile
+              icon={Database}
+              iconPosition="leading"
+              variant="card"
+              topAccent
+              label="Live Records"
+              value={records.length}
+              helperText="Persisted operational records in this workspace"
+              className="fusion-glass fusion-hover"
+              contentClassName="min-h-[132px] p-5"
+              iconBoxClassName="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary"
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-3xl font-bold text-foreground"
+              helperClassName="mt-1 text-sm leading-5 text-muted-foreground"
+            />
+            <StatTile
+              icon={Workflow}
+              iconPosition="leading"
+              variant="card"
+              topAccent
+              label="Live Workflows"
+              value={queue.length}
+              helperText="Persisted business flows with visible ownership"
+              className="fusion-glass fusion-hover"
+              contentClassName="min-h-[132px] p-5"
+              iconBoxClassName="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary"
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-3xl font-bold text-foreground"
+              helperClassName="mt-1 text-sm leading-5 text-muted-foreground"
+            />
+            <StatTile
+              icon={ShieldCheck}
+              iconPosition="leading"
+              variant="card"
+              topAccent
+              label="Blocked Items"
+              value={blockedCount}
+              helperText="Records needing policy or manager action"
+              className="fusion-glass fusion-hover"
+              contentClassName="min-h-[132px] p-5"
+              iconBoxClassName="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary"
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-3xl font-bold text-foreground"
+              helperClassName="mt-1 text-sm leading-5 text-muted-foreground"
+            />
+            <StatTile
+              icon={BellRing}
+              iconPosition="leading"
+              variant="card"
+              topAccent
+              label="Event Hooks"
+              value={eventTriggers.length}
+              helperText="Notification and audit triggers represented"
+              className="fusion-glass fusion-hover"
+              contentClassName="min-h-[132px] p-5"
+              iconBoxClassName="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-secondary/10 text-primary"
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-3xl font-bold text-foreground"
+              helperClassName="mt-1 text-sm leading-5 text-muted-foreground"
+            />
           </div>
         </section>
 

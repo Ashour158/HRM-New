@@ -287,7 +287,7 @@ export function EmployeeRecognitionWorkspace() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="recognition-recipient">{t('engagement.recognition.recipient')}</Label>
-                <WorkerPicker id="recognition-recipient" value={recipientWorkerId} onChange={(workerId) => setRecipientWorkerId(workerId)} />
+                <WorkerPicker id="recognition-recipient" value={recipientWorkerId} onChange={(selectedWorkerId) => setRecipientWorkerId(selectedWorkerId)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="recognition-message">{t('engagement.recognition.message')}</Label>

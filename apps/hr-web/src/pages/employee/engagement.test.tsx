@@ -96,16 +96,13 @@ describe('employee engagement pages', () => {
       if (url === `/engagement/recognition-records/worker/${workerId}`) {
         return apiResponse([{ id: { value: 'record-1' }, message: 'Great teamwork', points: 25, status: 'AWARDED' }]);
       }
-      if (url === '/hr/core/workers?search=jordan&pageSize=10') {
+      if (url === '/hr/core/workers/directory-search?search=jordan&pageSize=10') {
         return apiResponse([
           {
             id: recipientWorkerId,
             employeeId: 'EMP-4004',
             firstName: 'Jordan',
             lastName: 'Lee',
-            email: 'jordan.lee@example.com',
-            hireDate: '2025-05-01T00:00:00.000Z',
-            status: 'ACTIVE',
             jobTitle: 'Support Specialist',
           },
         ]);

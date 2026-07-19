@@ -3,7 +3,7 @@ import { Loader2, Search, UserRound, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useApiQuery } from '@/hooks/use-api';
 import { cn } from '@/lib/utils';
-import type { Worker } from '@/types';
+import type { WorkerDirectoryEntry } from '@/types';
 
 const SEARCH_DEBOUNCE_MS = 300;
 const RESULT_PAGE_SIZE = 10;
@@ -21,18 +21,20 @@ export interface WorkerPickerProps {
   ariaLabel?: string;
 }
 
-function workerLabel(worker: Worker): string {
+function workerLabel(worker: WorkerDirectoryEntry): string {
   return `${worker.firstName} ${worker.lastName}`.trim() || worker.employeeId;
 }
 
-function workerDescription(worker: Worker): string {
+function workerDescription(worker: WorkerDirectoryEntry): string {
   const parts = [worker.employeeId, worker.jobTitle].filter((part): part is string => Boolean(part && part.trim()));
   return parts.join(' • ');
 }
 
 /**
- * Async worker/people picker. Debounces free-text search, queries the real
- * `GET /hr/core/workers?search=` endpoint, and reports the selected worker's
+ * Async worker/people picker. Debounces free-text search, queries the
+ * `GET /hr/core/workers/directory-search?search=` endpoint (open to any
+ * authenticated workforce role, unlike the full HR-core admin worker list),
+ * and reports the selected worker's
  * id + label. Drop-in replacement for a plain text input bound to a worker
  * UUID: it is a controlled component driven entirely by `value` + `onChange`.
  */
@@ -85,9 +87,9 @@ export function WorkerPicker({
   }, []);
 
   const searchEnabled = open && debouncedQuery.length > 0;
-  const searchQuery = useApiQuery<Worker[]>(
+  const searchQuery = useApiQuery<WorkerDirectoryEntry[]>(
     ['worker-picker-search', debouncedQuery],
-    `/hr/core/workers?search=${encodeURIComponent(debouncedQuery)}&pageSize=${RESULT_PAGE_SIZE}`,
+    `/hr/core/workers/directory-search?search=${encodeURIComponent(debouncedQuery)}&pageSize=${RESULT_PAGE_SIZE}`,
     { enabled: searchEnabled, staleTime: 15000 },
   );
 
@@ -97,7 +99,7 @@ export function WorkerPicker({
     setHighlightedIndex(results.length > 0 ? 0 : -1);
   }, [results]);
 
-  const commitSelection = (worker: Worker) => {
+  const commitSelection = (worker: WorkerDirectoryEntry) => {
     const label = workerLabel(worker);
     committedIdRef.current = worker.id;
     setQuery(label);
@@ -139,6 +141,10 @@ export function WorkerPicker({
 
   const showDropdown = open && debouncedQuery.length > 0;
   const isSelected = Boolean(value) && committedIdRef.current === value;
+  const optionId = (index: number) => `${listboxId}-option-${index}`;
+  const activeDescendant = showDropdown && highlightedIndex >= 0 && results[highlightedIndex]
+    ? optionId(highlightedIndex)
+    : undefined;
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -154,6 +160,7 @@ export function WorkerPicker({
           aria-expanded={showDropdown}
           aria-controls={listboxId}
           aria-autocomplete="list"
+          aria-activedescendant={activeDescendant}
           aria-label={ariaLabel}
           className={cn('pl-9', isSelected ? 'pr-9' : undefined)}
           onChange={(event) => {
@@ -199,8 +206,10 @@ export function WorkerPicker({
             results.map((worker, index) => (
               <button
                 key={worker.id}
+                id={optionId(index)}
                 type="button"
                 role="option"
+                tabIndex={-1}
                 aria-selected={worker.id === value}
                 className={cn(
                   'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
