@@ -9,13 +9,13 @@
  * for update). Before the fix, `eventsEmitted` on the CommandResult only
  * included the PRIMARY aggregate's (WorkerProfile's) domain events, so every
  * cascading event computed and persisted for the other touched aggregates
- * was silently dropped before it ever reached `CommandBus.stepWriteOutbox` --
+ * was silently dropped before it ever reached the outbox-write step --
  * meaning it never became an outbox row and no consumer (audit, IAM
  * provisioning, notifications, projections, ...) ever saw it.
  *
  * These tests exercise the real handlers against mocked repositories to get
- * a real `CommandResult`, then feed that result into the *real* (private)
- * `CommandBus.stepWriteOutbox` step (the same pattern used in
+ * a real `CommandResult`, then feed that result into the *real*
+ * `OutboxStep.write` step (the same pattern used in
  * command-bus.security.test.ts) with a fake `tx` that records every insert.
  * This verifies actual outbox row counts/event names end-to-end, not just
  * that `domainEvents` was read on some aggregate.
@@ -23,7 +23,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { Uuid, Email } from '@hcm/shared-kernel';
-import { CommandBus } from '../../../platform/command-bus/command-bus.js';
+import { OutboxStep } from '../../../platform/command-bus/steps/outbox.step.js';
 import { WorkerProfile } from '../aggregates/worker-profile.aggregate.js';
 import { EmploymentRelationship } from '../aggregates/employment-relationship.aggregate.js';
 import { JobAssignment } from '../aggregates/job-assignment.aggregate.js';
@@ -83,17 +83,6 @@ function worker(status: WorkerProfile['status']): WorkerProfile {
     hireDate: new Date('2024-01-01'),
     employmentType: 'FULL_TIME',
   });
-}
-
-/** Builds a bare CommandBus instance exposing only the real prototype steps we need. */
-function commandBusWith() {
-  return Object.assign(Object.create(CommandBus.prototype), {}) as {
-    stepWriteOutbox: (
-      tx: unknown,
-      cmd: HrCommandEnvelope<unknown>,
-      result: Record<string, unknown>,
-    ) => Promise<void>;
-  };
 }
 
 function fakeOutboxTx() {
@@ -164,6 +153,9 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
         address: { line1: '12 Nile St', city: 'Cairo', country: 'EG' },
         // Populates BANKING personal-data record.
         bankAccount: { bankName: 'National Bank', iban: 'EG380019000500000000263180002' },
+        // The employment-eligibility hire gate (I-9/E-Verify PR) fails closed
+        // on missing work-authorization data.
+        workAuthorization: { status: 'AUTHORIZED' },
       },
       { effectiveDate: new Date('2024-01-01') }, // triggers EmploymentRelationship creation
     );
@@ -182,20 +174,22 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     );
     // One WorkerProfileCreated + one EmploymentRelationshipCreated + one
     // PersonalDataRecordCreated per non-empty profile section (BASIC,
-    // CONTACT, BANKING => 3).
-    expect(result.eventsEmitted).toHaveLength(1 + 1 + 3);
-    expect(result.eventsEmitted!.filter((e) => e === 'PersonalDataRecordCreated')).toHaveLength(3);
+    // CONTACT, BANKING, WORK_AUTHORIZATION => 4). WORK_AUTHORIZATION is
+    // populated because the payload supplies `workAuthorization` to satisfy
+    // the employment-eligibility hire gate (I-9/E-Verify PR).
+    expect(result.eventsEmitted).toHaveLength(1 + 1 + 4);
+    expect(result.eventsEmitted!.filter((e) => e === 'PersonalDataRecordCreated')).toHaveLength(4);
 
     // Now prove those events actually reach the outbox (not just that the
     // handler *computed* a bigger array).
     const { tx, inserted } = fakeOutboxTx();
-    const bus = commandBusWith();
-    await bus.stepWriteOutbox(tx, cmd, result as never);
+    const outboxStep = new OutboxStep();
+    await outboxStep.write(tx as never, cmd, result as never);
 
     expect(inserted).toHaveLength(result.eventsEmitted!.length);
     expect(inserted.map((row) => row.row.event_name)).toEqual(result.eventsEmitted);
     expect(inserted.filter((row) => row.row.event_name === 'EmploymentRelationshipCreated')).toHaveLength(1);
-    expect(inserted.filter((row) => row.row.event_name === 'PersonalDataRecordCreated')).toHaveLength(3);
+    expect(inserted.filter((row) => row.row.event_name === 'PersonalDataRecordCreated')).toHaveLength(4);
   });
 
   it('TerminateWorker: publishes events for WorkerProfile + every active JobAssignment ended + every non-ended EmploymentRelationship ended', async () => {
@@ -274,8 +268,8 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     ]);
 
     const { tx, inserted } = fakeOutboxTx();
-    const bus = commandBusWith();
-    await bus.stepWriteOutbox(tx, cmd, result as never);
+    const outboxStep = new OutboxStep();
+    await outboxStep.write(tx as never, cmd, result as never);
 
     expect(inserted).toHaveLength(3);
     expect(inserted.map((row) => row.row.event_name)).toEqual([
@@ -334,8 +328,8 @@ describe('Cascading domain events reach the outbox for every touched aggregate',
     expect(result.eventsEmitted).toEqual(['PersonalDataUpdated', 'PersonalDataRecordUpdated']);
 
     const { tx, inserted } = fakeOutboxTx();
-    const bus = commandBusWith();
-    await bus.stepWriteOutbox(tx, cmd, result as never);
+    const outboxStep = new OutboxStep();
+    await outboxStep.write(tx as never, cmd, result as never);
 
     expect(inserted).toHaveLength(2);
     expect(inserted.map((row) => row.row.event_name)).toEqual([
