@@ -40,7 +40,7 @@ function envelope<T>(commandName: string, payload: T): HrCommandEnvelope<T> {
     correlationId: Uuid.generate(),
     reason: 'spec',
     payload,
-    metadata: { clientType: 'API' },
+    metadata: { clientType: 'HR_ADMIN' },
   };
 }
 
@@ -95,8 +95,9 @@ describe('StatutoryLeaveType lifecycle command handlers', () => {
 
   it('updates mutable fields on an ACTIVE leave type and emits StatutoryLeaveTypeUpdated', async () => {
     const leaveType = activeLeaveType();
-    const repo = { findById: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
-    const handler = new UpdateStatutoryLeaveTypeHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+    const eventsPublisher = publisher();
+    const handler = new UpdateStatutoryLeaveTypeHandler(repo, fsm(), eventsPublisher);
 
     const result = await handler.handle(
       envelope('UpdateStatutoryLeaveType', { leaveTypeId, minimumEntitlement: 27, maxCarryover: 7 }),
@@ -105,14 +106,20 @@ describe('StatutoryLeaveType lifecycle command handlers', () => {
     expect(result.success).toBe(true);
     expect(result.newState).toBe('ACTIVE');
     expect(result.eventsEmitted).toContain('StatutoryLeaveTypeUpdated');
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(leaveTypeId, tenantId);
     expect(repo.save).toHaveBeenCalledWith(
       expect.objectContaining({ minimumEntitlement: 27, maxCarryover: 7 }),
+    );
+    expect(eventsPublisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: leaveTypeId }),
+      tenantId,
+      expect.anything(),
     );
   });
 
   it('does not emit an event when the update payload changes nothing', async () => {
     const leaveType = activeLeaveType();
-    const repo = { findById: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+    const repo = { findByIdForTenant: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
     const handler = new UpdateStatutoryLeaveTypeHandler(repo, fsm(), publisher());
 
     const result = await handler.handle(envelope('UpdateStatutoryLeaveType', { leaveTypeId }));
@@ -123,33 +130,55 @@ describe('StatutoryLeaveType lifecycle command handlers', () => {
 
   it('rejects updating a SUPERSEDED leave type', async () => {
     const leaveType = supersededLeaveType();
-    const repo = { findById: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
-    const handler = new UpdateStatutoryLeaveTypeHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+    const eventsPublisher = publisher();
+    const handler = new UpdateStatutoryLeaveTypeHandler(repo, fsm(), eventsPublisher);
 
     await expect(
       handler.handle(envelope('UpdateStatutoryLeaveType', { leaveTypeId, minimumEntitlement: 30 })),
     ).rejects.toBeInstanceOf(ValidationError);
+    expect(eventsPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
+
+  it('scopes the lookup to the command tenant, so a leave type owned by another tenant is not found', async () => {
+    const repo = { findByIdForTenant: vi.fn(async () => undefined), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+    const handler = new UpdateStatutoryLeaveTypeHandler(repo, fsm(), publisher());
+
+    await expect(
+      handler.handle(envelope('UpdateStatutoryLeaveType', { leaveTypeId, minimumEntitlement: 30 })),
+    ).rejects.toThrow('Statutory leave type not found');
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(leaveTypeId, tenantId);
+    expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('supersedes an ACTIVE leave type', async () => {
     const leaveType = activeLeaveType();
-    const repo = { findById: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
-    const handler = new SupersedeStatutoryLeaveTypeHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+    const eventsPublisher = publisher();
+    const handler = new SupersedeStatutoryLeaveTypeHandler(repo, fsm(), eventsPublisher);
 
     const result = await handler.handle(envelope('SupersedeStatutoryLeaveType', { leaveTypeId }));
 
     expect(result.success).toBe(true);
     expect(result.newState).toBe('SUPERSEDED');
     expect(result.eventsEmitted).toContain('StatutoryLeaveTypeSuperseded');
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(leaveTypeId, tenantId);
+    expect(eventsPublisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: leaveTypeId }),
+      tenantId,
+      expect.anything(),
+    );
   });
 
   it('rejects superseding an already-superseded leave type', async () => {
     const leaveType = supersededLeaveType();
-    const repo = { findById: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
-    const handler = new SupersedeStatutoryLeaveTypeHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => leaveType), save: vi.fn() } as unknown as StatutoryLeaveTypeRepository;
+    const eventsPublisher = publisher();
+    const handler = new SupersedeStatutoryLeaveTypeHandler(repo, fsm(), eventsPublisher);
 
     await expect(handler.handle(envelope('SupersedeStatutoryLeaveType', { leaveTypeId }))).rejects.toBeInstanceOf(
       ValidationError,
     );
+    expect(eventsPublisher.publishUncommitted).not.toHaveBeenCalled();
   });
 });
