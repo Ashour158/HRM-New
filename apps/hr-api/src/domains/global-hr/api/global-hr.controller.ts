@@ -151,8 +151,9 @@ export class GlobalHrController {
   }
 
   @Get('country-rule-sets/:id')
-  async getCountryRuleSet(@Param('id') id: string) {
-    return this.countryRuleSetRepo.findById(new Uuid(id));
+  async getCountryRuleSet(@Param('id') id: string, @Req() req: Request) {
+    const tenantId = requireTenantId(req, 'Global HR');
+    return this.countryRuleSetRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 
   /* ---------------------------------------------------------------- */
@@ -177,8 +178,9 @@ export class GlobalHrController {
   }
 
   @Get('statutory-leave-types/:id')
-  async getStatutoryLeaveType(@Param('id') id: string) {
-    return this.statutoryLeaveTypeRepo.findById(new Uuid(id));
+  async getStatutoryLeaveType(@Param('id') id: string, @Req() req: Request) {
+    const tenantId = requireTenantId(req, 'Global HR');
+    return this.statutoryLeaveTypeRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 
   /* ---------------------------------------------------------------- */
