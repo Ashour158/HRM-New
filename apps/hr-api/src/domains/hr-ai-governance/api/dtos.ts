@@ -55,7 +55,9 @@ export const PlanHrAiBiasTestDtoSchema = z.object({
   useCaseId: z.string().uuid(),
   testType: z.string().min(1),
   testData: z.record(z.unknown()).optional(),
-  threshold: z.number().optional(),
+  // Minimum acceptable four-fifths adverse-impact-ratio threshold (0, 1]. Defaults
+  // to the standard EEOC 0.8 (80%) screen when omitted — see bias-metrics.ts.
+  threshold: z.number().gt(0).lte(1).optional(),
 });
 export class PlanHrAiBiasTestDto {
   @ApiProperty() hrAiBiasTestId!: string;
@@ -65,15 +67,27 @@ export class PlanHrAiBiasTestDto {
   @ApiPropertyOptional() threshold?: number;
 }
 
+export const BiasTestGroupOutcomeDtoSchema = z.object({
+  group: z.string().min(1),
+  selected: z.number().int().min(0),
+  totalConsidered: z.number().int().min(0),
+});
+export class BiasTestGroupOutcomeDto {
+  @ApiProperty() group!: string;
+  @ApiProperty() selected!: number;
+  @ApiProperty() totalConsidered!: number;
+}
+
 export const CompleteHrAiBiasTestDtoSchema = z.object({
   hrAiBiasTestId: z.string().uuid(),
-  passed: z.boolean(),
-  metrics: z.record(z.unknown()),
+  // Raw per-protected-class-group outcome counts. This is intentionally the only
+  // caller-controlled input — the pass/fail verdict and metrics are computed by
+  // the domain (four-fifths adverse-impact-ratio rule), never accepted directly.
+  outcomeData: z.array(BiasTestGroupOutcomeDtoSchema).min(1),
 });
 export class CompleteHrAiBiasTestDto {
   @ApiProperty() hrAiBiasTestId!: string;
-  @ApiProperty() passed!: boolean;
-  @ApiProperty() metrics!: Record<string, unknown>;
+  @ApiProperty({ type: [BiasTestGroupOutcomeDto] }) outcomeData!: BiasTestGroupOutcomeDto[];
 }
 
 export const FailHrAiBiasTestDtoSchema = z.object({
