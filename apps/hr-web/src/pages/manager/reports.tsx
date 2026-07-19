@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { BarChart3, CalendarDays, Clock3, Star } from 'lucide-react';
 import { useApiQuery } from '@/hooks/use-api';
-import { BusinessPageHeader } from '@/components/common/business-page';
+import { BusinessPageHeader, SectionHeading } from '@/components/common/business-page';
 import { ErrorState } from '@/components/common/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReportCard, ReportCardGrid } from '@/components/reports/report-card';
@@ -63,18 +63,21 @@ export function ManagerReports() {
       ) : catalogQuery.isError ? (
         <ErrorState title="Unable to load team reports" error={catalogQuery.error} onRetry={() => catalogQuery.refetch()} />
       ) : (
-        <ReportCardGrid>
-          {teamReports.map((definition) => (
-            <ReportCard
-              key={definition.key}
-              icon={iconByKey[definition.key] ?? BarChart3}
-              title={definition.title}
-              description={definition.description}
-              actionLabel="View report"
-              onAction={() => openReport(definition)}
-            />
-          ))}
-        </ReportCardGrid>
+        <div className="space-y-3">
+          <SectionHeading title="Available reports" />
+          <ReportCardGrid>
+            {teamReports.map((definition) => (
+              <ReportCard
+                key={definition.key}
+                icon={iconByKey[definition.key] ?? BarChart3}
+                title={definition.title}
+                description={definition.description}
+                actionLabel="View report"
+                onAction={() => openReport(definition)}
+              />
+            ))}
+          </ReportCardGrid>
+        </div>
       )}
 
       <ReportRunDialog

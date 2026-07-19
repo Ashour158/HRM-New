@@ -2,7 +2,7 @@ import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart3, Clock3, FileText, GraduationCap, Umbrella } from 'lucide-react';
 import { useApiQuery } from '@/hooks/use-api';
-import { BusinessPageHeader } from '@/components/common/business-page';
+import { BusinessPageHeader, SectionHeading } from '@/components/common/business-page';
 import { ErrorState } from '@/components/common/error-state';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ReportCard, ReportCardGrid } from '@/components/reports/report-card';
@@ -70,19 +70,22 @@ export function EmployeeReports() {
       ) : catalogQuery.isError ? (
         <ErrorState title="Unable to load your reports" error={catalogQuery.error} onRetry={() => catalogQuery.refetch()} />
       ) : (
-        <ReportCardGrid>
-          {myReports.map((definition) => (
-            <ReportCard
-              key={definition.key}
-              icon={iconByKey[definition.key] ?? BarChart3}
-              title={definition.title}
-              description={definition.description}
-              badge={definition.kind === 'LINK' ? 'Link' : undefined}
-              actionLabel={definition.kind === 'LINK' ? 'Open' : 'View report'}
-              onAction={() => openReport(definition)}
-            />
-          ))}
-        </ReportCardGrid>
+        <div className="space-y-3">
+          <SectionHeading title="Available reports" />
+          <ReportCardGrid>
+            {myReports.map((definition) => (
+              <ReportCard
+                key={definition.key}
+                icon={iconByKey[definition.key] ?? BarChart3}
+                title={definition.title}
+                description={definition.description}
+                badge={definition.kind === 'LINK' ? 'Link' : undefined}
+                actionLabel={definition.kind === 'LINK' ? 'Open' : 'View report'}
+                onAction={() => openReport(definition)}
+              />
+            ))}
+          </ReportCardGrid>
+        </div>
       )}
 
       <ReportRunDialog
