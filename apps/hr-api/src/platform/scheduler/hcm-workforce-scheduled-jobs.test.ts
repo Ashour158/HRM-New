@@ -266,6 +266,14 @@ describe('workforce, benefits, reporting scheduled jobs', () => {
     await job.runForTenant(ctx);
     expect(commands[0]).toMatchObject({ commandName: 'RunReportDefinition', aggregateType: 'ReportDefinition', aggregateId: recordId });
     expect(emitted[0]).toMatchObject({ reminderType: 'SCHEDULED_REPORT_DELIVERY', audienceWorkerIds: [adminId] });
+    // Regression (HCM-P0-15): the schedule's next_run_at must be advanced after
+    // firing, otherwise the same schedule stays "due" and re-fires every tick.
+    expect(commands[1]).toMatchObject({
+      commandName: 'RecordReportScheduleRun',
+      aggregateType: 'ReportSchedule',
+      aggregateId: new Uuid('00000000-0000-4000-8000-000000030404'),
+      payload: { reportScheduleId: '00000000-0000-4000-8000-000000030404', ranAt: ctx.now },
+    });
   });
 
   it('periodic-metric-snapshot dispatches idempotent metric snapshot report runs', async () => {
