@@ -55,7 +55,7 @@ export const resources = {
         ssoNotConfigured: 'Single Sign-On is not configured for this organization.',
         ssoVerifyError: 'Single Sign-On configuration could not be verified.',
         needAccess: 'Need access?',
-        createEmployeeAccount: 'Create an employee account',
+        contactYourAdministrator: 'Contact your HR administrator to be invited.',
         invalidCredentials: 'Invalid email or password',
         demoLoginFailed: 'Demo login failed. Please try again.',
         validation: {
@@ -563,7 +563,7 @@ export const resources = {
         ssoNotConfigured: 'تسجيل الدخول الموحد غير مفعّل لهذه المؤسسة.',
         ssoVerifyError: 'تعذر التحقق من إعداد تسجيل الدخول الموحد.',
         needAccess: 'تحتاج إلى وصول؟',
-        createEmployeeAccount: 'إنشاء حساب موظف',
+        contactYourAdministrator: 'تواصل مع مسؤول الموارد البشرية لدعوتك.',
         invalidCredentials: 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
         demoLoginFailed: 'فشل تسجيل الدخول التجريبي. حاول مرة أخرى.',
         validation: {

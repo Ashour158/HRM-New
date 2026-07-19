@@ -23,6 +23,7 @@ import { CreateReportScheduleHandler } from './commands/create-report-schedule.h
 import { ActivateReportScheduleHandler } from './commands/activate-report-schedule.handler.js';
 import { PauseReportScheduleHandler } from './commands/pause-report-schedule.handler.js';
 import { ExpireReportScheduleHandler } from './commands/expire-report-schedule.handler.js';
+import { RecordReportScheduleRunHandler } from './commands/record-report-schedule-run.handler.js';
 import { CreateCalculatedFieldHandler } from './commands/create-calculated-field.handler.js';
 import { ActivateCalculatedFieldHandler } from './commands/activate-calculated-field.handler.js';
 import { DeprecateCalculatedFieldHandler } from './commands/deprecate-calculated-field.handler.js';
@@ -42,7 +43,7 @@ import { DocumentExportService } from '../../platform/export/document-export.ser
     ReportDefinitionRepository, ReportExecutionRepository, ReportScheduleRepository, CalculatedFieldRepository,
     CreateReportDefinitionHandler, PublishReportDefinitionHandler, ArchiveReportDefinitionHandler,
     CreateReportExecutionHandler, RunReportDefinitionHandler, QueueReportExecutionHandler, StartReportExecutionHandler, CompleteReportExecutionHandler, FailReportExecutionHandler, CancelReportExecutionHandler,
-    CreateReportScheduleHandler, ActivateReportScheduleHandler, PauseReportScheduleHandler, ExpireReportScheduleHandler,
+    CreateReportScheduleHandler, ActivateReportScheduleHandler, PauseReportScheduleHandler, ExpireReportScheduleHandler, RecordReportScheduleRunHandler,
     CreateCalculatedFieldHandler, ActivateCalculatedFieldHandler, DeprecateCalculatedFieldHandler,
     ReportingEventsPublisher, ServiceUsageReportingService, HrAnalyticsReportingService, ReportBuilderCatalogService, ReportSemanticQueryService,
     SqlSemanticReportRowProviderService,
