@@ -22,7 +22,7 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
   }
 
   async findByTenant(tenantId: Uuid): Promise<VariableCompPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)

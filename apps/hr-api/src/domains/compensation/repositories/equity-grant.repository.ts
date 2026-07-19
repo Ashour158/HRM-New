@@ -30,7 +30,7 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
   }
 
   async findByWorker(workerId: Uuid): Promise<EquityGrant[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)

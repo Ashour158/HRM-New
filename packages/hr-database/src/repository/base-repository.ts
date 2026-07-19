@@ -2,7 +2,7 @@ import type { Kysely, Insertable, Transaction, Updateable } from 'kysely';
 import type { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '../kysely/database.js';
 import { getCurrentTenantId } from '../connection/tenant-context.js';
-import { getCurrentTransaction } from '../connection/transaction-context.js';
+import { resolveTransactionAwareExecutor } from './transaction-aware-executor.js';
 
 type LooseDatabase = Record<string, Record<string, unknown>>;
 type LooseExecutor = Kysely<LooseDatabase> | Transaction<LooseDatabase>;
@@ -22,8 +22,17 @@ export abstract class BaseRepository<TTable extends TenantTableNames, TAggregate
 
   constructor(protected readonly db: Kysely<Database>) {}
 
+  /**
+   * The transaction-aware query executor: joins the ambient command-bus
+   * transaction (see `resolveTransactionAwareExecutor` in
+   * `./transaction-aware-executor.ts` for the full explanation) when one is
+   * active, otherwise falls back to this repository's own pooled `db`.
+   * Subclasses should use `this.executor` (not `this.db`) in any custom
+   * query method they add, for the same atomicity guarantee the generic
+   * CRUD methods below already get.
+   */
   protected get executor(): Kysely<Database> | Transaction<Database> {
-    return getCurrentTransaction() ?? this.db;
+    return resolveTransactionAwareExecutor(this.db);
   }
 
   private get queryExecutor(): LooseExecutor {

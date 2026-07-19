@@ -30,7 +30,7 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
   }
 
   async findByTenant(tenantId: Uuid): Promise<CompensationPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -39,7 +39,7 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
   }
 
   async findActive(): Promise<CompensationPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('status', '=', 'ACTIVE')

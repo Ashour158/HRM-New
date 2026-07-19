@@ -22,7 +22,7 @@ export class PayScaleRepository extends BaseRepository<'pay_scales', PayScale> {
   }
 
   async findByTenant(tenantId: Uuid): Promise<PayScale[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)

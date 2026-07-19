@@ -19,17 +19,17 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
   async findByCalculationRun(calculationRunId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('calculation_run_id', '=', calculationRunId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('calculation_run_id', '=', calculationRunId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
   async findByWorker(workerId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
