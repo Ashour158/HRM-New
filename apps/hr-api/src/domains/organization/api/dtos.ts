@@ -1,17 +1,18 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { z } from 'zod';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 
 /**
  * DTO for creating a new LegalEntity.
  */
-export class CreateLegalEntityDto {
-  static zodSchema = z.object({
-    legalEntityId: z.string().uuid(),
-    name: z.string().min(1),
-    countryCode: z.string().length(2),
-    registrationNumber: z.string().optional(),
-  });
+export const CreateLegalEntityDtoSchema = z.object({
+  legalEntityId: z.string().uuid(),
+  name: z.string().min(1),
+  countryCode: z.string().length(2),
+  registrationNumber: z.string().optional(),
+});
 
+export class CreateLegalEntityDto {
   @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
   legalEntityId!: string;
 
@@ -28,12 +29,12 @@ export class CreateLegalEntityDto {
 /**
  * DTO for updating an existing LegalEntity.
  */
-export class UpdateLegalEntityDto {
-  static zodSchema = z.object({
-    name: z.string().min(1).optional(),
-    registrationNumber: z.string().optional(),
-  });
+export const UpdateLegalEntityDtoSchema = z.object({
+  name: z.string().min(1).optional(),
+  registrationNumber: z.string().optional(),
+});
 
+export class UpdateLegalEntityDto {
   @ApiProperty({ example: 'Acme Corp', required: false })
   name?: string;
 
@@ -44,14 +45,14 @@ export class UpdateLegalEntityDto {
 /**
  * DTO for creating a new OrgUnit.
  */
-export class CreateOrgUnitDto {
-  static zodSchema = z.object({
-    orgUnitId: z.string().uuid(),
-    legalEntityId: z.string().uuid(),
-    name: z.string().min(1),
-    parentOrgUnitId: z.string().uuid().optional(),
-  });
+export const CreateOrgUnitDtoSchema = z.object({
+  orgUnitId: z.string().uuid(),
+  legalEntityId: z.string().uuid(),
+  name: z.string().min(1),
+  parentOrgUnitId: z.string().uuid().optional(),
+});
 
+export class CreateOrgUnitDto {
   @ApiProperty()
   orgUnitId!: string;
 
@@ -68,12 +69,12 @@ export class CreateOrgUnitDto {
 /**
  * DTO for updating an existing OrgUnit.
  */
-export class UpdateOrgUnitDto {
-  static zodSchema = z.object({
-    name: z.string().min(1).optional(),
-    parentOrgUnitId: z.string().uuid().optional(),
-  });
+export const UpdateOrgUnitDtoSchema = z.object({
+  name: z.string().min(1).optional(),
+  parentOrgUnitId: z.string().uuid().optional(),
+});
 
+export class UpdateOrgUnitDto {
   @ApiProperty({ required: false })
   name?: string;
 
@@ -84,12 +85,12 @@ export class UpdateOrgUnitDto {
 /**
  * DTO for restructuring an OrgUnit.
  */
-export class RestructureOrgUnitDto {
-  static zodSchema = z.object({
-    newParentOrgUnitId: z.string().uuid().nullable().optional(),
-    newName: z.string().min(1).optional(),
-  });
+export const RestructureOrgUnitDtoSchema = z.object({
+  newParentOrgUnitId: z.string().uuid().nullable().optional(),
+  newName: z.string().min(1).optional(),
+});
 
+export class RestructureOrgUnitDto {
   @ApiProperty({ required: false, nullable: true })
   newParentOrgUnitId?: string | null;
 
@@ -100,13 +101,13 @@ export class RestructureOrgUnitDto {
 /**
  * DTO for assigning a manager to a worker.
  */
-export class AssignManagerDto {
-  static zodSchema = z.object({
-    workerId: z.string().uuid(),
-    managerId: z.string().uuid(),
-    departmentId: z.string().uuid().optional(),
-  });
+export const AssignManagerDtoSchema = z.object({
+  workerId: z.string().uuid(),
+  managerId: z.string().uuid(),
+  departmentId: z.string().uuid().optional(),
+});
 
+export class AssignManagerDto {
   @ApiProperty()
   workerId!: string;
 
@@ -120,14 +121,14 @@ export class AssignManagerDto {
 /**
  * DTO for assigning a worker into the organization structure.
  */
-export class AssignWorkerOrganizationDto {
-  static zodSchema = z.object({
-    legalEntityId: z.string().uuid().nullable().optional(),
-    departmentId: z.string().uuid().nullable().optional(),
-    managerId: z.string().uuid().nullable().optional(),
-    jobTitle: z.string().min(1).nullable().optional(),
-  });
+export const AssignWorkerOrganizationDtoSchema = z.object({
+  legalEntityId: z.string().uuid().nullable().optional(),
+  departmentId: z.string().uuid().nullable().optional(),
+  managerId: z.string().uuid().nullable().optional(),
+  jobTitle: z.string().min(1).nullable().optional(),
+});
 
+export class AssignWorkerOrganizationDto {
   @ApiProperty({ required: false, nullable: true })
   legalEntityId?: string | null;
 
@@ -144,11 +145,11 @@ export class AssignWorkerOrganizationDto {
 /**
  * Public API DTO for assigning a worker into the organization structure.
  */
-export class AssignWorkerOrganizationByBodyDto extends AssignWorkerOrganizationDto {
-  static zodSchema = AssignWorkerOrganizationDto.zodSchema.extend({
-    workerId: z.string().uuid(),
-  });
+export const AssignWorkerOrganizationByBodyDtoSchema = AssignWorkerOrganizationDtoSchema.extend({
+  workerId: z.string().uuid(),
+});
 
+export class AssignWorkerOrganizationByBodyDto extends AssignWorkerOrganizationDto {
   @ApiProperty()
   workerId!: string;
 }
@@ -156,19 +157,19 @@ export class AssignWorkerOrganizationByBodyDto extends AssignWorkerOrganizationD
 /**
  * DTO for simulating strategic workforce planning scenarios.
  */
-export class WorkforceScenarioDto {
-  static zodSchema = z.object({
-    name: z.string().min(1).optional(),
-    branchExpansionCount: z.number().int().min(0).max(100).optional(),
-    rolesPerBranch: z.number().int().min(0).max(1000).optional(),
-    adminReductionPercent: z.number().min(0).max(100).optional(),
-    outsourceHeadcount: z.number().int().min(0).max(100000).optional(),
-    demandGrowthPercent: z.number().min(-100).max(500).optional(),
-    automationOffsetPercent: z.number().min(0).max(100).optional(),
-    aiAgentCapacity: z.number().int().min(0).max(100000).optional(),
-    averageCostPerFte: z.number().min(0).optional(),
-  });
+export const WorkforceScenarioDtoSchema = z.object({
+  name: z.string().min(1).optional(),
+  branchExpansionCount: z.number().int().min(0).max(100).optional(),
+  rolesPerBranch: z.number().int().min(0).max(1000).optional(),
+  adminReductionPercent: z.number().min(0).max(100).optional(),
+  outsourceHeadcount: z.number().int().min(0).max(100000).optional(),
+  demandGrowthPercent: z.number().min(-100).max(500).optional(),
+  automationOffsetPercent: z.number().min(0).max(100).optional(),
+  aiAgentCapacity: z.number().int().min(0).max(100000).optional(),
+  averageCostPerFte: z.number().min(0).optional(),
+});
 
+export class WorkforceScenarioDto {
   @ApiProperty({ required: false })
   name?: string;
 
@@ -195,4 +196,14 @@ export class WorkforceScenarioDto {
 
   @ApiProperty({ required: false, example: 36000 })
   averageCostPerFte?: number;
+}
+
+@Injectable()
+export class ZodValidationPipe implements PipeTransform {
+  constructor(private schema: z.ZodTypeAny) {}
+  transform(value: unknown): unknown {
+    const result = this.schema.safeParse(value);
+    if (!result.success) throw new BadRequestException(result.error.format());
+    return result.data;
+  }
 }
