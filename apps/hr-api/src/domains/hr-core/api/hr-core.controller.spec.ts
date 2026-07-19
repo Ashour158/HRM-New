@@ -706,4 +706,24 @@ describe('HrCoreController smoke test', () => {
     expect(result.exactMatches).toContainEqual(expect.objectContaining({ field: 'email', value: 'alice@example.com' }));
     expect(result.warnings).toContainEqual(expect.objectContaining({ reason: 'Same full name' }));
   });
+
+  it('getPersonalData rejects non-admin actors from reading another worker\'s banking/tax/compensation records (HCM-P0-2b)', async () => {
+    const workerId = '550e8400-e29b-41d4-a716-446655440001';
+    (workerRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: { value: workerId } });
+
+    await expect(controller.getPersonalData(workerId, employeeRequestForTenant())).rejects.toBeInstanceOf(ForbiddenException);
+    expect(personalDataRepo.findByWorkerForTenant).not.toHaveBeenCalled();
+  });
+
+  it('getPersonalData returns records for HR administrators', async () => {
+    const workerId = '550e8400-e29b-41d4-a716-446655440001';
+    (workerRepo.findByIdForTenant as ReturnType<typeof vi.fn>).mockResolvedValue({ id: { value: workerId } });
+    (personalDataRepo.findByWorkerForTenant as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: { value: 'record-1' }, dataCategory: 'BANKING', dataClassification: 'HIGH_SENSITIVITY', payload: { bankAccount: { iban: 'EG123' } }, encryptedPayloadRef: undefined },
+    ]);
+
+    const result = await controller.getPersonalData(workerId, requestForTenant());
+
+    expect(result).toEqual([expect.objectContaining({ id: 'record-1', dataCategory: 'BANKING' })]);
+  });
 });
