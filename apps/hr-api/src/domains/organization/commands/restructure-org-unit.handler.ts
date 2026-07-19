@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ConflictError, Uuid } from '@hcm/shared-kernel';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { CommandHandler as ICommandHandler } from '../../../platform/command-bus/command-bus.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
@@ -24,6 +25,10 @@ export class RestructureOrgUnitHandler implements ICommandHandler {
     const entity = await this.repo.findById(payload.orgUnitId);
     if (!entity) {
       throw new Error('OrgUnit not found');
+    }
+
+    if (payload.newParentOrgUnitId) {
+      await this.assertNoCycle(entity.id, payload.newParentOrgUnitId);
     }
 
     entity.restructure(payload.newParentOrgUnitId, payload.newName, command.correlationId);
@@ -64,5 +69,39 @@ export class RestructureOrgUnitHandler implements ICommandHandler {
       eventsEmitted,
       auditRecordId: command.commandId,
     };
+  }
+
+  /**
+   * Walks the ancestor chain starting at `newParentId` and rejects the
+   * restructure if `orgUnitId` appears anywhere in it (or is the new parent
+   * itself). Without this, OrgUnitRepository.findTree() can build a real JS
+   * object-reference cycle in its `children` arrays, and res.json() on any
+   * endpoint that serializes the org tree throws "Converting circular
+   * structure to JSON" -- an unhandled 500 for the whole tenant, not just
+   * the affected unit (HCM-P0-6). A visited set bounds the walk in case
+   * pre-existing data already contains an unrelated cycle.
+   */
+  private async assertNoCycle(orgUnitId: Uuid, newParentId: Uuid): Promise<void> {
+    if (newParentId.equals(orgUnitId)) {
+      throw new ConflictError('An org unit cannot be restructured to be its own parent', {
+        orgUnitId: orgUnitId.value,
+        newParentOrgUnitId: newParentId.value,
+      });
+    }
+
+    const visited = new Set<string>();
+    let currentId: string | undefined = newParentId.value;
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId);
+      const current = await this.repo.findById(new Uuid(currentId));
+      if (!current) break;
+      if (current.parentId?.value === orgUnitId.value) {
+        throw new ConflictError('Restructuring this org unit under the requested parent would create a cycle', {
+          orgUnitId: orgUnitId.value,
+          newParentOrgUnitId: newParentId.value,
+        });
+      }
+      currentId = current.parentId?.value;
+    }
   }
 }

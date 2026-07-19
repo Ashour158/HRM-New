@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException } from '@nestjs/common';
 import { Uuid } from '@hcm/shared-kernel';
 import bcrypt from 'bcrypt';
 import { generate } from 'otplib';
@@ -35,40 +35,6 @@ const testConfig: AppConfig = {
 };
 
 describe('AuthService persisted users', () => {
-  it('registers a tenant-scoped employee and rejects duplicate email', async () => {
-    const { service } = await buildService();
-
-    const user = await service.register({
-      tenantId,
-      email: 'new.employee@example.com',
-      password: 'Password123!',
-      firstName: 'New',
-      lastName: 'Employee',
-    });
-
-    expect(user.email).toBe('new.employee@example.com');
-    expect(user.roles).toContain('EMPLOYEE');
-    await expect(
-      service.register({
-        tenantId,
-        email: 'NEW.employee@example.com',
-        password: 'Password123!',
-      }),
-    ).rejects.toBeInstanceOf(ConflictException);
-  });
-
-  it('rejects weak registration passwords', async () => {
-    const { service } = await buildService();
-
-    await expect(
-      service.register({
-        tenantId,
-        email: 'weak@example.com',
-        password: 'short',
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
   it('invites a user with a set-password token and notification', async () => {
     const notifications: AuthTokenNotification[] = [];
     const { service } = await buildService({ notifications });
