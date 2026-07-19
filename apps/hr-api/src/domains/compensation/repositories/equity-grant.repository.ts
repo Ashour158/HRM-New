@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric, parseNullableNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { EquityGrant, type VestingScheduleEntry } from '../aggregates/equity-grant.aggregate.js';
 
@@ -30,7 +30,7 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
   }
 
   async findByWorker(workerId: Uuid): Promise<EquityGrant[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value)
@@ -42,7 +42,8 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['equity_grants']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['equity_grants']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['equity_grants']>);
     }
@@ -56,10 +57,10 @@ export class EquityGrantRepository extends BaseRepository<'equity_grants', Equit
       grantType: row.grant_type,
       grantDate: row.grant_date,
       vestingSchedule: (row.vesting_schedule as VestingScheduleEntry[]) ?? [],
-      totalUnits: row.total_units,
-      vestedUnits: row.vested_units,
-      exercisedUnits: row.exercised_units,
-      strikePrice: row.strike_price ?? undefined,
+      totalUnits: parseNumeric(row.total_units),
+      vestedUnits: parseNumeric(row.vested_units),
+      exercisedUnits: parseNumeric(row.exercised_units),
+      strikePrice: parseNullableNumeric(row.strike_price),
       status: row.status as 'GRANTED' | 'VESTING' | 'VESTED' | 'EXERCISED' | 'EXPIRED' | 'FORFEITED',
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at as unknown as Date,

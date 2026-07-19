@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Award, BookOpen, CheckCircle2, GraduationCap, PlayCircle } from 'lucide-react';
+import { Award, BookOpen, CheckCircle2, Download, GraduationCap, PlayCircle } from 'lucide-react';
 import { apiClient } from '@/lib/api-client';
 import { useAuth } from '@/hooks/use-auth';
 import { useUIStore } from '@/stores/ui-store';
@@ -10,6 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 type ApiEnvelope<T> = { success?: boolean; data?: T };
 type IdValue = string | { value?: string } | undefined | null;
@@ -106,6 +115,15 @@ export function EmployeeLearning() {
     onError: (error) => addNotification({ title: 'Learning action failed', message: mutationError(error), type: 'error', read: false }),
   });
 
+  const downloadCertificateMutation = useMutation({
+    mutationFn: async (certification: Certification) => {
+      const id = recordId(certification.id);
+      const response = await apiClient.get(`/learning/certifications/${id}/certificate.pdf`, { responseType: 'blob' });
+      downloadBlob(response.data as Blob, `certificate-${certification.certificationName || id}.pdf`);
+    },
+    onError: (error) => addNotification({ title: 'Could not download certificate', message: mutationError(error), type: 'error', read: false }),
+  });
+
   const assignments = assignmentsQuery.data ?? [];
   const certifications = certificationsQuery.data ?? [];
   const completedAssignments = assignments.filter((assignment) => (assignment.status ?? '').toUpperCase() === 'COMPLETED').length;
@@ -179,7 +197,24 @@ export function EmployeeLearning() {
     },
     { key: 'expiry', header: 'Expires', cell: (certification) => formatDate(certification.expiryDate) },
     { key: 'status', header: 'Status', cell: (certification) => <Badge variant={badgeVariant(certification.status)}>{certification.status ?? 'ACTIVE'}</Badge> },
-  ], []);
+    {
+      key: 'actions',
+      header: 'Actions',
+      cell: (certification) => (
+        <Button
+          aria-label={`Download certificate for ${certification.certificationName ?? 'certification'}`}
+          disabled={!recordId(certification.id) || downloadCertificateMutation.isPending}
+          onClick={() => downloadCertificateMutation.mutate(certification)}
+          size="sm"
+          type="button"
+          variant="outline"
+        >
+          <Download className="mr-1 h-4 w-4" />
+          Download certificate
+        </Button>
+      ),
+    },
+  ], [downloadCertificateMutation]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 p-4 md:p-6 lg:p-8">

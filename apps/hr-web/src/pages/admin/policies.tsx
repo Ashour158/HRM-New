@@ -2,12 +2,15 @@ import * as React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  Controller,
   useFieldArray,
   useForm,
+  useWatch,
   type Control,
   type FieldErrors,
   type UseFieldArrayReturn,
   type UseFormRegister,
+  type UseFormSetValue,
 } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -21,7 +24,6 @@ import { DataTable, type DataTableColumn } from '@/components/common/data-table'
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { FormField } from '@/components/common/form-field';
-import { ControlledSelect } from '@/components/forms/controlled-select';
 import { requiredText } from '@/components/forms/schema-helpers';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DEFAULT_GENERIC_LEAVE_POLICY_CODE,
+  RULE_LEDGER_RETRO_BEHAVIORS,
+  buildDraftConfigFromGenericRules,
+  getRuleLedgerCategories,
+  isRuleLedgerSupportedArea,
+} from '@/lib/policy-center-controls';
 
 type PolicyArea =
   | 'EMPLOYEE_SETUP'
@@ -108,6 +117,10 @@ type PolicySummary = {
   byArea: Record<string, number>;
 };
 
+// RuleRow and BuilderForm are zod-inferred below (see ruleRowSchema /
+// createPolicyBuilderSchema) rather than declared as plain types here, so
+// the generic rule-ledger fields (category, retroBehavior, baseDraftConfig,
+// leavePolicyCode) participate in the same validation as every other field.
 const policyAreas = [
   'LEAVE',
   'ATTENDANCE',
@@ -127,6 +140,8 @@ const ruleRowSchema = z.object({
   condition: z.string(),
   outcome: z.string(),
   value: z.string(),
+  category: z.string(),
+  retroBehavior: z.enum(RULE_LEDGER_RETRO_BEHAVIORS),
 });
 
 type RuleRow = z.infer<typeof ruleRowSchema>;
@@ -155,17 +170,28 @@ function createPolicyBuilderSchema(t: (key: string) => string) {
     effectiveFrom: z.string(),
     effectiveUntil: z.string(),
     rules: z.array(ruleRowSchema),
+    // Structured draftConfig picked up from a template; the generic rule
+    // ledger merges on top of this (see buildDraftConfig).
+    baseDraftConfig: z.record(z.string(), z.unknown()),
+    // Which leave policy (by code) the generic rule builder attaches ledger
+    // rules to, for LEAVE only.
+    leavePolicyCode: z.string(),
   });
 }
 
 type BuilderForm = z.infer<ReturnType<typeof createPolicyBuilderSchema>>;
 
-const initialRule: RuleRow = {
-  code: 'DEFAULT_RULE',
-  condition: 'All eligible workers',
-  outcome: 'ALLOW',
-  value: 'Standard control',
-};
+function createRuleRow(area: PolicyArea, code = 'DEFAULT_RULE'): RuleRow {
+  const categories = getRuleLedgerCategories(area);
+  return {
+    code,
+    condition: 'All eligible workers',
+    outcome: 'ALLOW',
+    value: '',
+    category: categories[0]?.key ?? '',
+    retroBehavior: 'FUTURE_ONLY',
+  };
+}
 
 const initialForm: BuilderForm = {
   title: '',
@@ -181,7 +207,9 @@ const initialForm: BuilderForm = {
   workers: '',
   effectiveFrom: '',
   effectiveUntil: '',
-  rules: [initialRule],
+  rules: [createRuleRow('LEAVE')],
+  baseDraftConfig: {},
+  leavePolicyCode: DEFAULT_GENERIC_LEAVE_POLICY_CODE,
 };
 
 function splitList(value: string): string[] | undefined {
@@ -207,22 +235,22 @@ function buildScope(form: BuilderForm, tenantId?: string): PolicyScope {
 }
 
 function buildDraftConfig(form: BuilderForm): Record<string, unknown> {
+  if (!isRuleLedgerSupportedArea(form.area)) {
+    // The generic condition/outcome rule builder is hidden for this area (see
+    // PolicyBuilderForm), so only the template-provided structured config applies.
+    return form.baseDraftConfig;
+  }
   const rules = form.rules.map((rule, index) => ({
     code: rule.code || `RULE_${index + 1}`,
-    label: rule.condition,
-    active: true,
-    conditions: [{ field: 'businessCondition', operator: 'EQUALS', value: rule.condition || 'All eligible workers' }],
-    outcomes: [{ action: rule.outcome || 'ALLOW', value: rule.value || 'Standard control' }],
+    label: rule.condition || 'All eligible workers',
+    category: rule.category,
+    action: rule.outcome || 'ALLOW',
+    value: rule.value,
+    retroBehavior: rule.retroBehavior,
   }));
-  return {
-    policyRuntime: {
-      area: form.area,
-      ruleLedgers: rules,
-    },
-    [`${form.area.toLowerCase()}PolicyRuntime`]: {
-      ruleLedgers: rules,
-    },
-  };
+  return buildDraftConfigFromGenericRules(form.area, form.baseDraftConfig, rules, {
+    leavePolicyCode: form.leavePolicyCode,
+  });
 }
 
 function statusVariant(status: PolicyStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
@@ -358,6 +386,10 @@ export function AdminPolicies() {
       workers: template.recommendedScope.workerIds?.join(', ') ?? '',
       effectiveFrom: template.recommendedScope.effectiveFrom ?? '',
       effectiveUntil: template.recommendedScope.effectiveUntil ?? '',
+      // The template's own structured draftConfig is the real base; any generic
+      // rules the admin adds afterward merge into it (see buildDraftConfig).
+      baseDraftConfig: template.draftConfig ?? {},
+      rules: [createRuleRow(template.area)],
     });
   };
 
@@ -422,6 +454,7 @@ export function AdminPolicies() {
               <PolicyBuilderForm
                 control={form.control}
                 register={form.register}
+                setValue={form.setValue}
                 errors={form.formState.errors}
                 rulesArray={rulesArray}
                 templates={templates}
@@ -526,6 +559,7 @@ const scopeListFields = [
 function PolicyBuilderForm({
   control,
   register,
+  setValue,
   errors,
   rulesArray,
   templates,
@@ -533,12 +567,16 @@ function PolicyBuilderForm({
 }: {
   control: Control<BuilderForm>;
   register: UseFormRegister<BuilderForm>;
+  setValue: UseFormSetValue<BuilderForm>;
   errors: FieldErrors<BuilderForm>;
   rulesArray: UseFieldArrayReturn<BuilderForm, 'rules'>;
   templates: PolicyTemplate[];
   onApplyTemplate: (template: PolicyTemplate) => void;
 }) {
   const { t } = useTranslation();
+  const area = useWatch({ control, name: 'area' });
+  const ruleLedgerSupported = isRuleLedgerSupportedArea(area);
+  const categories = React.useMemo(() => getRuleLedgerCategories(area), [area]);
 
   return (
     <div className="space-y-5">
@@ -557,11 +595,27 @@ function PolicyBuilderForm({
           </Select>
         </FormField>
         <FormField id="policy-area" label={t('lowCode.policies.form.area')}>
-          <ControlledSelect
+          <Controller
             control={control}
             name="area"
-            id="policy-area"
-            options={policyAreas.map((area) => ({ value: area, label: area.replace(/_/g, ' ') }))}
+            render={({ field }) => (
+              <Select
+                value={field.value}
+                onValueChange={(area) => {
+                  field.onChange(area);
+                  // A structured base and rule rows only make sense for the
+                  // area they were built for; switching areas starts the
+                  // rule ledger fresh.
+                  setValue('baseDraftConfig', {});
+                  rulesArray.replace([createRuleRow(area as PolicyArea)]);
+                }}
+              >
+                <SelectTrigger id="policy-area"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {policyAreas.map((area) => <SelectItem key={area} value={area}>{area.replace(/_/g, ' ')}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
           />
         </FormField>
         <FormField id="policy-title" label={t('lowCode.policies.form.title')} error={errors.title?.message} className="md:col-span-2">
@@ -584,19 +638,95 @@ function PolicyBuilderForm({
       </section>
 
       <section className="space-y-3">
-        <SectionHeading
-          title={t('lowCode.policies.form.rules')}
-          actions={<Button type="button" variant="outline" size="sm" onClick={() => rulesArray.append({ ...initialRule, code: `RULE_${rulesArray.fields.length + 1}` })}>{t('lowCode.policies.form.addRule')}</Button>}
-        />
-        {rulesArray.fields.map((field, index) => (
-          <div key={field.id} className="grid gap-3 rounded-xl border p-3 md:grid-cols-4">
-            <Input aria-label={t('lowCode.policies.form.ruleCode')} {...register(`rules.${index}.code`)} />
-            <Input aria-label={t('lowCode.policies.form.condition')} {...register(`rules.${index}.condition`)} />
-            <Input aria-label={t('lowCode.policies.form.outcome')} {...register(`rules.${index}.outcome`)} />
-            <Input aria-label={t('lowCode.policies.form.value')} {...register(`rules.${index}.value`)} />
-          </div>
-        ))}
+        <SectionHeading title={t('lowCode.policies.form.rules')} />
+        {ruleLedgerSupported ? (
+          <RuleLedgerBuilder control={control} register={register} rulesArray={rulesArray} area={area} categories={categories} />
+        ) : (
+          <EmptyState
+            icon={AlertTriangle}
+            title={t('lowCode.policies.form.unsupportedRuleBuilderTitle')}
+            description={t('lowCode.policies.form.unsupportedRuleBuilderMessage')}
+          />
+        )}
       </section>
+    </div>
+  );
+}
+
+function RuleLedgerBuilder({
+  control,
+  register,
+  rulesArray,
+  area,
+  categories,
+}: {
+  control: Control<BuilderForm>;
+  register: UseFormRegister<BuilderForm>;
+  rulesArray: UseFieldArrayReturn<BuilderForm, 'rules'>;
+  area: PolicyArea;
+  categories: { key: string; label: string }[];
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-3">
+      {area === 'LEAVE' && (
+        <FormField id="policy-leave-policy-code" label={t('lowCode.policies.form.leavePolicyCode')} className="md:max-w-xs">
+          <Controller
+            control={control}
+            name="leavePolicyCode"
+            render={({ field }) => (
+              <Input
+                value={field.value}
+                onChange={(event) => field.onChange(event.target.value.toUpperCase())}
+                placeholder={DEFAULT_GENERIC_LEAVE_POLICY_CODE}
+              />
+            )}
+          />
+        </FormField>
+      )}
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => rulesArray.append(createRuleRow(area, `RULE_${rulesArray.fields.length + 1}`))}
+        >
+          {t('lowCode.policies.form.addRule')}
+        </Button>
+      </div>
+      {rulesArray.fields.map((field, index) => (
+        <div key={field.id} className="grid gap-3 rounded-xl border p-3 md:grid-cols-3">
+          <Input aria-label={t('lowCode.policies.form.ruleCode')} placeholder={t('lowCode.policies.form.ruleCode')} {...register(`rules.${index}.code`)} />
+          <Controller
+            control={control}
+            name={`rules.${index}.category`}
+            render={({ field: categoryField }) => (
+              <Select value={categoryField.value} onValueChange={categoryField.onChange}>
+                <SelectTrigger aria-label={t('lowCode.policies.form.category')}><SelectValue placeholder={t('lowCode.policies.form.category')} /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((category) => <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <Controller
+            control={control}
+            name={`rules.${index}.retroBehavior`}
+            render={({ field: retroField }) => (
+              <Select value={retroField.value} onValueChange={retroField.onChange}>
+                <SelectTrigger aria-label={t('lowCode.policies.form.retroBehavior')}><SelectValue placeholder={t('lowCode.policies.form.retroBehavior')} /></SelectTrigger>
+                <SelectContent>
+                  {RULE_LEDGER_RETRO_BEHAVIORS.map((behavior) => <SelectItem key={behavior} value={behavior}>{behavior.replace(/_/g, ' ')}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+          />
+          <Input aria-label={t('lowCode.policies.form.condition')} placeholder={t('lowCode.policies.form.condition')} {...register(`rules.${index}.condition`)} />
+          <Input aria-label={t('lowCode.policies.form.outcome')} placeholder={t('lowCode.policies.form.outcome')} {...register(`rules.${index}.outcome`)} />
+          <Input aria-label={t('lowCode.policies.form.value')} placeholder={t('lowCode.policies.form.value')} {...register(`rules.${index}.value`)} />
+        </div>
+      ))}
     </div>
   );
 }

@@ -39,17 +39,14 @@ export class CreatePayGapReportDto {
   @ApiProperty() countryCode!: string;
 }
 
+// Calculation is computed server-side from real worker compensation and
+// self-identification records (see PayGapCalculationService) — the caller
+// only identifies which report to calculate, not the resulting numbers.
 export const CalculatePayGapReportDtoSchema = z.object({
   payGapReportId: z.string().uuid(),
-  meanHourlyGap: z.number(),
-  medianHourlyGap: z.number(),
-  quartileDistribution: z.record(z.unknown()),
 });
 export class CalculatePayGapReportDto {
   @ApiProperty() payGapReportId!: string;
-  @ApiProperty() meanHourlyGap!: number;
-  @ApiProperty() medianHourlyGap!: number;
-  @ApiProperty() quartileDistribution!: Record<string, unknown>;
 }
 
 export const CreatePayEquityReviewDtoSchema = z.object({

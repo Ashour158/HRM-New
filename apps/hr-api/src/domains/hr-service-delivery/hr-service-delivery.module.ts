@@ -13,6 +13,8 @@ import { MarkInProgressHrServiceCaseHandler } from './commands/mark-in-progress-
 import { MarkPendingCustomerHrServiceCaseHandler } from './commands/mark-pending-customer-hr-service-case.handler.js';
 import { ResolveHrServiceCaseHandler } from './commands/resolve-hr-service-case.handler.js';
 import { CloseHrServiceCaseHandler } from './commands/close-hr-service-case.handler.js';
+import { EscalateHrServiceCaseHandler } from './commands/escalate-hr-service-case.handler.js';
+import { ReassignHrServiceCaseHandler } from './commands/reassign-hr-service-case.handler.js';
 import { CreateHrCaseTaskHandler } from './commands/create-hr-case-task.handler.js';
 import { StartHrCaseTaskHandler } from './commands/start-hr-case-task.handler.js';
 import { CompleteHrCaseTaskHandler } from './commands/complete-hr-case-task.handler.js';
@@ -50,6 +52,8 @@ import { registerHrCaseSlaInstanceFsm } from './fsm/hr-case-sla-instance.fsm.js'
     MarkPendingCustomerHrServiceCaseHandler,
     ResolveHrServiceCaseHandler,
     CloseHrServiceCaseHandler,
+    EscalateHrServiceCaseHandler,
+    ReassignHrServiceCaseHandler,
     CreateHrCaseTaskHandler,
     StartHrCaseTaskHandler,
     CompleteHrCaseTaskHandler,

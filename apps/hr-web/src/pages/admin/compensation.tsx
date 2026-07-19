@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Controller, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Award, BadgeDollarSign, Layers3, LineChart, WalletCards } from 'lucide-react';
@@ -17,6 +17,7 @@ import { DataTable, type DataTableColumn } from '@/components/common/data-table'
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 import { FormField } from '@/components/common/form-field';
+import { WorkerPicker } from '@/components/common/worker-picker';
 import { optionalNumericText, requiredNumericText, requiredText } from '@/components/forms/schema-helpers';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency, formatDate, generateUUID } from '@/lib/utils';
@@ -609,8 +610,8 @@ export function AdminCompensation() {
             <CardHeader><CardTitle className="flex items-center gap-2"><LineChart className="h-5 w-5" /> Compensation changes</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 md:max-w-xl">
-                <Label htmlFor="change-worker-filter">Worker ID</Label>
-                <Input id="change-worker-filter" placeholder="Enter worker UUID to load changes" value={changeWorkerId} onChange={(event) => setChangeWorkerId(event.target.value)} />
+                <Label htmlFor="change-worker-filter">Filter changes by worker</Label>
+                <WorkerPicker id="change-worker-filter" placeholder="Search by name or employee ID to load changes" value={changeWorkerId} onChange={(workerId) => setChangeWorkerId(workerId)} />
               </div>
               {changeWorkerId ? (
                 <DataTable columns={changeColumns} data={changes} keyExtractor={recordId} isLoading={changesQuery.isLoading} emptyMessage="No compensation changes for this worker" total={changes.length} listKey="admin.compensation.changes" viewFilters={{ workerId: changeWorkerId }} />
@@ -635,8 +636,8 @@ export function AdminCompensation() {
             <CardHeader><CardTitle className="flex items-center gap-2"><BadgeDollarSign className="h-5 w-5" /> Equity grants</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 md:max-w-xl">
-                <Label htmlFor="equity-worker-filter">Worker ID</Label>
-                <Input id="equity-worker-filter" placeholder="Enter worker UUID to load grants" value={equityWorkerId} onChange={(event) => setEquityWorkerId(event.target.value)} />
+                <Label htmlFor="equity-worker-filter">Filter grants by worker</Label>
+                <WorkerPicker id="equity-worker-filter" placeholder="Search by name or employee ID to load grants" value={equityWorkerId} onChange={(workerId) => setEquityWorkerId(workerId)} />
               </div>
               {equityWorkerId ? (
                 <DataTable columns={equityColumns} data={equityGrants} keyExtractor={recordId} isLoading={equityGrantsQuery.isLoading} emptyMessage="No equity grants for this worker" total={equityGrants.length} listKey="admin.compensation.equity-grants" viewFilters={{ workerId: equityWorkerId }} />
@@ -694,8 +695,14 @@ export function AdminCompensation() {
             ) : null}
             {activeTab === 'changes' ? (
               <>
-                <FormField id="change-worker" label="Worker ID" error={changeForm.formState.errors.workerId?.message} className="md:col-span-2">
-                  <Input {...changeForm.register('workerId')} />
+                <FormField id="change-worker" label="Select worker" error={changeForm.formState.errors.workerId?.message} className="md:col-span-2">
+                  <Controller
+                    control={changeForm.control}
+                    name="workerId"
+                    render={({ field }) => (
+                      <WorkerPicker id="change-worker" value={field.value} onChange={(workerId) => field.onChange(workerId)} />
+                    )}
+                  />
                 </FormField>
                 <FormField id="change-type" label="Change type" error={changeForm.formState.errors.changeType?.message}>
                   <Input {...changeForm.register('changeType')} />
@@ -732,8 +739,14 @@ export function AdminCompensation() {
             ) : null}
             {activeTab === 'equity-grants' ? (
               <>
-                <FormField id="equity-worker" label="Worker ID" error={equityForm.formState.errors.workerId?.message} className="md:col-span-2">
-                  <Input {...equityForm.register('workerId')} />
+                <FormField id="equity-worker" label="Select worker" error={equityForm.formState.errors.workerId?.message} className="md:col-span-2">
+                  <Controller
+                    control={equityForm.control}
+                    name="workerId"
+                    render={({ field }) => (
+                      <WorkerPicker id="equity-worker" value={field.value} onChange={(workerId) => field.onChange(workerId)} />
+                    )}
+                  />
                 </FormField>
                 <FormField id="grant-type" label="Grant type" error={equityForm.formState.errors.grantType?.message}>
                   <Input {...equityForm.register('grantType')} />

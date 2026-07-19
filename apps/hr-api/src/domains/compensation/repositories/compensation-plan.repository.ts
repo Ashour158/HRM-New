@@ -30,7 +30,7 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
   }
 
   async findByTenant(tenantId: Uuid): Promise<CompensationPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -39,7 +39,7 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
   }
 
   async findActive(): Promise<CompensationPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('status', '=', 'ACTIVE')
@@ -51,7 +51,8 @@ export class CompensationPlanRepository extends BaseRepository<'compensation_pla
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['compensation_plans']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['compensation_plans']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['compensation_plans']>);
     }

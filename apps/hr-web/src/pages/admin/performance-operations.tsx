@@ -10,6 +10,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
+import {
+  ActionChoiceDialog,
+  DimensionRatingDialog,
+  RatingDialog,
+  TextReasonDialog,
+} from '@/components/common/workflow-dialogs';
 import { formatDate } from '@/lib/utils';
 import {
   Activity,
@@ -474,6 +480,16 @@ export function AdminPerformanceOperations() {
   const [selectedFeedbackCycleId, setSelectedFeedbackCycleId] = React.useState('');
   const [selectedObjectiveId, setSelectedObjectiveId] = React.useState('');
   const [selectedKpiId, setSelectedKpiId] = React.useState('');
+
+  const [reviewTextDialog, setReviewTextDialog] = React.useState<{ review: PerformanceReview; kind: 'self' | 'manager' } | null>(null);
+  const [reviewRatingDialog, setReviewRatingDialog] = React.useState<{ review: PerformanceReview; kind: 'calibrate' | 'finalize' } | null>(null);
+  const [reviewChoiceDialog, setReviewChoiceDialog] = React.useState<PerformanceReview | null>(null);
+  const [pipChoiceDialog, setPipChoiceDialog] = React.useState<{ pip: PerformanceImprovementPlan; stage: 'active' | 'review-pending' } | null>(null);
+  const [developmentChoiceDialog, setDevelopmentChoiceDialog] = React.useState<DevelopmentPlan | null>(null);
+  const [objectiveChoiceDialog, setObjectiveChoiceDialog] = React.useState<Objective | null>(null);
+  const [keyResultChoiceDialog, setKeyResultChoiceDialog] = React.useState<KeyResult | null>(null);
+  const [kpiChoiceDialog, setKpiChoiceDialog] = React.useState<Kpi | null>(null);
+  const [feedbackRatingDialog, setFeedbackRatingDialog] = React.useState<Feedback360Response | null>(null);
   const [kpiCategory, setKpiCategory] = React.useState('HR');
 
   const [reviewForm, setReviewForm] = React.useState({ workerId: '', reviewCycleId: '', managerId: '' });
@@ -680,126 +696,174 @@ export function AdminPerformanceOperations() {
     }
   }, [addNotification]);
 
-  const runReviewAction = React.useCallback(async (review: PerformanceReview) => {
+  const runReviewAction = React.useCallback((review: PerformanceReview) => {
     if (review.status === 'DRAFT') {
-      const content = window.prompt('Self-review content');
-      if (content) await runCommand(`reviews/${review.id}/commands/submit-self`, { content }, refetchReviews);
+      setReviewTextDialog({ review, kind: 'self' });
       return;
     }
     if (review.status === 'SELF_REVIEW') {
-      const content = window.prompt('Manager review content');
-      if (content) await runCommand(`reviews/${review.id}/commands/submit-manager`, { content }, refetchReviews);
+      setReviewTextDialog({ review, kind: 'manager' });
       return;
     }
     if (review.status === 'MANAGER_REVIEW') {
-      const rating = Number(window.prompt('Calibration rating', '3'));
-      if (Number.isFinite(rating)) await runCommand(`reviews/${review.id}/commands/calibrate`, { rating }, refetchReviews);
+      setReviewRatingDialog({ review, kind: 'calibrate' });
       return;
     }
     if (review.status === 'CALIBRATED') {
-      const rating = Number(window.prompt('Final rating', String(review.calibratedRating ?? 3)));
-      if (Number.isFinite(rating)) await runCommand(`reviews/${review.id}/commands/finalize`, { rating }, refetchReviews);
+      setReviewRatingDialog({ review, kind: 'finalize' });
       return;
     }
     if (review.status === 'FINALIZED') {
-      const action = window.prompt('Type A to acknowledge or D to dispute', 'A')?.trim().toUpperCase();
-      if (action === 'D') {
-        await runCommand(`reviews/${review.id}/commands/dispute`, {}, refetchReviews);
-      } else if (action === 'A') {
-        await runCommand(`reviews/${review.id}/commands/acknowledge`, {}, refetchReviews);
-      }
+      setReviewChoiceDialog(review);
     }
-  }, [refetchReviews, runCommand]);
+  }, []);
 
-  const runPipAction = React.useCallback(async (pip: PerformanceImprovementPlan) => {
-    if (pip.status === 'DRAFT') await runCommand(`improvement-plans/${pip.id}/commands/activate`, {}, refetchPips);
+  const submitReviewText = React.useCallback(async (content: string) => {
+    if (!reviewTextDialog) return;
+    const path = reviewTextDialog.kind === 'self' ? 'submit-self' : 'submit-manager';
+    await runCommand(`reviews/${reviewTextDialog.review.id}/commands/${path}`, { content }, refetchReviews);
+    setReviewTextDialog(null);
+  }, [reviewTextDialog, runCommand, refetchReviews]);
+
+  const submitReviewRating = React.useCallback(async (rating: number) => {
+    if (!reviewRatingDialog) return;
+    const path = reviewRatingDialog.kind === 'calibrate' ? 'calibrate' : 'finalize';
+    await runCommand(`reviews/${reviewRatingDialog.review.id}/commands/${path}`, { rating }, refetchReviews);
+    setReviewRatingDialog(null);
+  }, [reviewRatingDialog, runCommand, refetchReviews]);
+
+  const submitReviewChoice = React.useCallback(async (action: string) => {
+    if (!reviewChoiceDialog) return;
+    const path = action === 'DISPUTE' ? 'dispute' : 'acknowledge';
+    await runCommand(`reviews/${reviewChoiceDialog.id}/commands/${path}`, {}, refetchReviews);
+    setReviewChoiceDialog(null);
+  }, [reviewChoiceDialog, runCommand, refetchReviews]);
+
+  const runPipAction = React.useCallback((pip: PerformanceImprovementPlan) => {
+    if (pip.status === 'DRAFT') { runCommand(`improvement-plans/${pip.id}/commands/activate`, {}, refetchPips); return; }
     if (pip.status === 'ACTIVE' || pip.status === 'IN_PROGRESS' || pip.status === 'EXTENDED') {
-      const action = window.prompt('Type REVIEW, EXTEND, or TERMINATE', 'REVIEW')?.trim().toUpperCase();
-      if (action === 'EXTEND') {
-        const newEndDate = window.prompt('New end date (YYYY-MM-DD)', pip.endDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
-        if (newEndDate) await runCommand(`improvement-plans/${pip.id}/commands/extend`, { newEndDate }, refetchPips);
-      } else if (action === 'TERMINATE') {
-        await runCommand(`improvement-plans/${pip.id}/commands/terminate`, {}, refetchPips);
-      } else if (action === 'REVIEW') {
-        await runCommand(`improvement-plans/${pip.id}/commands/enter-review`, {}, refetchPips);
-      }
+      setPipChoiceDialog({ pip, stage: 'active' });
+      return;
     }
     if (pip.status === 'REVIEW_PENDING') {
-      const action = window.prompt('Type COMPLETE, EXTEND, or TERMINATE', 'COMPLETE')?.trim().toUpperCase();
-      if (action === 'COMPLETE') {
-        const outcome = window.prompt('Completion outcome', 'Improvement plan completed');
-        if (outcome) await runCommand(`improvement-plans/${pip.id}/commands/complete`, { outcome }, refetchPips);
-      } else if (action === 'EXTEND') {
-        const newEndDate = window.prompt('New end date (YYYY-MM-DD)', pip.endDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
-        if (newEndDate) await runCommand(`improvement-plans/${pip.id}/commands/extend`, { newEndDate }, refetchPips);
-      } else if (action === 'TERMINATE') {
-        await runCommand(`improvement-plans/${pip.id}/commands/terminate`, {}, refetchPips);
-      }
+      setPipChoiceDialog({ pip, stage: 'review-pending' });
+      return;
     }
-    if (pip.status === 'COMPLETED') await runCommand(`improvement-plans/${pip.id}/commands/close`, {}, refetchPips);
+    if (pip.status === 'COMPLETED') runCommand(`improvement-plans/${pip.id}/commands/close`, {}, refetchPips);
   }, [refetchPips, runCommand]);
 
-  const runDevelopmentAction = React.useCallback(async (plan: DevelopmentPlan) => {
-    if (plan.status === 'DRAFT') await runCommand(`development-plans/${plan.id}/commands/activate`, {}, refetchDevelopmentPlans);
-    if (plan.status === 'ACTIVE' || plan.status === 'IN_PROGRESS') {
-      const action = window.prompt('Type MILESTONE or COMPLETE', 'MILESTONE')?.trim().toUpperCase();
-      if (action === 'COMPLETE') {
-        await runCommand(`development-plans/${plan.id}/commands/complete`, {}, refetchDevelopmentPlans);
-      } else if (action === 'MILESTONE') {
-        const objectiveTitle = window.prompt('Milestone or objective title', plan.title);
-        if (objectiveTitle) {
-          await runCommand(`development-plans/${plan.id}/commands/record-milestone`, { objectiveTitle, status: 'COMPLETED' }, refetchDevelopmentPlans);
-        }
-      }
+  const submitPipChoice = React.useCallback(async (action: string, fieldValue?: string) => {
+    if (!pipChoiceDialog) return;
+    const { pip, stage } = pipChoiceDialog;
+    if (action === 'EXTEND') {
+      await runCommand(`improvement-plans/${pip.id}/commands/extend`, { newEndDate: fieldValue }, refetchPips);
+    } else if (action === 'TERMINATE') {
+      await runCommand(`improvement-plans/${pip.id}/commands/terminate`, {}, refetchPips);
+    } else if (action === 'REVIEW' && stage === 'active') {
+      await runCommand(`improvement-plans/${pip.id}/commands/enter-review`, {}, refetchPips);
+    } else if (action === 'COMPLETE' && stage === 'review-pending') {
+      await runCommand(`improvement-plans/${pip.id}/commands/complete`, { outcome: fieldValue }, refetchPips);
     }
-    if (plan.status === 'COMPLETED') await runCommand(`development-plans/${plan.id}/commands/close`, {}, refetchDevelopmentPlans);
+    setPipChoiceDialog(null);
+  }, [pipChoiceDialog, refetchPips, runCommand]);
+
+  const runDevelopmentAction = React.useCallback((plan: DevelopmentPlan) => {
+    if (plan.status === 'DRAFT') { runCommand(`development-plans/${plan.id}/commands/activate`, {}, refetchDevelopmentPlans); return; }
+    if (plan.status === 'ACTIVE' || plan.status === 'IN_PROGRESS') {
+      setDevelopmentChoiceDialog(plan);
+      return;
+    }
+    if (plan.status === 'COMPLETED') runCommand(`development-plans/${plan.id}/commands/close`, {}, refetchDevelopmentPlans);
   }, [refetchDevelopmentPlans, runCommand]);
 
-  const runObjectiveAction = React.useCallback(async (objective: Objective) => {
-    if (objective.status === 'DRAFT') await runCommand(`objectives/${objective.id}/commands/activate`, {}, refetchObjectives);
+  const submitDevelopmentChoice = React.useCallback(async (action: string, fieldValue?: string) => {
+    if (!developmentChoiceDialog) return;
+    const plan = developmentChoiceDialog;
+    if (action === 'COMPLETE') {
+      await runCommand(`development-plans/${plan.id}/commands/complete`, {}, refetchDevelopmentPlans);
+    } else if (action === 'MILESTONE') {
+      await runCommand(`development-plans/${plan.id}/commands/record-milestone`, { objectiveTitle: fieldValue, status: 'COMPLETED' }, refetchDevelopmentPlans);
+    }
+    setDevelopmentChoiceDialog(null);
+  }, [developmentChoiceDialog, refetchDevelopmentPlans, runCommand]);
+
+  const runObjectiveAction = React.useCallback((objective: Objective) => {
+    if (objective.status === 'DRAFT') { runCommand(`objectives/${objective.id}/commands/activate`, {}, refetchObjectives); return; }
     if (objective.status === 'ACTIVE' || objective.status === 'IN_PROGRESS') {
-      const action = window.prompt('Type progress percent, ACHIEVE, or CANCEL', String(objective.progress ?? 50))?.trim().toUpperCase();
-      if (action === 'ACHIEVE') {
-        await runCommand(`objectives/${objective.id}/commands/mark-achieved`, {}, refetchObjectives);
-      } else if (action === 'CANCEL') {
-        await runCommand(`objectives/${objective.id}/commands/cancel`, {}, refetchObjectives);
-      } else {
-        const progress = Number(action);
-        if (Number.isFinite(progress)) await runCommand(`objectives/${objective.id}/commands/update-progress`, { progress, confidenceScore: 0.8 }, refetchObjectives);
-      }
+      setObjectiveChoiceDialog(objective);
     }
   }, [refetchObjectives, runCommand]);
 
-  const runKeyResultAction = React.useCallback(async (keyResult: KeyResult) => {
-    if (keyResult.status === 'DRAFT') await runCommand(`key-results/${keyResult.id}/commands/activate`, {}, refetchKeyResults);
+  const submitObjectiveChoice = React.useCallback(async (action: string, fieldValue?: string) => {
+    if (!objectiveChoiceDialog) return;
+    const objective = objectiveChoiceDialog;
+    if (action === 'ACHIEVE') {
+      await runCommand(`objectives/${objective.id}/commands/mark-achieved`, {}, refetchObjectives);
+    } else if (action === 'CANCEL') {
+      await runCommand(`objectives/${objective.id}/commands/cancel`, {}, refetchObjectives);
+    } else if (action === 'PROGRESS') {
+      await runCommand(`objectives/${objective.id}/commands/update-progress`, { progress: Number(fieldValue), confidenceScore: 0.8 }, refetchObjectives);
+    }
+    setObjectiveChoiceDialog(null);
+  }, [objectiveChoiceDialog, refetchObjectives, runCommand]);
+
+  const runKeyResultAction = React.useCallback((keyResult: KeyResult) => {
+    if (keyResult.status === 'DRAFT') { runCommand(`key-results/${keyResult.id}/commands/activate`, {}, refetchKeyResults); return; }
     if (keyResult.status === 'ACTIVE' || keyResult.status === 'IN_PROGRESS') {
-      const action = window.prompt('Type current value, COMPLETE, or CANCEL', String(keyResult.currentValue ?? 0))?.trim().toUpperCase();
-      if (action === 'COMPLETE') {
-        await runCommand(`key-results/${keyResult.id}/commands/complete`, {}, refetchKeyResults);
-      } else if (action === 'CANCEL') {
-        await runCommand(`key-results/${keyResult.id}/commands/cancel`, {}, refetchKeyResults);
-      } else {
-        const currentValue = Number(action);
-        if (Number.isFinite(currentValue)) await runCommand(`key-results/${keyResult.id}/commands/update-progress`, { currentValue }, refetchKeyResults);
-      }
+      setKeyResultChoiceDialog(keyResult);
     }
   }, [refetchKeyResults, runCommand]);
 
-  const runKpiAction = React.useCallback(async (kpi: Kpi) => {
-    if (kpi.status === 'DRAFT') await runCommand(`kpis/${kpi.id}/commands/activate`, {}, refetchKpis);
-    if (kpi.status === 'ACTIVE' || kpi.status === 'INACTIVE') {
-      const action = window.prompt('Type actual value, ASSIGN, or ARCHIVE', String(kpi.actualValue ?? kpi.targetValue ?? 0))?.trim().toUpperCase();
-      if (action === 'ARCHIVE') {
-        await runCommand(`kpis/${kpi.id}/commands/archive`, {}, refetchKpis);
-      } else if (action === 'ASSIGN') {
-        const ownerId = window.prompt('New owner employee ID', kpi.ownerId ?? selectedWorkerId);
-        if (ownerId) await runCommand(`kpis/${kpi.id}/commands/assign-owner`, { ownerId }, refetchKpis);
-      } else {
-        const actualValue = Number(action);
-        if (Number.isFinite(actualValue)) await runCommand(`kpis/${kpi.id}/commands/update-actual`, { actualValue }, refetchKpis);
-      }
+  const submitKeyResultChoice = React.useCallback(async (action: string, fieldValue?: string) => {
+    if (!keyResultChoiceDialog) return;
+    const keyResult = keyResultChoiceDialog;
+    if (action === 'COMPLETE') {
+      await runCommand(`key-results/${keyResult.id}/commands/complete`, {}, refetchKeyResults);
+    } else if (action === 'CANCEL') {
+      await runCommand(`key-results/${keyResult.id}/commands/cancel`, {}, refetchKeyResults);
+    } else if (action === 'UPDATE') {
+      await runCommand(`key-results/${keyResult.id}/commands/update-progress`, { currentValue: Number(fieldValue) }, refetchKeyResults);
     }
-  }, [refetchKpis, runCommand, selectedWorkerId]);
+    setKeyResultChoiceDialog(null);
+  }, [keyResultChoiceDialog, refetchKeyResults, runCommand]);
+
+  const runKpiAction = React.useCallback((kpi: Kpi) => {
+    if (kpi.status === 'DRAFT') { runCommand(`kpis/${kpi.id}/commands/activate`, {}, refetchKpis); return; }
+    if (kpi.status === 'ACTIVE' || kpi.status === 'INACTIVE') {
+      setKpiChoiceDialog(kpi);
+    }
+  }, [refetchKpis, runCommand]);
+
+  const submitKpiChoice = React.useCallback(async (action: string, fieldValue?: string) => {
+    if (!kpiChoiceDialog) return;
+    const kpi = kpiChoiceDialog;
+    if (action === 'ARCHIVE') {
+      await runCommand(`kpis/${kpi.id}/commands/archive`, {}, refetchKpis);
+    } else if (action === 'ASSIGN') {
+      await runCommand(`kpis/${kpi.id}/commands/assign-owner`, { ownerId: fieldValue }, refetchKpis);
+    } else if (action === 'UPDATE') {
+      await runCommand(`kpis/${kpi.id}/commands/update-actual`, { actualValue: Number(fieldValue) }, refetchKpis);
+    }
+    setKpiChoiceDialog(null);
+  }, [kpiChoiceDialog, refetchKpis, runCommand]);
+
+  const submitFeedbackRating = React.useCallback(async (scores: Record<string, number>) => {
+    if (!feedbackRatingDialog) return;
+    const response = feedbackRatingDialog;
+    const values = Object.values(scores);
+    const overall = values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(2)) : 0;
+    await runCommand(`feedback-360-responses/${response.id}/commands/submit`, {
+      competencyScores: { overall },
+      dimensionScores: scores,
+      areaComments: PEER_REVIEW_AREAS.reduce<Record<string, string>>((comments, area) => ({ ...comments, [area.key]: 'Captured through HR admin workspace' }), {}),
+      overallRating: overall,
+      strengths: 'Submitted through HR admin workspace',
+      improvements: 'Captured for calibration',
+      comments: 'Feedback response submitted',
+      isAnonymous: response.isAnonymous || response.visibility === 'ANONYMOUS',
+    }, refetchFeedbackResponses);
+    setFeedbackRatingDialog(null);
+  }, [feedbackRatingDialog, refetchFeedbackResponses, runCommand]);
 
   const reviewColumns = React.useMemo<DataTableColumn<PerformanceReview>[]>(() => [
     { key: 'cycle', header: 'Cycle', cell: (review) => cycles.find((cycle) => cycle.id === review.reviewCycleId)?.name ?? review.reviewCycleId },
@@ -859,28 +923,14 @@ export function AdminPerformanceOperations() {
           size="sm"
           variant="outline"
           disabled={busyKey?.includes(response.id)}
-          onClick={() => {
-            const rating = Number(window.prompt('Overall rating', '4'));
-            if (Number.isFinite(rating)) {
-              runCommand(`feedback-360-responses/${response.id}/commands/submit`, {
-                competencyScores: { overall: rating },
-                dimensionScores: PEER_REVIEW_AREAS.reduce<Record<string, number>>((scores, area) => ({ ...scores, [area.key]: rating }), {}),
-                areaComments: PEER_REVIEW_AREAS.reduce<Record<string, string>>((comments, area) => ({ ...comments, [area.key]: 'Captured through HR admin workspace' }), {}),
-                overallRating: rating,
-                strengths: 'Submitted through HR admin workspace',
-                improvements: 'Captured for calibration',
-                comments: 'Feedback response submitted',
-                isAnonymous: response.isAnonymous || response.visibility === 'ANONYMOUS',
-              }, refetchFeedbackResponses);
-            }
-          }}
+          onClick={() => setFeedbackRatingDialog(response)}
         >
           <CheckCircle2 className="mr-2 h-4 w-4" />
           Submit
         </Button>
       ) : <span className="text-sm text-muted-foreground">No action</span>,
     },
-  ], [busyKey, refetchFeedbackResponses, runCommand, workers]);
+  ], [busyKey, workers]);
 
   const calibrationColumns = React.useMemo<DataTableColumn<CalibrationSession>[]>(() => [
     { key: 'facilitator', header: 'Facilitator', cell: (session) => workerName(workers.find((worker) => worker.id === session.facilitatorId)) },
@@ -1771,6 +1821,149 @@ export function AdminPerformanceOperations() {
           Command bus execution keeps idempotency, audit, transition ledger, and outbox behavior in the flow.
         </div>
       </div>
+
+      <TextReasonDialog
+        open={Boolean(reviewTextDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setReviewTextDialog(null)}
+        title={reviewTextDialog?.kind === 'manager' ? 'Manager review' : 'Self review'}
+        description={reviewTextDialog ? workerName(workers.find((worker) => worker.id === reviewTextDialog.review.workerId)) : undefined}
+        label={reviewTextDialog?.kind === 'manager' ? 'Manager review content' : 'Self-review content'}
+        placeholder="Describe performance against expectations for this cycle"
+        submitLabel="Submit review"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitReviewText}
+      />
+
+      <RatingDialog
+        open={Boolean(reviewRatingDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setReviewRatingDialog(null)}
+        title={reviewRatingDialog?.kind === 'finalize' ? 'Set final rating' : 'Set calibration rating'}
+        label={reviewRatingDialog?.kind === 'finalize' ? 'Final rating' : 'Calibration rating'}
+        min={1}
+        max={5}
+        step={0.1}
+        defaultValue={reviewRatingDialog?.kind === 'finalize' ? (reviewRatingDialog.review.calibratedRating ?? 3) : 3}
+        submitLabel="Save rating"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitReviewRating}
+      />
+
+      <ActionChoiceDialog
+        open={Boolean(reviewChoiceDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setReviewChoiceDialog(null)}
+        title="Finalized review"
+        description="Acknowledge the finalized review or raise a dispute."
+        choices={[
+          { value: 'ACKNOWLEDGE', label: 'Acknowledge' },
+          { value: 'DISPUTE', label: 'Dispute' },
+        ]}
+        defaultChoice="ACKNOWLEDGE"
+        submitLabel="Continue"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitReviewChoice}
+      />
+
+      <ActionChoiceDialog
+        open={Boolean(pipChoiceDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setPipChoiceDialog(null)}
+        title="Improvement plan"
+        description={pipChoiceDialog?.stage === 'review-pending' ? 'Complete, extend, or terminate this plan.' : 'Continue the review, extend, or terminate this plan.'}
+        choices={
+          pipChoiceDialog?.stage === 'review-pending'
+            ? [
+                { value: 'COMPLETE', label: 'Complete', field: { type: 'textarea', label: 'Completion outcome', defaultValue: 'Improvement plan completed', required: true } },
+                { value: 'EXTEND', label: 'Extend', field: { type: 'date', label: 'New end date', defaultValue: pipChoiceDialog.pip.endDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10), required: true } },
+                { value: 'TERMINATE', label: 'Terminate' },
+              ]
+            : [
+                { value: 'REVIEW', label: 'Enter review' },
+                { value: 'EXTEND', label: 'Extend', field: { type: 'date', label: 'New end date', defaultValue: pipChoiceDialog?.pip.endDate?.slice(0, 10) ?? new Date().toISOString().slice(0, 10), required: true } },
+                { value: 'TERMINATE', label: 'Terminate' },
+              ]
+        }
+        defaultChoice={pipChoiceDialog?.stage === 'review-pending' ? 'COMPLETE' : 'REVIEW'}
+        submitLabel="Continue"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitPipChoice}
+      />
+
+      <ActionChoiceDialog
+        open={Boolean(developmentChoiceDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setDevelopmentChoiceDialog(null)}
+        title="Development plan"
+        description="Record a milestone or mark this plan complete."
+        choices={[
+          { value: 'MILESTONE', label: 'Record milestone', field: { type: 'textarea', label: 'Milestone or objective title', defaultValue: developmentChoiceDialog?.title ?? '', required: true } },
+          { value: 'COMPLETE', label: 'Mark complete' },
+        ]}
+        defaultChoice="MILESTONE"
+        submitLabel="Continue"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitDevelopmentChoice}
+      />
+
+      <ActionChoiceDialog
+        open={Boolean(objectiveChoiceDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setObjectiveChoiceDialog(null)}
+        title="Objective"
+        description="Update progress, mark achieved, or cancel this objective."
+        choices={[
+          { value: 'PROGRESS', label: 'Update progress', field: { type: 'number', label: 'Progress %', defaultValue: String(objectiveChoiceDialog?.progress ?? 50), min: 0, max: 100, step: 1, required: true } },
+          { value: 'ACHIEVE', label: 'Mark achieved' },
+          { value: 'CANCEL', label: 'Cancel objective' },
+        ]}
+        defaultChoice="PROGRESS"
+        submitLabel="Continue"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitObjectiveChoice}
+      />
+
+      <ActionChoiceDialog
+        open={Boolean(keyResultChoiceDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setKeyResultChoiceDialog(null)}
+        title="Key result"
+        description="Update the current value, mark complete, or cancel."
+        choices={[
+          { value: 'UPDATE', label: 'Update current value', field: { type: 'number', label: 'Current value', defaultValue: String(keyResultChoiceDialog?.currentValue ?? 0), required: true } },
+          { value: 'COMPLETE', label: 'Mark complete' },
+          { value: 'CANCEL', label: 'Cancel' },
+        ]}
+        defaultChoice="UPDATE"
+        submitLabel="Continue"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitKeyResultChoice}
+      />
+
+      <ActionChoiceDialog
+        open={Boolean(kpiChoiceDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setKpiChoiceDialog(null)}
+        title="KPI"
+        description="Update the actual value, assign an owner, or archive this KPI."
+        choices={[
+          { value: 'UPDATE', label: 'Update actual value', field: { type: 'number', label: 'Actual value', defaultValue: String(kpiChoiceDialog?.actualValue ?? kpiChoiceDialog?.targetValue ?? 0), required: true } },
+          { value: 'ASSIGN', label: 'Assign owner', field: { type: 'text', label: 'New owner employee ID', defaultValue: kpiChoiceDialog?.ownerId ?? selectedWorkerId, required: true } },
+          { value: 'ARCHIVE', label: 'Archive' },
+        ]}
+        defaultChoice="UPDATE"
+        submitLabel="Continue"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitKpiChoice}
+      />
+
+      <DimensionRatingDialog
+        open={Boolean(feedbackRatingDialog)}
+        onOpenChange={(nextOpen) => !nextOpen && setFeedbackRatingDialog(null)}
+        title="Submit 360 feedback"
+        description="Rate each area from 1 (needs improvement) to 5 (outstanding)."
+        dimensions={PEER_REVIEW_AREAS.map((area) => ({ key: area.key, label: area.label }))}
+        min={1}
+        max={5}
+        step={1}
+        defaultValue={4}
+        submitLabel="Submit feedback"
+        isSubmitting={Boolean(busyKey)}
+        onSubmit={submitFeedbackRating}
+      />
     </div>
   );
 }

@@ -116,6 +116,15 @@ export type {
 
 export { OfferCompensationEngine, evaluateOfferCompensation } from './engines/offer-compensation.engine.js';
 
+export type {
+  DeiPayTransparencyDecisionCode,
+  DeiPayTransparencyInput,
+  DeiPayTransparencyViolation,
+  DeiPayTransparencyResult,
+} from './engines/dei-pay-transparency.engine.js';
+
+export { DeiPayTransparencyEngine, evaluateDeiPayTransparency } from './engines/dei-pay-transparency.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -124,4 +133,5 @@ export {
   fieldAccessPolicyEngine,
   countryPolicyValidationEngine,
   offerCompensationEngine,
+  deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

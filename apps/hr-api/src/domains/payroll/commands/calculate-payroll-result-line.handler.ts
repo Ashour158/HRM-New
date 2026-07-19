@@ -6,7 +6,6 @@ import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
 import { PayrollResultLine } from '../aggregates/payroll-result-line.aggregate.js';
 import { PayrollResultLineRepository } from '../repositories/payroll-result-line.repository.js';
-import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
 
 @CommandHandler('CalculatePayrollResultLine')
 @Injectable()
@@ -14,7 +13,6 @@ export class CalculatePayrollResultLineHandler {
   constructor(
     private readonly repo: PayrollResultLineRepository,
     private readonly fsm: FsmFramework,
-    private readonly publisher: PayrollEventsPublisher,
     private readonly hcmSetupService: HcmSetupService,
   ) {}
 
@@ -69,7 +67,6 @@ export class CalculatePayrollResultLineHandler {
       command.correlationId,
     );
     await this.repo.save(line);
-    await this.publisher.publishFromAggregate(line);
     return {
       success: true,
       data: { payrollResultLineId: line.id.value, status: line.status, policyEvidence },
