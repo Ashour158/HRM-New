@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { CarrierReconciliationRun } from '../aggregates/carrier-reconciliation-run.aggregate.js';
 
@@ -42,7 +42,8 @@ export class CarrierReconciliationRunRepository extends BaseRepository<'carrier_
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['carrier_reconciliation_runs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['carrier_reconciliation_runs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['carrier_reconciliation_runs']>);
     }
@@ -55,9 +56,9 @@ export class CarrierReconciliationRunRepository extends BaseRepository<'carrier_
       carrierId: new Uuid(row.carrier_id),
       periodStart: row.period_start,
       periodEnd: row.period_end,
-      totalPremium: row.total_premium,
-      totalCollected: row.total_collected,
-      varianceAmount: row.variance_amount,
+      totalPremium: parseNumeric(row.total_premium),
+      totalCollected: parseNumeric(row.total_collected),
+      varianceAmount: parseNumeric(row.variance_amount),
       currency: row.currency,
       status: row.status as 'PENDING' | 'IN_PROGRESS' | 'VARIANCE_DETECTED' | 'RECONCILED' | 'FAILED',
       aggregateVersion: row.aggregate_version,

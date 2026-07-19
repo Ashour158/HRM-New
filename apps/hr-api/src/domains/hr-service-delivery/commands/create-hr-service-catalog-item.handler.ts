@@ -17,7 +17,7 @@ export class CreateHrServiceCatalogItemHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { serviceCode: string; serviceName: string; description: string; category: string; slaHours: number; fulfillmentProcess: string };
+    const payload = command.payload as { serviceCode: string; serviceName: string; description: string; category: string; slaHours: number; fulfillmentProcess: string; defaultOwnerGroup?: string };
     const ar = HrServiceCatalogItem.create(
       {
         id: Uuid.generate(),
@@ -28,6 +28,7 @@ export class CreateHrServiceCatalogItemHandler {
         category: payload.category,
         slaHours: payload.slaHours,
         fulfillmentProcess: payload.fulfillmentProcess,
+        defaultOwnerGroup: payload.defaultOwnerGroup,
       },
       command.correlationId,
     );

@@ -10,6 +10,8 @@ export const OpenHrServiceCaseDtoSchema = z.object({
   description: z.string().min(1),
   assignedTo: z.string().uuid().optional(),
   slaDeadline: z.coerce.date().optional(),
+  catalogItemId: z.string().uuid().optional(),
+  ownerGroup: z.string().min(1).optional(),
 });
 
 export class OpenHrServiceCaseDto {
@@ -20,6 +22,26 @@ export class OpenHrServiceCaseDto {
   @ApiProperty() description!: string;
   @ApiPropertyOptional() assignedTo?: string;
   @ApiPropertyOptional() slaDeadline?: Date;
+  @ApiPropertyOptional() catalogItemId?: string;
+  @ApiPropertyOptional() ownerGroup?: string;
+}
+
+export const EscalateHrServiceCaseDtoSchema = z.object({
+  escalationReason: z.string().min(1),
+});
+
+export class EscalateHrServiceCaseDto {
+  @ApiProperty() escalationReason!: string;
+}
+
+export const ReassignHrServiceCaseDtoSchema = z.object({
+  assignedTo: z.string().uuid(),
+  ownerGroup: z.string().min(1).optional(),
+});
+
+export class ReassignHrServiceCaseDto {
+  @ApiProperty() assignedTo!: string;
+  @ApiPropertyOptional() ownerGroup?: string;
 }
 
 export const CreateHrCaseTaskDtoSchema = z.object({
@@ -57,6 +79,7 @@ export const CreateHrServiceCatalogItemDtoSchema = z.object({
   category: z.string().min(1),
   slaHours: z.number().positive(),
   fulfillmentProcess: z.string().min(1),
+  defaultOwnerGroup: z.string().min(1).optional(),
 });
 
 export class CreateHrServiceCatalogItemDto {
@@ -66,6 +89,7 @@ export class CreateHrServiceCatalogItemDto {
   @ApiProperty() category!: string;
   @ApiProperty() slaHours!: number;
   @ApiProperty() fulfillmentProcess!: string;
+  @ApiPropertyOptional() defaultOwnerGroup?: string;
 }
 
 export const CreateHrCaseSlaInstanceDtoSchema = z.object({

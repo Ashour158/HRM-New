@@ -22,8 +22,15 @@ This runbook defines the minimum backup, restore, and disaster recovery evidence
   with retention pruning. Scheduled nightly by `deploy/k8s/base/backup-cronjob.yaml` (CronJob + 20Gi PVC).
 - **Restore drill:** `scripts/backup/pg-restore-drill.mjs` (`pnpm db:restore-drill`) — restores the
   backup into a throwaway scratch DB and asserts integrity (hr_* table count + migrations), exits non-zero
-  on failure. Scheduled weekly by `deploy/k8s/base/restore-drill-cronjob.yaml`. **Executed against the
-  live database 2026-06-25: restored 168 hr_* tables + 73 migrations → PASS.**
+  on failure. **Executed manually against the live database 2026-06-25 (standalone script, run by hand
+  with an admin/superuser connection): restored 168 hr_* tables + 73 migrations → PASS.** The same
+  restore-and-verify logic is also scheduled weekly, in-cluster, by
+  `deploy/k8s/base/restore-drill-cronjob.yaml`, but that CronJob automation is newer (it authenticates as
+  the RLS-restricted `hcm_system` role) and has not itself had a successful live run — it previously hit
+  a `CREATEDB` permission gap on its `CREATE DATABASE`/`DROP DATABASE` steps, now fixed in
+  `infra/rls/provision-app-role.sql`. The 2026-06-25 PASS above is evidence the backup/restore mechanics
+  work; it is not evidence that the in-cluster CronJob itself has been proven — that still needs its own
+  observed run once the grant fix is applied.
 - **WAL archiving / PITR:** required at the Postgres/managed-service layer to meet the 15-min RPO (base
   backups alone give last-backup RPO). Concrete config — managed PITR or self-managed `wal-g`
   (`archive_command`, restore-to-timestamp) — is in [`docs/postgres-pitr.md`](postgres-pitr.md).

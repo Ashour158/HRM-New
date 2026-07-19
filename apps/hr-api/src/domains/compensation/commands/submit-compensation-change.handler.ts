@@ -16,6 +16,11 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
  * freshly created compensation change was permanently stuck in DRAFT, so
  * ApproveCompensationChange (which requires PENDING_APPROVAL) could never
  * legally fire.
+ *
+ * Note: SendForApprovalCompensationChange also exists as a standalone
+ * command (SUBMITTED -> PENDING_APPROVAL) for callers that want to drive
+ * the two transitions independently; this handler performs both steps in
+ * one call because the admin UI only exposes a single "Submit" action.
  */
 @Injectable()
 @CommandHandler('SubmitCompensationChange')

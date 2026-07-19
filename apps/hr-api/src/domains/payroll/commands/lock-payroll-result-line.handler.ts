@@ -4,7 +4,6 @@ import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
 import { PayrollResultLineRepository } from '../repositories/payroll-result-line.repository.js';
-import { PayrollEventsPublisher } from '../events/payroll-events.publisher.js';
 
 @CommandHandler('LockPayrollResultLine')
 @Injectable()
@@ -12,7 +11,6 @@ export class LockPayrollResultLineHandler {
   constructor(
     private readonly repo: PayrollResultLineRepository,
     private readonly fsm: FsmFramework,
-    private readonly publisher: PayrollEventsPublisher,
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
@@ -21,7 +19,6 @@ export class LockPayrollResultLineHandler {
     if (!line) throw new Error('Payroll result line not found');
     line.lock(command.correlationId);
     await this.repo.save(line);
-    await this.publisher.publishFromAggregate(line);
     return {
       success: true,
       data: { payrollResultLineId: line.id.value, status: line.status },

@@ -39,12 +39,16 @@ import { TotalCompensationStatementFsm } from '../fsm/total-compensation-stateme
 import {
   CreateCompensationPlanDto,
   CreateCompensationBandDto,
+  ReviseCompensationBandDto,
   CreateCompensationChangeDto,
   ApproveCompensationChangeDto,
   CreateBonusCycleDto,
   CreateEquityGrantDto,
+  RecordVestingEquityGrantDto,
+  ExerciseEquityGrantDto,
   CreateVariableCompPlanDto,
   CreatePayScaleDto,
+  RevisePayScaleDto,
   CreateTotalCompensationStatementDto,
 } from './dtos.js';
 
@@ -142,6 +146,22 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('plans/:id/commands/suspend')
+  async suspendPlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'SuspendCompensationPlan', 'CompensationPlan', id, {
+      planId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('plans/:id/commands/close')
+  async closePlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseCompensationPlan', 'CompensationPlan', id, {
+      planId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('plans')
   async listPlans(@Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -181,6 +201,33 @@ export class CompensationController {
       midSalary: dto.midSalary,
       maxSalary: dto.maxSalary,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bands/:id/commands/activate')
+  async activateBand(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivateCompensationBand', 'CompensationBand', id, {
+      bandId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bands/:id/commands/revise')
+  async reviseBand(@Param('id') id: string, @Body() dto: ReviseCompensationBandDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ReviseCompensationBand', 'CompensationBand', id, {
+      bandId: new Uuid(id),
+      minSalary: dto.minSalary,
+      midSalary: dto.midSalary,
+      maxSalary: dto.maxSalary,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bands/:id/commands/close')
+  async closeBand(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseCompensationBand', 'CompensationBand', id, {
+      bandId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -244,6 +291,38 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('changes/:id/commands/send-for-approval')
+  async sendChangeForApproval(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'SendForApprovalCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('changes/:id/commands/make-effective')
+  async makeChangeEffective(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'MakeEffectiveCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('changes/:id/commands/reject')
+  async rejectChange(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'RejectCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('changes/:id/commands/cancel')
+  async cancelChange(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CancelCompensationChange', 'CompensationChange', id, {
+      changeId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('changes/worker/:workerId')
   async getChangesByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -272,6 +351,54 @@ export class CompensationController {
       paymentDate: dto.paymentDate,
       totalPoolAmount: dto.totalPoolAmount,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/activate')
+  async activateBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivateBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/start-calculation')
+  async startBonusCycleCalculation(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'StartCalculationBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/start-review')
+  async startBonusCycleReview(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'StartReviewBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/approve')
+  async approveBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ApproveBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/mark-paid')
+  async markBonusCyclePaid(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'MarkPaidBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('bonus-cycles/:id/commands/close')
+  async closeBonusCycle(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseBonusCycle', 'BonusCycle', id, {
+      cycleId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -318,6 +445,48 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('equity-grants/:id/commands/start-vesting')
+  async startEquityGrantVesting(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'StartVestingEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/record-vesting')
+  async recordEquityGrantVesting(@Param('id') id: string, @Body() dto: RecordVestingEquityGrantDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'RecordVestingEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+      units: dto.units,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/exercise')
+  async exerciseEquityGrant(@Param('id') id: string, @Body() dto: ExerciseEquityGrantDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ExerciseEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+      units: dto.units,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/expire')
+  async expireEquityGrant(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ExpireEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('equity-grants/:id/commands/forfeit')
+  async forfeitEquityGrant(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ForfeitEquityGrant', 'EquityGrant', id, {
+      grantId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('equity-grants/worker/:workerId')
   async getEquityGrantsByWorker(@Param('workerId') workerId: string, @Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -353,6 +522,22 @@ export class CompensationController {
       targetPercentage: dto.targetPercentage,
       maxPercentage: dto.maxPercentage,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('variable-comp-plans/:id/commands/activate')
+  async activateVariableCompPlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivateVariableCompPlan', 'VariableCompPlan', id, {
+      planId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('variable-comp-plans/:id/commands/close')
+  async closeVariableCompPlan(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'CloseVariableCompPlan', 'VariableCompPlan', id, {
+      planId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }
@@ -397,6 +582,31 @@ export class CompensationController {
     return this.commandBus.execute(command);
   }
 
+  @Post('pay-scales/:id/commands/activate')
+  async activatePayScale(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ActivatePayScale', 'PayScale', id, {
+      scaleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('pay-scales/:id/commands/revise')
+  async revisePayScale(@Param('id') id: string, @Body() dto: RevisePayScaleDto, @Req() req: Request) {
+    const command = this.buildCommand(req, 'RevisePayScale', 'PayScale', id, {
+      scaleId: new Uuid(id),
+      steps: dto.steps,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('pay-scales/:id/commands/close')
+  async closePayScale(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'ClosePayScale', 'PayScale', id, {
+      scaleId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
   @Get('pay-scales')
   async listPayScales(@Req() req: Request) {
     this.assertCompensationAdminScope(req);
@@ -437,6 +647,30 @@ export class CompensationController {
       benefitsValue: dto.benefitsValue,
       totalComp: dto.totalComp,
       currency: dto.currency,
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('total-comp-statements/:id/commands/generate')
+  async generateTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'GenerateTotalCompensationStatement', 'TotalCompensationStatement', id, {
+      statementId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('total-comp-statements/:id/commands/deliver')
+  async deliverTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'DeliverTotalCompensationStatement', 'TotalCompensationStatement', id, {
+      statementId: new Uuid(id),
+    });
+    return this.commandBus.execute(command);
+  }
+
+  @Post('total-comp-statements/:id/commands/acknowledge')
+  async acknowledgeTotalCompStatement(@Param('id') id: string, @Req() req: Request) {
+    const command = this.buildCommand(req, 'AcknowledgeTotalCompensationStatement', 'TotalCompensationStatement', id, {
+      statementId: new Uuid(id),
     });
     return this.commandBus.execute(command);
   }

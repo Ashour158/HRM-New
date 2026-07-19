@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, parseNullableNumeric } from '@hcm/database';
 import { PayGapReport } from '../aggregates/pay-gap-report.aggregate.js';
 
 @Injectable()
@@ -33,8 +33,8 @@ export class PayGapReportRepository {
       report_type: entity.reportType,
       reporting_year: entity.reportingYear,
       country_code: entity.countryCode,
-      mean_hourly_gap: entity.meanHourlyGap ?? null,
-      median_hourly_gap: entity.medianHourlyGap ?? null,
+      mean_hourly_gap: entity.meanHourlyGap === undefined ? null : String(entity.meanHourlyGap),
+      median_hourly_gap: entity.medianHourlyGap === undefined ? null : String(entity.medianHourlyGap),
       quartile_distribution: entity.quartileDistribution,
       action_plan: entity.actionPlan,
       status: entity.status,
@@ -55,8 +55,8 @@ export class PayGapReportRepository {
       reportType: row.report_type as 'GENDER_PAY_GAP' | 'ETHNICITY_PAY_GAP',
       reportingYear: row.reporting_year as number,
       countryCode: row.country_code as string,
-      meanHourlyGap: row.mean_hourly_gap as number | undefined,
-      medianHourlyGap: row.median_hourly_gap as number | undefined,
+      meanHourlyGap: parseNullableNumeric(row.mean_hourly_gap as string | null | undefined),
+      medianHourlyGap: parseNullableNumeric(row.median_hourly_gap as string | null | undefined),
       quartileDistribution: (row.quartile_distribution as Record<string, unknown>) ?? {},
       actionPlan: (row.action_plan as Record<string, unknown>) ?? {},
       status: row.status as PayGapReport['status'],
