@@ -61,14 +61,6 @@ export interface SsoUserResolutionInput {
   mfaAuthenticated?: boolean;
 }
 
-export interface RegisterAuthUserInput {
-  tenantId: string;
-  email: string;
-  password: string;
-  firstName?: string;
-  lastName?: string;
-}
-
 export interface InviteAuthUserInput {
   tenantId: string;
   email: string;
@@ -160,29 +152,6 @@ export class AuthService {
     service.tokens = dependencies.tokens ?? service.tokens;
     service.tokenNotifier = dependencies.tokenNotifier ?? service.tokenNotifier;
     return service;
-  }
-
-  async register(input: RegisterAuthUserInput): Promise<AuthUser> {
-    const email = normalizeEmail(input.email);
-    validateEmail(email);
-    validatePasswordPolicy(input.password);
-
-    const existing = await this.users.findByEmail(input.tenantId, email);
-    if (existing) throw new ConflictException('A user with this email already exists for this tenant');
-
-    const passwordHash = await bcrypt.hash(input.password, this.bcryptCost());
-    const user = await this.users.create({
-      tenantId: input.tenantId,
-      email,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      passwordHash,
-      status: 'ACTIVE',
-      roles: ['EMPLOYEE'],
-      permissions: ['SELF_READ', 'SELF_UPDATE', 'TIME_ATTENDANCE_READ', 'TIME_ATTENDANCE_WRITE', 'BENEFITS_READ', 'PAYSLIP_READ'],
-    });
-
-    return this.toAuthUser(user);
   }
 
   async invite(actor: HrActor, input: InviteAuthUserInput): Promise<{ user: AuthUser; setPasswordToken?: string; expiresAt: string }> {
