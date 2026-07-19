@@ -46,7 +46,6 @@ export class PayrollInputCorrected extends DomainEvent {
 }
 
 export class PayrollInput extends AggregateRoot {
-  private _aggregateVersion = 0;
   readonly tenantId: Uuid;
   workerId: Uuid;
   payrollCycleId: Uuid;
@@ -59,9 +58,7 @@ export class PayrollInput extends AggregateRoot {
   createdAt: Date;
   updatedAt: Date;
 
-  get version(): number { return this._aggregateVersion; }
-  get aggregateVersion(): number { return this._aggregateVersion; }
-  incrementVersion(): void { this._aggregateVersion++; }
+  get aggregateVersion(): number { return this.version; }
 
   constructor(props: PayrollInputProps) {
     super(props.id);
@@ -75,7 +72,7 @@ export class PayrollInput extends AggregateRoot {
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
-    if (props.aggregateVersion !== undefined) this._aggregateVersion = props.aggregateVersion;
+    if (props.aggregateVersion !== undefined) this.restoreVersion(props.aggregateVersion);
   }
 
   static create(props: PayrollInputProps, _correlationId: Uuid): PayrollInput {

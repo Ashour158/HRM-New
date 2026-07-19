@@ -27,7 +27,8 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_calculation_runs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_calculation_runs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_calculation_runs']>);
     }

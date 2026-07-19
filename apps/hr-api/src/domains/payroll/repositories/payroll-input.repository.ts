@@ -32,7 +32,8 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_inputs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_inputs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_inputs']>);
     }
