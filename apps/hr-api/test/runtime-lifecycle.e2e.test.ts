@@ -81,6 +81,7 @@ const TENANT_ID = '00000000-0000-0000-0000-000000000001';
 const HR_ADMIN_ID = '00000000-0000-0000-0000-000000000010';
 const MANAGER_ID = '00000000-0000-0000-0000-000000000011';
 const EMPLOYEE_ID = '00000000-0000-0000-0000-000000000012';
+const PAYROLL_APPROVER_ID = '00000000-0000-0000-0000-000000000013';
 
 const apiPrefix = '/api/v1';
 
@@ -90,6 +91,7 @@ let app: INestApplication | undefined;
 let authToken = '';
 let managerAuthToken = '';
 let hrAdminWithoutWellbeingToken = '';
+let payrollApproverToken = '';
 let dbReady = false;
 let skipReason = '';
 let suffix = '';
@@ -404,8 +406,8 @@ async function expectListed(path: string, id: string): Promise<void> {
   expect(found, `${path} should include ${id}`).toBe(true);
 }
 
-async function runCommand(basePath: string, id: string, action: string, payload: JsonRecord = {}): Promise<JsonRecord> {
-  const response = await apiPost(`${basePath}/${id}/commands/${action}`, payload);
+async function runCommand(basePath: string, id: string, action: string, payload: JsonRecord = {}, token = authToken): Promise<JsonRecord> {
+  const response = await apiPost(`${basePath}/${id}/commands/${action}`, payload, token);
   const data = expectSuccessful(response, `POST ${basePath}/${id}/commands/${action}`);
   if ('allowedNextActions' in data) {
     expect(Array.isArray(data.allowedNextActions)).toBe(true);
@@ -520,6 +522,30 @@ beforeAll(async () => {
       tenant_id: TENANT_ID,
       actor_type: 'USER',
       session_id: `limited-hr-admin-${suffix}`,
+      mfa_authenticated: true,
+    },
+    process.env.JWT_SECRET ?? 'runtime-lifecycle-test-secret',
+    { expiresIn: '1h' },
+  );
+
+  // Distinct preparer/approver identity for the payroll-cycle SoD scenario
+  // (HCM-P0-5 / HCM-P0-5b). authToken's HR_ADMIN role holds both
+  // PAYROLL_CREATE and PAYROLL_APPROVE, so it is *always* blocked from
+  // approving -- by design (SodMatrix.checkSoD blocks any actor whose
+  // effective permissions hold both halves of the preparer/approver pair,
+  // regardless of who created the specific cycle). Only a role that holds
+  // PAYROLL_APPROVE without PAYROLL_CREATE -- PAYROLL_APPROVER -- can ever
+  // pass that check, and using a different sub than authToken's also
+  // satisfies PayrollCycle's own createdBy-vs-approvedBy check.
+  payrollApproverToken = jwt.sign(
+    {
+      sub: PAYROLL_APPROVER_ID,
+      email: 'payroll.approver@example.com',
+      roles: ['PAYROLL_APPROVER'],
+      permissions: ['WORKER_READ', 'PAYROLL_READ', 'PAYROLL_APPROVE'],
+      tenant_id: TENANT_ID,
+      actor_type: 'USER',
+      session_id: `payroll-approver-${suffix}`,
       mfa_authenticated: true,
     },
     process.env.JWT_SECRET ?? 'runtime-lifecycle-test-secret',
@@ -1174,7 +1200,11 @@ describe.sequential('runtime HTTP lifecycle coverage', () => {
     await runCommand('/payroll/cycles', id, 'start-validation');
     await runCommand('/payroll/cycles', id, 'start-calculation');
     await runCommand('/payroll/cycles', id, 'start-review');
-    const approved = await runCommand('/payroll/cycles', id, 'approve');
+    // Approve with a distinct preparer/approver identity (HCM-P0-5 /
+    // HCM-P0-5b): authToken created this cycle and its HR_ADMIN role holds
+    // both PAYROLL_CREATE and PAYROLL_APPROVE, so SoD unconditionally blocks
+    // it from approving -- payrollApproverToken holds PAYROLL_APPROVE only.
+    const approved = await runCommand('/payroll/cycles', id, 'approve', {}, payrollApproverToken);
     expect(approved.newState ?? approved.status ?? asRecord(approved.data).status).toBe('APPROVED');
   });
 

@@ -193,7 +193,11 @@ const SOD_RULES: readonly SodRule[] = [
     code: TERMINATION_REQUESTER_CANNOT_FINAL_APPROVE,
     description: 'Termination requester cannot be the final approver.',
     incompatibleRolePairs: [['MANAGER', 'HR_ADMIN']],
-    incompatiblePermissionPairs: [['WORKER_TERMINATE', 'WORKER_TERMINATE']],
+    // A self-referential pair ([x, x]) is trivially satisfied by anyone who
+    // simply holds WORKER_TERMINATE at all -- it can never express a real
+    // preparer/approver split. There is no separate "terminate approval"
+    // permission in the catalog; this rule is enforced via the role pair only.
+    incompatiblePermissionPairs: [],
     enforcementPoint: 'COMMAND_GATEWAY',
     breakGlassAllowed: false,
   },
@@ -249,7 +253,13 @@ const SOD_RULES: readonly SodRule[] = [
     code: COMPLIANCE_REPORT_PREPARER_CANNOT_APPROVE,
     description: 'Compliance report preparer cannot approve the same report.',
     incompatibleRolePairs: [['COMPLIANCE_OFFICER', 'COMPLIANCE_OFFICER']],
-    incompatiblePermissionPairs: [['REPORT_CREATE', 'COMPLIANCE_MANAGE']],
+    // COMPLIANCE_MANAGE is the catch-all write permission inferred for
+    // every non-read compliance command (including plain creates), not a
+    // distinct approval gate -- pairing it here would block ordinary
+    // compliance record creation for anyone who also holds REPORT_CREATE.
+    // No separate "compliance approval" permission exists in the catalog;
+    // enforced via the role pair only.
+    incompatiblePermissionPairs: [],
     enforcementPoint: 'COMMAND_GATEWAY',
     breakGlassAllowed: false,
   },
@@ -265,7 +275,12 @@ const SOD_RULES: readonly SodRule[] = [
     code: CONTRACT_DRAFTER_CANNOT_LEGAL_APPROVE,
     description: 'Contract drafter cannot be the legal approver where independence is required.',
     incompatibleRolePairs: [['HR_ADMIN', 'LEGAL']],
-    incompatiblePermissionPairs: [['WORKER_CREATE', 'WORKER_UPDATE']],
+    // WORKER_CREATE/WORKER_UPDATE are ordinary worker CRUD permissions, not
+    // a distinct "legal approval" gate -- HR_ADMIN legitimately holds both
+    // for routine worker maintenance unrelated to this rule. There is no
+    // separate "legal contract approval" permission in the catalog; this
+    // rule is enforced via the role pair only.
+    incompatiblePermissionPairs: [],
     enforcementPoint: 'COMMAND_GATEWAY',
     breakGlassAllowed: true,
   },
@@ -273,7 +288,11 @@ const SOD_RULES: readonly SodRule[] = [
     code: ORG_DESIGN_DRAFTER_CANNOT_FINAL_APPROVE,
     description: 'Org design drafter cannot be the final approver.',
     incompatibleRolePairs: [['WORKFORCE_PLANNING_ADMIN', 'EXECUTIVE_VIEWER']],
-    incompatiblePermissionPairs: [['ORG_CREATE', 'ORG_UPDATE']],
+    // ORG_UPDATE is a routine CRUD permission, not a distinct approval gate
+    // -- treating it as the "approver" side would block ordinary org-unit
+    // updates for anyone who also holds ORG_CREATE. No separate "org
+    // design approval" permission exists; enforced via the role pair only.
+    incompatiblePermissionPairs: [],
     enforcementPoint: 'COMMAND_GATEWAY',
     breakGlassAllowed: false,
   },
@@ -281,7 +300,9 @@ const SOD_RULES: readonly SodRule[] = [
     code: RIF_SCENARIO_DRAFTER_CANNOT_FINAL_APPROVE,
     description: 'RIF scenario drafter cannot be the final approver.',
     incompatibleRolePairs: [['WORKFORCE_PLANNING_ADMIN', 'EXECUTIVE_VIEWER']],
-    incompatiblePermissionPairs: [['ORG_UPDATE', 'ORG_DELETE']],
+    // Same issue as ORG_DESIGN_DRAFTER_CANNOT_FINAL_APPROVE: ORG_DELETE is
+    // not a distinct approval gate. Enforced via the role pair only.
+    incompatiblePermissionPairs: [],
     enforcementPoint: 'COMMAND_GATEWAY',
     breakGlassAllowed: false,
   },
@@ -350,9 +371,21 @@ export class SodMatrix {
   }
 
   /**
-   * Check whether the actor's roles and intended action violate any SoD rule.
+   * Check whether the actor's roles and full effective permission set violate
+   * any SoD rule. `actorPermissions` must be the actor's complete, flattened
+   * permission set (e.g. RbacEngine.getEffectivePermissions(actorRoles)),
+   * and `context.actionPermission` must be the permission the CURRENT
+   * command actually requires. incompatiblePermissionPairs are ordered
+   * [preparerPermission, approverPermission]: the conflict only fires when
+   * the actor is currently exercising the approver-side permission AND
+   * their broader permission set also holds the preparer-side one -- e.g.
+   * PAYROLL_ADMIN (which holds both PAYROLL_CREATE and PAYROLL_APPROVE by
+   * default) may still create/prepare a payroll cycle, but is blocked from
+   * approving it. Checking the pair against the full permission set with no
+   * regard to which side the current action is on would incorrectly block
+   * the preparer-side action too.
    */
-  checkSoD(actorRoles: string[], action: string, context: SodContext): SodResult {
+  checkSoD(actorRoles: string[], actorPermissions: string[], context: SodContext): SodResult {
     const violatedRules: SodRule[] = [];
 
     for (const rule of this.rules) {
@@ -360,7 +393,7 @@ export class SodMatrix {
 
       const roleConflict = this.hasRoleConflict(actorRoles, rule);
       const permissionConflict = context.actionPermission
-        ? this.hasPermissionConflict([context.actionPermission, action], rule)
+        ? this.hasPermissionConflict(context.actionPermission, actorPermissions, rule)
         : false;
 
       if (roleConflict || permissionConflict) {
@@ -396,12 +429,11 @@ export class SodMatrix {
     });
   }
 
-  private hasPermissionConflict(actionPerms: string[], rule: SodRule): boolean {
+  private hasPermissionConflict(currentPermission: string, actorPermissions: string[], rule: SodRule): boolean {
     if (rule.incompatiblePermissionPairs.length === 0) return false;
-    return rule.incompatiblePermissionPairs.some(([a, b]) => {
-      const hasA = actionPerms.includes(a);
-      const hasB = actionPerms.includes(b);
-      return hasA && hasB;
+    return rule.incompatiblePermissionPairs.some(([preparerPermission, approverPermission]) => {
+      if (currentPermission !== approverPermission) return false;
+      return actorPermissions.includes(preparerPermission);
     });
   }
 }
