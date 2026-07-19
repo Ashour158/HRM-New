@@ -155,6 +155,14 @@ Alert thresholds should start conservative:
 - Warning: any `RUNNING` row older than 30 minutes.
 - Warning: items processed is zero for a job that normally processes records during an active business period.
 
+## HPA At Max Replicas
+
+1. Confirm which autoscaler fired (`hcm-api` or `hcm-web`) and for how long it has been pinned at `maxReplicas`.
+2. Check whether the sustained ceiling tracks a real traffic/load increase (dashboard request-rate and CPU/memory utilization panels) or an anomaly (a single tenant's runaway job, a retry storm, a stuck consumer loop).
+3. If it is real, sustained demand: raise `maxReplicas` in `deploy/k8s/base/hpa.yaml`. For `hcm-api`, recompute the connection-pool budget documented in `deploy/k8s/base/configmap.yaml` first, since it is sized against the current `maxReplicas` ceiling.
+4. If it is an anomaly: identify and stop the runaway workload (pause the offending scheduled job or tenant, or fix the retry loop) rather than raising the ceiling to mask it.
+5. This alert is a cost/capacity guardrail, not an outage signal by itself -- treat it as a prompt to investigate, not to blindly scale up.
+
 ## Node Not Ready
 
 1. Confirm scope: is this one node or several? `kubectl get nodes` and check `kube_node_status_condition{condition="Ready"}` for the affected node(s).

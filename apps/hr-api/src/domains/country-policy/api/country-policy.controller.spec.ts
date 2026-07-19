@@ -99,7 +99,7 @@ describe('CountryPolicyController', () => {
     { method: 'submitCountryPolicyPackForBenefitsReview', route: 'submit-for-benefits-review', commandName: 'SubmitForBenefitsReview', payload: { packId } },
     { method: 'submitCountryPolicyPackForAbsenceReview', route: 'submit-for-absence-review', commandName: 'SubmitForAbsenceReview', payload: { packId } },
     { method: 'submitCountryPolicyPackForComplianceReview', route: 'submit-for-compliance-review', commandName: 'SubmitForComplianceReview', payload: { packId } },
-    { method: 'submitCountryPolicyPackForApproval', route: 'submit-for-approval', commandName: 'SubmitForApproval', payload: { packId } },
+    { method: 'submitCountryPolicyPackForApproval', route: 'submit-for-approval', commandName: 'SubmitCountryPolicyPackForApproval', payload: { packId } },
   ];
 
   it.each(reviewGateRoutes)(

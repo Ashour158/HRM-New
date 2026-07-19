@@ -1,11 +1,13 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { GlobalHrModule } from '../global-hr/global-hr.module.js';
 import { PositionRepository } from '../position-control/repositories/position.repository.js';
 import { HeadcountRequestRepository } from '../position-control/repositories/headcount-request.repository.js';
 import { OrganizationController } from './api/organization.controller.js';
 import { LegalEntityRepository } from './repositories/legal-entity.repository.js';
 import { OrgUnitRepository } from './repositories/org-unit.repository.js';
 import { ManagerRelationshipRepository } from './repositories/manager-relationship.repository.js';
+import { OrganizationDirectoryQueryService } from './organization-directory.query-service.js';
 import { LegalEntityEventsPublisher } from './events/legal-entity-events.publisher.js';
 import { LegalEntityFsm } from './fsm/legal-entity.fsm.js';
 import { OrgUnitFsm } from './fsm/org-unit.fsm.js';
@@ -28,7 +30,7 @@ import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-wor
  * Owns LegalEntity, OrgUnit, and ManagerRelationship aggregates.
  */
 @Module({
-  imports: [HrCoreModule],
+  imports: [HrCoreModule, GlobalHrModule],
   controllers: [OrganizationController],
   providers: [
     LegalEntityRepository,
@@ -36,6 +38,7 @@ import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-wor
     ManagerRelationshipRepository,
     PositionRepository,
     HeadcountRequestRepository,
+    OrganizationDirectoryQueryService,
     LegalEntityEventsPublisher,
     LegalEntityFsm,
     OrgUnitFsm,
@@ -56,6 +59,7 @@ import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-wor
     LegalEntityRepository,
     OrgUnitRepository,
     ManagerRelationshipRepository,
+    OrganizationDirectoryQueryService,
     LegalEntityFsm,
     OrgUnitFsm,
   ],

@@ -37,6 +37,14 @@ export class HrCoreDirectoryQueryService {
     return this.workerRepo.findByStatusForTenant(status, tenantId, options);
   }
 
+  findWorkerByEmployeeNumberForTenant(employeeNumber: string, tenantId: Uuid): Promise<WorkerProfile | undefined> {
+    return this.workerRepo.findByEmployeeNumberForTenant(employeeNumber, tenantId);
+  }
+
+  findWorkerByEmail(email: string): Promise<WorkerProfile | undefined> {
+    return this.workerRepo.findByEmail(email);
+  }
+
   searchWorkersForTenant(
     query: string,
     tenantId: Uuid,
@@ -54,6 +62,11 @@ export class HrCoreDirectoryQueryService {
 
   findPersonalDataRecordsForWorker(workerId: Uuid): Promise<PersonalDataRecord[]> {
     return this.personalDataRepo.findByWorker(workerId);
+  }
+
+  /** Batch variant of {@link findPersonalDataRecordsForWorker} — one query for many workers (avoids N+1). */
+  findPersonalDataRecordsForWorkers(workerIds: Uuid[]): Promise<PersonalDataRecord[]> {
+    return this.personalDataRepo.findByWorkers(workerIds);
   }
 
   findPersonalDataRecordsForWorkerForTenant(workerId: Uuid, tenantId: Uuid): Promise<PersonalDataRecord[]> {

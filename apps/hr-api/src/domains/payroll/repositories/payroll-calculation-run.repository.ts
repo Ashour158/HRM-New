@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,7 +19,7 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollCalculationRun[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_calculation_runs']));
   }
 
@@ -27,7 +27,8 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_calculation_runs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_calculation_runs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_calculation_runs']>);
     }
@@ -49,8 +50,8 @@ export class PayrollCalculationRunRepository extends BaseRepository<'payroll_cal
       startedAt: row.started_at ?? undefined,
       completedAt: row.completed_at ?? undefined,
       totalWorkers: row.total_workers,
-      totalGrossPay: row.total_gross_pay,
-      totalNetPay: row.total_net_pay,
+      totalGrossPay: parseNumeric(row.total_gross_pay),
+      totalNetPay: parseNumeric(row.total_net_pay),
       currency: row.currency,
       status: row.status as PayrollCalculationRunStatus,
       aggregateVersion: row.aggregate_version,

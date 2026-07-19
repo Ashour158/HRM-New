@@ -17,6 +17,9 @@ import { CarrierReconciliationRunFsm } from './fsm/carrier-reconciliation-run.fs
 import { BenefitsEventsPublisher } from './events/benefits-events.publisher.js';
 
 import { CreateBenefitsProgramHandler } from './commands/create-benefits-program.handler.js';
+import { ActivateBenefitsProgramHandler } from './commands/activate-benefits-program.handler.js';
+import { SuspendBenefitsProgramHandler } from './commands/suspend-benefits-program.handler.js';
+import { CloseBenefitsProgramHandler } from './commands/close-benefits-program.handler.js';
 import { CreateBenefitsEnrollmentHandler } from './commands/create-benefits-enrollment.handler.js';
 import { CreateBenefitsLifeEventHandler } from './commands/create-benefits-life-event.handler.js';
 import { ApproveBenefitsEnrollmentHandler } from './commands/approve-benefits-enrollment.handler.js';
@@ -50,6 +53,9 @@ import { CreateCarrierReconciliationRunHandler } from './commands/create-carrier
     CarrierReconciliationRunFsm,
     BenefitsEventsPublisher,
     CreateBenefitsProgramHandler,
+    ActivateBenefitsProgramHandler,
+    SuspendBenefitsProgramHandler,
+    CloseBenefitsProgramHandler,
     CreateBenefitsEnrollmentHandler,
     CreateBenefitsLifeEventHandler,
     ApproveBenefitsEnrollmentHandler,

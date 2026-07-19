@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, Req, Res, BadRequestException, ForbiddenException, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, Req, Res, BadRequestException, ForbiddenException, NotFoundException, UseGuards, Optional } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { randomUUID } from 'crypto';
@@ -12,9 +12,14 @@ import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
-import type { HcmSetupConfig, PayrollGlAccountMapping } from '../../hcm-setup/hcm-setup.types.js';
+import type { HcmSetupConfig } from '../../hcm-setup/hcm-setup.types.js';
 import { HrCoreDirectoryQueryService } from '../../hr-core/hr-core-directory.query-service.js';
-import { TimeAttendanceDirectoryQueryService, type AttendanceSession } from '../../time-attendance/time-attendance-directory.query-service.js';
+import {
+  TimeAttendanceDirectoryQueryService,
+  type AttendanceDailyLedgerStoredRecord,
+  type AttendanceSession,
+  type TimeClockEvent,
+} from '../../time-attendance/time-attendance-directory.query-service.js';
 import { PayrollCycleRepository } from '../repositories/payroll-cycle.repository.js';
 import { PayrollInputRepository } from '../repositories/payroll-input.repository.js';
 import { PayrollCalculationRunRepository } from '../repositories/payroll-calculation-run.repository.js';
@@ -47,6 +52,8 @@ import { DocumentExportService, EXPORT_CONTENT_TYPES } from '../../../platform/e
 import { PayrollEnterpriseWorkflowService, type PayrollReconciliationRow } from '../services/payroll-enterprise-workflow.service.js';
 import { PayrollBankFileService, type PayrollBankFileFormat } from '../services/payroll-bank-file.service.js';
 import { PayrollGlPostingService } from '../services/payroll-gl-posting.service.js';
+import { resolvePayrollGlAccountMapping } from '../services/payroll-gl-account-mapping.util.js';
+import { PayrollCycleCloseJobService } from '../services/payroll-cycle-close-job.service.js';
 import type * as dtos from './dtos.js';
 import {
   CreatePayrollCycleDtoSchema, CreatePayrollInputDtoSchema,
@@ -166,6 +173,7 @@ export class PayrollController {
     _payrollEnterpriseWorkflow: PayrollEnterpriseWorkflowService,
     _payrollBankFile: PayrollBankFileService,
     private readonly payrollGlPosting: PayrollGlPostingService,
+    @Optional() private readonly payrollCloseJob?: PayrollCycleCloseJobService,
   ) {}
 
   private buildCommand<TPayload>(
@@ -212,14 +220,6 @@ export class PayrollController {
     throw new ForbiddenException('Authenticated actor is required');
   }
 
-  private getActorUuid(req: Request): Uuid {
-    try {
-      return new Uuid(this.getActorId(req));
-    } catch {
-      return Uuid.generate();
-    }
-  }
-
   private getActorUuidString(req: Request): string | undefined {
     try {
       return new Uuid(this.getActorId(req)).value;
@@ -249,66 +249,9 @@ export class PayrollController {
     return value;
   }
 
-  private async advancePayrollCycle(commandName: string, payrollCycleId: string, req: Request): Promise<CommandResult<unknown>> {
-    const cycle = await this.payrollCycleRepo.findById(new Uuid(payrollCycleId));
-    if (!cycle) throw new BadRequestException('Payroll cycle not found');
-    const payload = commandName === 'ApprovePayrollCycle'
-      ? { payrollCycleId: new Uuid(payrollCycleId), approvedBy: this.getActorUuid(req) }
-      : { payrollCycleId: new Uuid(payrollCycleId) };
-    return this.executeOrThrow(this.buildCommand(commandName, 'PayrollCycle', payload, req, {
-      aggregateId: new Uuid(payrollCycleId),
-      expectedState: cycle.status,
-      expectedVersion: cycle.aggregateVersion,
-    }));
-  }
-
-  private async advanceCalculationRun(commandName: string, calculationRunId: string, req: Request): Promise<CommandResult<unknown>> {
-    const run = await this.calculationRunRepo.findById(new Uuid(calculationRunId));
-    if (!run) throw new BadRequestException('Payroll calculation run not found');
-    return this.executeOrThrow(this.buildCommand(commandName, 'PayrollCalculationRun', {
-      payrollCalculationRunId: new Uuid(calculationRunId),
-    }, req, {
-      aggregateId: new Uuid(calculationRunId),
-      expectedState: run.status,
-      expectedVersion: run.aggregateVersion,
-    }));
-  }
-
-  private async lockResultLineThroughWorkflow(payrollResultLineId: string, explanation: string, req: Request): Promise<void> {
-    let line = await this.resultLineRepo.findById(new Uuid(payrollResultLineId));
-    if (!line) throw new BadRequestException('Payroll result line not found');
-    await this.executeOrThrow(this.buildCommand('ExplainPayrollResultLine', 'PayrollResultLine', {
-      payrollResultLineId: new Uuid(payrollResultLineId),
-      explanation,
-    }, req, {
-      aggregateId: new Uuid(payrollResultLineId),
-      expectedState: line.status,
-      expectedVersion: line.aggregateVersion,
-      subjectWorkerId: line.workerId,
-    }));
-
-    line = await this.resultLineRepo.findById(new Uuid(payrollResultLineId));
-    if (!line) throw new BadRequestException('Payroll result line not found');
-    await this.executeOrThrow(this.buildCommand('ReviewPayrollResultLine', 'PayrollResultLine', {
-      payrollResultLineId: new Uuid(payrollResultLineId),
-    }, req, {
-      aggregateId: new Uuid(payrollResultLineId),
-      expectedState: line.status,
-      expectedVersion: line.aggregateVersion,
-      subjectWorkerId: line.workerId,
-    }));
-
-    line = await this.resultLineRepo.findById(new Uuid(payrollResultLineId));
-    if (!line) throw new BadRequestException('Payroll result line not found');
-    await this.executeOrThrow(this.buildCommand('LockPayrollResultLine', 'PayrollResultLine', {
-      payrollResultLineId: new Uuid(payrollResultLineId),
-    }, req, {
-      aggregateId: new Uuid(payrollResultLineId),
-      expectedState: line.status,
-      expectedVersion: line.aggregateVersion,
-      subjectWorkerId: line.workerId,
-    }));
-  }
+  // Note: advancePayrollCycle / advanceCalculationRun / lockResultLineThroughWorkflow used to
+  // live here but were only ever called from the (now-background-job) close-to-pay pipeline;
+  // their ctx-based equivalents live in PayrollCloseWorkflowService.
 
   private async approvePayrollInputThroughWorkflow(draft: PayrollInputDraft, req: Request): Promise<string> {
     const inputResult = await this.executeOrThrow(this.buildCommand('CreatePayrollInput', 'PayrollInput', {
@@ -505,17 +448,6 @@ export class PayrollController {
     return inputs;
   }
 
-  private toApprovedInputRecords(inputs: Awaited<ReturnType<PayrollInputRepository['findByPayrollCycle']>>): PayrollApprovedInputRecord[] {
-    return inputs.map((input) => ({
-      workerId: input.workerId.value,
-      inputType: input.inputType,
-      amount: input.amount,
-      currency: input.currency,
-      status: input.status,
-      description: input.description,
-    }));
-  }
-
   /**
    * Repeatedly fetches pages via `fetchPage` until a page returns fewer rows than
    * `pageSize` (end of results) or the safety cap is hit, accumulating every row
@@ -582,13 +514,13 @@ export class PayrollController {
     return sessions;
   }
 
-  private async buildAttendanceSummary(workerId: Uuid, year: number, month: number, req: Request) {
-    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
-    const periodEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-    const lockedSnapshots = await this.timeAttendanceDirectory.findDailyLedgerSnapshotsForWorker(this.getTenantId(req), workerId, {
-      dateFrom: periodStart,
-      dateTo: periodEnd,
-    });
+  private buildAttendanceSummaryFromData(
+    year: number,
+    month: number,
+    setup: HcmSetupConfig,
+    lockedSnapshots: AttendanceDailyLedgerStoredRecord[],
+    workerEvents: TimeClockEvent[],
+  ) {
     if (lockedSnapshots.some((snapshot) => snapshot.locked)) {
       const locked = lockedSnapshots.filter((snapshot) => snapshot.locked);
       return {
@@ -599,11 +531,8 @@ export class PayrollController {
       };
     }
 
-    const setup = await this.hcmSetupService.getSetup(this.getTenantId(req));
-    const events = await this.timeAttendanceDirectory.findTimeClockEventsForWorker(workerId);
-    const days = new Map<string, typeof events>();
-
-    for (const event of events) {
+    const days = new Map<string, typeof workerEvents>();
+    for (const event of workerEvents) {
       if (event.timestamp.getUTCFullYear() !== year || event.timestamp.getUTCMonth() + 1 !== month) continue;
       const day = event.timestamp.toISOString().slice(0, 10);
       days.set(day, [...(days.get(day) ?? []), event]);
@@ -635,8 +564,33 @@ export class PayrollController {
     const workers = activeWorkers.length > 0 ? activeWorkers : await this.fetchAllWorkersForTenant(tenantId);
     const tenantCurrency = resolveTenantCurrency(setup);
 
-    return Promise.all(workers.map(async (worker) => {
-      const records = await this.hrCoreDirectory.findPersonalDataRecordsForWorker(worker.id);
+    const workerIds = workers.map((worker) => worker.id);
+    const periodStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const periodEnd = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+    const monthStartAt = new Date(Date.UTC(year, month - 1, 1));
+    const monthEndAt = new Date(Date.UTC(year, month, 1));
+
+    // Batch-fetch per-worker data for the whole workforce in a handful of
+    // queries instead of fanning out one query per worker per data source.
+    const [personalDataRecords, ledgersByWorker, timeClockEvents] = await Promise.all([
+      this.hrCoreDirectory.findPersonalDataRecordsForWorkers(workerIds),
+      this.timeAttendanceDirectory.findDailyLedgerSnapshotsForWorkers(tenantId, workerIds, { dateFrom: periodStart, dateTo: periodEnd }),
+      this.timeAttendanceDirectory.findTimeClockEventsForWorkersBetween(tenantId, workerIds, monthStartAt, monthEndAt),
+    ]);
+
+    const personalDataByWorker = new Map<string, typeof personalDataRecords>();
+    for (const record of personalDataRecords) {
+      const key = record.workerId.value;
+      personalDataByWorker.set(key, [...(personalDataByWorker.get(key) ?? []), record]);
+    }
+    const timeClockEventsByWorker = new Map<string, typeof timeClockEvents>();
+    for (const event of timeClockEvents) {
+      const key = event.workerId.value;
+      timeClockEventsByWorker.set(key, [...(timeClockEventsByWorker.get(key) ?? []), event]);
+    }
+
+    return workers.map((worker) => {
+      const records = personalDataByWorker.get(worker.id.value) ?? [];
       const payloadByCategory = Object.fromEntries(records.map((record) => [record.dataCategory, record.payload ?? {}])) as Record<string, Record<string, unknown>>;
       const compensation = payloadByCategory.COMPENSATION ?? {};
       const contact = payloadByCategory.CONTACT ?? {};
@@ -692,9 +646,15 @@ export class PayrollController {
             ?? tax.socialInsuranceNumber
             ?? tax.insuranceIdentifier,
         ),
-        attendanceSummary: await this.buildAttendanceSummary(worker.id, year, month, req),
+        attendanceSummary: this.buildAttendanceSummaryFromData(
+          year,
+          month,
+          setup,
+          ledgersByWorker.get(worker.id.value) ?? [],
+          timeClockEventsByWorker.get(worker.id.value) ?? [],
+        ),
       };
-    }));
+    });
   }
 
   private async buildMonthlyPreview(req: Request, year: number, month: number, workLocationCode?: string): Promise<PayrollCyclePreview> {
@@ -707,26 +667,6 @@ export class PayrollController {
       ...preview,
       rows: preview.rows.map((row) => this.payrollCalculation.maskRowForActor(row, actor)),
     };
-  }
-
-  private resolvePayrollGlAccountMapping(
-    setup: HcmSetupConfig,
-    preview: PayrollCyclePreview,
-    workLocationCode?: string,
-  ): PayrollGlAccountMapping | undefined {
-    const locationCodes = new Set([
-      workLocationCode,
-      ...preview.rows.map((row) => row.workLocationCode),
-    ].filter((value): value is string => typeof value === 'string' && value.length > 0));
-    const countryCodes = new Set(setup.locations
-      .filter((location) => locationCodes.size === 0 || locationCodes.has(location.code))
-      .map((location) => location.countryCode)
-      .filter((value): value is string => typeof value === 'string' && value.length > 0));
-    const activePacks = (setup.statutoryPayrollPacks ?? []).filter((pack) => pack.active);
-    const locationPack = activePacks.find((pack) => (pack.locationCodes ?? []).some((code) => locationCodes.has(code)));
-    if (locationPack?.glAccountMapping) return locationPack.glAccountMapping;
-    const countryPack = activePacks.find((pack) => countryCodes.size === 0 || countryCodes.has(pack.countryCode));
-    return countryPack?.glAccountMapping;
   }
 
   private persistedBankRowsFromPaymentBatch(
@@ -1180,7 +1120,7 @@ export class PayrollController {
         payrollCycleId: preview.id,
         preview,
         createdBy: this.getActorUuidString(req),
-        accountMapping: this.resolvePayrollGlAccountMapping(setup, preview, workLocationCode),
+        accountMapping: resolvePayrollGlAccountMapping(setup, preview, workLocationCode),
       }),
       events: ['PayrollGlPreviewBuilt'],
     };
@@ -1210,6 +1150,7 @@ export class PayrollController {
       workLocationCode?: string;
       closeCycle?: boolean;
       massUpdateRows?: PayrollCsvRow[];
+      batchSize?: number;
     },
     @Req() req: Request,
   ) {
@@ -1252,168 +1193,72 @@ export class PayrollController {
       });
     }
 
-    const cycleResult = await this.executeOrThrow(this.buildCommand('CreatePayrollCycle', 'PayrollCycle', {
-      cycleName: preview.name,
-      payPeriodStart: new Date(`${preview.periodStart}T00:00:00.000Z`),
-      payPeriodEnd: new Date(`${preview.periodEnd}T00:00:00.000Z`),
-      payDate: new Date(`${preview.payDate}T00:00:00.000Z`),
-    }, req));
-    const payrollCycleId = this.readResultId(cycleResult, 'payrollCycleId');
-
-    await this.advancePayrollCycle('OpenPayrollCycle', payrollCycleId, req);
-    await this.advancePayrollCycle('StartPayrollInputCollection', payrollCycleId, req);
-
-    let payrollInputCount = 0;
-    for (const row of preview.rows) {
-      for (const draft of this.payrollInputOrchestration.buildInputDrafts(row, { payrollCycleId })) {
-        await this.approvePayrollInputThroughWorkflow(draft, req);
-        payrollInputCount += 1;
-      }
+    // Everything above is a bounded read-only validation pass (worst case O(employees) reads,
+    // no CommandBus writes). Everything below - cycle creation, per-employee input collection,
+    // per-line calculation and locking, artifact/payment-batch/GL-posting generation - is the
+    // expensive write pipeline (thousands of sequential CommandBus round trips for a large
+    // tenant) and must not run inside this HTTP request. Hand it to the background job and
+    // return a job id the caller can poll instead of blocking on it here.
+    if (!this.payrollCloseJob) {
+      throw new BadRequestException('Payroll close-to-pay background job service is not available');
     }
-    const massUpdateResult = await this.applyMassUpdateRowsToInputCollection(payrollCycleId, massUpdateRows, req);
-    payrollInputCount += massUpdateResult.inputCount;
-    const approvedInputs = await this.payrollInputRepo.findByPayrollCycle(new Uuid(payrollCycleId));
-    const calculationPreview = this.payrollApprovedInputProjection.applyApprovedInputs(
-      preview,
-      this.toApprovedInputRecords(approvedInputs),
-    );
-    const calculationBankRows = this.payrollCalculation.buildBankTransferRows(calculationPreview.rows);
-
-    await this.advancePayrollCycle('StartPayrollValidation', payrollCycleId, req);
-    await this.advancePayrollCycle('StartPayrollCalculation', payrollCycleId, req);
-
-    const runResult = await this.executeOrThrow(this.buildCommand('StartPayrollCalculationRun', 'PayrollCalculationRun', {
-      payrollCycleId: new Uuid(payrollCycleId),
-      currency: calculationPreview.currency,
-      totalWorkers: calculationPreview.employeeCount,
-      totalGrossPay: calculationPreview.totalGross,
-      totalNetPay: calculationPreview.totalNet,
-    }, req));
-    const payrollCalculationRunId = this.readResultId(runResult, 'payrollCalculationRunId');
-
-    let resultLineCount = 0;
-    for (const row of calculationPreview.rows) {
-      for (const draft of this.payrollCalculation.buildResultLineDrafts(row, { payrollCycleId, calculationRunId: payrollCalculationRunId })) {
-        const lineResult = await this.executeOrThrow(this.buildCommand('CalculatePayrollResultLine', 'PayrollResultLine', {
-          workerId: new Uuid(draft.workerId),
-          payrollCycleId: new Uuid(draft.payrollCycleId),
-          calculationRunId: new Uuid(draft.calculationRunId),
-          lineType: draft.lineType,
-          description: draft.description,
-          amount: draft.amount,
-          currency: draft.currency,
-          ruleSetId: draft.ruleSetId,
-          ruleId: draft.ruleId,
-          calculationStep: draft.calculationStep,
-          inputSnapshotHash: draft.inputSnapshotHash,
-        }, req, {
-          subjectWorkerId: new Uuid(draft.workerId),
-        }));
-        const payrollResultLineId = this.readResultId(lineResult, 'payrollResultLineId');
-        await this.lockResultLineThroughWorkflow(payrollResultLineId, draft.explanation, req);
-        resultLineCount += 1;
-      }
-    }
-
-    await this.advanceCalculationRun('ValidatePayrollCalculationRun', payrollCalculationRunId, req);
-    await this.advanceCalculationRun('FinalizePayrollCalculationRun', payrollCalculationRunId, req);
-    await this.advancePayrollCycle('StartPayrollReview', payrollCycleId, req);
-
-    const lockedResultLines = (await this.resultLineRepo.findByPayrollCycle(new Uuid(payrollCycleId)))
-      .filter((line) => line.status === 'LOCKED')
-      .map((line) => ({
-        id: line.id.value,
-        workerId: line.workerId.value,
-        lineType: line.lineType,
-        description: line.description,
-        amount: line.amount,
-        currency: line.currency,
-        ruleSetId: line.ruleSetId,
-        explanation: line.explanation,
-        status: line.status,
-      }));
     const employees = await this.buildPayrollEmployees(year, month, req);
-    const payslips = this.payrollCalculation.buildPayslipsFromResultLines({
-      payrollCycle: {
-        id: payrollCycleId,
-        periodStart: calculationPreview.periodStart,
-        periodEnd: calculationPreview.periodEnd,
-        payDate: calculationPreview.payDate,
-      },
+    const started = await this.payrollCloseJob.startJob({
+      tenantId: this.getTenantId(req),
+      actor: requireActor(req, 'Payroll close-to-pay'),
+      year,
+      month,
+      workLocationCode: body.workLocationCode,
+      closeCycle: body.closeCycle ?? true,
+      massUpdateRows,
+      preview,
+      readiness,
       employees,
-      resultLines: lockedResultLines,
+      batchSize: body.batchSize,
     });
-    const payslipArtifacts = payslips.map((payslip) => this.payrollArtifact.buildPayslipArtifactRecord({
-      tenantId: this.getTenantId(req).value,
-      payrollCycleId,
-      payslip,
-      htmlContent: this.payrollInputOrchestration.renderPayslipHtml(payslip),
-    }));
-    await this.executeOrThrow(this.buildCommand('GeneratePayrollPayslipArtifacts', 'PayrollPayslipArtifact', {
-      payrollCycleId,
-      records: payslipArtifacts,
-    }, req, { aggregateId: new Uuid(payrollCycleId) }));
-
-    const persistedPaymentBatch = {
-      ...this.payrollInputOrchestration.buildPaymentBatch(calculationPreview, calculationBankRows),
-      payrollCycleId,
-    };
-    const paymentBatchRecord = this.payrollArtifact.buildPaymentBatchRecord({
-      tenantId: this.getTenantId(req).value,
-      payrollCycleId,
-      batch: persistedPaymentBatch,
-      createdBy: this.getActorUuidString(req),
-    });
-    await this.executeOrThrow(this.buildCommand('CreatePayrollPaymentBatch', 'PayrollPaymentBatch', {
-      record: paymentBatchRecord,
-    }, req, { aggregateId: this.safeUuid(paymentBatchRecord.id, new Uuid(payrollCycleId)) }));
-
-    const glPosting = this.payrollGlPosting.buildPosting({
-      tenantId: this.getTenantId(req).value,
-      payrollCycleId,
-      preview: calculationPreview,
-      createdBy: this.getActorUuidString(req),
-      accountMapping: this.resolvePayrollGlAccountMapping(setup, calculationPreview, body.workLocationCode),
-    });
-    await this.executeOrThrow(this.buildCommand('CreatePayrollGlPosting', 'PayrollGlPosting', {
-      record: glPosting,
-    }, req, { aggregateId: this.safeUuid(glPosting.id, new Uuid(payrollCycleId)) }));
-
-    let finalCycleStatus = 'REVIEW';
-    let finalReadiness = readiness;
-    if (body.closeCycle ?? true) {
-      finalReadiness = await this.buildPersistedCycleCloseReadiness(req, payrollCycleId);
-      if (!finalReadiness.canClose) {
-        throw new BadRequestException({
-          message: 'Payroll cycle has blocking readiness issues',
-          readiness: finalReadiness,
-        });
-      }
-      await this.advancePayrollCycle('ApprovePayrollCycle', payrollCycleId, req);
-      const closeResult = await this.advancePayrollCycle('ClosePayrollCycle', payrollCycleId, req);
-      finalCycleStatus = String(closeResult.newState ?? 'CLOSED');
-    }
 
     return {
-      payrollCycleId,
-      payrollCalculationRunId,
-      paymentBatchId: paymentBatchRecord.id,
-      glPostingId: glPosting.id,
-      status: finalCycleStatus,
-      employeeCount: calculationPreview.employeeCount,
-      payrollInputCount,
-      massUpdateInputCount: massUpdateResult.inputCount,
-      resultLineCount,
-      payslipArtifactCount: payslipArtifacts.length,
-      periodStart: calculationPreview.periodStart,
-      periodEnd: calculationPreview.periodEnd,
-      totalGross: calculationPreview.totalGross,
-      totalNet: calculationPreview.totalNet,
-      currency: calculationPreview.currency,
-      bankReadyCount: calculationBankRows.filter((row) => row.bankReady).length,
-      bankMissingCount: calculationBankRows.filter((row) => !row.bankReady).length,
-      readiness: finalReadiness,
-      events: ['PayrollCycleClosedToPay', 'PayrollInputsApproved', 'PayrollResultLinesLocked', 'PaymentBatchPersisted', 'PayslipArtifactsGenerated', 'PayrollGlPostingBuilt', 'PayrollCloseReadinessEvaluated'],
+      jobId: started.jobId,
+      status: started.status,
+      employeeCount: started.totalEmployees,
+      totalBatches: started.totalBatches,
+      batchSize: started.batchSize,
+      periodStart: preview.periodStart,
+      periodEnd: preview.periodEnd,
+      currency: preview.currency,
+      readiness,
+      events: ['PayrollCloseToPayJobStarted'],
+    };
+  }
+
+  @Get('monthly-cycle/close-to-pay/:jobId/status')
+  async getCloseToPayJobStatus(@Param('jobId') jobId: string, @Req() req: Request) {
+    this.assertCanExportPayroll(req);
+    if (!this.payrollCloseJob) {
+      throw new BadRequestException('Payroll close-to-pay background job service is not available');
+    }
+    if (!Uuid.isValid(jobId)) throw new BadRequestException('A valid jobId is required');
+    const job = await this.payrollCloseJob.getJobStatus(this.getTenantId(req), new Uuid(jobId));
+    if (!job) throw new NotFoundException('Payroll close-to-pay job not found');
+    return {
+      jobId: job.id.value,
+      status: job.status,
+      year: job.year,
+      month: job.month,
+      workLocationCode: job.workLocationCode,
+      closeCycle: job.closeCycle,
+      batchSize: job.batchSize,
+      totalEmployees: job.totalEmployees,
+      processedEmployees: job.processedEmployees,
+      totalBatches: job.totalBatches,
+      currentBatch: job.currentBatch,
+      payrollCycleId: job.payrollCycleId,
+      payrollCalculationRunId: job.payrollCalculationRunId,
+      errors: job.errors,
+      errorMessage: job.errorMessage,
+      result: job.status === 'SUCCEEDED' ? job.result : undefined,
+      startedAt: job.startedAt,
+      finishedAt: job.finishedAt,
     };
   }
 
@@ -1617,7 +1462,7 @@ export class PayrollController {
       payrollCycleId: id,
       preview,
       createdBy: this.getActorUuidString(req),
-      accountMapping: this.resolvePayrollGlAccountMapping(setup, preview),
+      accountMapping: resolvePayrollGlAccountMapping(setup, preview),
     });
     const result = await this.executeOrThrow(this.buildCommand('CreatePayrollGlPosting', 'PayrollGlPosting', {
       record: posting,

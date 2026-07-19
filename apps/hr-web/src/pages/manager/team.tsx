@@ -4,15 +4,18 @@ import { useApiQuery } from '@/hooks/use-api';
 import { useTenant } from '@/hooks/use-tenant';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChartPanel, type ChartDatum } from '@/components/ui/charts';
-import { DataTable } from '@/components/common/data-table';
+import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
 
 import { AllowedActions } from '@/components/common/allowed-actions';
+import { TeamActivityCard } from '@/components/manager/team-activity-card';
+import { computeUpcomingTeamEvents } from '@/lib/team-activity';
 import { formatDate } from '@/lib/utils';
 import {
   ArrowLeft,
@@ -23,6 +26,12 @@ import {
   Target,
   TrendingUp,
   BrainCircuit,
+  Clock3,
+  AlertTriangle,
+  CheckCircle2,
+  Sparkles,
+  Goal,
+  Gauge,
 } from 'lucide-react';
 import type { Worker } from '@/types';
 
@@ -77,6 +86,161 @@ interface TeamAttritionRiskSnapshot {
 type TeamAttritionRiskResponse =
   | TeamAttritionRiskSnapshot[]
   | { data?: TeamAttritionRiskSnapshot[] };
+
+type AttendancePeriodRange = 'DAILY' | 'MONTHLY' | 'NINETY_DAYS' | 'WEEKLY';
+
+interface AttendancePeriodMetrics {
+  employeeDays: number;
+  present: number;
+  absent: number;
+  onLeave: number;
+  exceptions: number;
+  payableHours: number;
+  deductionHours: number;
+  overtimeHours: number;
+  geofenceViolations: number;
+  lateMinutes: number;
+  missingCheckout: number;
+  payrollReady: number;
+  undertimeMinutes: number;
+}
+
+interface AttendancePeriodView {
+  periodStart: string;
+  periodEnd: string;
+  range: AttendancePeriodRange;
+  scope: 'SELF' | 'TEAM' | 'TENANT';
+  totals: AttendancePeriodMetrics;
+  workers: Array<AttendancePeriodMetrics & {
+    workerId: string;
+    employeeId: string;
+    name: string;
+    departmentName?: string;
+  }>;
+}
+
+type AttendanceLedgerStatus =
+  | 'ABSENT'
+  | 'GEOFENCE_VIOLATION'
+  | 'HOLIDAY'
+  | 'IN_PROGRESS'
+  | 'LATE'
+  | 'LEAVE_CLOCK_EVENT_CONFLICT'
+  | 'LOW_TRUST'
+  | 'MISSING_CHECKOUT'
+  | 'ON_DUTY'
+  | 'ON_LEAVE'
+  | 'OUT'
+  | 'OVERTIME'
+  | 'PRESENT'
+  | 'UNDERTIME'
+  | 'WEEKEND';
+
+interface AttendanceLedgerRow {
+  worker: {
+    workerId: string;
+    employeeId: string;
+    name: string;
+    departmentName?: string;
+  };
+  status: AttendanceLedgerStatus;
+  firstCheckInAt?: string;
+  latestCheckOutAt?: string;
+  exceptions: Array<{ code: string; description: string; severity: 'HIGH' | 'LOW' | 'MEDIUM' }>;
+}
+
+interface AttendanceExceptionQueueItem {
+  workerId: string;
+  workerName: string;
+  description: string;
+  severity: 'HIGH' | 'LOW' | 'MEDIUM';
+  status: 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'ESCALATED';
+}
+
+interface AttendanceDailyLedgerSummary {
+  workDate: string;
+  rows: AttendanceLedgerRow[];
+  summary: {
+    totalEmployees: number;
+    present: number;
+    absent: number;
+    onLeave: number;
+    late: number;
+    missingCheckout: number;
+    exceptions: number;
+    payrollReady: number;
+  };
+  exceptionQueue: AttendanceExceptionQueueItem[];
+}
+
+interface ManagerPerformanceDashboard {
+  managerId: string;
+  managerName: string;
+  reportCount: number;
+  analytics: {
+    ratingDistribution?: Array<{ rating: number; count: number }>;
+    goalMetrics?: { total: number; active: number; achieved: number; atRisk: number; averageProgress: number };
+    nineBox?: Array<{ workerId: string; employeeName: string; performanceScore: number; potentialScore: number; box: string }>;
+    recognitions?: Array<{ workerId: string; employeeName: string; score: number; reason: string }>;
+    actionPlans?: Array<{
+      workerId: string;
+      employeeName: string;
+      riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+      progressTrend: string;
+      recommendedActions: string[];
+    }>;
+  };
+}
+
+const attendanceRangeOptions: Array<{ value: AttendancePeriodRange; label: string }> = [
+  { value: 'DAILY', label: 'Daily' },
+  { value: 'WEEKLY', label: 'Weekly' },
+  { value: 'MONTHLY', label: 'Monthly' },
+  { value: 'NINETY_DAYS', label: '90 days' },
+];
+
+function rangeLabel(range: AttendancePeriodRange) {
+  return attendanceRangeOptions.find((option) => option.value === range)?.label ?? 'Weekly';
+}
+
+function dateKey(value = new Date()) {
+  return value.toISOString().slice(0, 10);
+}
+
+function formatHours(value?: number) {
+  const hours = Math.max(value ?? 0, 0);
+  return `${hours.toFixed(hours % 1 === 0 ? 0 : 1)}h`;
+}
+
+function formatTime(value?: string) {
+  if (!value) return '--';
+  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+
+function attendanceStatusVariant(status: AttendanceLedgerStatus): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (['ABSENT', 'GEOFENCE_VIOLATION', 'MISSING_CHECKOUT'].includes(status)) return 'destructive';
+  if (['LATE', 'UNDERTIME', 'OVERTIME', 'ON_DUTY', 'LOW_TRUST', 'LEAVE_CLOCK_EVENT_CONFLICT'].includes(status)) return 'secondary';
+  if (status === 'ON_LEAVE') return 'outline';
+  return status === 'OUT' || status === 'PRESENT' ? 'default' : 'outline';
+}
+
+function severityVariant(severity: 'HIGH' | 'LOW' | 'MEDIUM'): 'default' | 'secondary' | 'destructive' | 'outline' {
+  if (severity === 'HIGH') return 'destructive';
+  if (severity === 'MEDIUM') return 'secondary';
+  return 'outline';
+}
+
+function StatTile({ icon: Icon, label, value }: { icon: React.ComponentType<{ className?: string }>; label: string; value: string | number }) {
+  return (
+    <div className="fusion-glass rounded-2xl p-4">
+      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <Icon className="h-4 w-4" />
+        {label}
+      </div>
+      <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+    </div>
+  );
+}
 
 function formatLabel(value?: string) {
   if (!value) return 'Not assigned';
@@ -185,6 +349,89 @@ export function ManagerTeam() {
     return attritionRiskRows.filter((row) => reportIds.has(row.workerId));
   }, [attritionRiskRows, directReports]);
   const riskChart = React.useMemo(() => teamRiskDistribution(teamRiskRows), [teamRiskRows]);
+  const teamActivity = React.useMemo(
+    () => computeUpcomingTeamEvents(directReports),
+    [directReports],
+  );
+
+  const [attendanceRange, setAttendanceRange] = React.useState<AttendancePeriodRange>('WEEKLY');
+  const todayDateKey = React.useMemo(() => dateKey(), []);
+
+  const { data: managerProfile } = useApiQuery<Worker>(['manager-team-self-profile'], '/employee/profile');
+
+  const { data: teamAttendance, isLoading: teamAttendanceLoading } = useApiQuery<AttendancePeriodView>(
+    ['manager-team-attendance-period-view', attendanceRange, todayDateKey],
+    `/time/attendance/reports/period-view?scope=TEAM&range=${attendanceRange}&date=${todayDateKey}`,
+  );
+
+  const { data: dailyLedger, isLoading: dailyLedgerLoading } = useApiQuery<AttendanceDailyLedgerSummary>(
+    ['manager-team-daily-ledger', todayDateKey],
+    `/time/attendance/daily-ledger?date=${todayDateKey}`,
+  );
+
+  const { data: performanceDashboard, isLoading: performanceDashboardLoading } = useApiQuery<ManagerPerformanceDashboard>(
+    ['manager-team-performance-analytics', managerProfile?.id],
+    `/performance/analytics/manager/${managerProfile?.id}`,
+    { enabled: Boolean(managerProfile?.id) },
+  );
+
+  const ratingChart = React.useMemo<ChartDatum[]>(
+    () => (performanceDashboard?.analytics?.ratingDistribution ?? []).map((entry) => ({ label: `${entry.rating}`, value: entry.count })),
+    [performanceDashboard?.analytics?.ratingDistribution],
+  );
+
+  const todayLedgerColumns: DataTableColumn<AttendanceLedgerRow>[] = [
+    { key: 'name', header: 'Name', cell: (row) => <span className="font-medium text-slate-900">{row.worker.name}</span> },
+    { key: 'department', header: 'Department', cell: (row) => row.worker.departmentName || 'Not assigned' },
+    { key: 'status', header: 'Status', cell: (row) => <Badge variant={attendanceStatusVariant(row.status)}>{row.status.replace(/_/g, ' ')}</Badge> },
+    { key: 'firstCheckIn', header: 'First check-in', cell: (row) => formatTime(row.firstCheckInAt) },
+    { key: 'latestCheckOut', header: 'Latest check-out', cell: (row) => formatTime(row.latestCheckOutAt) },
+    {
+      key: 'exceptions',
+      header: 'Exceptions',
+      cell: (row) => (row.exceptions.length > 0
+        ? <Badge variant="secondary">{row.exceptions.length}</Badge>
+        : <span className="text-emerald-600">-</span>),
+    },
+  ];
+
+  const [rosterSort, setRosterSort] = React.useState<{ column: string; direction: 'asc' | 'desc' }>({ column: 'name', direction: 'asc' });
+  type TeamRosterRow = AttendancePeriodView['workers'][number];
+  const rosterSortValue = React.useCallback((row: TeamRosterRow): string | number => {
+    if (rosterSort.column === 'payable') return row.payableHours;
+    if (rosterSort.column === 'late') return row.lateMinutes;
+    if (rosterSort.column === 'absences') return row.absent;
+    return row.name.toLowerCase();
+  }, [rosterSort.column]);
+  const sortedTeamRoster = React.useMemo(() => {
+    const rows = [...(teamAttendance?.workers ?? [])];
+    rows.sort((left, right) => {
+      const leftValue = rosterSortValue(left);
+      const rightValue = rosterSortValue(right);
+      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+        ? leftValue - rightValue
+        : String(leftValue).localeCompare(String(rightValue));
+      return rosterSort.direction === 'asc' ? comparison : -comparison;
+    });
+    return rows;
+  }, [rosterSort.direction, rosterSortValue, teamAttendance?.workers]);
+
+  const teamRosterColumns: DataTableColumn<AttendancePeriodView['workers'][number]>[] = [
+    { key: 'name', header: 'Name', cell: (row) => <span className="font-medium text-slate-900">{row.name}</span>, sortable: true },
+    { key: 'department', header: 'Department', cell: (row) => row.departmentName || 'Not assigned' },
+    { key: 'payable', header: 'Payable', cell: (row) => formatHours(row.payableHours), sortable: true },
+    { key: 'late', header: 'Late (min)', cell: (row) => row.lateMinutes, sortable: true },
+    { key: 'absences', header: 'Absences', cell: (row) => row.absent, sortable: true },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (row) => (row.exceptions > 0
+        ? <Badge variant="secondary">{row.exceptions} exception{row.exceptions === 1 ? '' : 's'}</Badge>
+        : row.payrollReady > 0
+          ? <Badge>Payroll ready</Badge>
+          : <Badge variant="outline">No activity</Badge>),
+    },
+  ];
 
   const reportColumns = [
     {
@@ -528,6 +775,144 @@ export function ManagerTeam() {
         />
       </div>
 
+      <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+        <Card className="bg-white/70">
+          <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+            <div>
+              {/* Rendered as h2 (not CardTitle's default h3) to keep heading levels sequential directly under the page h1. */}
+              <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
+                <Clock3 className="h-5 w-5 text-indigo-500" />
+                Team Attendance
+              </h2>
+              <CardDescription>Who is in today, exceptions, and hours across your direct reports.</CardDescription>
+            </div>
+            <Select value={attendanceRange} onValueChange={(value) => setAttendanceRange(value as AttendancePeriodRange)}>
+              <SelectTrigger aria-label="Attendance period" className="h-9 w-[132px] bg-white/80">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {attendanceRangeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatTile icon={Users} label="Team size" value={teamAttendance?.workers?.length ?? directReports.length} />
+              <StatTile icon={Clock3} label="Payable" value={teamAttendanceLoading ? '-' : formatHours(teamAttendance?.totals?.payableHours)} />
+              <StatTile icon={AlertTriangle} label="Absences" value={teamAttendanceLoading ? '-' : teamAttendance?.totals?.absent ?? 0} />
+              <StatTile icon={CheckCircle2} label="Exceptions" value={teamAttendanceLoading ? '-' : teamAttendance?.totals?.exceptions ?? 0} />
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Who's in today</h3>
+              <DataTable
+                columns={todayLedgerColumns}
+                data={dailyLedger?.rows ?? []}
+                keyExtractor={(row) => row.worker.workerId}
+                isLoading={dailyLedgerLoading}
+                emptyMessage="No attendance ledger activity yet today."
+              />
+            </div>
+
+            {(dailyLedger?.exceptionQueue ?? []).length > 0 ? (
+              <div>
+                <h3 className="mb-2 text-sm font-bold text-slate-900">Needs attention</h3>
+                <div className="space-y-2">
+                  {(dailyLedger?.exceptionQueue ?? []).slice(0, 5).map((item, index) => (
+                    <div key={`${item.workerId}-${item.description}-${index}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/60 bg-white/55 px-3 py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-900">{item.workerName}</p>
+                        <p className="truncate text-xs text-slate-500">{item.description}</p>
+                      </div>
+                      <Badge variant={severityVariant(item.severity)}>{item.severity}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Team roster - {rangeLabel(attendanceRange)}</h3>
+              <DataTable
+                columns={teamRosterColumns}
+                data={sortedTeamRoster}
+                keyExtractor={(row) => row.workerId}
+                isLoading={teamAttendanceLoading}
+                sortColumn={rosterSort.column}
+                sortDirection={rosterSort.direction}
+                onSort={(column, direction) => setRosterSort({ column, direction })}
+                emptyMessage="Team attendance rows will appear when direct reports have ledger activity in this range."
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/70">
+          <CardHeader>
+            {/* Rendered as h2 (not CardTitle's default h3) to keep heading levels sequential directly under the page h1. */}
+            <h2 className="flex items-center gap-2 font-headline text-2xl font-semibold leading-tight text-card-foreground">
+              <Sparkles className="h-5 w-5 text-violet-500" />
+              Team Performance
+            </h2>
+            <CardDescription>Rating distribution, goal health, and talent grid across your direct reports.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <StatTile icon={Users} label="Direct reports" value={performanceDashboardLoading ? '-' : performanceDashboard?.reportCount ?? 0} />
+              <StatTile icon={Goal} label="Avg goal progress" value={performanceDashboardLoading ? '-' : `${Math.round(performanceDashboard?.analytics?.goalMetrics?.averageProgress ?? 0)}%`} />
+              <StatTile icon={Sparkles} label="Recognitions" value={performanceDashboardLoading ? '-' : performanceDashboard?.analytics?.recognitions?.length ?? 0} />
+              <StatTile icon={Gauge} label="At-risk goals" value={performanceDashboardLoading ? '-' : performanceDashboard?.analytics?.goalMetrics?.atRisk ?? 0} />
+            </div>
+
+            {ratingChart.length > 0 ? (
+              <BarChartPanel title="Rating distribution" data={ratingChart} height={180} />
+            ) : (
+              <p className="rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">No submitted ratings yet for this cycle.</p>
+            )}
+
+            <div>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Talent grid</h3>
+              <div className="space-y-2">
+                {(performanceDashboard?.analytics?.nineBox ?? []).length > 0 ? (performanceDashboard?.analytics?.nineBox ?? []).slice(0, 5).map((item) => (
+                  <div key={item.workerId} className="flex items-center justify-between gap-3 rounded-xl border border-white/60 bg-white/55 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-900">{item.employeeName}</p>
+                      <p className="text-xs text-slate-500">Performance {Math.round(item.performanceScore)}% - Potential {Math.round(item.potentialScore)}%</p>
+                    </div>
+                    <Badge variant="outline">{item.box}</Badge>
+                  </div>
+                )) : (
+                  <p className="rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">No direct-report analytics available yet.</p>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-sm font-bold text-slate-900">Action plans</h3>
+              <div className="space-y-2">
+                {(performanceDashboard?.analytics?.actionPlans ?? []).length > 0 ? (performanceDashboard?.analytics?.actionPlans ?? [])
+                  .slice()
+                  .sort((left, right) => (right.riskLevel === 'HIGH' ? 1 : 0) - (left.riskLevel === 'HIGH' ? 1 : 0))
+                  .slice(0, 3)
+                  .map((plan) => (
+                    <div key={plan.workerId} className="rounded-xl border border-white/60 bg-white/55 p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-semibold text-slate-900">{plan.employeeName}</p>
+                        <Badge variant={plan.riskLevel === 'HIGH' ? 'destructive' : plan.riskLevel === 'MEDIUM' ? 'secondary' : 'outline'}>{plan.riskLevel}</Badge>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">{plan.recommendedActions[0] ?? `Trend: ${plan.progressTrend}`}</p>
+                    </div>
+                  )) : (
+                  <p className="rounded-xl border border-dashed bg-slate-50 p-4 text-sm text-muted-foreground">No action plans generated yet.</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <div className="fusion-glass rounded-[2rem] p-6">
         <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_24rem]">
           <Card className="bg-white/70">
@@ -567,6 +952,13 @@ export function ManagerTeam() {
             </CardContent>
           </Card>
           <BarChartPanel title="Team risk bands" data={riskChart} height={220} />
+        </div>
+        <div className="mb-6">
+          <TeamActivityCard
+            upcomingAnniversaries={teamActivity.upcomingAnniversaries}
+            recentJoins={teamActivity.recentJoins}
+            className="bg-white/70"
+          />
         </div>
         <div className="mb-1 text-lg font-bold">Direct Reports</div>
         <p className="mb-4 text-sm text-slate-500">

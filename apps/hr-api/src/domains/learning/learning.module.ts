@@ -1,6 +1,9 @@
 import { Inject, Module, OnModuleInit } from '@nestjs/common';
 import { PlatformModule } from '../../platform/platform.module.js';
+import { HrCoreModule } from '../hr-core/hr-core.module.js';
+import { OrganizationModule } from '../organization/organization.module.js';
 import { FsmFramework } from '../../platform/workflow/fsm-framework.js';
+import { DocumentExportService } from '../../platform/export/document-export.service.js';
 import { LearningController } from './api/learning.controller.js';
 import { LearningCourseRepository } from './repositories/learning-course.repository.js';
 import { LearningAssignmentRepository } from './repositories/learning-assignment.repository.js';
@@ -20,18 +23,20 @@ import { RenewCertificationHandler } from './commands/renew-certification.handle
 import { ExpireCertificationHandler } from './commands/expire-certification.handler.js';
 import { RevokeCertificationHandler } from './commands/revoke-certification.handler.js';
 import { CreateLearningContentPackageHandler } from './commands/create-learning-content-package.handler.js';
+import { AttachLearningContentPackageFileHandler } from './commands/attach-learning-content-package-file.handler.js';
 import { ParseLearningContentPackageHandler } from './commands/parse-learning-content-package.handler.js';
 import { ValidateLearningContentPackageHandler } from './commands/validate-learning-content-package.handler.js';
 import { PublishLearningContentPackageHandler } from './commands/publish-learning-content-package.handler.js';
 import { DeprecateLearningContentPackageHandler } from './commands/deprecate-learning-content-package.handler.js';
 import { LearningEventsPublisher } from './events/learning-events.publisher.js';
+import { LearningContentStorageService, LocalDiskLearningContentStorageService } from './services/learning-content-storage.service.js';
 import { registerLearningCourseFsm } from './fsm/learning-course.fsm.js';
 import { registerLearningAssignmentFsm } from './fsm/learning-assignment.fsm.js';
 import { registerCertificationFsm } from './fsm/certification.fsm.js';
 import { registerLearningContentPackageFsm } from './fsm/learning-content-package.fsm.js';
 
 @Module({
-  imports: [PlatformModule],
+  imports: [PlatformModule, HrCoreModule, OrganizationModule],
   controllers: [LearningController],
   providers: [
     LearningCourseRepository,
@@ -52,11 +57,17 @@ import { registerLearningContentPackageFsm } from './fsm/learning-content-packag
     ExpireCertificationHandler,
     RevokeCertificationHandler,
     CreateLearningContentPackageHandler,
+    AttachLearningContentPackageFileHandler,
     ParseLearningContentPackageHandler,
     ValidateLearningContentPackageHandler,
     PublishLearningContentPackageHandler,
     DeprecateLearningContentPackageHandler,
     LearningEventsPublisher,
+    DocumentExportService,
+    // Local-disk today; swapping to S3/Blob is a one-line change here (`useClass`
+    // or `useFactory`), not a rewrite of the controller/handlers that depend on
+    // the abstract LearningContentStorageService token.
+    { provide: LearningContentStorageService, useClass: LocalDiskLearningContentStorageService },
   ],
   exports: [LearningCourseRepository, LearningAssignmentRepository, CertificationRepository, LearningContentPackageRepository],
 })

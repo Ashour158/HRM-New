@@ -37,7 +37,11 @@ export class GlobalComplianceSaga implements OnModuleInit {
   }
 
   private async onWorkerTerminated(event: HrEventEnvelope<{ workerId: Uuid }>): Promise<void> {
-    // Check for works council consultations that may block termination
+    // Note: works-council consultations that block termination are enforced
+    // synchronously and *before* termination proceeds, by
+    // WorksCouncilConsultationGuard inside TerminateWorkerHandler — not here.
+    // By the time this saga runs, WorkerTerminated has already occurred, so
+    // this handler only has post-hoc cleanup work left to do.
     const workerId = event.payload.workerId;
 
     // Update work authorization cases for terminated worker

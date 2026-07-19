@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -39,7 +39,7 @@ export class ContractorRateCardRepository extends BaseRepository<'contractor_rat
       tenantId: new Uuid(row.tenant_id),
       vendorId: new Uuid(row.vendor_id),
       jobTitle: row.job_title,
-      rate: row.rate,
+      rate: parseNumeric(row.rate),
       currency: row.currency,
       effectiveFrom: row.effective_from,
       effectiveUntil: row.effective_until ?? undefined,

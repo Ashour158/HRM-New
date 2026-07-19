@@ -17,6 +17,8 @@ export interface PayrollCycleProps {
   closedAt?: Date;
   approvedBy?: Uuid;
   approvedAt?: Date;
+  /** The actor who prepared (created) this cycle, for the preparer/approver SoD check. Optional for backward compatibility with cycles created before this field existed. */
+  createdBy?: Uuid;
   aggregateVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -48,8 +50,31 @@ export class PayrollCycleCancelled extends DomainEvent {
   }
 }
 
+export class PayrollCycleInputCollectionStarted extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'PayrollCycleInputCollectionStarted', tenantId: props.tenantId, aggregateType: 'PayrollCycle', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
+export class PayrollCycleValidationStarted extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'PayrollCycleValidationStarted', tenantId: props.tenantId, aggregateType: 'PayrollCycle', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
+export class PayrollCycleCalculationStarted extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'PayrollCycleCalculationStarted', tenantId: props.tenantId, aggregateType: 'PayrollCycle', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
+export class PayrollCycleReviewStarted extends DomainEvent {
+  constructor(props: { tenantId: Uuid; aggregateId: Uuid; correlationId: Uuid }) {
+    super({ eventName: 'PayrollCycleReviewStarted', tenantId: props.tenantId, aggregateType: 'PayrollCycle', aggregateId: props.aggregateId, correlationId: props.correlationId });
+  }
+}
+
 export class PayrollCycle extends AggregateRoot {
-  private _aggregateVersion = 0;
   readonly tenantId: Uuid;
   cycleName: string;
   payPeriodStart: Date;
@@ -60,12 +85,11 @@ export class PayrollCycle extends AggregateRoot {
   closedAt?: Date;
   approvedBy?: Uuid;
   approvedAt?: Date;
+  readonly createdBy?: Uuid;
   createdAt: Date;
   updatedAt: Date;
 
-  get version(): number { return this._aggregateVersion; }
-  get aggregateVersion(): number { return this._aggregateVersion; }
-  incrementVersion(): void { this._aggregateVersion++; }
+  get aggregateVersion(): number { return this.version; }
 
   constructor(props: PayrollCycleProps) {
     super(props.id);
@@ -79,9 +103,10 @@ export class PayrollCycle extends AggregateRoot {
     this.closedAt = props.closedAt;
     this.approvedBy = props.approvedBy;
     this.approvedAt = props.approvedAt;
+    this.createdBy = props.createdBy;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
-    if (props.aggregateVersion !== undefined) this._aggregateVersion = props.aggregateVersion;
+    if (props.aggregateVersion !== undefined) this.restoreVersion(props.aggregateVersion);
   }
 
   static create(props: PayrollCycleProps, _correlationId: Uuid): PayrollCycle {
@@ -99,36 +124,43 @@ export class PayrollCycle extends AggregateRoot {
     this.updatedAt = new Date();
   }
 
-  startInputCollection(_correlationId: Uuid): void {
+  startInputCollection(correlationId: Uuid): void {
     if (this.status !== 'OPENED') throw new ValidationError(`Cannot start input collection from ${this.status}`);
     this.status = 'INPUT_COLLECTION';
+    this.addDomainEvent(new PayrollCycleInputCollectionStarted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
 
-  startValidation(_correlationId: Uuid): void {
+  startValidation(correlationId: Uuid): void {
     if (this.status !== 'INPUT_COLLECTION') throw new ValidationError(`Cannot start validation from ${this.status}`);
     this.status = 'VALIDATION';
+    this.addDomainEvent(new PayrollCycleValidationStarted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
 
-  startCalculation(_correlationId: Uuid): void {
+  startCalculation(correlationId: Uuid): void {
     if (this.status !== 'VALIDATION') throw new ValidationError(`Cannot start calculation from ${this.status}`);
     this.status = 'CALCULATION';
+    this.addDomainEvent(new PayrollCycleCalculationStarted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
 
-  startReview(_correlationId: Uuid): void {
+  startReview(correlationId: Uuid): void {
     if (this.status !== 'CALCULATION') throw new ValidationError(`Cannot start review from ${this.status}`);
     this.status = 'REVIEW';
+    this.addDomainEvent(new PayrollCycleReviewStarted({ tenantId: this.tenantId, aggregateId: this.id, correlationId }));
     this.incrementVersion();
     this.updatedAt = new Date();
   }
 
   approve(approvedBy: Uuid, correlationId: Uuid): void {
     if (this.status !== 'REVIEW') throw new ValidationError(`Cannot approve from ${this.status}`);
+    if (this.createdBy && this.createdBy.value === approvedBy.value) {
+      throw new ValidationError('Segregation of duties: the preparer who created this payroll cycle cannot also approve it');
+    }
     this.status = 'APPROVED';
     this.approvedBy = approvedBy;
     this.approvedAt = new Date();

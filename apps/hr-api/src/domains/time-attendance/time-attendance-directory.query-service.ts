@@ -44,6 +44,16 @@ export class TimeAttendanceDirectoryQueryService {
     return this.timeClockEventRepo.findByWorker(workerId);
   }
 
+  /** Batch variant of {@link findTimeClockEventsForWorker} — one query for many workers over a date range (avoids N+1). */
+  findTimeClockEventsForWorkersBetween(
+    tenantId: Uuid,
+    workerIds: Uuid[],
+    startAt: Date,
+    endAt: Date,
+  ): Promise<TimeClockEvent[]> {
+    return this.timeClockEventRepo.findByWorkersBetweenForTenant(tenantId, workerIds, startAt, endAt);
+  }
+
   findDailyLedgerSnapshotsForWorker(
     tenantId: Uuid,
     workerId: Uuid,
