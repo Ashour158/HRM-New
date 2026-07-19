@@ -49,3 +49,37 @@ export function decryptPiiField(stored: string): string {
 function piiKey(): Buffer {
   return resolveKeyFromEnv('PII_DATA_ENCRYPTION_KEY', 'development-pii-data-key-32bytes!');
 }
+
+function deepTransformStrings(value: unknown, transform: (input: string) => string): unknown {
+  if (typeof value === 'string') return transform(value);
+  if (Array.isArray(value)) return value.map((item) => deepTransformStrings(item, transform));
+  if (value !== null && typeof value === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      result[key] = deepTransformStrings(child, transform);
+    }
+    return result;
+  }
+  return value;
+}
+
+/**
+ * Recursively encrypt every string leaf of a payload (e.g. `bankAccount.iban`),
+ * preserving object/array structure and non-string leaves (numbers, booleans,
+ * null) as-is. Unlike {@link encryptPiiPayload}, the payload stays queryable
+ * by key/shape -- only leaf values become ciphertext. Use for categories whose
+ * payload must remain a structured JSON document (BANKING, TAX, COMPENSATION),
+ * not an opaque blob.
+ */
+export function encryptPiiObject<T extends Record<string, unknown>>(payload: T): T {
+  return deepTransformStrings(payload, encryptPiiField) as T;
+}
+
+/**
+ * Inverse of {@link encryptPiiObject}. Safe to call on payloads that are only
+ * partially encrypted or not encrypted at all -- {@link decryptPiiField}
+ * passes through any string without the `encpii:` marker unchanged.
+ */
+export function decryptPiiObject<T extends Record<string, unknown>>(payload: T): T {
+  return deepTransformStrings(payload, decryptPiiField) as T;
+}

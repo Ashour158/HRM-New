@@ -14,7 +14,7 @@ type CountryRuleSetTransitionPayload = {
 function countryRuleSetResult(
   command: HrCommandEnvelope<unknown>,
   fsm: FsmFramework,
-  ruleSet: Awaited<ReturnType<CountryRuleSetRepository['findById']>>,
+  ruleSet: Awaited<ReturnType<CountryRuleSetRepository['findByIdForTenant']>>,
 ): CommandResult<unknown> {
   if (!ruleSet) throw new Error('Country rule set not found');
   return {
@@ -48,7 +48,7 @@ export class ActivateCountryRuleSetHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CountryRuleSetTransitionPayload;
-    const ruleSet = await this.repo.findById(payload.ruleSetId);
+    const ruleSet = await this.repo.findByIdForTenant(payload.ruleSetId, command.tenantId);
     if (!ruleSet) throw new Error('Country rule set not found');
     ruleSet.activate(command.correlationId);
     await this.repo.save(ruleSet);
@@ -74,7 +74,7 @@ export class SupersedeCountryRuleSetHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CountryRuleSetTransitionPayload;
-    const ruleSet = await this.repo.findById(payload.ruleSetId);
+    const ruleSet = await this.repo.findByIdForTenant(payload.ruleSetId, command.tenantId);
     if (!ruleSet) throw new Error('Country rule set not found');
     ruleSet.supersede(command.correlationId, payload.supersededBy);
     await this.repo.save(ruleSet);
@@ -99,7 +99,7 @@ export class RetireCountryRuleSetHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as CountryRuleSetTransitionPayload;
-    const ruleSet = await this.repo.findById(payload.ruleSetId);
+    const ruleSet = await this.repo.findByIdForTenant(payload.ruleSetId, command.tenantId);
     if (!ruleSet) throw new Error('Country rule set not found');
     ruleSet.retire(command.correlationId);
     await this.repo.save(ruleSet);

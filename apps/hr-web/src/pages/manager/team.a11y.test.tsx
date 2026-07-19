@@ -6,9 +6,11 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ManagerTeam } from './team';
 
 const useApiQueryMock = vi.fn();
+const useApiMutationMock = vi.fn();
 
 vi.mock('@/hooks/use-api', () => ({
   useApiQuery: (...args: unknown[]) => useApiQueryMock(...args),
+  useApiMutation: (...args: unknown[]) => useApiMutationMock(...args),
 }));
 
 vi.mock('@/components/common/allowed-actions', () => ({
@@ -43,6 +45,8 @@ const directReport = {
 describe('ManagerTeam accessibility', () => {
   beforeEach(() => {
     useApiQueryMock.mockReset();
+    useApiMutationMock.mockReset();
+    useApiMutationMock.mockReturnValue({ mutate: vi.fn(), isPending: false });
     useApiQueryMock.mockImplementation((queryKey: unknown) => {
       const key = Array.isArray(queryKey) ? queryKey[0] : queryKey;
       if (key === 'manager-team') {

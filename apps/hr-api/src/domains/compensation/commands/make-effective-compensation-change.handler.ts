@@ -8,8 +8,8 @@ import { CompensationChangeFsm } from '../fsm/compensation-change.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for making an approved CompensationChange effective
- * (APPROVED -> EFFECTIVE).
+ * Command handler for marking an approved CompensationChange as effective.
+ * APPROVED → EFFECTIVE.
  */
 @Injectable()
 @CommandHandler('MakeEffectiveCompensationChange')

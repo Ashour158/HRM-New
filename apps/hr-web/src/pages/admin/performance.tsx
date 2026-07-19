@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
+import { ModuleConfigureLauncher } from '@/components/common/module-configure-launcher';
 import { StatTile } from '@/components/ui/stat-tile';
 import { formatDate } from '@/lib/utils';
 import { AdminPerformanceOperations } from '@/pages/admin/performance-operations';
@@ -911,6 +912,12 @@ export function AdminPerformance() {
           />
         </div>
       </section>
+
+      <ModuleConfigureLauncher
+        moduleName="Performance"
+        approvalCommandKeyword="Performance"
+        fieldAccessEntity="performance"
+      />
 
       {message ? (
         <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">

@@ -29,6 +29,7 @@ export const AGGREGATE_LOADERS: Record<string, AggregateLoaderConfig> = {
   Candidate: aggregateLoader('hr_recruiting.candidates'),
   InterviewPlan: aggregateLoader('hr_recruiting.interview_plans'),
   Offer: aggregateLoader('hr_recruiting.offers'),
+  RequisitionAdverseImpactAnalysis: aggregateLoader('hr_recruiting.requisition_adverse_impact_analyses'),
   OnboardingPlan: aggregateLoader('hr_onboarding.onboarding_plans'),
   OnboardingTask: aggregateLoader('hr_onboarding.onboarding_tasks'),
 

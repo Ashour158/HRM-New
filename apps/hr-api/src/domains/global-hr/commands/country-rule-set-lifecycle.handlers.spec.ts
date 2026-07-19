@@ -41,7 +41,7 @@ function envelope<T>(commandName: string, payload: T): HrCommandEnvelope<T> {
     correlationId: Uuid.generate(),
     reason: 'spec',
     payload,
-    metadata: { clientType: 'API' },
+    metadata: { clientType: 'HR_ADMIN' },
   };
 }
 
@@ -90,30 +90,54 @@ describe('CountryRuleSet lifecycle command handlers', () => {
 
   it('activates a DRAFT rule set and emits CountryRuleSetActivated', async () => {
     const ruleSet = draftRuleSet();
-    const repo = { findById: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
-    const handler = new ActivateCountryRuleSetHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const eventsPublisher = publisher();
+    const handler = new ActivateCountryRuleSetHandler(repo, fsm(), eventsPublisher);
 
     const result = await handler.handle(envelope('ActivateCountryRuleSet', { ruleSetId }));
 
     expect(result.success).toBe(true);
     expect(result.newState).toBe('ACTIVE');
     expect(result.eventsEmitted).toContain('CountryRuleSetActivated');
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(ruleSetId, tenantId);
     expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'ACTIVE' }));
+    expect(eventsPublisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ruleSetId }),
+      tenantId,
+      expect.anything(),
+    );
   });
 
   it('rejects activating a rule set that is not DRAFT', async () => {
     const ruleSet = activeRuleSet();
-    const repo = { findById: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
-    const handler = new ActivateCountryRuleSetHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const eventsPublisher = publisher();
+    const handler = new ActivateCountryRuleSetHandler(repo, fsm(), eventsPublisher);
 
     await expect(handler.handle(envelope('ActivateCountryRuleSet', { ruleSetId }))).rejects.toBeInstanceOf(ValidationError);
+    expect(repo.save).not.toHaveBeenCalled();
+    expect(eventsPublisher.publishUncommitted).not.toHaveBeenCalled();
+  });
+
+  it('scopes the lookup to the command tenant, so a rule set owned by another tenant is not found', async () => {
+    // The repository itself is responsible for the tenant filter (WHERE tenant_id = ...);
+    // simulate that by having the tenant-scoped mock return nothing, exactly as it would
+    // for a real cross-tenant id that doesn't match any row for this tenant.
+    const repo = { findByIdForTenant: vi.fn(async () => undefined), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const handler = new ActivateCountryRuleSetHandler(repo, fsm(), publisher());
+
+    await expect(handler.handle(envelope('ActivateCountryRuleSet', { ruleSetId }))).rejects.toThrow(
+      'Country rule set not found',
+    );
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(ruleSetId, tenantId);
     expect(repo.save).not.toHaveBeenCalled();
   });
 
   it('supersedes an ACTIVE rule set and records the successor', async () => {
     const ruleSet = activeRuleSet();
-    const repo = { findById: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
-    const handler = new SupersedeCountryRuleSetHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const eventsPublisher = publisher();
+    const handler = new SupersedeCountryRuleSetHandler(repo, fsm(), eventsPublisher);
 
     const result = await handler.handle(
       envelope('SupersedeCountryRuleSet', { ruleSetId, supersededBy: '2026.2' }),
@@ -122,33 +146,50 @@ describe('CountryRuleSet lifecycle command handlers', () => {
     expect(result.success).toBe(true);
     expect(result.newState).toBe('SUPERSEDED');
     expect(result.eventsEmitted).toContain('CountryRuleSetSuperseded');
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(ruleSetId, tenantId);
     expect(repo.save).toHaveBeenCalledWith(expect.objectContaining({ status: 'SUPERSEDED' }));
+    expect(eventsPublisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ruleSetId }),
+      tenantId,
+      expect.anything(),
+    );
   });
 
   it('rejects superseding a DRAFT rule set', async () => {
     const ruleSet = draftRuleSet();
-    const repo = { findById: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
-    const handler = new SupersedeCountryRuleSetHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const eventsPublisher = publisher();
+    const handler = new SupersedeCountryRuleSetHandler(repo, fsm(), eventsPublisher);
 
     await expect(handler.handle(envelope('SupersedeCountryRuleSet', { ruleSetId }))).rejects.toBeInstanceOf(ValidationError);
+    expect(eventsPublisher.publishUncommitted).not.toHaveBeenCalled();
   });
 
   it('retires an ACTIVE rule set', async () => {
     const ruleSet = activeRuleSet();
-    const repo = { findById: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
-    const handler = new RetireCountryRuleSetHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => ruleSet), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const eventsPublisher = publisher();
+    const handler = new RetireCountryRuleSetHandler(repo, fsm(), eventsPublisher);
 
     const result = await handler.handle(envelope('RetireCountryRuleSet', { ruleSetId }));
 
     expect(result.success).toBe(true);
     expect(result.newState).toBe('RETIRED');
     expect(result.eventsEmitted).toContain('CountryRuleSetRetired');
+    expect(repo.findByIdForTenant).toHaveBeenCalledWith(ruleSetId, tenantId);
+    expect(eventsPublisher.publishUncommitted).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ruleSetId }),
+      tenantId,
+      expect.anything(),
+    );
   });
 
   it('rejects retiring a rule set that no longer exists', async () => {
-    const repo = { findById: vi.fn(async () => undefined), save: vi.fn() } as unknown as CountryRuleSetRepository;
-    const handler = new RetireCountryRuleSetHandler(repo, fsm(), publisher());
+    const repo = { findByIdForTenant: vi.fn(async () => undefined), save: vi.fn() } as unknown as CountryRuleSetRepository;
+    const eventsPublisher = publisher();
+    const handler = new RetireCountryRuleSetHandler(repo, fsm(), eventsPublisher);
 
     await expect(handler.handle(envelope('RetireCountryRuleSet', { ruleSetId }))).rejects.toThrow('Country rule set not found');
+    expect(eventsPublisher.publishUncommitted).not.toHaveBeenCalled();
   });
 });
