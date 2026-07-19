@@ -2059,6 +2059,7 @@ export interface MisclassificationAssessmentsTable {
   tenant_id: string;
   worker_id: string;
   assessment_date: Date;
+  factor_inputs: unknown;
   risk_score: string | null;
   risk_factors: unknown;
   status: string;

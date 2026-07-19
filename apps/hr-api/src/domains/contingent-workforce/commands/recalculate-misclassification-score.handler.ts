@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
-import { Uuid } from '@hcm/shared-kernel';
+import { NotFoundError, Uuid } from '@hcm/shared-kernel';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
-import { toDate, toUuid } from '../../common/uuid-normalizer.js';
-import { MisclassificationAssessment } from '../aggregates/misclassification-assessment.aggregate.js';
+import { toUuid } from '../../common/uuid-normalizer.js';
 import { MisclassificationAssessmentRepository } from '../repositories/misclassification-assessment.repository.js';
 import { ContingentWorkforceEventsPublisher } from '../events/contingent-workforce-events.publisher.js';
 import type { MisclassificationFactorInputs } from '../services/misclassification-scoring.js';
 
-@CommandHandler('CreateMisclassificationAssessment')
+/**
+ * Recalculates riskScore/riskFactors from an updated set of structured IRS
+ * common-law factor inputs while the assessment is IN_PROGRESS. This is the
+ * only supported way to change the score after creation — the aggregate
+ * itself derives riskScore/riskFactors from factorInputs, it never accepts
+ * them directly.
+ */
+@CommandHandler('RecalculateMisclassificationScore')
 @Injectable()
-export class CreateMisclassificationAssessmentHandler {
+export class RecalculateMisclassificationScoreHandler {
   constructor(
     private readonly repo: MisclassificationAssessmentRepository,
     private readonly fsm: FsmFramework,
@@ -19,14 +25,10 @@ export class CreateMisclassificationAssessmentHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { workerId: Uuid | string; assessmentDate: Date | string; factorInputs: MisclassificationFactorInputs };
-    const ar = MisclassificationAssessment.create({
-      id: Uuid.generate(),
-      tenantId: command.tenantId,
-      workerId: toUuid(payload.workerId),
-      assessmentDate: toDate(payload.assessmentDate),
-      factorInputs: payload.factorInputs,
-    }, command.correlationId);
+    const payload = command.payload as { misclassificationAssessmentId: Uuid | string; factorInputs: MisclassificationFactorInputs };
+    const ar = await this.repo.findById(toUuid(payload.misclassificationAssessmentId));
+    if (!ar) throw new NotFoundError('Misclassification assessment not found');
+    ar.recalculateScore(payload.factorInputs, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {
