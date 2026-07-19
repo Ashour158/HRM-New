@@ -34,12 +34,34 @@ export class CandidateRepository {
 
   /**
    * Find a candidate by its unique identifier.
+   *
+   * @deprecated Not tenant-scoped — reachable by any authenticated actor
+   * regardless of tenant. Use {@link findByIdForTenant} for any lookup
+   * driven by a caller-supplied id (route params, command payloads).
    */
   async findById(id: Uuid): Promise<Candidate | undefined> {
     const row = await this.executor
       .selectFrom('hr_recruiting.candidates')
       .selectAll()
       .where('id', '=', id.value)
+      .executeTakeFirst();
+
+    return row ? this.toAggregate(row) : undefined;
+  }
+
+  /**
+   * Tenant-scoped lookup by id. Controllers/handlers that resolve a
+   * candidate from a caller-supplied id (route param or command payload)
+   * MUST use this instead of {@link findById} so that a caller from tenant A
+   * cannot read or act on tenant B's candidate (including EEO
+   * self-identification data) by guessing or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<Candidate | undefined> {
+    const row = await this.executor
+      .selectFrom('hr_recruiting.candidates')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
       .executeTakeFirst();
 
     return row ? this.toAggregate(row) : undefined;
@@ -60,6 +82,8 @@ export class CandidateRepository {
 
   /**
    * Find all candidates for a given requisition.
+   *
+   * @deprecated Not tenant-scoped. Use {@link findByRequisitionForTenant}.
    */
   async findByRequisition(requisitionId: Uuid): Promise<Candidate[]> {
     const rows = await this.executor
@@ -72,13 +96,44 @@ export class CandidateRepository {
   }
 
   /**
+   * Tenant-scoped lookup of all candidates for a given requisition.
+   */
+  async findByRequisitionForTenant(requisitionId: Uuid, tenantId: Uuid): Promise<Candidate[]> {
+    const rows = await this.executor
+      .selectFrom('hr_recruiting.candidates')
+      .selectAll()
+      .where('requisition_id', '=', requisitionId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
    * Find all candidates with a given status.
+   *
+   * @deprecated Not tenant-scoped -- returns matching candidates across every
+   * tenant. Use {@link findByStatusForTenant}.
    */
   async findByStatus(status: CandidateStatus): Promise<Candidate[]> {
     const rows = await this.executor
       .selectFrom('hr_recruiting.candidates')
       .selectAll()
       .where('status', '=', status)
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
+   * Tenant-scoped lookup of all candidates with a given status.
+   */
+  async findByStatusForTenant(status: CandidateStatus, tenantId: Uuid): Promise<Candidate[]> {
+    const rows = await this.executor
+      .selectFrom('hr_recruiting.candidates')
+      .selectAll()
+      .where('status', '=', status)
+      .where('tenant_id', '=', tenantId.value)
       .execute();
 
     return rows.map((r: any) => this.toAggregate(r));

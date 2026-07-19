@@ -20,12 +20,34 @@ export class InterviewPlanRepository {
 
   /**
    * Find an interview plan by its unique identifier.
+   *
+   * @deprecated Not tenant-scoped — reachable by any authenticated actor
+   * regardless of tenant. Use {@link findByIdForTenant} for any lookup
+   * driven by a caller-supplied id (route params, command payloads).
    */
   async findById(id: Uuid): Promise<InterviewPlan | undefined> {
     const row = await this.db
       .selectFrom('hr_recruiting.interview_plans')
       .selectAll()
       .where('id', '=', id.value)
+      .executeTakeFirst();
+
+    return row ? this.toAggregate(row) : undefined;
+  }
+
+  /**
+   * Tenant-scoped lookup by id. Controllers/handlers that resolve an
+   * interview plan from a caller-supplied id (route param or command
+   * payload) MUST use this instead of {@link findById} so that a caller
+   * from tenant A cannot read or act on tenant B's interview plan by
+   * guessing or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<InterviewPlan | undefined> {
+    const row = await this.db
+      .selectFrom('hr_recruiting.interview_plans')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
       .executeTakeFirst();
 
     return row ? this.toAggregate(row) : undefined;
@@ -46,12 +68,28 @@ export class InterviewPlanRepository {
 
   /**
    * Find all interview plans for a given requisition.
+   *
+   * @deprecated Not tenant-scoped. Use {@link findByRequisitionForTenant}.
    */
   async findByRequisition(requisitionId: Uuid): Promise<InterviewPlan[]> {
     const rows = await this.db
       .selectFrom('hr_recruiting.interview_plans')
       .selectAll()
       .where('requisition_id', '=', requisitionId.value)
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
+   * Tenant-scoped lookup of all interview plans for a given requisition.
+   */
+  async findByRequisitionForTenant(requisitionId: Uuid, tenantId: Uuid): Promise<InterviewPlan[]> {
+    const rows = await this.db
+      .selectFrom('hr_recruiting.interview_plans')
+      .selectAll()
+      .where('requisition_id', '=', requisitionId.value)
+      .where('tenant_id', '=', tenantId.value)
       .execute();
 
     return rows.map((r: any) => this.toAggregate(r));

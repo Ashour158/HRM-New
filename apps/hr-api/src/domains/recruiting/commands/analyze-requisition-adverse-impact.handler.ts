@@ -61,15 +61,18 @@ export class AnalyzeRequisitionAdverseImpactHandler {
     const payload = command.payload as AnalyzeRequisitionAdverseImpactPayload;
     const requisitionId = new Uuid(payload.requisitionId);
 
-    const requisition = await this.requisitionRepo.findById(requisitionId);
+    // Tenant-scoped: a cross-tenant requisitionId must yield "not found",
+    // not another tenant's requisition (and, via the FK-scoped queries
+    // below, not another tenant's candidate/interview/offer data either).
+    const requisition = await this.requisitionRepo.findByIdForTenant(requisitionId, command.tenantId);
     if (!requisition) {
       throw new NotFoundException('Job requisition not found');
     }
 
     const [candidates, interviewPlans, offers] = await Promise.all([
-      this.candidateRepo.findByRequisition(requisitionId),
-      this.interviewPlanRepo.findByRequisition(requisitionId),
-      this.offerRepo.findByRequisition(requisitionId),
+      this.candidateRepo.findByRequisitionForTenant(requisitionId, command.tenantId),
+      this.interviewPlanRepo.findByRequisitionForTenant(requisitionId, command.tenantId),
+      this.offerRepo.findByRequisitionForTenant(requisitionId, command.tenantId),
     ]);
 
     const interviewedCandidateIds = new Set(interviewPlans.map((p) => p.candidateId.value));
