@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 
 const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
+const SsoCallbackPage = lazy(() => import('@/pages/sso-callback').then((module) => ({ default: module.SsoCallbackPage })));
 const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((module) => ({ default: module.NotificationsPage })));
 const EmployeeDashboard = lazy(() => import('@/pages/employee/dashboard').then((module) => ({ default: module.EmployeeDashboard })));
@@ -172,6 +173,7 @@ export function AppRoutes() {
       <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/auth/sso/callback" element={<SsoCallbackPage />} />
 
       {/* Employee Portal */}
       <Route
