@@ -8,7 +8,8 @@ import { BenefitsProgramFsm } from '../fsm/benefits-program.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
 /**
- * Command handler for suspending a BenefitsProgram (ACTIVE -> SUSPENDED).
+ * Command handler that suspends an ACTIVE BenefitsProgram (ACTIVE -> SUSPENDED),
+ * temporarily blocking new enrollment while preserving existing enrollments.
  */
 @Injectable()
 @CommandHandler('SuspendBenefitsProgram')
@@ -22,7 +23,7 @@ export class SuspendBenefitsProgramHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { benefitsProgramId: Uuid };
+    const payload = command.payload as { benefitsProgramId: Uuid; reason?: string };
     const program = await this.repo.findById(payload.benefitsProgramId);
     if (!program) {
       throw new NotFoundException('BenefitsProgram not found');
@@ -35,7 +36,11 @@ export class SuspendBenefitsProgramHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { programId: program.id.value, status: program.status },
+      data: {
+        programId: program.id.value,
+        reason: payload.reason,
+        status: program.status,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: program.id,

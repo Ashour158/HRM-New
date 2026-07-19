@@ -4,17 +4,19 @@ import type { CommandHandler as ICommandHandler } from '../../../platform/comman
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
 import { CarrierReconciliationRunRepository } from '../repositories/carrier-reconciliation-run.repository.js';
-import { CarrierReconciliationRun } from '../aggregates/carrier-reconciliation-run.aggregate.js';
 import { CarrierReconciliationRunFsm } from '../fsm/carrier-reconciliation-run.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
 /**
- * Command handler for creating a new CarrierReconciliationRun.
+ * Command handler that records a detected premium/collection variance for an
+ * in-progress CarrierReconciliationRun. The BenefitsCarrierConsumer reacts to
+ * CarrierReconciliationVarianceDetected to raise an escalation, so `runId`
+ * and `varianceAmount` must be present in the emitted event payload (`data`).
  */
 @Injectable()
-@CommandHandler('CreateCarrierReconciliationRun')
-export class CreateCarrierReconciliationRunHandler implements ICommandHandler {
-  commandName = 'CreateCarrierReconciliationRun' as const;
+@CommandHandler('DetectCarrierReconciliationVariance')
+export class DetectCarrierReconciliationVarianceHandler implements ICommandHandler {
+  commandName = 'DetectCarrierReconciliationVariance' as const;
 
   constructor(
     private readonly repo: CarrierReconciliationRunRepository,
@@ -23,40 +25,24 @@ export class CreateCarrierReconciliationRunHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as {
-      runId: Uuid;
-      carrierId: Uuid;
-      periodStart: Date;
-      periodEnd: Date;
-      totalPremium: number;
-      totalCollected: number;
-      varianceAmount: number;
-      currency: string;
-    };
+    const payload = command.payload as { runId: Uuid; varianceAmount: number };
+    const run = await this.repo.findById(payload.runId);
+    if (!run) throw new Error('CarrierReconciliationRun not found');
 
-    const run = CarrierReconciliationRun.create({
-      id: payload.runId,
-      tenantId: command.tenantId,
-      carrierId: payload.carrierId,
-      periodStart: payload.periodStart,
-      periodEnd: payload.periodEnd,
-      totalPremium: payload.totalPremium,
-      totalCollected: payload.totalCollected,
-      varianceAmount: payload.varianceAmount,
-      currency: payload.currency,
-      correlationId: command.correlationId,
-    });
-    // Immediately begin the run so CarrierReconciliationStarted fires, mirroring
-    // how CreateBenefitsEnrollmentHandler submits enrollments right after creation.
-    run.start(command.correlationId);
-
+    run.detectVariance(payload.varianceAmount, command.correlationId);
     await this.repo.save(run);
     const eventsEmitted = run.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(run, command);
 
     return {
       success: true,
-      data: { runId: run.id.value, status: run.status },
+      data: {
+        runId: run.id.value,
+        carrierId: run.carrierId.value,
+        varianceAmount: run.varianceAmount,
+        currency: run.currency,
+        status: run.status,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: run.id,

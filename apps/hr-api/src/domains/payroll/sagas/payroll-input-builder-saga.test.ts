@@ -175,4 +175,48 @@ describe('PayrollInputBuilderSaga', () => {
     expect(scheduled[0].event.eventName).toBe('PayrollInputCreated');
     expect(scheduled[0].event.aggregateId.value).toBe(saved[0].id.value);
   });
+
+  it('creates a non-zero BENEFITS_DEDUCTION payroll input once the enrollment-effective event carries the real premium amount', async () => {
+    // Regression test for the Tier-0 payroll defect: before the fix,
+    // MakeEffectiveBenefitsEnrollmentHandler never put `amount` in its data
+    // return, so this saga always fell back to `?? 0` and created $0
+    // deduction lines. The handler now includes `amount` (sourced from the
+    // enrollment's snapshotted premium) and `currency` in its event payload.
+    const tenantId = Uuid.generate();
+    const cycle = activeCycle(tenantId);
+    const workerId = Uuid.generate();
+    const enrollmentId = Uuid.generate();
+    const saved: Array<{ amount: number; currency: string; inputType: string }> = [];
+    const { eventsPublisher } = realEventsPublisher();
+    const saga = new PayrollInputBuilderSaga(
+      { subscribe: vi.fn() } as never,
+      { save: vi.fn(async (input) => saved.push(input)) } as never,
+      eventsPublisher,
+      { findByTenant: vi.fn(async () => [cycle]) } as never,
+      hcmSetupService() as never,
+    );
+
+    await (saga as unknown as {
+      createInputFromBenefits: (event: HrEventEnvelope<unknown>) => Promise<void>;
+    }).createInputFromBenefits({
+      ...eventFor('2026-05-15', tenantId),
+      eventName: 'BenefitsEnrollmentEffective',
+      aggregateType: 'BenefitsEnrollment',
+      payload: {
+        enrollmentId: enrollmentId.value,
+        workerId: workerId.value,
+        programId: Uuid.generate().value,
+        coverageStartDate: '2026-05-01T00:00:00.000Z',
+        amount: 450,
+        currency: 'USD',
+        status: 'EFFECTIVE',
+      },
+    } as HrEventEnvelope<unknown>);
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0].inputType).toBe('BENEFITS_DEDUCTION');
+    expect(saved[0].amount).toBe(450);
+    expect(saved[0].amount).not.toBe(0);
+    expect(saved[0].currency).toBe('USD');
+  });
 });

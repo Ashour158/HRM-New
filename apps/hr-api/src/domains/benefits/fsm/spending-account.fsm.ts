@@ -14,8 +14,9 @@ export class SpendingAccountFsm {
     const definition: FsmDefinition<string, string> = {
       aggregateType: 'SpendingAccount',
       states: ['ACTIVE', 'SUSPENDED', 'CLOSED'],
-      actions: ['Suspend', 'Reactivate', 'Close'],
+      actions: ['RecordUsage', 'Suspend', 'Reactivate', 'Close'],
       transitions: [
+        { action: 'RecordUsage', from: 'ACTIVE', to: 'ACTIVE', eventName: 'SpendingAccountUpdated' },
         { action: 'Suspend', from: 'ACTIVE', to: 'SUSPENDED', eventName: 'SpendingAccountSuspended' },
         { action: 'Reactivate', from: 'SUSPENDED', to: 'ACTIVE', eventName: 'SpendingAccountReactivated' },
         { action: 'Close', from: 'ACTIVE', to: 'CLOSED', eventName: 'SpendingAccountClosed' },

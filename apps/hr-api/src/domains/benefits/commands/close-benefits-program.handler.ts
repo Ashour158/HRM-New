@@ -8,7 +8,11 @@ import { BenefitsProgramFsm } from '../fsm/benefits-program.fsm.js';
 import { BenefitsEventsPublisher } from '../events/benefits-events.publisher.js';
 
 /**
- * Command handler for closing a BenefitsProgram (ACTIVE|SUSPENDED -> CLOSED).
+ * Command handler that permanently closes a BenefitsProgram
+ * (ACTIVE|SUSPENDED -> CLOSED). The BenefitsCarrierConsumer reacts to
+ * BenefitsProgramClosed by auto-terminating any remaining active
+ * enrollments tied to this program, so `programId` must be present in the
+ * emitted event payload (`data`).
  */
 @Injectable()
 @CommandHandler('CloseBenefitsProgram')
@@ -22,7 +26,7 @@ export class CloseBenefitsProgramHandler implements ICommandHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as { benefitsProgramId: Uuid };
+    const payload = command.payload as { benefitsProgramId: Uuid; reason?: string };
     const program = await this.repo.findById(payload.benefitsProgramId);
     if (!program) {
       throw new NotFoundException('BenefitsProgram not found');
@@ -35,7 +39,11 @@ export class CloseBenefitsProgramHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { programId: program.id.value, status: program.status },
+      data: {
+        programId: program.id.value,
+        reason: payload.reason,
+        status: program.status,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: program.id,

@@ -27,6 +27,14 @@ export interface BenefitsEnrollmentProps {
   coverageLevel: string;
   dependents: DependentEntry[];
   effectiveDate: Date;
+  /**
+   * Premium amount charged for this enrollment, snapshotted from the
+   * BenefitsProgram's monthlyPremium at enrollment creation time so the
+   * employee's contracted rate stays stable even if the program's rate
+   * changes later. Flows through to payroll as the BENEFITS_DEDUCTION amount.
+   */
+  premiumAmount: number;
+  currency: string;
   status: BenefitsEnrollmentStatus;
   aggregateVersion?: number;
   createdAt?: Date;
@@ -89,6 +97,8 @@ export class BenefitsEnrollment extends AggregateRoot {
   coverageLevel: string;
   dependents: DependentEntry[];
   effectiveDate: Date;
+  premiumAmount: number;
+  currency: string;
   status: BenefitsEnrollmentStatus;
   readonly createdAt: Date;
   updatedAt: Date;
@@ -105,6 +115,8 @@ export class BenefitsEnrollment extends AggregateRoot {
     this.coverageLevel = props.coverageLevel;
     this.dependents = props.dependents;
     this.effectiveDate = props.effectiveDate;
+    this.premiumAmount = props.premiumAmount;
+    this.currency = props.currency;
     this.status = props.status;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
@@ -115,6 +127,8 @@ export class BenefitsEnrollment extends AggregateRoot {
 
   static create(props: Omit<BenefitsEnrollmentProps, 'status' | 'createdAt' | 'updatedAt' | 'aggregateVersion'> & { correlationId: Uuid }): BenefitsEnrollment {
     Guard.againstEmptyString(props.coverageLevel, 'coverageLevel');
+    Guard.againstNegativeNumber(props.premiumAmount, 'premiumAmount');
+    Guard.againstEmptyString(props.currency, 'currency');
 
     const enrollment = new BenefitsEnrollment({
       ...props,

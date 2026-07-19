@@ -1172,6 +1172,8 @@ export interface BenefitsProgramsTable {
   effective_from: Date | null;
   effective_until: Date | null;
   status: string;
+  monthly_premium: number;
+  currency: string;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
@@ -1186,6 +1188,8 @@ export interface BenefitsEnrollmentsTable {
   dependents: unknown;
   effective_date: Date;
   status: string;
+  premium_amount: number;
+  currency: string;
   aggregate_version: number;
   created_at: ColumnType<Date, string | undefined, never>;
   updated_at: ColumnType<Date, string | undefined, string | undefined>;
