@@ -10,7 +10,7 @@ export class SystemActorFactory {
     return {
       actorId: SYSTEM_SCHEDULER_ACTOR_ID,
       actorType: 'SYSTEM',
-      roles: ['SYSTEM_SCHEDULER'],
+      roles: ['SYSTEM_ACTOR'],
       permissions: unique(['SCHEDULER_RUN', ...permissions]),
       email: `system-scheduler+${jobName}@platform.local`,
       mfaAuthenticated: true,
