@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { DataTable, type DataTableColumn } from '@/components/common/data-table';
 import { NextActions } from '@/components/common/next-actions';
 import { ErrorState } from '@/components/common/error-state';
+import { TextReasonDialog } from '@/components/common/workflow-dialogs';
 import { useUIStore } from '@/stores/ui-store';
 import { formatDate } from '@/lib/utils';
 import { parseEmployeeCsv } from '@/lib/employee-csv';
@@ -64,6 +65,7 @@ export function AdminWorkers() {
   const [uploadPreview, setUploadPreview] = React.useState<EmployeeMassUpdatePreview | null>(null);
   const [uploadedRows, setUploadedRows] = React.useState<EmployeeMassUpdateRow[]>([]);
   const [uploadApplyResult, setUploadApplyResult] = React.useState<EmployeeMassUpdateApplyResult | null>(null);
+  const [terminateTarget, setTerminateTarget] = React.useState<{ id: string; name: string } | null>(null);
 
   const { data: workersData, isLoading, isError, error, refetch } = useApiQuery<Worker[]>(
     ['admin-workers', search, page],
@@ -118,16 +120,20 @@ export function AdminWorkers() {
     }
   };
 
-  const handleTerminate = async (workerId: string) => {
-    const reason = window.prompt('Enter termination reason:');
-    if (reason) {
-      try {
-        await terminateMutation.mutateAsync({ workerId, reason, terminationDate: new Date().toISOString() });
-        refetch();
-        addNotification({ title: 'Employee terminated', message: 'The employee record has been terminated.', type: 'success', read: false });
-      } catch (err) {
-        addNotification({ title: 'Termination failed', message: err instanceof Error ? err.message : 'Could not terminate employee.', type: 'error', read: false });
-      }
+  const handleTerminate = (workerId: string, workerName: string) => {
+    setTerminateTarget({ id: workerId, name: workerName });
+  };
+
+  const submitTermination = async (reason: string) => {
+    if (!terminateTarget) return;
+    const { id: workerId } = terminateTarget;
+    try {
+      await terminateMutation.mutateAsync({ workerId, reason, terminationDate: new Date().toISOString() });
+      setTerminateTarget(null);
+      refetch();
+      addNotification({ title: 'Employee terminated', message: 'The employee record has been terminated.', type: 'success', read: false });
+    } catch (err) {
+      addNotification({ title: 'Termination failed', message: err instanceof Error ? err.message : 'Could not terminate employee.', type: 'error', read: false });
     }
   };
 
@@ -259,7 +265,7 @@ export function AdminWorkers() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleTerminate(row.id)}
+              onClick={() => handleTerminate(row.id, `${row.firstName} ${row.lastName}`)}
               aria-label="Terminate employee"
               className="text-destructive hover:text-destructive"
             >
@@ -401,6 +407,17 @@ export function AdminWorkers() {
           />
         )}
       </section>
+
+      <TextReasonDialog
+        open={Boolean(terminateTarget)}
+        onOpenChange={(open) => !open && setTerminateTarget(null)}
+        title={terminateTarget ? `Terminate ${terminateTarget.name}` : 'Terminate employee'}
+        label="Termination reason"
+        placeholder="Explain why this employee is being terminated"
+        submitLabel="Terminate"
+        isSubmitting={terminateMutation.isPending}
+        onSubmit={submitTermination}
+      />
     </div>
   );
 }

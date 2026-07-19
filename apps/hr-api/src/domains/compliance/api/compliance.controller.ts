@@ -176,6 +176,60 @@ export class ComplianceController {
     return this.commandBus.execute(command);
   }
 
+  @Post('policy-documents/:id/commands/submit-for-approval')
+  async submitPolicyDocumentForApproval(@Param('id') id: string, @Req() req: Request) {
+    const doc = await this.policyDocumentRepo.findById(new Uuid(id));
+    if (!doc) throw new BadRequestException('Policy document not found');
+    const command = this.buildCommand(
+      'SubmitPolicyDocumentForApproval',
+      'PolicyDocument',
+      { documentId: id },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: doc.status,
+        expectedVersion: doc.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-documents/:id/commands/reject')
+  async rejectPolicyDocument(@Param('id') id: string, @Req() req: Request) {
+    const doc = await this.policyDocumentRepo.findById(new Uuid(id));
+    if (!doc) throw new BadRequestException('Policy document not found');
+    const command = this.buildCommand(
+      'RejectPolicyDocument',
+      'PolicyDocument',
+      { documentId: id },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: doc.status,
+        expectedVersion: doc.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
+  @Post('policy-documents/:id/commands/archive')
+  async archivePolicyDocument(@Param('id') id: string, @Req() req: Request) {
+    const doc = await this.policyDocumentRepo.findById(new Uuid(id));
+    if (!doc) throw new BadRequestException('Policy document not found');
+    const command = this.buildCommand(
+      'ArchivePolicyDocument',
+      'PolicyDocument',
+      { documentId: id },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: doc.status,
+        expectedVersion: doc.aggregateVersion,
+      },
+    );
+    return this.commandBus.execute(command);
+  }
+
   @Post('policy-documents/:id/commands/approve')
   async approvePolicyDocument(@Param('id') id: string, @Req() req: Request) {
     const doc = await this.policyDocumentRepo.findById(new Uuid(id));

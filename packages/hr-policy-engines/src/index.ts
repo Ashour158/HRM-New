@@ -134,6 +134,15 @@ export {
   DEFAULT_SMALL_CELL_THRESHOLD,
 } from './engines/recruiting-fairness-compliance.engine.js';
 
+export type {
+  DeiPayTransparencyDecisionCode,
+  DeiPayTransparencyInput,
+  DeiPayTransparencyViolation,
+  DeiPayTransparencyResult,
+} from './engines/dei-pay-transparency.engine.js';
+
+export { DeiPayTransparencyEngine, evaluateDeiPayTransparency } from './engines/dei-pay-transparency.engine.js';
+
 export {
   engineRegistry,
   employmentEligibilityEngine,
@@ -143,4 +152,5 @@ export {
   countryPolicyValidationEngine,
   offerCompensationEngine,
   recruitingFairnessComplianceEngine,
+  deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

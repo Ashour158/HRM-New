@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -62,7 +62,7 @@ export class WorkScheduleRepository extends BaseRepository<'work_schedules', Wor
       startDate: row.start_date,
       endDate: row.end_date ?? undefined,
       daysOfWeek: (row.days_of_week as string[]) ?? [],
-      hoursPerDay: row.hours_per_day,
+      hoursPerDay: parseNumeric(row.hours_per_day),
       timezone: row.timezone,
       status: row.status as WorkScheduleStatus,
       aggregateVersion: row.aggregate_version,

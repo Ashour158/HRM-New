@@ -51,7 +51,7 @@ export class PayrollCalculationSaga implements OnModuleInit {
     this.logger.log({ type: 'SAGA_STEP', step: 1, message: 'Collect payroll inputs', payrollCycleId: cycle.id.value });
     cycle.startInputCollection(correlationId);
     await this.payrollCycleRepo.save(cycle);
-    await this.eventsPublisher.publishFromAggregate(cycle);
+    await this.eventsPublisher.publishUncommitted(cycle, cycle.tenantId, correlationId);
 
     this.logger.log({ type: 'SAGA_STEP', step: 2, message: 'Collect time & attendance data', payrollCycleId: cycle.id.value });
     this.logger.log({ type: 'SAGA_STEP', step: 3, message: 'Collect absence/leave data', payrollCycleId: cycle.id.value });
@@ -61,26 +61,26 @@ export class PayrollCalculationSaga implements OnModuleInit {
     this.logger.log({ type: 'SAGA_STEP', step: 6, message: 'Run Payroll Calculation Engine', payrollCycleId: cycle.id.value });
     cycle.startValidation(correlationId);
     await this.payrollCycleRepo.save(cycle);
-    await this.eventsPublisher.publishFromAggregate(cycle);
+    await this.eventsPublisher.publishUncommitted(cycle, cycle.tenantId, correlationId);
 
     cycle.startCalculation(correlationId);
     await this.payrollCycleRepo.save(cycle);
-    await this.eventsPublisher.publishFromAggregate(cycle);
+    await this.eventsPublisher.publishUncommitted(cycle, cycle.tenantId, correlationId);
 
     const run = PayrollCalculationRun.start(
       { id: Uuid.generate(), tenantId: cycle.tenantId, payrollCycleId: cycle.id, currency: resolveTenantCurrency(setup) },
       correlationId,
     );
     await this.calculationRunRepo.save(run);
-    await this.eventsPublisher.publishFromAggregate(run);
+    await this.eventsPublisher.publishUncommitted(run, run.tenantId, correlationId);
 
     run.validate(correlationId);
     await this.calculationRunRepo.save(run);
-    await this.eventsPublisher.publishFromAggregate(run);
+    await this.eventsPublisher.publishUncommitted(run, run.tenantId, correlationId);
 
     run.finalize(correlationId);
     await this.calculationRunRepo.save(run);
-    await this.eventsPublisher.publishFromAggregate(run);
+    await this.eventsPublisher.publishUncommitted(run, run.tenantId, correlationId);
 
     this.logger.log({ type: 'SAGA_STEP', step: 7, message: 'Validate results', payrollCycleId: cycle.id.value });
     this.logger.log({ type: 'SAGA_STEP', step: 8, message: 'Generate payslips', payrollCycleId: cycle.id.value });
@@ -88,7 +88,7 @@ export class PayrollCalculationSaga implements OnModuleInit {
     this.logger.log({ type: 'SAGA_STEP', step: 9, message: 'Stage for export', payrollCycleId: cycle.id.value });
     cycle.startReview(correlationId);
     await this.payrollCycleRepo.save(cycle);
-    await this.eventsPublisher.publishFromAggregate(cycle);
+    await this.eventsPublisher.publishUncommitted(cycle, cycle.tenantId, correlationId);
 
     this.logger.log({ type: 'SAGA_COMPLETED', payrollCycleId: cycle.id.value, status: cycle.status });
   }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PositionControlModule } from '../position-control/position-control.module.js';
+import { CompensationModule } from '../compensation/compensation.module.js';
 import { RecruitingController } from './api/recruiting.controller.js';
 import { JobRequisitionFsmRegistrar } from './fsm/job-requisition.fsm.js';
 import { CandidateFsmRegistrar } from './fsm/candidate.fsm.js';
@@ -36,6 +37,7 @@ import { AcceptOfferHandler } from './commands/accept-offer.handler.js';
 import { RecordCandidateEeoSelfIdentificationHandler } from './commands/record-candidate-eeo-self-identification.handler.js';
 import { AnalyzeRequisitionAdverseImpactHandler } from './commands/analyze-requisition-adverse-impact.handler.js';
 import { ReviewRequisitionAdverseImpactAnalysisHandler } from './commands/review-requisition-adverse-impact-analysis.handler.js';
+import { OfferCompensationGateService } from './services/offer-compensation-gate.service.js';
 import { DeclineOfferHandler } from './commands/decline-offer.handler.js';
 import { ExpireOfferHandler } from './commands/expire-offer.handler.js';
 import { WithdrawOfferHandler } from './commands/withdraw-offer.handler.js';
@@ -50,7 +52,7 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
  * and the OfferToHire saga.
  */
 @Module({
-  imports: [PositionControlModule],
+  imports: [PositionControlModule, CompensationModule],
   controllers: [RecruitingController],
   providers: [
     // FSM registrars
@@ -65,6 +67,8 @@ import { OfferToHireSaga } from './sagas/offer-to-hire.saga.js';
     InterviewPlanRepository,
     OfferRepository,
     RequisitionAdverseImpactAnalysisRepository,
+    // Services
+    OfferCompensationGateService,
     // Command handlers
     CreateJobRequisitionHandler,
     SubmitJobRequisitionForApprovalHandler,
