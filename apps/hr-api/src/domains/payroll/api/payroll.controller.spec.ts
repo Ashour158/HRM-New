@@ -160,8 +160,8 @@ describe('PayrollController salary governance', () => {
         }],
         searchForTenant: async () => [],
       } as never,
-      { findByWorker: async () => [] } as never,
-      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkers: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkersBetween: async () => [] } as never,
       { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
       { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
       payrollCalculation as never,
@@ -270,8 +270,10 @@ describe('PayrollController salary governance', () => {
         searchForTenant: async () => [],
       } as never,
       {
-        findByWorker: async () => [
+        findByWorker: async () => [],
+        findByWorkers: async () => [
           {
+            workerId,
             dataCategory: 'CONTACT',
             payload: {
               departmentName: 'Finance',
@@ -280,16 +282,18 @@ describe('PayrollController salary governance', () => {
             },
           },
           {
+            workerId,
             dataCategory: 'COMPENSATION',
             payload: { grossSalaryAmount: 10000, salaryCurrency: 'EGP' },
           },
           {
+            workerId,
             dataCategory: 'BASIC',
             payload: { workEmail: 'scoped.worker@example.com' },
           },
         ],
       } as never,
-      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkersBetween: async () => [] } as never,
       { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
       { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
       payrollCalculation as never,
@@ -415,8 +419,10 @@ describe('PayrollController salary governance', () => {
         searchForTenant: async () => [],
       } as never,
       {
-        findByWorker: async () => [
+        findByWorker: async () => [],
+        findByWorkers: async () => [
           {
+            workerId,
             dataCategory: 'CONTACT',
             payload: {
               departmentName: 'Finance',
@@ -424,16 +430,18 @@ describe('PayrollController salary governance', () => {
             },
           },
           {
+            workerId,
             dataCategory: 'COMPENSATION',
             payload: { grossSalaryAmount: 10000, salaryCurrency: 'EGP' },
           },
           {
+            workerId,
             dataCategory: 'BASIC',
             payload: { workEmail: 'ledger.worker@example.com' },
           },
         ],
       } as never,
-      { findByWorker: async () => [] } as never,
+      { findByWorker: async () => [], findByWorkersBetween: async () => [] } as never,
       { findByWorker: async () => [], findByWorkers: async () => new Map() } as never,
       { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
       payrollCalculation as never,
@@ -617,8 +625,8 @@ describe('PayrollController salary governance', () => {
       commandBus as never,
       { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP' }] }) } as never,
       { findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
-      {} as never,
-      {} as never,
+      { findByWorkers: async () => [] } as never,
+      { findByWorkersBetween: async () => [] } as never,
       {
         findByWorker: vi.fn(async () => [{
           workDate: '2026-05-01',
@@ -763,8 +771,8 @@ describe('PayrollController salary governance', () => {
         }),
       } as never,
       { findByStatusForTenant: async () => [], searchForTenant: async () => [] } as never,
-      {} as never,
-      {} as never,
+      { findByWorkers: async () => [] } as never,
+      { findByWorkersBetween: async () => [] } as never,
       {
         findByWorker: vi.fn(async () => [{
           workDate: '2026-05-01',
@@ -1000,6 +1008,102 @@ describe('PayrollController salary governance', () => {
       },
     });
     expect(commandBus.execute).not.toHaveBeenCalled();
+  });
+
+  it('paginates through the full workforce instead of truncating at a single page, and batches per-worker data fetches (regression for HCM-P0-17)', async () => {
+    const pageSize = 500; // must match PayrollController's internal page size
+    const totalWorkers = pageSize + 1;
+    const makeWorker = (i: number) => ({
+      id: new Uuid(`00000000-0000-4000-8000-${i.toString().padStart(12, '0')}`),
+      employeeNumber: `EMP-${i}`,
+      firstName: 'Worker',
+      lastName: `${i}`,
+      email: { toString: () => `worker${i}@example.com` },
+      employmentType: 'FULL_TIME',
+    });
+    const allWorkers = Array.from({ length: totalWorkers }, (_, i) => makeWorker(i));
+    const findByStatusForTenant = vi.fn(async (_status: string, _tenantId: Uuid, options?: { limit?: number; offset?: number }) => {
+      const limit = options?.limit ?? totalWorkers;
+      const offset = options?.offset ?? 0;
+      return allWorkers.slice(offset, offset + limit);
+    });
+    const findByWorker = vi.fn();
+    const findByWorkers = vi.fn(async () => []);
+    const findByWorkersBetween = vi.fn(async () => []);
+    const findByWorkersLedger = vi.fn(async () => new Map());
+    const payrollCalculation = {
+      buildMonthlyCycle: vi.fn(({ employees }: { employees: unknown[] }) => ({
+        id: '2026-06',
+        name: 'June 2026 Payroll',
+        year: 2026,
+        month: 6,
+        calendarDays: 30,
+        periodStart: '2026-06-01',
+        periodEnd: '2026-06-30',
+        payDate: '2026-06-30',
+        employeeCount: employees.length,
+        totalGross: 0,
+        totalTax: 0,
+        totalEmployeeInsurance: 0,
+        totalEmployerInsurance: 0,
+        totalPolicyDeductions: 0,
+        totalNet: 0,
+        currency: 'EGP',
+        rows: [],
+      })),
+      maskRowForActor: (row: unknown) => row,
+    };
+    const controller = new PayrollController(
+      {} as never,
+      { getSetup: async () => ({ locations: [{ code: 'CAIRO_HQ', countryCode: 'EG', currency: 'EGP', active: true }], attendancePolicy: {}, payrollBlockingRules: [] }) } as never,
+      { findByStatusForTenant, searchForTenant: vi.fn(async () => []) } as never,
+      { findByWorker, findByWorkers } as never,
+      { findByWorker, findByWorkersBetween } as never,
+      { findByWorker, findByWorkers: findByWorkersLedger } as never,
+      { calculateDay: vi.fn(), summarizeMonth: vi.fn(() => ({ payableMinutes: 0 })) } as never,
+      payrollCalculation as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+    const req = {
+      tenantId: '00000000-0000-0000-0000-000000000001',
+      actor: {
+        actorType: 'USER',
+        actorId: new Uuid('550e8400-e29b-41d4-a716-446655440100'),
+        roles: ['PAYROLL_ADMIN'],
+        permissions: ['PAYROLL_MANAGE'],
+        mfaAuthenticated: true,
+      },
+    } as never;
+
+    const employees = await (controller as any).buildPayrollEmployees(2026, 6, req);
+
+    // Regression: the whole workforce must be fetched, not truncated at one page.
+    expect(employees).toHaveLength(totalWorkers);
+    expect(findByStatusForTenant).toHaveBeenCalledTimes(2);
+    expect(findByStatusForTenant.mock.calls[0][2]).toMatchObject({ limit: pageSize, offset: 0 });
+    expect(findByStatusForTenant.mock.calls[1][2]).toMatchObject({ limit: pageSize, offset: pageSize });
+
+    // Regression: per-worker data is batch-fetched once for the whole
+    // workforce, not fanned out into one query per worker (N+1).
+    expect(findByWorkers).toHaveBeenCalledTimes(1);
+    expect(findByWorkersBetween).toHaveBeenCalledTimes(1);
+    expect(findByWorkersLedger).toHaveBeenCalledTimes(1);
+    expect(findByWorker).not.toHaveBeenCalled();
   });
 
   it('returns close-to-pay job status for polling clients', async () => {

@@ -30,6 +30,24 @@ vi.mock('@/components/common/allowed-actions', () => ({
   ),
 }));
 
+vi.mock('recharts', () => ({
+  Area: () => null,
+  AreaChart: () => <div data-testid="area-chart" />,
+  Bar: () => null,
+  BarChart: () => <div data-testid="bar-chart" />,
+  CartesianGrid: () => null,
+  Cell: () => null,
+  Legend: () => null,
+  Line: () => null,
+  LineChart: () => <div data-testid="line-chart" />,
+  Pie: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  PieChart: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  ResponsiveContainer: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+  Tooltip: () => null,
+  XAxis: () => null,
+  YAxis: () => null,
+}));
+
 const selectedWorkerId = '00000000-0000-0000-0000-000000000011';
 const managerWorkerId = '00000000-0000-0000-0000-000000000099';
 
@@ -104,6 +122,109 @@ function renderTeam(path: string = `/manager/team?worker=${selectedWorkerId}`) {
   );
 }
 
+const managerProfile = {
+  id: managerWorkerId,
+  employeeId: 'EMP-001',
+  firstName: 'David',
+  lastName: 'Chen',
+  email: 'david.chen@example.com',
+  hireDate: '2020-01-01',
+  status: 'ACTIVE',
+};
+
+const teamAttendancePeriodView = {
+  periodStart: '2026-07-07',
+  periodEnd: '2026-07-13',
+  range: 'WEEKLY',
+  scope: 'TEAM',
+  totals: {
+    employeeDays: 10,
+    present: 8,
+    absent: 1,
+    onLeave: 1,
+    exceptions: 2,
+    payableHours: 76,
+    deductionHours: 1,
+    overtimeHours: 4,
+    geofenceViolations: 0,
+    lateMinutes: 30,
+    missingCheckout: 0,
+    payrollReady: 8,
+    undertimeMinutes: 0,
+  },
+  workers: [
+    {
+      workerId: selectedWorkerId,
+      employeeId: 'EMP-100',
+      name: 'Mona Saleh',
+      departmentName: 'Product',
+      employeeDays: 5,
+      present: 4,
+      absent: 1,
+      onLeave: 0,
+      exceptions: 1,
+      payableHours: 38,
+      deductionHours: 0.5,
+      overtimeHours: 2,
+      geofenceViolations: 0,
+      lateMinutes: 15,
+      missingCheckout: 0,
+      payrollReady: 4,
+      undertimeMinutes: 0,
+    },
+  ],
+};
+
+const dailyLedger = {
+  workDate: '2026-07-13',
+  rows: [
+    {
+      worker: {
+        workerId: selectedWorkerId,
+        employeeId: 'EMP-100',
+        name: 'Mona Saleh',
+        departmentName: 'Product',
+      },
+      status: 'PRESENT',
+      firstCheckInAt: '2026-07-13T06:05:00.000Z',
+      latestCheckOutAt: undefined,
+      exceptions: [],
+    },
+  ],
+  summary: {
+    totalEmployees: 1,
+    present: 1,
+    absent: 0,
+    onLeave: 0,
+    late: 0,
+    missingCheckout: 0,
+    exceptions: 1,
+    payrollReady: 0,
+  },
+  exceptionQueue: [
+    {
+      workerId: selectedWorkerId,
+      workerName: 'Mona Saleh',
+      description: 'Late arrival exceeds grace window',
+      severity: 'MEDIUM',
+      status: 'OPEN',
+    },
+  ],
+};
+
+const performanceDashboard = {
+  managerId: managerWorkerId,
+  managerName: 'David Chen',
+  reportCount: 1,
+  analytics: {
+    ratingDistribution: [{ rating: 4, count: 1 }],
+    goalMetrics: { total: 3, active: 2, achieved: 1, atRisk: 1, averageProgress: 62 },
+    nineBox: [{ workerId: selectedWorkerId, employeeName: 'Mona Saleh', performanceScore: 72, potentialScore: 66, box: 'Core contributor' }],
+    recognitions: [{ workerId: selectedWorkerId, employeeName: 'Mona Saleh', score: 88, reason: 'Recognized for rating 4.2 with 88% performance score.' }],
+    actionPlans: [{ workerId: selectedWorkerId, employeeName: 'Mona Saleh', riskLevel: 'MEDIUM', progressTrend: 'IMPROVING', recommendedActions: ['Advance action plan objective: Raise launch goal delivery above 75%'] }],
+  },
+};
+
 describe('ManagerTeam', () => {
   beforeEach(() => {
     apiClientGetMock.mockReset();
@@ -115,6 +236,18 @@ describe('ManagerTeam', () => {
       }
       if (url.startsWith('/intelligence/attrition-risk/tenant/')) {
         return apiResponse([]);
+      }
+      if (url.startsWith('/employee/profile')) {
+        return apiResponse(managerProfile);
+      }
+      if (url.startsWith('/time/attendance/reports/period-view')) {
+        return apiResponse(teamAttendancePeriodView);
+      }
+      if (url.startsWith('/time/attendance/daily-ledger')) {
+        return apiResponse(dailyLedger);
+      }
+      if (url.startsWith('/performance/analytics/manager/')) {
+        return apiResponse(performanceDashboard);
       }
       return apiResponse({});
     });
@@ -351,5 +484,30 @@ describe('ManagerTeam', () => {
     // COMPENSATION_ADMIN_ROLES-gated command a bare MANAGER can call.
     expect(screen.queryByRole('button', { name: /approve|recommend|change/i })).not.toBeInTheDocument();
     expect(apiClientPostMock).not.toHaveBeenCalledWith(expect.stringContaining('/hr/compensation'), expect.anything());
+  });
+
+  it('shows a scope=TEAM attendance roster, who is in today, and exceptions on the team list view', async () => {
+    renderTeam('/manager/team');
+
+    expect(await screen.findByText('Team Attendance')).toBeInTheDocument();
+    // Who's in today roster, sourced from the scoped daily-ledger row.
+    expect(screen.getByText('PRESENT')).toBeInTheDocument();
+    // Exception queue surfaced for manager attention.
+    expect(screen.getByText('Late arrival exceeds grace window')).toBeInTheDocument();
+    expect(screen.getAllByText('MEDIUM').length).toBeGreaterThan(0);
+    // Full period roster (not capped), from scope=TEAM period-view.
+    expect(screen.getByText('Team roster - Weekly')).toBeInTheDocument();
+    expect(screen.getAllByText('Mona Saleh').length).toBeGreaterThan(0);
+  });
+
+  it('shows the manager-scoped team performance distribution and talent grid', async () => {
+    renderTeam('/manager/team');
+
+    expect(await screen.findByText('Team Performance')).toBeInTheDocument();
+    expect(screen.getByText('Rating distribution')).toBeInTheDocument();
+    expect(screen.getByText('Talent grid')).toBeInTheDocument();
+    expect(screen.getByText('Core contributor')).toBeInTheDocument();
+    expect(screen.getByText('Action plans')).toBeInTheDocument();
+    expect(screen.getAllByTestId('bar-chart').length).toBeGreaterThan(0);
   });
 });

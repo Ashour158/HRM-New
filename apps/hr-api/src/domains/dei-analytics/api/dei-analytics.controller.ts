@@ -15,7 +15,7 @@ import { AttritionSegmentReportRepository } from '../repositories/attrition-segm
 import type * as dtos from './dtos.js';
 import {
   CreateDeiReportDtoSchema, GenerateDeiReportDtoSchema,
-  CreatePayGapReportDtoSchema, CalculatePayGapReportDtoSchema,
+  CreatePayGapReportDtoSchema,
   CreatePayEquityReviewDtoSchema, RecordPayEquityFindingsDtoSchema, StartPayEquityRemediationDtoSchema, ClosePayEquityReviewDtoSchema,
   CreateAttritionSegmentReportDtoSchema, GenerateAttritionSegmentReportDtoSchema, ZodValidationPipe,
 } from './dtos.js';
@@ -111,10 +111,10 @@ export class DeiAnalyticsController {
     return this.commandBus.execute(this.buildCommand('CreatePayGapReport', 'PayGapReport', dto, req));
   }
   @Post('pay-gap-reports/:id/commands/calculate')
-  async calculatePayGapReport(@Body(new ZodValidationPipe(CalculatePayGapReportDtoSchema)) dto: dtos.CalculatePayGapReportDto, @Req() req: Request) {
-    const r = await this.payGapReportRepo.findById(new Uuid(dto.payGapReportId));
+  async calculatePayGapReport(@Param('id') id: string, @Req() req: Request) {
+    const r = await this.payGapReportRepo.findById(new Uuid(id));
     if (!r) throw new BadRequestException('Pay gap report not found');
-    return this.commandBus.execute(this.buildCommand('CalculatePayGapReport', 'PayGapReport', dto, req, { aggregateId: new Uuid(dto.payGapReportId), expectedState: r.status, expectedVersion: r.aggregateVersion }));
+    return this.commandBus.execute(this.buildCommand('CalculatePayGapReport', 'PayGapReport', { payGapReportId: id }, req, { aggregateId: new Uuid(id), expectedState: r.status, expectedVersion: r.aggregateVersion }));
   }
   @Post('pay-gap-reports/:id/commands/review')
   async reviewPayGapReport(@Param('id') id: string, @Req() req: Request) {
