@@ -8,6 +8,8 @@ export interface CalculatedFieldProps {
   fieldName: string;
   expression: string;
   dataType: string;
+  /** Report catalog data source code (e.g. "PAYROLL") this calculated field's expression is validated and evaluated against. */
+  dataSource: string;
   sourceFields?: string[];
   status?: CalculatedFieldStatus;
   aggregateVersion?: number;
@@ -38,6 +40,7 @@ export class CalculatedField extends AggregateRoot {
   fieldName: string;
   expression: string;
   dataType: string;
+  dataSource: string;
   sourceFields: string[];
   status: CalculatedFieldStatus;
   createdAt: Date;
@@ -51,6 +54,7 @@ export class CalculatedField extends AggregateRoot {
     this.fieldName = props.fieldName;
     this.expression = props.expression;
     this.dataType = props.dataType;
+    this.dataSource = props.dataSource;
     this.sourceFields = props.sourceFields ?? [];
     this.status = props.status ?? 'DRAFT';
     this.createdAt = props.createdAt ?? new Date();

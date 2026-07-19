@@ -52,7 +52,6 @@ export class PayrollResultLineLocked extends DomainEvent {
 }
 
 export class PayrollResultLine extends AggregateRoot {
-  private _aggregateVersion = 0;
   readonly tenantId: Uuid;
   workerId: Uuid;
   payrollCycleId: Uuid;
@@ -71,9 +70,7 @@ export class PayrollResultLine extends AggregateRoot {
   createdAt: Date;
   updatedAt: Date;
 
-  get version(): number { return this._aggregateVersion; }
-  get aggregateVersion(): number { return this._aggregateVersion; }
-  incrementVersion(): void { this._aggregateVersion++; }
+  get aggregateVersion(): number { return this.version; }
 
   constructor(props: PayrollResultLineProps) {
     super(props.id);
@@ -93,7 +90,7 @@ export class PayrollResultLine extends AggregateRoot {
     this.status = props.status ?? 'CALCULATED';
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
-    if (props.aggregateVersion !== undefined) this._aggregateVersion = props.aggregateVersion;
+    if (props.aggregateVersion !== undefined) this.restoreVersion(props.aggregateVersion);
   }
 
   static calculate(props: PayrollResultLineProps, correlationId: Uuid): PayrollResultLine {

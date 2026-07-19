@@ -77,6 +77,30 @@ describe('EmployeeServices', () => {
           },
         ]);
       }
+      if (url === '/hr-service-delivery/knowledge-articles') {
+        return apiResponse([
+          {
+            id: 'kb-1',
+            title: 'How payroll deductions are calculated',
+            content: 'Payroll deductions cover statutory tax, social insurance, and any voluntary benefit elections you have made.',
+            category: 'Payroll & Reward',
+            tags: ['payroll', 'deductions'],
+            status: 'PUBLISHED',
+            createdAt: '2026-06-01T08:00:00.000Z',
+            updatedAt: '2026-06-01T08:00:00.000Z',
+          },
+          {
+            id: 'kb-2',
+            title: 'Requesting an employment verification letter',
+            content: 'Submit a service request under Documents and HR will issue a signed letter within 24 hours.',
+            category: 'Documents',
+            tags: ['letters'],
+            status: 'PUBLISHED',
+            createdAt: '2026-06-02T08:00:00.000Z',
+            updatedAt: '2026-06-02T08:00:00.000Z',
+          },
+        ]);
+      }
       return apiResponse([]);
     });
     apiClientPostMock.mockResolvedValue({ data: { success: true, data: { hrServiceCaseId: 'case-2', caseNumber: 'HR-20260614-NEW12345', status: 'OPEN' } } });
@@ -97,5 +121,36 @@ describe('EmployeeServices', () => {
       expect.objectContaining({ caseType: 'HR_LETTER', priority: 'MEDIUM', description: 'Please prepare a signed employment letter.' }),
     ));
     expect(addNotificationMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Service request submitted' }));
+  });
+
+  it('surfaces published knowledge base articles for self-serve search before submitting a case', async () => {
+    renderEmployeeServices();
+
+    expect(await screen.findByRole('heading', { name: 'Find an answer before opening a case' })).toBeInTheDocument();
+    expect(await screen.findByText('How payroll deductions are calculated')).toBeInTheDocument();
+    expect(screen.getByText('Requesting an employment verification letter')).toBeInTheDocument();
+    await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith('/hr-service-delivery/knowledge-articles'));
+  });
+
+  it('filters knowledge base articles as the employee searches', async () => {
+    renderEmployeeServices();
+
+    expect(await screen.findByText('How payroll deductions are calculated')).toBeInTheDocument();
+    expect(screen.getByText('Requesting an employment verification letter')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Search knowledge base'), 'payroll');
+
+    expect(screen.getByText('How payroll deductions are calculated')).toBeInTheDocument();
+    expect(screen.queryByText('Requesting an employment verification letter')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty state when no knowledge base articles match the search', async () => {
+    renderEmployeeServices();
+
+    expect(await screen.findByText('How payroll deductions are calculated')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Search knowledge base'), 'nonexistent topic');
+
+    expect(await screen.findByText('No articles match your search')).toBeInTheDocument();
   });
 });

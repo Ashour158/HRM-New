@@ -11,8 +11,11 @@ import { PolicyAcknowledgementRepository } from './repositories/policy-acknowled
 import { LegalHoldRepository } from './repositories/legal-hold.repository.js';
 import { StatutoryReportRepository } from './repositories/statutory-report.repository.js';
 import { CreatePolicyDocumentHandler } from './commands/create-policy-document.handler.js';
+import { SubmitPolicyDocumentForApprovalHandler } from './commands/submit-policy-document-for-approval.handler.js';
 import { ApprovePolicyDocumentHandler } from './commands/approve-policy-document.handler.js';
+import { RejectPolicyDocumentHandler } from './commands/reject-policy-document.handler.js';
 import { PublishPolicyDocumentHandler } from './commands/publish-policy-document.handler.js';
+import { ArchivePolicyDocumentHandler } from './commands/archive-policy-document.handler.js';
 import { RequirePolicyAcknowledgementHandler } from './commands/require-policy-acknowledgement.handler.js';
 import { RecordPolicyAcknowledgementHandler } from './commands/record-policy-acknowledgement.handler.js';
 import { PlaceLegalHoldHandler } from './commands/place-legal-hold.handler.js';
@@ -43,8 +46,11 @@ import { LegalHoldGuard } from './services/legal-hold-guard.service.js';
     StatutoryReportRepository,
     // Command handlers
     CreatePolicyDocumentHandler,
+    SubmitPolicyDocumentForApprovalHandler,
     ApprovePolicyDocumentHandler,
+    RejectPolicyDocumentHandler,
     PublishPolicyDocumentHandler,
+    ArchivePolicyDocumentHandler,
     RequirePolicyAcknowledgementHandler,
     RecordPolicyAcknowledgementHandler,
     PlaceLegalHoldHandler,

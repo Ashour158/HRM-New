@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { VariableCompPlan } from '../aggregates/variable-comp-plan.aggregate.js';
 
@@ -22,7 +22,7 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
   }
 
   async findByTenant(tenantId: Uuid): Promise<VariableCompPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -34,7 +34,8 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['variable_comp_plans']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['variable_comp_plans']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['variable_comp_plans']>);
     }
@@ -46,8 +47,8 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
       tenantId: new Uuid(row.tenant_id),
       name: row.name,
       planType: row.plan_type,
-      targetPercentage: row.target_percentage,
-      maxPercentage: row.max_percentage,
+      targetPercentage: parseNumeric(row.target_percentage),
+      maxPercentage: parseNumeric(row.max_percentage),
       currency: row.currency,
       status: row.status as 'DRAFT' | 'ACTIVE' | 'CLOSED',
       aggregateVersion: row.aggregate_version,

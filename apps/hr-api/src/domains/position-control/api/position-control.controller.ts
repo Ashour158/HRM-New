@@ -9,7 +9,6 @@ import {
   Query,
   Req,
   UseGuards,
-  UsePipes,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -18,19 +17,26 @@ import { createCommand, type HrCommandEnvelope } from '@hcm/command-contracts';
 import { AuthGuard } from '../../../guards/auth.guard.js';
 import { CommandBus } from '../../../platform/command-bus/command-bus.js';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
-import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
 import { PositionRepository } from '../repositories/position.repository.js';
 import { HeadcountRequestRepository } from '../repositories/headcount-request.repository.js';
 import { HeadcountBudgetRepository } from '../repositories/headcount-budget.repository.js';
 import {
   ApproveHeadcountRequestDto,
+  ApproveHeadcountRequestDtoSchema,
   ConfigureHeadcountBudgetDto,
   CreatePositionDto,
+  CreatePositionDtoSchema,
   FillPositionDto,
+  FillPositionDtoSchema,
   RejectHeadcountRequestDto,
+  RejectHeadcountRequestDtoSchema,
   SubmitHeadcountRequestDto,
+  SubmitHeadcountRequestDtoSchema,
   UpdatePositionDto,
+  UpdatePositionDtoSchema,
   VacatePositionDto,
+  VacatePositionDtoSchema,
+  ZodValidationPipe,
 } from './dtos.js';
 
 const POSITION_ADMIN_ROLES = new Set([
@@ -48,7 +54,6 @@ const POSITION_ADMIN_ROLES = new Set([
 @ApiTags('Position Control')
 @UseGuards(AuthGuard)
 @Controller('hr/position-control')
-@UsePipes(ZodValidationPipe)
 export class PositionControlController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -60,7 +65,7 @@ export class PositionControlController {
 
   @Post('positions')
   @ApiOperation({ summary: 'Create a new position' })
-  async createPosition(@Body() dto: CreatePositionDto, @Req() req: Request) {
+  async createPosition(@Body(new ZodValidationPipe(CreatePositionDtoSchema)) dto: CreatePositionDto, @Req() req: Request) {
     const envelope = this.buildCommand('CreatePosition', req, dto, {
       aggregateType: 'position',
       reason: 'Create position via API',
@@ -110,7 +115,7 @@ export class PositionControlController {
   @Post('positions/:id/commands/fill')
   @ApiOperation({ summary: 'Fill a position with a worker' })
   @ApiParam({ name: 'id', description: 'Position UUID' })
-  async fillPosition(@Param('id') id: string, @Body() dto: FillPositionDto, @Req() req: Request) {
+  async fillPosition(@Param('id') id: string, @Body(new ZodValidationPipe(FillPositionDtoSchema)) dto: FillPositionDto, @Req() req: Request) {
     const envelope = this.buildCommand('FillPosition', req, { positionId: id, workerId: dto.workerId }, {
       aggregateType: 'position',
       aggregateId: id,
@@ -123,7 +128,7 @@ export class PositionControlController {
   @Post('positions/:id/commands/vacate')
   @ApiOperation({ summary: 'Vacate a position' })
   @ApiParam({ name: 'id', description: 'Position UUID' })
-  async vacatePosition(@Param('id') id: string, @Body() dto: VacatePositionDto, @Req() req: Request) {
+  async vacatePosition(@Param('id') id: string, @Body(new ZodValidationPipe(VacatePositionDtoSchema)) dto: VacatePositionDto, @Req() req: Request) {
     const envelope = this.buildCommand('VacatePosition', req, { positionId: id, reason: dto.reason ?? 'Vacated via API' }, {
       aggregateType: 'position',
       aggregateId: id,
@@ -148,7 +153,7 @@ export class PositionControlController {
   @Patch('positions/:id')
   @ApiOperation({ summary: 'Update a position' })
   @ApiParam({ name: 'id', description: 'Position UUID' })
-  async updatePosition(@Param('id') id: string, @Body() dto: UpdatePositionDto, @Req() req: Request) {
+  async updatePosition(@Param('id') id: string, @Body(new ZodValidationPipe(UpdatePositionDtoSchema)) dto: UpdatePositionDto, @Req() req: Request) {
     const envelope = this.buildCommand('UpdatePosition', req, { positionId: id, ...dto }, {
       aggregateType: 'position',
       aggregateId: id,
@@ -246,7 +251,7 @@ export class PositionControlController {
 
   @Post('headcount-requests')
   @ApiOperation({ summary: 'Submit a new headcount request' })
-  async submitHeadcountRequest(@Body() dto: SubmitHeadcountRequestDto, @Req() req: Request) {
+  async submitHeadcountRequest(@Body(new ZodValidationPipe(SubmitHeadcountRequestDtoSchema)) dto: SubmitHeadcountRequestDto, @Req() req: Request) {
     const envelope = this.buildCommand('SubmitHeadcountRequest', req, dto, {
       aggregateType: 'headcountRequest',
       reason: 'Submit headcount request via API',
@@ -270,7 +275,7 @@ export class PositionControlController {
   @Post('headcount-requests/:id/commands/approve')
   @ApiOperation({ summary: 'Approve a headcount request' })
   @ApiParam({ name: 'id', description: 'Headcount request UUID' })
-  async approveHeadcountRequest(@Param('id') id: string, @Body() dto: ApproveHeadcountRequestDto, @Req() req: Request) {
+  async approveHeadcountRequest(@Param('id') id: string, @Body(new ZodValidationPipe(ApproveHeadcountRequestDtoSchema)) dto: ApproveHeadcountRequestDto, @Req() req: Request) {
     const envelope = this.buildCommand('ApproveHeadcountRequest', req, {
       requestId: id,
       positionsApproved: dto.positionsApproved,
@@ -287,7 +292,7 @@ export class PositionControlController {
   @Post('headcount-requests/:id/commands/reject')
   @ApiOperation({ summary: 'Reject a headcount request' })
   @ApiParam({ name: 'id', description: 'Headcount request UUID' })
-  async rejectHeadcountRequest(@Param('id') id: string, @Body() dto: RejectHeadcountRequestDto, @Req() req: Request) {
+  async rejectHeadcountRequest(@Param('id') id: string, @Body(new ZodValidationPipe(RejectHeadcountRequestDtoSchema)) dto: RejectHeadcountRequestDto, @Req() req: Request) {
     const envelope = this.buildCommand('RejectHeadcountRequest', req, { requestId: id, reason: dto.reason }, {
       aggregateType: 'headcountRequest',
       aggregateId: id,
