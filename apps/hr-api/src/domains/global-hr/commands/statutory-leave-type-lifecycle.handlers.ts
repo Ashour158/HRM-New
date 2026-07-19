@@ -22,7 +22,7 @@ type SupersedeStatutoryLeaveTypePayload = {
 function statutoryLeaveTypeResult(
   command: HrCommandEnvelope<unknown>,
   fsm: FsmFramework,
-  leaveType: Awaited<ReturnType<StatutoryLeaveTypeRepository['findById']>>,
+  leaveType: Awaited<ReturnType<StatutoryLeaveTypeRepository['findByIdForTenant']>>,
 ): CommandResult<unknown> {
   if (!leaveType) throw new Error('Statutory leave type not found');
   return {
@@ -56,7 +56,7 @@ export class UpdateStatutoryLeaveTypeHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as UpdateStatutoryLeaveTypePayload;
-    const leaveType = await this.repo.findById(payload.leaveTypeId);
+    const leaveType = await this.repo.findByIdForTenant(payload.leaveTypeId, command.tenantId);
     if (!leaveType) throw new Error('Statutory leave type not found');
     leaveType.update(
       {
@@ -91,7 +91,7 @@ export class SupersedeStatutoryLeaveTypeHandler {
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
     const payload = command.payload as SupersedeStatutoryLeaveTypePayload;
-    const leaveType = await this.repo.findById(payload.leaveTypeId);
+    const leaveType = await this.repo.findByIdForTenant(payload.leaveTypeId, command.tenantId);
     if (!leaveType) throw new Error('Statutory leave type not found');
     leaveType.supersede(command.correlationId);
     await this.repo.save(leaveType);

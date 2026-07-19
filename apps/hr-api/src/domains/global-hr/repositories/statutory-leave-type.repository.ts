@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance, parseNullableNumeric } from '@hcm/database';
+import { getPool, createKyselyInstance, parseNullableNumeric, resolveTransactionAwareExecutor } from '@hcm/database';
 import { StatutoryLeaveType } from '../aggregates/statutory-leave-type.aggregate.js';
 
 /**
@@ -18,8 +18,17 @@ export class StatutoryLeaveTypeRepository {
     this.db = createKyselyInstance(getPool());
   }
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async findById(id: Uuid): Promise<StatutoryLeaveType | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom('hr_global_hr.statutory_leave_types')
       .selectAll()
       .where('id', '=', id.value)
@@ -27,8 +36,24 @@ export class StatutoryLeaveTypeRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  /**
+   * Tenant-scoped lookup by id. Command handlers that mutate a leave type by
+   * id (update/supersede) MUST use this instead of {@link findById} so that a
+   * caller from tenant A cannot mutate tenant B's leave type by guessing or
+   * enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<StatutoryLeaveType | undefined> {
+    const row = await this.executor
+      .selectFrom('hr_global_hr.statutory_leave_types')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row) : undefined;
+  }
+
   async findByCountryCode(countryCode: string): Promise<StatutoryLeaveType[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_global_hr.statutory_leave_types')
       .selectAll()
       .where('country_code', '=', countryCode)
@@ -37,7 +62,7 @@ export class StatutoryLeaveTypeRepository {
   }
 
   async findActiveByCountryCode(countryCode: string): Promise<StatutoryLeaveType[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_global_hr.statutory_leave_types')
       .selectAll()
       .where('country_code', '=', countryCode)
@@ -47,7 +72,7 @@ export class StatutoryLeaveTypeRepository {
   }
 
   async save(entity: StatutoryLeaveType): Promise<void> {
-    const existing = await this.db
+    const existing = await this.executor
       .selectFrom('hr_global_hr.statutory_leave_types')
       .select('id')
       .where('id', '=', entity.id.value)
@@ -70,13 +95,13 @@ export class StatutoryLeaveTypeRepository {
     };
 
     if (existing) {
-      await this.db
+      await this.executor
         .updateTable('hr_global_hr.statutory_leave_types')
         .set(row)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
-      await this.db
+      await this.executor
         .insertInto('hr_global_hr.statutory_leave_types')
         .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();
