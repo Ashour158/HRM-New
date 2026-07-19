@@ -503,10 +503,13 @@ describe('ManagerTeam', () => {
   it('shows the manager-scoped team performance distribution and talent grid', async () => {
     renderTeam('/manager/team');
 
-    expect(await screen.findByText('Team Performance')).toBeInTheDocument();
+    // The performance-analytics query is chained behind the self-profile query
+    // (it only enables once `managerProfile?.id` resolves), so wait on data that
+    // depends on that chain settling before asserting on the rest of the card.
+    expect(await screen.findByText('Core contributor')).toBeInTheDocument();
+    expect(screen.getByText('Team Performance')).toBeInTheDocument();
     expect(screen.getByText('Rating distribution')).toBeInTheDocument();
     expect(screen.getByText('Talent grid')).toBeInTheDocument();
-    expect(screen.getByText('Core contributor')).toBeInTheDocument();
     expect(screen.getByText('Action plans')).toBeInTheDocument();
     expect(screen.getAllByTestId('bar-chart').length).toBeGreaterThan(0);
   });
