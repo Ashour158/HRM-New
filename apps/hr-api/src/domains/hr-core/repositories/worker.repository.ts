@@ -275,6 +275,42 @@ export class WorkerRepository extends BaseRepository<'workers', WorkerProfile> {
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
   }
 
+  // Used by the narrow-scope worker-directory search (open to EMPLOYEE/MANAGER and other
+  // non-admin roles). Deliberately excludes the email column from the ILIKE match: unlike
+  // searchForTenant() (admin-only), this path must not let a caller probe partial email
+  // addresses to learn whether a guessed address exists in the tenant.
+  async searchDirectoryForTenant(
+    query: string,
+    tenantId: Uuid,
+    options?: { limit?: number; offset?: number },
+  ): Promise<WorkerProfile[]> {
+    let dbQuery = this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', tenantId.value);
+
+    if (query) {
+      const like = `%${query}%`;
+      dbQuery = dbQuery.where((eb: any) =>
+        eb.or([
+          eb('first_name', 'ilike', like),
+          eb('last_name', 'ilike', like),
+          eb('employee_number', 'ilike', like),
+        ])
+      );
+    }
+
+    if (options?.limit !== undefined) {
+      dbQuery = dbQuery.limit(options.limit);
+    }
+    if (options?.offset !== undefined) {
+      dbQuery = dbQuery.offset(options.offset);
+    }
+
+    const rows = await dbQuery.execute();
+    return rows.map((r: any) => this.toAggregate(r as unknown as Database['workers']));
+  }
+
   async save(entity: WorkerProfile): Promise<void> {
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);

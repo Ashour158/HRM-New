@@ -114,6 +114,21 @@ const managerRoleNames = new Set(['MANAGER']);
 const systemAdminRoleNames = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_ADMIN', 'HR_ADMIN']);
 const recruiterRoleNames = new Set(['RECRUITER', 'TALENT_ACQUISITION', 'HR_ADMIN', 'SUPER_ADMIN']);
 const payrollRoleNames = new Set(['PAYROLL_ADMIN', 'COMPENSATION_ADMIN', 'HR_ADMIN', 'SUPER_ADMIN']);
+// Full worker master-data admin (create/update/terminate/mass-update/export). Narrower than
+// adminRoleNames: matches the backend's HR_CORE_ADMIN_ROLES, which intentionally excludes
+// PAYROLL_ADMIN/COMPENSATION_ADMIN/BENEFITS_ADMIN/COMPLIANCE_OFFICER/ER_SPECIALIST — those
+// roles only carry WORKER_READ in the RBAC policy, not WORKER_CREATE/UPDATE/TERMINATE, and
+// use the /hr/core/workers/directory-search endpoint via WorkerPicker for name lookups instead.
+const hrCoreAdminRoleNames = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'HRBP',
+  'PEOPLE_ADMIN',
+  'WORKFORCE_PLANNING_ADMIN',
+  'SYSTEM_ACTOR',
+]);
 
 function RequireRoles({
   children,
@@ -346,9 +361,30 @@ export function AppRoutes() {
                     <Route path="modules" element={<AdminModuleCatalog />} />
                     <Route path="modules/:moduleId/operations" element={<AdminModuleOperations />} />
                     <Route path="modules/:moduleId" element={<AdminModuleWorkbench />} />
-                    <Route path="employees/new" element={<AdminEmployeeCreate />} />
-                    <Route path="employees/:id" element={<AdminEmployeeProfile />} />
-                    <Route path="employees" element={<AdminWorkers />} />
+                    <Route
+                      path="employees/new"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminEmployeeCreate />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="employees/:id"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminEmployeeProfile />
+                        </RequireRoles>
+                      }
+                    />
+                    <Route
+                      path="employees"
+                      element={
+                        <RequireRoles allowedRoles={hrCoreAdminRoleNames} fallback="/admin">
+                          <AdminWorkers />
+                        </RequireRoles>
+                      }
+                    />
                     <Route path="workers" element={<Navigate to="/admin/employees" replace />} />
                     <Route path="organization" element={<AdminOrganization />} />
                     <Route path="workforce-planning" element={<AdminOrganization initialTab="planning" />} />
