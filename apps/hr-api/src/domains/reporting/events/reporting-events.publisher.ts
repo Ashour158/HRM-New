@@ -6,7 +6,7 @@ import type { DomainEvent, Uuid } from '@hcm/shared-kernel';
 import {
   ReportDefinitionCreated, ReportDefinitionPublished, ReportDefinitionArchived,
   ReportExecutionPending, ReportExecutionQueued, ReportExecutionStarted, ReportExecutionCompleted, ReportExecutionFailed,
-  ReportScheduleCreated, ReportScheduleActivated, ReportSchedulePaused, ReportScheduleExpired,
+  ReportScheduleCreated, ReportScheduleActivated, ReportSchedulePaused, ReportScheduleExpired, ReportScheduleRunRecorded,
   CalculatedFieldCreated, CalculatedFieldActivated, CalculatedFieldDeprecated,
 } from '../aggregates/index.js';
 
@@ -68,6 +68,8 @@ export class ReportingEventsPublisher {
         return { ...base, payload: { reportScheduleId: aggregateId.value } };
       case event instanceof ReportScheduleExpired:
         return { ...base, payload: { reportScheduleId: aggregateId.value } };
+      case event instanceof ReportScheduleRunRecorded:
+        return { ...base, payload: { reportScheduleId: aggregateId.value, nextRunAt: event.nextRunAt } };
       case event instanceof CalculatedFieldCreated:
         return { ...base, payload: { calculatedFieldId: aggregateId.value, fieldName: event.fieldName } };
       case event instanceof CalculatedFieldActivated:
