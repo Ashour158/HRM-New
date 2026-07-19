@@ -12,6 +12,7 @@ import { computeRequestHash } from '@hcm/platform-core';
 import type { CommandResult, HrCommandEnvelope } from '@hcm/command-contracts';
 import { resolveTenantCurrency } from '../../hcm-setup/hcm-setup-currency.js';
 import { HcmSetupService } from '../../hcm-setup/hcm-setup.service.js';
+import type { HcmSetupConfig } from '../../hcm-setup/hcm-setup.types.js';
 import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
 import { PersonalDataRecordRepository } from '../../hr-core/repositories/personal-data-record.repository.js';
 import { AttendanceCalculationService, type AttendanceSession } from '../../time-attendance/services/attendance-calculation.service.js';
