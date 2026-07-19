@@ -5,7 +5,6 @@ import { PortalLayout } from '@/layouts/portal-layout';
 import { useAuth } from '@/hooks/use-auth';
 
 const LoginPage = lazy(() => import('@/pages/login').then((module) => ({ default: module.LoginPage })));
-const RegisterPage = lazy(() => import('@/pages/register').then((module) => ({ default: module.RegisterPage })));
 const ForgotPasswordPage = lazy(() => import('@/pages/forgot-password').then((module) => ({ default: module.ForgotPasswordPage })));
 const HomePage = lazy(() => import('@/pages/home').then((module) => ({ default: module.HomePage })));
 const NotificationsPage = lazy(() => import('@/pages/notifications').then((module) => ({ default: module.NotificationsPage })));
@@ -159,7 +158,6 @@ export function AppRoutes() {
     <Suspense fallback={<RouteLoading />}>
       <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
       {/* Employee Portal */}
