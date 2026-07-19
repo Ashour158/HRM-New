@@ -22,6 +22,13 @@ export class RequisitionAdverseImpactAnalysisRepository {
     this.db = createKyselyInstance(getPool());
   }
 
+  /**
+   * @deprecated Not tenant-scoped — reachable by any authenticated actor
+   * regardless of tenant. Use {@link findByIdForTenant} for any lookup
+   * driven by a caller-supplied id (route params, command payloads). This
+   * analysis surfaces group-level EEOC-protected-class outcome data, so
+   * cross-tenant reachability here is a PII/compliance exposure.
+   */
   async findById(id: Uuid): Promise<RequisitionAdverseImpactAnalysis | undefined> {
     const row = await this.db
       .selectFrom('hr_recruiting.requisition_adverse_impact_analyses')
@@ -32,11 +39,47 @@ export class RequisitionAdverseImpactAnalysisRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  /**
+   * Tenant-scoped lookup by id. Controllers/handlers that resolve an
+   * adverse-impact analysis from a caller-supplied id (route param or
+   * command payload) MUST use this instead of {@link findById} so that a
+   * caller from tenant A cannot read tenant B's EEOC-protected-class outcome
+   * data by guessing or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<RequisitionAdverseImpactAnalysis | undefined> {
+    const row = await this.db
+      .selectFrom('hr_recruiting.requisition_adverse_impact_analyses')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+
+    return row ? this.toAggregate(row) : undefined;
+  }
+
+  /**
+   * @deprecated Not tenant-scoped. Use {@link findByRequisitionForTenant}.
+   */
   async findByRequisition(requisitionId: Uuid): Promise<RequisitionAdverseImpactAnalysis[]> {
     const rows = await this.db
       .selectFrom('hr_recruiting.requisition_adverse_impact_analyses')
       .selectAll()
       .where('requisition_id', '=', requisitionId.value)
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
+   * Tenant-scoped lookup of all adverse-impact analyses for a given
+   * requisition.
+   */
+  async findByRequisitionForTenant(requisitionId: Uuid, tenantId: Uuid): Promise<RequisitionAdverseImpactAnalysis[]> {
+    const rows = await this.db
+      .selectFrom('hr_recruiting.requisition_adverse_impact_analyses')
+      .selectAll()
+      .where('requisition_id', '=', requisitionId.value)
+      .where('tenant_id', '=', tenantId.value)
       .execute();
 
     return rows.map((r: any) => this.toAggregate(r));

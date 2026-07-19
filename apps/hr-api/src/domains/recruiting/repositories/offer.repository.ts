@@ -34,6 +34,10 @@ export class OfferRepository {
 
   /**
    * Find an offer by its unique identifier.
+   *
+   * @deprecated Not tenant-scoped — reachable by any authenticated actor
+   * regardless of tenant. Use {@link findByIdForTenant} for any lookup
+   * driven by a caller-supplied id (route params, command payloads).
    */
   async findById(id: Uuid): Promise<Offer | undefined> {
     const row = await this.executor
@@ -46,7 +50,27 @@ export class OfferRepository {
   }
 
   /**
+   * Tenant-scoped lookup by id. Controllers/handlers that resolve an offer
+   * from a caller-supplied id (route param or command payload) MUST use
+   * this instead of {@link findById} so that a caller from tenant A cannot
+   * read or act on tenant B's offer (salary, currency, status) by guessing
+   * or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<Offer | undefined> {
+    const row = await this.executor
+      .selectFrom('hr_recruiting.offers')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+
+    return row ? this.toAggregate(row) : undefined;
+  }
+
+  /**
    * Find all offers for a given candidate.
+   *
+   * @deprecated Not tenant-scoped. Use {@link findByCandidateForTenant}.
    */
   async findByCandidate(candidateId: Uuid): Promise<Offer[]> {
     const rows = await this.executor
@@ -59,7 +83,23 @@ export class OfferRepository {
   }
 
   /**
+   * Tenant-scoped lookup of all offers for a given candidate.
+   */
+  async findByCandidateForTenant(candidateId: Uuid, tenantId: Uuid): Promise<Offer[]> {
+    const rows = await this.executor
+      .selectFrom('hr_recruiting.offers')
+      .selectAll()
+      .where('candidate_id', '=', candidateId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
    * Find all offers for a given requisition.
+   *
+   * @deprecated Not tenant-scoped. Use {@link findByRequisitionForTenant}.
    */
   async findByRequisition(requisitionId: Uuid): Promise<Offer[]> {
     const rows = await this.executor
@@ -72,13 +112,45 @@ export class OfferRepository {
   }
 
   /**
+   * Tenant-scoped lookup of all offers for a given requisition.
+   */
+  async findByRequisitionForTenant(requisitionId: Uuid, tenantId: Uuid): Promise<Offer[]> {
+    const rows = await this.executor
+      .selectFrom('hr_recruiting.offers')
+      .selectAll()
+      .where('requisition_id', '=', requisitionId.value)
+      .where('tenant_id', '=', tenantId.value)
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
    * Find all pending (non-terminal) offers.
+   *
+   * @deprecated Not tenant-scoped -- returns pending offers (including
+   * proposed salary/currency) across every tenant. Use
+   * {@link findPendingForTenant}.
    */
   async findPending(): Promise<Offer[]> {
     const rows = await this.executor
       .selectFrom('hr_recruiting.offers')
       .selectAll()
       .where('status', 'in', ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'])
+      .execute();
+
+    return rows.map((r: any) => this.toAggregate(r));
+  }
+
+  /**
+   * Tenant-scoped lookup of all pending (non-terminal) offers.
+   */
+  async findPendingForTenant(tenantId: Uuid): Promise<Offer[]> {
+    const rows = await this.executor
+      .selectFrom('hr_recruiting.offers')
+      .selectAll()
+      .where('status', 'in', ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT'])
+      .where('tenant_id', '=', tenantId.value)
       .execute();
 
     return rows.map((r: any) => this.toAggregate(r));
