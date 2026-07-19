@@ -193,6 +193,46 @@ export class AccessGovernanceRepository {
     return this.listUserRoles(tenantId);
   }
 
+  /**
+   * Recomputes a user's effective role codes and permission codes from their
+   * current, non-expired role assignments -- the source of truth JWT issuance
+   * and refresh must resync from whenever access governance changes what
+   * roles/permissions a user or role has.
+   */
+  async computeEffectiveUserAccess(tenantId: Uuid, userId: Uuid): Promise<{ roles: string[]; permissions: string[] }> {
+    const result = await sql<{ role_code: string; permission_code: string | null }>`
+      SELECT DISTINCT r.code AS role_code, p.code AS permission_code
+      FROM user_roles ur
+      JOIN roles r ON r.id = ur.role_id
+      LEFT JOIN role_permissions rp ON rp.role_id = r.id
+      LEFT JOIN permissions p ON p.id = rp.permission_id
+      WHERE ur.tenant_id = ${tenantId.value}
+        AND ur.user_id = ${userId.value}
+        AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+    `.execute(this.db);
+
+    const roles = Array.from(new Set(result.rows.map((row) => row.role_code)));
+    const permissions = Array.from(
+      new Set(result.rows.map((row) => row.permission_code).filter((code): code is string => Boolean(code))),
+    );
+    return { roles, permissions };
+  }
+
+  /**
+   * user_ids currently holding a role, used to fan out a resync to every
+   * affected user when a role's permission set changes rather than just when
+   * a single user's role assignment changes.
+   */
+  async listUserIdsForRole(tenantId: Uuid, roleId: Uuid): Promise<string[]> {
+    const result = await sql<{ user_id: string }>`
+      SELECT DISTINCT user_id
+      FROM user_roles
+      WHERE tenant_id = ${tenantId.value}
+        AND role_id = ${roleId.value}
+    `.execute(this.db);
+    return result.rows.map((row) => row.user_id);
+  }
+
   async listServiceAccounts(tenantId: Uuid): Promise<ServiceAccountRecord[]> {
     return this.db
       .selectFrom('service_accounts')
