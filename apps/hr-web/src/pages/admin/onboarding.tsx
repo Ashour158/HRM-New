@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatTile } from '@/components/ui/stat-tile';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/common/empty-state';
 import { ErrorState } from '@/components/common/error-state';
@@ -424,10 +425,50 @@ export function AdminOnboarding() {
           </div>
 
           <div className="grid md:grid-cols-4">
-            <Kpi label="Active plans" value={activePlans} icon={Users} />
-            <Kpi label="Selected completion" value={`${completed}%`} icon={CheckCircle2} />
-            <Kpi label="Owner groups" value={ownerGroups.length} icon={Building2} />
-            <Kpi label="Overdue tasks" value={overdueTasks} icon={CalendarClock} />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="md"
+              tone="secondary"
+              icon={Users}
+              iconPosition="leading"
+              label="Active plans"
+              value={activePlans}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="md"
+              tone="secondary"
+              icon={CheckCircle2}
+              iconPosition="leading"
+              label="Selected completion"
+              value={`${completed}%`}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="md"
+              tone="secondary"
+              icon={Building2}
+              iconPosition="leading"
+              label="Owner groups"
+              value={ownerGroups.length}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
+            <StatTile
+              variant="strip"
+              stripBreakpoint="md"
+              tone="secondary"
+              icon={CalendarClock}
+              iconPosition="leading"
+              label="Overdue tasks"
+              value={overdueTasks}
+              labelClassName="lumina-label"
+              valueClassName="font-headline text-2xl font-bold text-foreground"
+            />
           </div>
         </section>
 
@@ -550,10 +591,42 @@ export function AdminOnboarding() {
                   <div className="h-full rounded-full bg-secondary" style={{ width: `${completed}%` }} />
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
-                  <Metric label="Checklist" value={`${selectedTasks.length} tasks`} />
-                  <Metric label="Documents" value={selectedTasks.some((task) => inferOwnerGroup(task) === 'HR') ? 'Tracked' : 'Add packet'} />
-                  <Metric label="IT provisioning" value={selectedTasks.some((task) => inferOwnerGroup(task) === 'IT') ? 'Queued' : 'Not queued'} />
-                  <Metric label="Probation" value={selectedPlan?.probationStatus?.replace(/_/g, ' ') ?? 'PENDING REVIEW'} />
+                  <StatTile
+                    variant="glass"
+                    hover={false}
+                    className="p-3"
+                    label="Checklist"
+                    value={`${selectedTasks.length} tasks`}
+                    labelClassName="lumina-label"
+                    valueClassName="truncate text-sm font-semibold text-foreground"
+                  />
+                  <StatTile
+                    variant="glass"
+                    hover={false}
+                    className="p-3"
+                    label="Documents"
+                    value={selectedTasks.some((task) => inferOwnerGroup(task) === 'HR') ? 'Tracked' : 'Add packet'}
+                    labelClassName="lumina-label"
+                    valueClassName="truncate text-sm font-semibold text-foreground"
+                  />
+                  <StatTile
+                    variant="glass"
+                    hover={false}
+                    className="p-3"
+                    label="IT provisioning"
+                    value={selectedTasks.some((task) => inferOwnerGroup(task) === 'IT') ? 'Queued' : 'Not queued'}
+                    labelClassName="lumina-label"
+                    valueClassName="truncate text-sm font-semibold text-foreground"
+                  />
+                  <StatTile
+                    variant="glass"
+                    hover={false}
+                    className="p-3"
+                    label="Probation"
+                    value={selectedPlan?.probationStatus?.replace(/_/g, ' ') ?? 'PENDING REVIEW'}
+                    labelClassName="lumina-label"
+                    valueClassName="truncate text-sm font-semibold text-foreground"
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -689,29 +762,6 @@ export function AdminOnboarding() {
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function Kpi({ label, value, icon: Icon }: { label: string; value: string | number; icon: React.ComponentType<{ className?: string }> }) {
-  return (
-    <div className="flex min-h-[88px] items-center gap-3 border-b border-border/50 px-4 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-      <div className="grid h-10 w-10 place-items-center rounded-lg bg-secondary/10 text-primary">
-        <Icon className="h-5 w-5" />
-      </div>
-      <div>
-        <p className="lumina-label">{label}</p>
-        <p className="mt-1 font-headline text-2xl font-bold text-foreground">{value}</p>
-      </div>
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="fusion-glass rounded-2xl p-3">
-      <p className="lumina-label">{label}</p>
-      <p className="mt-1 truncate text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }

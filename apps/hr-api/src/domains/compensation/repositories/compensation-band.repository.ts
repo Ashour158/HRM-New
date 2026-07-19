@@ -5,6 +5,9 @@ import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, pars
 import type { Database } from '@hcm/database';
 import { CompensationBand } from '../aggregates/compensation-band.aggregate.js';
 
+/** Band statuses under which a band is considered currently in force. */
+const ACTIVE_BAND_STATUSES = ['ACTIVE', 'REVISED'] as const;
+
 /**
  * Repository for {@link CompensationBand} aggregates.
  */
@@ -45,6 +48,24 @@ export class CompensationBandRepository extends BaseRepository<'compensation_ban
       .where('tenant_id', '=', this.requireTenantId()).where('job_family', '=', jobFamily)
       .execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['compensation_bands']));
+  }
+
+  /**
+   * Find the currently-in-force compensation band (status ACTIVE or REVISED)
+   * for a given job family + job level combination, scoped to the current
+   * tenant. Used to gate offer creation/approval against the correct band.
+   */
+  async findActiveByFamilyAndLevel(jobFamily: string, jobLevel: string): Promise<CompensationBand | undefined> {
+    const rows = await this.db
+      .selectFrom(this.tableName)
+      .selectAll()
+      .where('tenant_id', '=', this.requireTenantId())
+      .where('job_family', '=', jobFamily)
+      .where('job_level', '=', jobLevel)
+      .where('status', 'in', [...ACTIVE_BAND_STATUSES])
+      .execute();
+    const row = rows[0];
+    return row ? this.toAggregate(row as unknown as Database['compensation_bands']) : undefined;
   }
 
   async save(entity: CompensationBand): Promise<void> {

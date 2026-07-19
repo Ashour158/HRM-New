@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { StatTile } from '@/components/ui/stat-tile';
 
 type RoleView = {
   id: string;
@@ -387,23 +388,6 @@ function EmptyRows({ colSpan, label }: { colSpan: number; label: string }) {
         {label}
       </TableCell>
     </TableRow>
-  );
-}
-
-function StatusStrip({ label, value, helper, icon: Icon }: { label: string; value: string | number; helper: string; icon: React.ElementType }) {
-  return (
-    <Card className="fusion-glass fusion-hover rounded-[2rem] border-transparent">
-      <CardContent className="flex items-start justify-between gap-4 p-4">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">{label}</p>
-          <p className="mt-2 text-2xl font-bold">{value}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{helper}</p>
-        </div>
-        <div className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white">
-          <Icon className="size-5" />
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -972,13 +956,83 @@ export function AdminAccessGovernance() {
           </>
         ) : (
           <>
-            <StatusStrip label="Roles" value={roles.length} helper="tenant role catalog" icon={UsersRound} />
-            <StatusStrip label="Permissions" value={permissions.length} helper="domain permission catalog" icon={KeyRound} />
-            <StatusStrip label="User Roles" value={userRoles.length} helper="user-role grants" icon={UserCog} />
-            <StatusStrip label="Assignments" value={assignments.length} helper="role-permission joins" icon={GitCompareArrows} />
-            <StatusStrip label="Service IDs" value={serviceAccounts.length} helper="service account identities" icon={FileKey2} />
-            <StatusStrip label="Reviews" value={accessReviewCampaigns.length} helper={`${accessReviewItems.length} review items`} icon={ShieldAlert} />
-            <StatusStrip label="Policies" value={(data?.abacPolicies.length ?? 0) + (data?.fieldAccessPolicies.length ?? 0) + (data?.sodRules.length ?? 0)} helper="ABAC, field, and SoD" icon={ShieldCheck} />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={UsersRound}
+              label="Roles"
+              value={roles.length}
+              helperText="tenant role catalog"
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={KeyRound}
+              label="Permissions"
+              value={permissions.length}
+              helperText="domain permission catalog"
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={UserCog}
+              label="User Roles"
+              value={userRoles.length}
+              helperText="user-role grants"
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={GitCompareArrows}
+              label="Assignments"
+              value={assignments.length}
+              helperText="role-permission joins"
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={FileKey2}
+              label="Service IDs"
+              value={serviceAccounts.length}
+              helperText="service account identities"
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={ShieldAlert}
+              label="Reviews"
+              value={accessReviewCampaigns.length}
+              helperText={`${accessReviewItems.length} review items`}
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
+            <StatTile
+              variant="card"
+              className="fusion-glass fusion-hover rounded-[2rem] border-transparent"
+              icon={ShieldCheck}
+              label="Policies"
+              value={(data?.abacPolicies.length ?? 0) + (data?.fieldAccessPolicies.length ?? 0) + (data?.sodRules.length ?? 0)}
+              helperText="ABAC, field, and SoD"
+              labelClassName="lumina-label"
+              valueClassName="mt-2 text-2xl font-bold"
+              iconBoxClassName="grid size-10 shrink-0 place-items-center rounded-2xl bg-white/20 bg-gradient-to-br from-indigo-500 to-violet-500 text-white"
+            />
           </>
         )}
       </section>

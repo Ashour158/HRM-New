@@ -31,6 +31,11 @@ spec:
             capabilities:
               drop:
                 - ALL
+          volumeMounts:
+            - name: nginx-run
+              mountPath: /var/run
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
           startupProbe:
             httpGet:
               path: /healthz
@@ -61,3 +66,8 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+      volumes:
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}

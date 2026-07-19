@@ -3,6 +3,7 @@ import { createKyselyInstance, getPool, parseNumeric, resolveTransactionAwareExe
 import type { Database } from '@hcm/database';
 import type { Insertable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
+import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
 import type { PayrollPaymentBatchRecord } from '../services/payroll-artifact.service.js';
 import type { PayrollPaymentBatch } from '../services/payroll-input-orchestration.service.js';
 
@@ -12,6 +13,49 @@ function dateToDb(value: string): Date {
 
 function dateFromDb(value: Date): string {
   return value.toISOString().slice(0, 10);
+}
+
+/**
+ * `payload.rows[]` denormalizes the real bank-transfer details captured at
+ * payroll-close time (see `PayrollBankTransferRow`) so `PayrollBankFileService`
+ * can render NACHA/SEPA/CSV bank files from the persisted batch without a
+ * further DB round-trip. The fields below are the actual routing credentials
+ * a bank needs -- encrypt them at rest the same way the SPECIAL_CATEGORY
+ * repositories (ErInvestigationRepository et al.) encrypt free-text fields:
+ * `encryptPiiField`/`decryptPiiField` at the toRow/toRecord boundary only, so
+ * the in-memory `PayrollPaymentBatchRecord` stays plaintext for every existing
+ * consumer (bank file rendering, admin previews, reconciliation). Every other
+ * row field (employeeId, name, bankName, netSalary, currency, ...) is left
+ * untouched -- it is not itself a bank credential.
+ */
+const BANK_ROUTING_FIELDS = ['accountNumber', 'iban', 'routingNumber', 'swiftCode'] as const;
+type BankRoutingField = (typeof BANK_ROUTING_FIELDS)[number];
+
+function transformBankTransferRows(
+  rows: PayrollPaymentBatch['rows'] | undefined,
+  transform: (value: string) => string,
+): PayrollPaymentBatch['rows'] {
+  if (!rows) return [];
+  return rows.map((row) => {
+    const next = { ...row };
+    for (const field of BANK_ROUTING_FIELDS as readonly BankRoutingField[]) {
+      if (next[field]) next[field] = transform(next[field]);
+    }
+    return next;
+  });
+}
+
+function encryptPayload(payload: PayrollPaymentBatch): PayrollPaymentBatch {
+  return { ...payload, rows: transformBankTransferRows(payload.rows, encryptPiiField) };
+}
+
+/**
+ * Inverse of {@link encryptPayload}. Safe against legacy plaintext rows written
+ * before this fix -- `decryptPiiField` passes through any string without the
+ * `encpii:` marker unchanged.
+ */
+function decryptPayload(payload: PayrollPaymentBatch): PayrollPaymentBatch {
+  return { ...payload, rows: transformBankTransferRows(payload.rows, decryptPiiField) };
 }
 
 @Injectable()
@@ -92,6 +136,7 @@ export class PayrollPaymentBatchRepository {
   }
 
   private toRow(record: PayrollPaymentBatchRecord): Insertable<Database['payroll_payment_batches']> {
+    const payload = record.payload ? encryptPayload(record.payload) : record.payload;
     return {
       id: record.id,
       tenant_id: record.tenantId,
@@ -110,7 +155,7 @@ export class PayrollPaymentBatchRepository {
       // Postgres array literal (not JSON), which is invalid for jsonb — so workflow_events
       // (an array) must be JSON.stringify'd. Do the same for the object columns for
       // consistency (pg casts the JSON text to jsonb).
-      payload: JSON.stringify(record.payload ?? {}),
+      payload: JSON.stringify(payload ?? {}),
       created_by: record.createdBy ?? null,
       approved_by: record.approvedBy ?? null,
       approved_at: record.approvedAt ?? null,
@@ -126,6 +171,8 @@ export class PayrollPaymentBatchRepository {
   }
 
   private toRecord(row: Database['payroll_payment_batches']): PayrollPaymentBatchRecord {
+    const rawPayload = row.payload as PayrollPaymentBatch | null;
+    const payload = rawPayload ? decryptPayload(rawPayload) : rawPayload;
     return {
       id: row.id,
       tenantId: row.tenant_id,
@@ -140,7 +187,7 @@ export class PayrollPaymentBatchRepository {
       blockedCount: row.blocked_count,
       totalNet: parseNumeric(row.total_net),
       fileHash: row.file_hash,
-      payload: row.payload as PayrollPaymentBatch,
+      payload: payload as PayrollPaymentBatch,
       createdBy: row.created_by ?? undefined,
       approvedBy: row.approved_by ?? undefined,
       approvedAt: row.approved_at ?? undefined,
