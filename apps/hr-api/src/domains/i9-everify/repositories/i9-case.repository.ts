@@ -105,18 +105,38 @@ export class I9CaseRepository {
       updated_at: now,
     };
 
-    const result = await this.db
-      .insertInto('hr_i9_everify.i9_forms')
-      .values({ id: entity.id.value, ...columns, created_at: now } as never)
-      .onConflict((oc) =>
-        oc
-          .column('id')
-          .doUpdateSet(columns as never)
-          .where('tenant_id', '=', tenantId.value)
-          .where('aggregate_version', '=', entity.loadedVersion),
-      )
-      .returningAll()
-      .executeTakeFirst();
+    let result: Record<string, unknown> | undefined;
+    try {
+      result = await this.db
+        .insertInto('hr_i9_everify.i9_forms')
+        .values({ id: entity.id.value, ...columns, created_at: now } as never)
+        .onConflict((oc) =>
+          oc
+            .column('id')
+            .doUpdateSet(columns as never)
+            .where('tenant_id', '=', tenantId.value)
+            .where('aggregate_version', '=', entity.loadedVersion),
+        )
+        .returningAll()
+        .executeTakeFirst();
+    } catch (err) {
+      // The `ON CONFLICT (id)` clause above only arbitrates races on the
+      // primary key. It does NOT cover the `i9_forms_one_active_case_per_worker_idx`
+      // partial unique index (tenant_id + worker_id, WHERE status is
+      // non-terminal) added to enforce "at most one open I-9 case per worker" -
+      // a violation of that index comes back from Postgres as a raw 23505
+      // (unique_violation) error rather than the empty-result-set path below.
+      // Translate it into a clean domain ConflictError instead of letting an
+      // opaque DB error escape the repository.
+      const pgError = err as { code?: string; constraint?: string; message?: string };
+      if (pgError?.code === '23505' && pgError.constraint === 'i9_forms_one_active_case_per_worker_idx') {
+        throw new ConflictError(
+          `Worker ${entity.workerId.value} already has an open I-9 case; only one active case per worker is allowed`,
+          { table: 'hr_i9_everify.i9_forms', workerId: entity.workerId.value, constraint: pgError.constraint },
+        );
+      }
+      throw err;
+    }
 
     if (!result) {
       throw new ConflictError(

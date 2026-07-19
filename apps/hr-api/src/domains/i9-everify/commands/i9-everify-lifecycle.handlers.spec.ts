@@ -251,6 +251,62 @@ describe('I9/E-Verify command handlers', () => {
     expect(result.data).toEqual(expect.objectContaining({ everifyCaseId: everifyCaseId.value, caseNumber: 'MOCK-EV-999' }));
   });
 
+  it('does not re-submit to E-Verify on a retry that supplies the same explicit everifyCaseId as a prior successful submission', async () => {
+    const i9Case = new I9Case({
+      id: i9CaseId,
+      tenantId,
+      workerId,
+      startDate: new Date('2026-07-01T00:00:00.000Z'),
+      status: 'EVERIFY_SUBMITTED',
+      documentType: 'LIST_A',
+      everifyCaseId,
+      aggregateVersion: 3,
+    });
+    const existingEverifyCase = new EverifyCase({
+      id: everifyCaseId,
+      tenantId,
+      workerId,
+      i9CaseId,
+      status: 'SUBMITTED',
+      caseNumber: 'MOCK-EV-999',
+      simulatedDetermination: 'CONFIRMED',
+      aggregateVersion: 1,
+    });
+    const i9CaseRepo = {
+      findById: vi.fn(async () => i9Case),
+      save: vi.fn(),
+    } as unknown as I9CaseRepository;
+    const everifyCaseRepo = {
+      findById: vi.fn(async () => existingEverifyCase),
+      findByI9Case: vi.fn(async () => {
+        throw new Error('should not look up by I9 case when an explicit everifyCaseId is supplied');
+      }),
+      save: vi.fn(),
+    } as unknown as EverifyCaseRepository;
+    const everifyAdapter = {
+      submitCase: vi.fn(async () => {
+        throw new Error('should not be called again on retry');
+      }),
+    } as unknown as EverifyAdapter;
+    const handler = new SubmitEverifyCaseHandler(i9CaseRepo, everifyCaseRepo, everifyAdapter, fsm(), eventsPublisher());
+
+    const result = await handler.handle(
+      envelope('SubmitEverifyCase', 'I9Case', i9CaseId, {
+        i9CaseId,
+        everifyCaseId,
+        firstName: 'Jordan',
+        lastName: 'Rivera',
+      }),
+    );
+
+    expect(everifyCaseRepo.findById).toHaveBeenCalledWith(everifyCaseId);
+    expect(everifyCaseRepo.findByI9Case).not.toHaveBeenCalled();
+    expect(everifyAdapter.submitCase).not.toHaveBeenCalled();
+    expect(everifyCaseRepo.save).not.toHaveBeenCalled();
+    expect(i9CaseRepo.save).not.toHaveBeenCalled();
+    expect(result.data).toEqual(expect.objectContaining({ everifyCaseId: everifyCaseId.value, caseNumber: 'MOCK-EV-999' }));
+  });
+
   it('fails the SubmitEverifyCase command when the adapter reports failure', async () => {
     const i9Case = new I9Case({
       id: i9CaseId,

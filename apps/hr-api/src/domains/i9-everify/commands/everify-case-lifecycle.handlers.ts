@@ -87,6 +87,19 @@ export class SubmitEverifyCaseHandler {
       if (existingEverifyCase) {
         return everifyResult(command, this.fsm, i9Case, existingEverifyCase);
       }
+    } else {
+      // A retry that DOES supply an explicit, deterministic everifyCaseId (the
+      // saga/command-bus idempotency pattern used elsewhere, e.g.
+      // CreateI9CaseHandler's caller-supplied payload.i9CaseId) must be guarded
+      // the same way: if a case already exists at that exact id, a crash or
+      // redelivery after a prior successful submission would otherwise skip
+      // straight to EverifyCase.create(...) and call the real E-Verify adapter
+      // a second time before save()'s optimistic-concurrency check ever gets a
+      // chance to detect the conflict. Look the id up first and short-circuit.
+      const existingEverifyCase = await this.everifyCaseRepo.findById(coerceUuid(payload.everifyCaseId));
+      if (existingEverifyCase) {
+        return everifyResult(command, this.fsm, i9Case, existingEverifyCase);
+      }
     }
 
     const everifyCaseId = payload.everifyCaseId ? coerceUuid(payload.everifyCaseId) : Uuid.generate();
