@@ -65,7 +65,7 @@ export function AdminWorkers() {
   const [uploadPreview, setUploadPreview] = React.useState<EmployeeMassUpdatePreview | null>(null);
   const [uploadedRows, setUploadedRows] = React.useState<EmployeeMassUpdateRow[]>([]);
   const [uploadApplyResult, setUploadApplyResult] = React.useState<EmployeeMassUpdateApplyResult | null>(null);
-  const [terminateTarget, setTerminateTarget] = React.useState<string | null>(null);
+  const [terminateTarget, setTerminateTarget] = React.useState<{ id: string; name: string } | null>(null);
 
   const { data: workersData, isLoading, isError, error, refetch } = useApiQuery<Worker[]>(
     ['admin-workers', search, page],
@@ -120,17 +120,18 @@ export function AdminWorkers() {
     }
   };
 
-  const handleTerminate = (workerId: string) => {
-    setTerminateTarget(workerId);
+  const handleTerminate = (workerId: string, workerName: string) => {
+    setTerminateTarget({ id: workerId, name: workerName });
   };
 
-  const confirmTerminate = async (reason: string) => {
+  const submitTermination = async (reason: string) => {
     if (!terminateTarget) return;
+    const { id: workerId } = terminateTarget;
     try {
-      await terminateMutation.mutateAsync({ workerId: terminateTarget, reason, terminationDate: new Date().toISOString() });
+      await terminateMutation.mutateAsync({ workerId, reason, terminationDate: new Date().toISOString() });
+      setTerminateTarget(null);
       refetch();
       addNotification({ title: 'Employee terminated', message: 'The employee record has been terminated.', type: 'success', read: false });
-      setTerminateTarget(null);
     } catch (err) {
       addNotification({ title: 'Termination failed', message: err instanceof Error ? err.message : 'Could not terminate employee.', type: 'error', read: false });
     }
@@ -264,7 +265,7 @@ export function AdminWorkers() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => handleTerminate(row.id)}
+              onClick={() => handleTerminate(row.id, `${row.firstName} ${row.lastName}`)}
               aria-label="Terminate employee"
               className="text-destructive hover:text-destructive"
             >
@@ -408,18 +409,14 @@ export function AdminWorkers() {
       </section>
 
       <TextReasonDialog
-        open={terminateTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setTerminateTarget(null);
-        }}
-        title="Terminate employee"
-        description="This ends the employee's active assignment and starts their offboarding checklist. This action requires a reason for the audit trail."
+        open={Boolean(terminateTarget)}
+        onOpenChange={(open) => !open && setTerminateTarget(null)}
+        title={terminateTarget ? `Terminate ${terminateTarget.name}` : 'Terminate employee'}
         label="Termination reason"
-        placeholder="e.g. Resignation, end of contract, involuntary termination..."
-        confirmLabel="Confirm termination"
-        destructive
+        placeholder="Explain why this employee is being terminated"
+        submitLabel="Terminate"
         isSubmitting={terminateMutation.isPending}
-        onConfirm={confirmTerminate}
+        onSubmit={submitTermination}
       />
     </div>
   );

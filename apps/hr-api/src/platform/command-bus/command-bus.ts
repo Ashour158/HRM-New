@@ -301,7 +301,7 @@ export const GOVERNED_COMMAND_POLICY_MATRIX: GovernedCommandPolicyRule[] = [
     area: 'ACCESS_GOVERNANCE',
     aggregateTypes: [],
     // Every business command must at least pass applied access governance.
-    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Award|Block|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Configure|Contest|Create|Deactivate|Decline|Deliver|Deprecate|Detect|Dispute|Draft|End|Enroll|Enter|Execute|Exempt|Exercise|Expire|Extend|Fail|Fill|Finalize|Flag|Forfeit|Freeze|Generate|Hire|Implement|Initiate|Investigate|Launch|Make|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Reconcile|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Run|Schedule|Screen|Send|Setup|Simulate|Skip|Start|Submit|Supersede|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
+    commandPatterns: [/^(Accept|Achieve|Acknowledge|Activate|Add|Analyze|Appeal|Apply|Approve|Arbitrate|Archive|Arm|Assign|Attach|Award|Block|Breach|Calculate|Calibrate|Cancel|Clear|Close|Complete|Configure|Contest|Create|Deactivate|Decline|Deliver|Deprecate|Detect|Dispute|Draft|Escalate|End|Enroll|Enter|Execute|Exempt|Exercise|Expire|Extend|Fail|Fill|Finalize|Flag|Forfeit|Freeze|Generate|Hire|Implement|Initiate|Investigate|Launch|Make|Mark|Meet|Move|Negotiate|Notify|Open|Parse|Pause|Plan|Publish|Queue|Ratify|Rearm|Reassign|Recalculate|Reconcile|Record|Register|Reject|Remove|Renew|Resolve|Restructure|Retire|Review|Revise|Revoke|Run|Schedule|Screen|Send|Setup|Simulate|Skip|Start|Submit|Supersede|Suspend|Terminate|Trigger|Unfreeze|Update|Uphold|Vacate|Validate|Withdraw)/i],
   },
 ];
 

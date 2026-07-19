@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import { TotalCompensationStatement } from '../aggregates/total-compensation-statement.aggregate.js';
 
@@ -64,11 +64,11 @@ export class TotalCompensationStatementRepository extends BaseRepository<'total_
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       statementYear: row.statement_year,
-      baseSalary: row.base_salary,
-      bonusAmount: row.bonus_amount,
-      equityValue: row.equity_value,
-      benefitsValue: row.benefits_value,
-      totalComp: row.total_comp,
+      baseSalary: parseNumeric(row.base_salary),
+      bonusAmount: parseNumeric(row.bonus_amount),
+      equityValue: parseNumeric(row.equity_value),
+      benefitsValue: parseNumeric(row.benefits_value),
+      totalComp: parseNumeric(row.total_comp),
       currency: row.currency,
       status: row.status as 'DRAFT' | 'GENERATED' | 'DELIVERED' | 'ACKNOWLEDGED',
       aggregateVersion: row.aggregate_version,

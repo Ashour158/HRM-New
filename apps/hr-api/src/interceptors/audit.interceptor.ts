@@ -9,21 +9,11 @@ import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
 import { Observable } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
-import { AuditLedgerService } from '@hcm/platform-core';
+import { AuditLedgerService, redactSensitiveFields } from '@hcm/platform-core';
 import { Uuid } from '@hcm/shared-kernel';
 import { PUBLIC_ROUTE_KEY } from '../decorators/public.decorator.js';
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const SENSITIVE_KEYS = new Set([
-  'password',
-  'ssn',
-  'nationalId',
-  'sin',
-  'passportNumber',
-  'biometric',
-  'token',
-  'refreshToken',
-]);
 
 /**
  * Intercepts non-command mutation requests and writes an authoritative HTTP
@@ -151,16 +141,9 @@ export class AuditInterceptor implements NestInterceptor {
   }
 
   private sanitizeBody(body: unknown): unknown {
-    if (Array.isArray(body)) {
-      return body.map((entry) => this.sanitizeBody(entry));
-    }
     if (typeof body !== 'object' || body === null) {
       return undefined;
     }
-    const clone: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(body)) {
-      clone[key] = SENSITIVE_KEYS.has(key) ? '***REDACTED***' : this.sanitizeBody(value) ?? value;
-    }
-    return clone;
+    return redactSensitiveFields(body);
   }
 }

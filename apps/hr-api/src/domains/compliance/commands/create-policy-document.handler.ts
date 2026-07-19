@@ -58,7 +58,7 @@ export class CreatePolicyDocumentHandler implements ICommandHandler {
       aggregateId: doc.id,
       newState: doc.status,
       newVersion: doc.aggregateVersion,
-      allowedNextActions: ['SubmitForApproval'],
+      allowedNextActions: ['SubmitPolicyDocumentForApproval'],
       fieldAccessDecisions: {},
       eventsEmitted: doc.domainEvents.map((e) => e.eventName),
       auditRecordId: Uuid.generate(),
