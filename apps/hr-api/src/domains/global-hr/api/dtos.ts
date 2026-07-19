@@ -26,6 +26,16 @@ export class CreateCountryRuleSetDto {
   @ApiProperty() rules!: Record<string, unknown>;
 }
 
+export const SupersedeCountryRuleSetDtoSchema = z
+  .object({
+    supersededBy: z.string().min(1).optional(),
+  })
+  .default({});
+
+export class SupersedeCountryRuleSetDto {
+  @ApiPropertyOptional() supersededBy?: string;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Statutory Leave Type DTOs                                          */
 /* ------------------------------------------------------------------ */
@@ -54,6 +64,24 @@ export class CreateStatutoryLeaveTypeDto {
   @ApiProperty() effectiveFrom!: Date;
 }
 
+export const UpdateStatutoryLeaveTypeDtoSchema = z
+  .object({
+    leaveTypeName: z.string().min(1).optional(),
+    minimumEntitlement: z.number().min(0).optional(),
+    unit: z.string().min(1).optional(),
+    carryoverAllowed: z.boolean().optional(),
+    maxCarryover: z.number().min(0).optional(),
+  })
+  .default({});
+
+export class UpdateStatutoryLeaveTypeDto {
+  @ApiPropertyOptional() leaveTypeName?: string;
+  @ApiPropertyOptional() minimumEntitlement?: number;
+  @ApiPropertyOptional() unit?: string;
+  @ApiPropertyOptional() carryoverAllowed?: boolean;
+  @ApiPropertyOptional() maxCarryover?: number;
+}
+
 /* ------------------------------------------------------------------ */
 /*  Works Council Consultation DTOs                                    */
 /* ------------------------------------------------------------------ */
@@ -74,6 +102,26 @@ export class CreateWorksCouncilConsultationDto {
   @ApiProperty() actionType!: string;
   @ApiProperty() consultationType!: string;
   @ApiPropertyOptional() deadlineDate?: Date;
+}
+
+export const InitiateWorksCouncilConsultationDtoSchema = z
+  .object({
+    deadlineDate: z.coerce.date().optional(),
+  })
+  .default({});
+
+export class InitiateWorksCouncilConsultationDto {
+  @ApiPropertyOptional() deadlineDate?: Date;
+}
+
+export const BlockWorksCouncilActionDtoSchema = z
+  .object({
+    blockingUntil: z.coerce.date().optional(),
+  })
+  .default({});
+
+export class BlockWorksCouncilActionDto {
+  @ApiPropertyOptional() blockingUntil?: Date;
 }
 
 /* ------------------------------------------------------------------ */
