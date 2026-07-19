@@ -2202,6 +2202,7 @@ export interface CalculatedFieldsTable {
   field_name: string;
   expression: string;
   data_type: string;
+  data_source: string;
   source_fields: unknown;
   status: string;
   aggregate_version: number;
