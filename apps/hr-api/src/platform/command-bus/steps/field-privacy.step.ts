@@ -41,6 +41,18 @@ export const SENSITIVE_FIELD_RULES: Array<{
     patterns: [/gender/i, /diversity/i, /ethnicity/i, /religion/i],
   },
   {
+    // Voluntary candidate EEO self-identification (race/ethnicity, gender
+    // identity, veteran status, disability status). RECRUITER is
+    // deliberately excluded — this data must be self-reported by the
+    // candidate (voluntarily), never entered by a hiring decision-maker.
+    // System/service-account intake (e.g. a public careers-site self-ID
+    // form) bypasses this whole check per the actorType guard above.
+    policyField: 'candidate.eeoSelfIdentification',
+    dataClassification: 'SPECIAL_CATEGORY',
+    allowedWriterRoles: ['COMPLIANCE_OFFICER', 'DEI_ANALYTICS_ADMIN', 'HR_ADMIN', 'SUPER_ADMIN'],
+    patterns: [/raceEthnicity/i, /genderIdentity/i, /veteranStatus/i, /disabilityStatus/i, /declinedToSelfIdentify/i, /eeoSelfIdentification/i],
+  },
+  {
     policyField: 'worker.legalHoldNotes',
     dataClassification: 'LEGAL_HOLD',
     allowedWriterRoles: ['LEGAL', 'COMPLIANCE_OFFICER', 'SUPER_ADMIN'],

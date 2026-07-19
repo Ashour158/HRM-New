@@ -8,7 +8,15 @@ import { BonusCycleFsm } from '../fsm/bonus-cycle.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for approving a BonusCycle.
+ * Command handler for approving a BonusCycle's payout pool.
+ * REVIEW → APPROVED.
+ *
+ * SoD note: identity-based proposer/approver separation is not tracked on this
+ * aggregate (no single "proposer" field exists on a pool-level payout cycle).
+ * Segregation of duties for bonus payouts is enforced centrally by the command
+ * bus's SoD matrix (see BONUS_RECOMMENDER_CANNOT_CALIBRATE_APPROVE in
+ * packages/hr-access-control/src/sod/sod-matrix.ts), which blocks any actor
+ * holding both MANAGER and COMPENSATION_ADMIN roles from executing this command.
  */
 @Injectable()
 @CommandHandler('ApproveBonusCycle')

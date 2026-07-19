@@ -131,6 +131,24 @@ export {
 } from './engines/employee-relations-escalation.engine.js';
 
 export type {
+  RecruitingFairnessDecisionCode,
+  EeoDemographicDimension,
+  FunnelStageGroupCounts,
+  FunnelStageInput,
+  AdverseImpactAnalysisInput,
+  FunnelStageGroupResult,
+  FunnelStageResult,
+  AdverseImpactAnalysisResult,
+} from './engines/recruiting-fairness-compliance.engine.js';
+
+export {
+  RecruitingFairnessComplianceEngine,
+  evaluateRequisitionAdverseImpact,
+  evaluateFunnelStageAdverseImpact,
+  DEFAULT_SMALL_CELL_THRESHOLD,
+} from './engines/recruiting-fairness-compliance.engine.js';
+
+export type {
   DeiPayTransparencyDecisionCode,
   DeiPayTransparencyInput,
   DeiPayTransparencyViolation,
@@ -148,5 +166,6 @@ export {
   countryPolicyValidationEngine,
   offerCompensationEngine,
   employeeRelationsDisciplinaryEngine,
+  recruitingFairnessComplianceEngine,
   deiPayTransparencyEngine,
 } from './engines/registered-engines.js';

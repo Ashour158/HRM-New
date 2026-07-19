@@ -27,19 +27,23 @@ describe('CompensationBandRepository min/mid/max_salary mapping', () => {
     // `minSalary <= midSalary <= maxSalary` band validity check -- along with
     // its compa-ratio/range-penetration arithmetic -- would silently do
     // string comparison/concatenation instead of numeric comparison/math.
+    //
+    // Each field is given a distinct decimal value below so that a bug which
+    // mapped the wrong column (or copy-pasted one field's value into another)
+    // would be caught -- three identical round numbers would not catch that.
     const band = repo.toAggregate({
       ...baseRow,
       min_salary: '80000.00',
-      mid_salary: '100000.00',
-      max_salary: '120000.00',
+      mid_salary: '100000.50',
+      max_salary: '120000.99',
     });
 
     expect(typeof band.minSalary).toBe('number');
     expect(typeof band.midSalary).toBe('number');
     expect(typeof band.maxSalary).toBe('number');
     expect(band.minSalary).toBe(80000);
-    expect(band.midSalary).toBe(100000);
-    expect(band.maxSalary).toBe(120000);
+    expect(band.midSalary).toBe(100000.5);
+    expect(band.maxSalary).toBe(120000.99);
     expect(band.minSalary <= band.midSalary && band.midSalary <= band.maxSalary).toBe(true);
   });
 

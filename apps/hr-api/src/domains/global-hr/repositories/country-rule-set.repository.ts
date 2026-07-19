@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Kysely } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import type { Database } from '@hcm/database';
-import { getPool, createKyselyInstance } from '@hcm/database';
+import { getPool, createKyselyInstance, resolveTransactionAwareExecutor } from '@hcm/database';
 import { CountryRuleSet } from '../aggregates/country-rule-set.aggregate.js';
 
 /**
@@ -18,8 +18,17 @@ export class CountryRuleSetRepository {
     this.db = createKyselyInstance(getPool());
   }
 
+  /**
+   * Joins the ambient command-bus transaction when one is active (see
+   * `resolveTransactionAwareExecutor` in `@hcm/database`), otherwise falls
+   * back to this repository's own pooled connection.
+   */
+  private get executor() {
+    return resolveTransactionAwareExecutor<Database>(this.db);
+  }
+
   async findById(id: Uuid): Promise<CountryRuleSet | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom('hr_global_hr.country_rule_sets')
       .selectAll()
       .where('id', '=', id.value)
@@ -27,8 +36,24 @@ export class CountryRuleSetRepository {
     return row ? this.toAggregate(row) : undefined;
   }
 
+  /**
+   * Tenant-scoped lookup by id. Command handlers that mutate a rule set by
+   * id (activate/supersede/retire) MUST use this instead of {@link findById}
+   * so that a caller from tenant A cannot mutate tenant B's rule set by
+   * guessing or enumerating its id.
+   */
+  async findByIdForTenant(id: Uuid, tenantId: Uuid): Promise<CountryRuleSet | undefined> {
+    const row = await this.executor
+      .selectFrom('hr_global_hr.country_rule_sets')
+      .selectAll()
+      .where('id', '=', id.value)
+      .where('tenant_id', '=', tenantId.value)
+      .executeTakeFirst();
+    return row ? this.toAggregate(row) : undefined;
+  }
+
   async findByCountryCode(countryCode: string): Promise<CountryRuleSet[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom('hr_global_hr.country_rule_sets')
       .selectAll()
       .where('country_code', '=', countryCode)
@@ -37,7 +62,7 @@ export class CountryRuleSetRepository {
   }
 
   async findActiveByCountryCode(countryCode: string): Promise<CountryRuleSet | undefined> {
-    const row = await this.db
+    const row = await this.executor
       .selectFrom('hr_global_hr.country_rule_sets')
       .selectAll()
       .where('country_code', '=', countryCode)
@@ -47,7 +72,7 @@ export class CountryRuleSetRepository {
   }
 
   async save(entity: CountryRuleSet): Promise<void> {
-    const existing = await this.db
+    const existing = await this.executor
       .selectFrom('hr_global_hr.country_rule_sets')
       .select('id')
       .where('id', '=', entity.id.value)
@@ -68,13 +93,13 @@ export class CountryRuleSetRepository {
     };
 
     if (existing) {
-      await this.db
+      await this.executor
         .updateTable('hr_global_hr.country_rule_sets')
         .set(row)
         .where('id', '=', entity.id.value)
         .execute();
     } else {
-      await this.db
+      await this.executor
         .insertInto('hr_global_hr.country_rule_sets')
         .values({ ...row, created_at: new Date().toISOString() } as never)
         .execute();

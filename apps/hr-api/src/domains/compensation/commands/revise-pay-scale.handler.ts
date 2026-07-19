@@ -10,6 +10,7 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
 
 /**
  * Command handler for revising a PayScale's grade-step progression.
+ * ACTIVE → REVISED or REVISED → REVISED.
  */
 @Injectable()
 @CommandHandler('RevisePayScale')
@@ -34,7 +35,7 @@ export class RevisePayScaleHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { scaleId: scale.id.value, status: scale.status },
+      data: { scaleId: scale.id.value, status: scale.status, steps: scale.steps },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: scale.id,

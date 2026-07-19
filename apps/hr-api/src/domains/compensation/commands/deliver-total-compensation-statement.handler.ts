@@ -8,7 +8,15 @@ import { TotalCompensationStatementFsm } from '../fsm/total-compensation-stateme
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for delivering a TotalCompensationStatement.
+ * Command handler for delivering a generated TotalCompensationStatement to its worker.
+ * GENERATED → DELIVERED.
+ *
+ * The controller sets `subjectWorkerId` on the command envelope to the
+ * statement's workerId, which the command bus's generic outbox → event bus →
+ * EventNotificationBridge pipeline uses to automatically create an
+ * EMPLOYEE-audience platform notification for TotalCompStatementDelivered
+ * (see apps/hr-api/src/platform/notifications/platform-notification.service.ts).
+ * No bespoke notification call is needed here.
  */
 @Injectable()
 @CommandHandler('DeliverTotalCompensationStatement')
@@ -33,7 +41,7 @@ export class DeliverTotalCompensationStatementHandler implements ICommandHandler
 
     return {
       success: true,
-      data: { statementId: statement.id.value, status: statement.status },
+      data: { statementId: statement.id.value, status: statement.status, workerId: statement.workerId.value },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: statement.id,

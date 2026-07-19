@@ -9,8 +9,8 @@ import { Uuid } from '@hcm/shared-kernel';
 import { computeRequestHash } from '@hcm/platform-core';
 import type { HrCommandEnvelope } from '@hcm/command-contracts';
 import { actorClientType, requireActor, requireTenantId } from '../../../platform/http/request-context.js';
-import { WorkerRepository } from '../../hr-core/repositories/worker.repository.js';
-import { LegalEntityRepository } from '../../organization/repositories/legal-entity.repository.js';
+import { HrCoreDirectoryQueryService } from '../../hr-core/hr-core-directory.query-service.js';
+import { OrganizationDirectoryQueryService } from '../../organization/organization-directory.query-service.js';
 import { DocumentExportService, EXPORT_CONTENT_TYPES } from '../../../platform/export/document-export.service.js';
 import { LearningCourseRepository } from '../repositories/learning-course.repository.js';
 import { LearningAssignmentRepository } from '../repositories/learning-assignment.repository.js';
@@ -45,8 +45,8 @@ export class LearningController {
     private readonly assignmentRepo: LearningAssignmentRepository,
     private readonly certificationRepo: CertificationRepository,
     private readonly contentPackageRepo: LearningContentPackageRepository,
-    private readonly workerRepo: WorkerRepository,
-    private readonly legalEntityRepo: LegalEntityRepository,
+    private readonly hrCoreDirectory: HrCoreDirectoryQueryService,
+    private readonly organizationDirectory: OrganizationDirectoryQueryService,
     private readonly documentExport: DocumentExportService,
     private readonly contentStorage: LearningContentStorageService,
   ) {}
@@ -106,14 +106,14 @@ export class LearningController {
   private async resolveSelfWorkerId(req: Request): Promise<string | undefined> {
     const actorId = this.getActorId(req);
     try {
-      const worker = await this.workerRepo.findById(new Uuid(actorId));
+      const worker = await this.hrCoreDirectory.findWorkerById(new Uuid(actorId));
       if (worker) return worker.id.value;
     } catch {
       // Actor IDs from identity providers may be user IDs rather than worker IDs.
     }
     const email = this.getActorEmail(req);
     if (!email) return undefined;
-    const worker = await this.workerRepo.findByEmail(email);
+    const worker = await this.hrCoreDirectory.findWorkerByEmail(email);
     return worker?.id.value;
   }
 
@@ -144,7 +144,7 @@ export class LearningController {
     if (this.isPrivilegedLearningActor(req)) return;
     if (actor.actorId.value === workerId) return;
 
-    const worker = await this.workerRepo.findById(new Uuid(workerId));
+    const worker = await this.hrCoreDirectory.findWorkerById(new Uuid(workerId));
     if (!worker) throw new BadRequestException('Worker not found');
 
     const managerId = (worker as { managerId?: Uuid }).managerId?.value;
@@ -323,10 +323,10 @@ export class LearningController {
     if (cert.tenantId.value !== tenantId.value) throw new ForbiddenException('Tenant mismatch');
     await this.assertCanAccessCertificate(req, cert.workerId.value);
 
-    const worker = await this.workerRepo.findById(cert.workerId);
+    const worker = await this.hrCoreDirectory.findWorkerById(cert.workerId);
     const recipientName = worker ? `${worker.firstName} ${worker.lastName}`.trim() : undefined;
 
-    const legalEntities = await this.legalEntityRepo.findByTenant(tenantId);
+    const legalEntities = await this.organizationDirectory.findLegalEntitiesForTenant(tenantId);
     const organization = legalEntities.find((entity) => entity.status === 'ACTIVE') ?? legalEntities[0];
 
     const buffer = await this.documentExport.toCertificatePdf({

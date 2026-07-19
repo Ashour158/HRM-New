@@ -20,6 +20,7 @@ import { JobRequisitionRepository } from '../repositories/job-requisition.reposi
 import { CandidateRepository } from '../repositories/candidate.repository.js';
 import { InterviewPlanRepository } from '../repositories/interview-plan.repository.js';
 import { OfferRepository } from '../repositories/offer.repository.js';
+import { RequisitionAdverseImpactAnalysisRepository } from '../repositories/requisition-adverse-impact-analysis.repository.js';
 
 import {
   CreateJobRequisitionDto,
@@ -39,7 +40,23 @@ import {
   AcceptOfferDto,
   AcceptOfferDtoSchema,
   ZodValidationPipe,
+  RecordCandidateEeoSelfIdentificationDto,
+  AnalyzeRequisitionAdverseImpactDto,
+  ReviewRequisitionAdverseImpactAnalysisDto,
 } from './dtos.js';
+
+// Adverse-impact analysis results are group-level and k-anonymity-suppressed,
+// but still surface protected-class outcome data — restrict reads to the
+// same admin classes as the dei-analytics domain's equivalent reports.
+const ADVERSE_IMPACT_ANALYTICS_ROLES = new Set([
+  'APP_ADMIN',
+  'PLATFORM_ADMIN',
+  'SUPER_ADMIN',
+  'HR_ADMIN',
+  'DEI_ANALYTICS_ADMIN',
+  'PEOPLE_ANALYTICS_ADMIN',
+  'COMPLIANCE_OFFICER',
+]);
 
 @ApiTags('Recruiting')
 @Controller('hr/recruiting')
@@ -50,6 +67,7 @@ export class RecruitingController {
     private readonly candidateRepo: CandidateRepository,
     private readonly interviewPlanRepo: InterviewPlanRepository,
     private readonly offerRepo: OfferRepository,
+    private readonly adverseImpactAnalysisRepo: RequisitionAdverseImpactAnalysisRepository,
   ) {}
 
   /* ── Job Requisitions ────────────────────────────────────────── */
@@ -368,6 +386,24 @@ export class RecruitingController {
     };
   }
 
+  @Post('candidates/:id/eeo-self-identification')
+  @ApiOperation({
+    summary: 'Record a candidate\'s voluntary EEO self-identification (race/ethnicity, gender identity, veteran status, disability status)',
+  })
+  @ApiParam({ name: 'id', description: 'Candidate UUID' })
+  async recordCandidateEeoSelfIdentification(
+    @Param('id') id: string,
+    @Body() dto: RecordCandidateEeoSelfIdentificationDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('RecordCandidateEeoSelfIdentification', req, { candidateId: id, ...dto }, {
+      aggregateType: 'Candidate',
+      aggregateId: id,
+      reason: 'Record voluntary EEO self-identification via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
   /* ── Interviews ──────────────────────────────────────────────── */
 
   @Post('interviews')
@@ -585,6 +621,78 @@ export class RecruitingController {
     };
   }
 
+  /* ── Recruiting Fairness: Adverse Impact Analysis ──────────────── */
+
+  @Post('requisitions/:id/commands/analyze-adverse-impact')
+  @ApiOperation({
+    summary: 'Run an EEOC 4/5ths-rule adverse-impact analysis on a requisition\'s candidate funnel',
+  })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async analyzeRequisitionAdverseImpact(
+    @Param('id') id: string,
+    @Body() dto: AnalyzeRequisitionAdverseImpactDto,
+    @Req() req: Request,
+  ) {
+    const envelope = this.buildCommand('AnalyzeRequisitionAdverseImpact', req, { requisitionId: id, ...dto }, {
+      aggregateType: 'RequisitionAdverseImpactAnalysis',
+      reason: 'Run adverse-impact analysis via API',
+    });
+    return this.commandBus.execute(envelope);
+  }
+
+  @Post('adverse-impact-analyses/:id/commands/review')
+  @ApiOperation({ summary: 'Mark an adverse-impact analysis as reviewed' })
+  @ApiParam({ name: 'id', description: 'Adverse impact analysis UUID' })
+  async reviewRequisitionAdverseImpactAnalysis(
+    @Param('id') id: string,
+    @Body() dto: ReviewRequisitionAdverseImpactAnalysisDto,
+    @Req() req: Request,
+  ) {
+    const actor = this.actor(req);
+    const envelope = this.buildCommand(
+      'ReviewRequisitionAdverseImpactAnalysis',
+      req,
+      { analysisId: id, reviewedBy: actor.actorId.value, ...dto },
+      {
+        aggregateType: 'RequisitionAdverseImpactAnalysis',
+        aggregateId: id,
+        expectedState: 'ANALYZED',
+        reason: 'Review adverse-impact analysis via API',
+      },
+    );
+    return this.commandBus.execute(envelope);
+  }
+
+  @Get('requisitions/:id/adverse-impact-analyses')
+  @ApiOperation({ summary: 'List adverse-impact analyses for a requisition (group-level, suppressed results only)' })
+  @ApiParam({ name: 'id', description: 'Requisition UUID' })
+  async listRequisitionAdverseImpactAnalyses(@Param('id') id: string, @Req() req: Request) {
+    this.assertAdverseImpactAnalyticsScope(req);
+    return this.adverseImpactAnalysisRepo.findByRequisition(new Uuid(id));
+  }
+
+  @Get('adverse-impact-analyses/:id')
+  @ApiOperation({ summary: 'Get an adverse-impact analysis by ID (group-level, suppressed results only)' })
+  @ApiParam({ name: 'id', description: 'Adverse impact analysis UUID' })
+  async getRequisitionAdverseImpactAnalysis(@Param('id') id: string, @Req() req: Request) {
+    this.assertAdverseImpactAnalyticsScope(req);
+    const analysis = await this.adverseImpactAnalysisRepo.findById(new Uuid(id));
+    if (!analysis) {
+      throw new BadRequestException('Adverse impact analysis not found');
+    }
+    return {
+      id: analysis.id.value,
+      requisitionId: analysis.requisitionId.value,
+      dimension: analysis.dimension,
+      decisionCode: analysis.decisionCode,
+      flaggedStageCount: analysis.flaggedStageCount,
+      smallCellThreshold: analysis.smallCellThreshold,
+      stageResults: analysis.stageResults,
+      status: analysis.status,
+      version: analysis.aggregateVersion,
+    };
+  }
+
   /* ── Helpers ─────────────────────────────────────────────────── */
 
   private buildCommand<TPayload>(
@@ -619,6 +727,14 @@ export class RecruitingController {
         correlationId: Uuid.generate(),
         reason: options.reason ?? 'API request',
       },
+    );
+  }
+
+  private assertAdverseImpactAnalyticsScope(req: Request): void {
+    const roles = req.actor?.roles ?? [];
+    if (roles.some((role) => ADVERSE_IMPACT_ANALYTICS_ROLES.has(role))) return;
+    throw new ForbiddenException(
+      'Only DEI/people-analytics, compliance, or HR administrators can access adverse-impact analyses',
     );
   }
 

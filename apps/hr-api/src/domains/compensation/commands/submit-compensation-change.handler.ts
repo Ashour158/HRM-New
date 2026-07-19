@@ -9,6 +9,11 @@ import { CompensationEventsPublisher } from '../events/compensation-events.publi
 
 /**
  * Command handler for submitting a CompensationChange (DRAFT -> SUBMITTED).
+ *
+ * A separate SendForApprovalCompensationChange command drives the
+ * following SUBMITTED -> PENDING_APPROVAL transition, mirroring the
+ * single-FSM-action-per-handler pattern used across the rest of the
+ * compensation domain (HCM-P0-13).
  */
 @Injectable()
 @CommandHandler('SubmitCompensationChange')
@@ -27,6 +32,7 @@ export class SubmitCompensationChangeHandler implements ICommandHandler {
     if (!change) throw new Error('CompensationChange not found');
 
     change.submit(command.correlationId);
+
     await this.repo.save(change);
     const eventsEmitted = change.domainEvents.map((e) => e.eventName);
     await this.publisher.publishAll(change, command);

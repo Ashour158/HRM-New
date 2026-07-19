@@ -8,7 +8,8 @@ import { CompensationBandFsm } from '../fsm/compensation-band.fsm.js';
 import { CompensationEventsPublisher } from '../events/compensation-events.publisher.js';
 
 /**
- * Command handler for revising a CompensationBand's salary ranges.
+ * Command handler for revising a CompensationBand's salary range.
+ * ACTIVE → REVISED or REVISED → REVISED.
  */
 @Injectable()
 @CommandHandler('ReviseCompensationBand')
@@ -33,7 +34,7 @@ export class ReviseCompensationBandHandler implements ICommandHandler {
 
     return {
       success: true,
-      data: { bandId: band.id.value, status: band.status },
+      data: { bandId: band.id.value, status: band.status, minSalary: band.minSalary, midSalary: band.midSalary, maxSalary: band.maxSalary },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: band.id,
