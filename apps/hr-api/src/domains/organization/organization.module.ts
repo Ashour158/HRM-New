@@ -7,6 +7,7 @@ import { OrganizationController } from './api/organization.controller.js';
 import { LegalEntityRepository } from './repositories/legal-entity.repository.js';
 import { OrgUnitRepository } from './repositories/org-unit.repository.js';
 import { ManagerRelationshipRepository } from './repositories/manager-relationship.repository.js';
+import { OrganizationDirectoryQueryService } from './organization-directory.query-service.js';
 import { LegalEntityEventsPublisher } from './events/legal-entity-events.publisher.js';
 import { LegalEntityFsm } from './fsm/legal-entity.fsm.js';
 import { OrgUnitFsm } from './fsm/org-unit.fsm.js';
@@ -37,6 +38,7 @@ import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-wor
     ManagerRelationshipRepository,
     PositionRepository,
     HeadcountRequestRepository,
+    OrganizationDirectoryQueryService,
     LegalEntityEventsPublisher,
     LegalEntityFsm,
     OrgUnitFsm,
@@ -57,6 +59,7 @@ import { UpdateWorkerOrganizationAssignmentHandler } from './commands/update-wor
     LegalEntityRepository,
     OrgUnitRepository,
     ManagerRelationshipRepository,
+    OrganizationDirectoryQueryService,
     LegalEntityFsm,
     OrgUnitFsm,
   ],
