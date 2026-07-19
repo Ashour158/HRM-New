@@ -24,6 +24,7 @@ import {
   ApproveHeadcountRequestDto,
   ApproveHeadcountRequestDtoSchema,
   ConfigureHeadcountBudgetDto,
+  ConfigureHeadcountBudgetDtoSchema,
   CreatePositionDto,
   CreatePositionDtoSchema,
   FillPositionDto,
@@ -371,7 +372,7 @@ export class PositionControlController {
 
   @Post('headcount-budgets')
   @ApiOperation({ summary: 'Configure (create or update) the headcount budget ceiling for an org unit and fiscal year' })
-  async configureHeadcountBudget(@Body() dto: ConfigureHeadcountBudgetDto, @Req() req: Request) {
+  async configureHeadcountBudget(@Body(new ZodValidationPipe(ConfigureHeadcountBudgetDtoSchema)) dto: ConfigureHeadcountBudgetDto, @Req() req: Request) {
     this.assertPositionAdmin(req);
     const envelope = this.buildCommand('ConfigureHeadcountBudget', req, dto, {
       aggregateType: 'headcountBudget',
