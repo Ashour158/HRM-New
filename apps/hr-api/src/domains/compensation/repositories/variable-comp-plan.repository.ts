@@ -22,7 +22,7 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
   }
 
   async findByTenant(tenantId: Uuid): Promise<VariableCompPlan[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -34,7 +34,8 @@ export class VariableCompPlanRepository extends BaseRepository<'variable_comp_pl
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['variable_comp_plans']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['variable_comp_plans']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['variable_comp_plans']>);
     }

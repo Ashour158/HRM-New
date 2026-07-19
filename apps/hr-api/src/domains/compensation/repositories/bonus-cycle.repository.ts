@@ -30,7 +30,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
   }
 
   async findByTenant(tenantId: Uuid): Promise<BonusCycle[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', tenantId.value)
@@ -39,7 +39,7 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
   }
 
   async findByYear(cycleYear: number): Promise<BonusCycle[]> {
-    const rows = await this.db
+    const rows = await this.executor
       .selectFrom(this.tableName)
       .selectAll()
       .where('tenant_id', '=', this.requireTenantId()).where('cycle_year', '=', cycleYear)
@@ -51,7 +51,8 @@ export class BonusCycleRepository extends BaseRepository<'bonus_cycles', BonusCy
     const row = this.toRow(entity);
     const existing = await super.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['bonus_cycles']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['bonus_cycles']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['bonus_cycles']>);
     }

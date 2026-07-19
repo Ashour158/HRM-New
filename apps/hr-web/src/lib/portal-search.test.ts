@@ -27,4 +27,10 @@ describe('resolvePortalSearchPath', () => {
     expect(resolvePortalSearchPath('employee', 'leave')).toBe('/employee/time-off');
     expect(resolvePortalSearchPath('manager', 'approval requests')).toBe('/manager/approvals');
   });
+
+  it('routes employee attendance terms to the dedicated My Attendance page', () => {
+    expect(resolvePortalSearchPath('employee', 'attendance')).toBe('/employee/attendance');
+    expect(resolvePortalSearchPath('employee', 'check in')).toBe('/employee/attendance');
+    expect(resolvePortalSearchPath('employee', 'shift schedule')).toBe('/employee/attendance');
+  });
 });

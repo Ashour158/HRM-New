@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,17 +19,17 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
   async findByCalculationRun(calculationRunId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('calculation_run_id', '=', calculationRunId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('calculation_run_id', '=', calculationRunId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
   async findByWorker(workerId: Uuid): Promise<PayrollResultLine[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_result_lines']));
   }
 
@@ -37,7 +37,8 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_result_lines']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_result_lines']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_result_lines']>);
     }
@@ -60,7 +61,7 @@ export class PayrollResultLineRepository extends BaseRepository<'payroll_result_
       calculationRunId: new Uuid(row.calculation_run_id),
       lineType: row.line_type,
       description: row.description,
-      amount: row.amount,
+      amount: parseNumeric(row.amount),
       currency: row.currency,
       ruleSetId: row.rule_set_id ?? undefined,
       ruleId: row.rule_id ?? undefined,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CompensationBandRepository } from './compensation-band.repository.js';
 import type { CompensationBand } from '../aggregates/compensation-band.aggregate.js';
 
-describe('CompensationBandRepository numeric column mapping', () => {
+describe('CompensationBandRepository min/mid/max_salary mapping', () => {
   const repo = Object.create(CompensationBandRepository.prototype) as {
     toAggregate(row: Record<string, unknown>): CompensationBand;
   };
@@ -12,41 +12,44 @@ describe('CompensationBandRepository numeric column mapping', () => {
     tenant_id: '00000000-0000-0000-0000-000000000001',
     band_code: 'ENG-L4',
     job_level: 'L4',
-    job_family: 'Engineering',
+    job_family: 'ENGINEERING',
     currency: 'USD',
-    status: 'DRAFT',
-    aggregate_version: 1,
-    created_at: new Date('2026-06-03T09:00:00.000Z'),
-    updated_at: new Date('2026-06-03T09:00:00.000Z'),
+    status: 'ACTIVE',
+    aggregate_version: 0,
+    created_at: '2026-07-01T00:00:00.000Z',
+    updated_at: '2026-07-01T00:00:00.000Z',
   };
 
-  it('parses min_salary, mid_salary, and max_salary when Postgres returns them as NUMERIC strings', () => {
-    // node-postgres returns NUMERIC columns as strings, not numbers. Passing
-    // those strings straight into salary-range comparisons would produce
-    // string comparison/concatenation instead of numeric arithmetic.
-    const aggregate = repo.toAggregate({
+  it('parses min/mid/max_salary as genuine numbers when Postgres returns the NUMERIC columns as strings', () => {
+    // node-postgres returns NUMERIC columns as strings. Without parseNumeric,
+    // band.minSalary/midSalary/maxSalary would hold strings at runtime despite
+    // the declared `number` type, and the offer-compensation engine's
+    // `minSalary <= midSalary <= maxSalary` band validity check -- along with
+    // its compa-ratio/range-penetration arithmetic -- would silently do
+    // string comparison/concatenation instead of numeric comparison/math.
+    //
+    // Each field is given a distinct decimal value below so that a bug which
+    // mapped the wrong column (or copy-pasted one field's value into another)
+    // would be caught -- three identical round numbers would not catch that.
+    const band = repo.toAggregate({
       ...baseRow,
       min_salary: '80000.00',
       mid_salary: '100000.50',
       max_salary: '120000.99',
     });
 
-    expect(aggregate.minSalary).toBe(80000);
-    expect(typeof aggregate.minSalary).toBe('number');
-    expect(aggregate.midSalary).toBe(100000.5);
-    expect(typeof aggregate.midSalary).toBe('number');
-    expect(aggregate.maxSalary).toBe(120000.99);
-    expect(typeof aggregate.maxSalary).toBe('number');
+    expect(typeof band.minSalary).toBe('number');
+    expect(typeof band.midSalary).toBe('number');
+    expect(typeof band.maxSalary).toBe('number');
+    expect(band.minSalary).toBe(80000);
+    expect(band.midSalary).toBe(100000.5);
+    expect(band.maxSalary).toBe(120000.99);
+    expect(band.minSalary <= band.midSalary && band.midSalary <= band.maxSalary).toBe(true);
   });
 
-  it('throws instead of silently turning a corrupt salary value into NaN', () => {
+  it('throws instead of silently constructing a band with a corrupt salary value', () => {
     expect(() =>
-      repo.toAggregate({
-        ...baseRow,
-        min_salary: 'not-a-number',
-        mid_salary: '100000',
-        max_salary: '120000',
-      }),
+      repo.toAggregate({ ...baseRow, min_salary: 'not-a-number', mid_salary: '100000', max_salary: '120000' }),
     ).toThrow(/Expected a numeric value/);
   });
 });

@@ -75,6 +75,9 @@ describe('PayrollWorkspace accessibility', () => {
       if (key === 'payroll-workspace-payment-batch') return { data: { ready: true, readyCount: 2, blockedCount: 0, totalNet: 15000, currency: 'EGP' }, isLoading: false, isError: false, refetch: vi.fn() };
       if (key === 'payroll-workspace-export-jobs') return { data: [], isLoading: false, isError: false, refetch: vi.fn() };
       if (key === 'payroll-workspace-payslips') return { data: [{ workerId: cyclePreview.rows[0].workerId, employeeId: 'E-100', netPay: 8000, grossPay: 9000, currency: 'EGP', status: 'PUBLISHED' }], isLoading: false, isError: false, refetch: vi.fn() };
+      // Close-to-pay background job status poll: no job has been started in this scenario
+      // (activeJobId is undefined), so this mirrors the disabled-query resting state.
+      if (key === 'payroll-close-job-status') return { data: undefined, isLoading: false, isError: false, refetch: vi.fn() };
       // NextActions (embedded via the page shell) queries the me-inbox feed.
       if (key === 'me-inbox') return { data: { items: [] }, isLoading: false, isError: false, refetch: vi.fn() };
       throw new Error(`Unexpected query ${String(key)} ${url}`);

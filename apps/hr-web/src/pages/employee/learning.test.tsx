@@ -109,4 +109,44 @@ describe('EmployeeLearning', () => {
     await userEvent.click(screen.getByRole('tab', { name: 'My Certifications' }));
     expect(await screen.findByText('BLS Certification')).toBeInTheDocument();
   });
+
+  it('downloads a certificate PDF for the signed-in worker', async () => {
+    const certificationRecordId = '00000000-0000-4000-8000-000000000701';
+    apiClientGetMock.mockImplementation((url: string) => {
+      if (url === `/learning/assignments/worker/${workerId}`) return apiResponse([]);
+      if (url === `/learning/certifications/worker/${workerId}`) {
+        return apiResponse([{
+          id: { value: certificationRecordId },
+          certificationName: 'BLS Certification',
+          issuingBody: 'Health Authority',
+          status: 'ACTIVE',
+          expiryDate: '2027-01-10T00:00:00.000Z',
+        }]);
+      }
+      if (url === `/learning/certifications/${certificationRecordId}/certificate.pdf`) {
+        return Promise.resolve({ data: new Blob(['%PDF-1.7'], { type: 'application/pdf' }) });
+      }
+      return apiResponse({});
+    });
+
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+    URL.revokeObjectURL = vi.fn();
+
+    try {
+      renderLearning();
+      await userEvent.click(screen.getByRole('tab', { name: 'My Certifications' }));
+      const downloadButton = await screen.findByRole('button', { name: /Download certificate for BLS Certification/ });
+      await userEvent.click(downloadButton);
+
+      await waitFor(() => expect(apiClientGetMock).toHaveBeenCalledWith(
+        `/learning/certifications/${certificationRecordId}/certificate.pdf`,
+        { responseType: 'blob' },
+      ));
+    } finally {
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
+  });
 });

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getCurrentTenantId, getPool, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -19,12 +19,12 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
   }
 
   async findByPayrollCycle(payrollCycleId: Uuid): Promise<PayrollInput[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('payroll_cycle_id', '=', payrollCycleId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_inputs']));
   }
 
   async findByWorker(workerId: Uuid): Promise<PayrollInput[]> {
-    const rows = await this.db.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
+    const rows = await this.executor.selectFrom(this.tableName).selectAll().where('tenant_id', '=', this.requireTenantId()).where('worker_id', '=', workerId.value).execute();
     return rows.map((r: any) => this.toAggregate(r as unknown as Database['payroll_inputs']));
   }
 
@@ -32,7 +32,8 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
     const row = this.toRow(entity);
     const existing = await this.findById(entity.id);
     if (existing) {
-      await this.update(entity.id, row as unknown as Updateable<Database['payroll_inputs']>);
+      await this.update(entity.id, row as unknown as Updateable<Database['payroll_inputs']>, { expectedVersion: entity.loadedVersion });
+      entity.markPersisted();
     } else {
       await this.insert(row as unknown as Insertable<Database['payroll_inputs']>);
     }
@@ -53,7 +54,7 @@ export class PayrollInputRepository extends BaseRepository<'payroll_inputs', Pay
       workerId: new Uuid(row.worker_id),
       payrollCycleId: new Uuid(row.payroll_cycle_id),
       inputType: row.input_type,
-      amount: row.amount,
+      amount: parseNumeric(row.amount),
       currency: row.currency,
       description: row.description ?? undefined,
       status: row.status as PayrollInputStatus,

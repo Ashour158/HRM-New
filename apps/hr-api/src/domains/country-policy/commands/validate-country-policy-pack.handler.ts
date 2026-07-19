@@ -117,7 +117,7 @@ export class ValidateCountryPolicyPackHandler implements ICommandHandler {
       aggregateId: pack.id,
       newState: pack.status,
       newVersion: pack.aggregateVersion,
-      allowedNextActions: validation.valid ? ['RequireImpactSimulation'] : ['Quarantine'],
+      allowedNextActions: validation.valid ? ['RequireCountryPolicyPackImpactSimulation'] : ['Quarantine'],
       fieldAccessDecisions: {},
       eventsEmitted: [...pack.domainEvents.map((e) => e.eventName), ...run.domainEvents.map((e) => e.eventName)],
       auditRecordId: Uuid.generate(),

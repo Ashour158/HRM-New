@@ -14,6 +14,7 @@ import { PayrollPaymentBatchRepository } from './repositories/payroll-payment-ba
 import { PayrollPayslipArtifactRepository } from './repositories/payroll-payslip-artifact.repository.js';
 import { PayrollExportJobRepository } from './repositories/payroll-export-job.repository.js';
 import { PayrollGlPostingRepository } from './repositories/payroll-gl-posting.repository.js';
+import { PayrollCycleCloseJobRepository } from './repositories/payroll-cycle-close-job.repository.js';
 import { CreatePayrollCycleHandler } from './commands/create-payroll-cycle.handler.js';
 import { OpenPayrollCycleHandler } from './commands/open-payroll-cycle.handler.js';
 import { StartPayrollInputCollectionHandler } from './commands/start-payroll-input-collection.handler.js';
@@ -60,6 +61,9 @@ import { PayrollEnterpriseWorkflowService } from './services/payroll-enterprise-
 import { PayrollBankFileService } from './services/payroll-bank-file.service.js';
 import { PayrollGlPostingService } from './services/payroll-gl-posting.service.js';
 import { PayrollStatutoryPolicyService } from './services/payroll-statutory-policy.service.js';
+import { PayrollPersistedCycleReadinessService } from './services/payroll-persisted-cycle-readiness.service.js';
+import { PayrollCloseWorkflowService } from './services/payroll-close-workflow.service.js';
+import { PayrollCycleCloseJobService } from './services/payroll-cycle-close-job.service.js';
 import { registerPayrollCycleFsm } from './fsm/payroll-cycle.fsm.js';
 import { registerPayrollInputFsm } from './fsm/payroll-input.fsm.js';
 import { registerPayrollCalculationRunFsm } from './fsm/payroll-calculation-run.fsm.js';
@@ -77,6 +81,7 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     PayrollPayslipArtifactRepository,
     PayrollExportJobRepository,
     PayrollGlPostingRepository,
+    PayrollCycleCloseJobRepository,
     CreatePayrollCycleHandler,
     OpenPayrollCycleHandler,
     StartPayrollInputCollectionHandler,
@@ -121,6 +126,9 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     PayrollBankFileService,
     PayrollGlPostingService,
     PayrollStatutoryPolicyService,
+    PayrollPersistedCycleReadinessService,
+    PayrollCloseWorkflowService,
+    PayrollCycleCloseJobService,
   ],
   exports: [
     PayrollCycleRepository,
@@ -141,6 +149,9 @@ import { registerPayrollResultLineFsm } from './fsm/payroll-result-line.fsm.js';
     PayrollBankFileService,
     PayrollGlPostingService,
     PayrollStatutoryPolicyService,
+    PayrollPersistedCycleReadinessService,
+    PayrollCloseWorkflowService,
+    PayrollCycleCloseJobService,
   ],
 })
 export class PayrollModule implements OnModuleInit {
