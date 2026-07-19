@@ -107,8 +107,18 @@ describe('AdminPolicies', () => {
         area: 'LEAVE',
         title: 'New Leave Policy',
         scope: expect.objectContaining({ tenantId }),
+        // LEAVE nests the generic rule ledger inside the leave-policy shell's
+        // real ledger key (see RULE_LEDGER_AREAS in policy-center-controls.ts),
+        // not a flat top-level ledger.
         draftConfig: expect.objectContaining({
-          policyRuntime: expect.objectContaining({ area: 'LEAVE' }),
+          leavePolicies: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'GENERAL',
+              accrualRules: expect.arrayContaining([
+                expect.objectContaining({ code: 'DEFAULT_RULE' }),
+              ]),
+            }),
+          ]),
         }),
       }),
     ));
@@ -135,12 +145,15 @@ describe('AdminPolicies', () => {
       '/admin/policies/revisions',
       expect.objectContaining({
         draftConfig: expect.objectContaining({
-          policyRuntime: expect.objectContaining({
-            ruleLedgers: expect.arrayContaining([
-              expect.objectContaining({ code: 'DEFAULT_RULE' }),
-              expect.objectContaining({ code: 'RULE_2' }),
-            ]),
-          }),
+          leavePolicies: expect.arrayContaining([
+            expect.objectContaining({
+              code: 'GENERAL',
+              accrualRules: expect.arrayContaining([
+                expect.objectContaining({ code: 'DEFAULT_RULE' }),
+                expect.objectContaining({ code: 'RULE_2' }),
+              ]),
+            }),
+          ]),
         }),
       }),
     ));
