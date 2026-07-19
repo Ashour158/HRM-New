@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -47,10 +47,10 @@ export class AbsenceAccrualBalanceRepository extends BaseRepository<'absence_acc
       tenantId: new Uuid(row.tenant_id),
       workerId: new Uuid(row.worker_id),
       leaveType: row.leave_type,
-      balanceHours: row.balance_hours,
-      accruedHours: row.accrued_hours,
-      usedHours: row.used_hours,
-      carriedOverHours: row.carried_over_hours,
+      balanceHours: parseNumeric(row.balance_hours),
+      accruedHours: parseNumeric(row.accrued_hours),
+      usedHours: parseNumeric(row.used_hours),
+      carriedOverHours: parseNumeric(row.carried_over_hours),
       effectiveDate: row.effective_date,
       status: row.status as AbsenceAccrualBalanceStatus,
       aggregateVersion: row.aggregate_version,
