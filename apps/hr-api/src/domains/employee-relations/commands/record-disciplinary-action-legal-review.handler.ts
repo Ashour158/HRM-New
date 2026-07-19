@@ -2,16 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { CommandHandler } from '../../../platform/command-bus/command-handler.decorator.js';
 import type { HrCommandEnvelope, CommandResult } from '@hcm/command-contracts';
 import { Uuid } from '@hcm/shared-kernel';
-import type { CaseSeverity } from '@hcm/policy-engines';
 import { FsmFramework } from '../../../platform/workflow/fsm-framework.js';
-import { toDate, toUuid } from '../../common/uuid-normalizer.js';
-import { DisciplinaryAction } from '../aggregates/disciplinary-action.aggregate.js';
 import { DisciplinaryActionRepository } from '../repositories/disciplinary-action.repository.js';
 import { EmployeeRelationsEventsPublisher } from '../events/employee-relations-events.publisher.js';
 
-@CommandHandler('DraftDisciplinaryAction')
+/**
+ * Records the "LegalReviewCompleted"-style acknowledgement that satisfies the
+ * severity-driven escalation gate on {@link DisciplinaryAction}. Required
+ * before ExecuteDisciplinaryAction can finalize a HIGH-severity (or above the
+ * configured threshold) action — see disciplinary-action.aggregate.ts#execute.
+ */
+@CommandHandler('RecordDisciplinaryActionLegalReview')
 @Injectable()
-export class DraftDisciplinaryActionHandler {
+export class RecordDisciplinaryActionLegalReviewHandler {
   constructor(
     private readonly repo: DisciplinaryActionRepository,
     private readonly fsm: FsmFramework,
@@ -19,32 +22,20 @@ export class DraftDisciplinaryActionHandler {
   ) {}
 
   async handle(command: HrCommandEnvelope<unknown>): Promise<CommandResult<unknown>> {
-    const payload = command.payload as {
-      workerId: Uuid | string;
-      erCaseId: Uuid | string;
-      actionType: string;
-      severity: CaseSeverity;
-      description: string;
-      effectiveDate: Date | string;
-    };
-    const ar = DisciplinaryAction.draft(
-      {
-        id: Uuid.generate(),
-        tenantId: command.tenantId,
-        workerId: toUuid(payload.workerId),
-        erCaseId: toUuid(payload.erCaseId),
-        actionType: payload.actionType,
-        severity: payload.severity,
-        description: payload.description,
-        effectiveDate: toDate(payload.effectiveDate),
-      },
-      command.correlationId,
-    );
+    const payload = command.payload as { disciplinaryActionId: Uuid; reviewedBy: Uuid };
+    const ar = await this.repo.findById(payload.disciplinaryActionId);
+    if (!ar) throw new Error('Disciplinary action not found');
+    ar.recordLegalReview(payload.reviewedBy, command.correlationId);
     await this.repo.save(ar);
     await this.publisher.publishFromAggregate(ar);
     return {
       success: true,
-      data: { disciplinaryActionId: ar.id.value, status: ar.status },
+      data: {
+        disciplinaryActionId: ar.id.value,
+        status: ar.status,
+        requiresLegalReview: ar.requiresLegalReview,
+        canFinalize: ar.canFinalize,
+      },
       commandId: command.commandId,
       correlationId: command.correlationId,
       aggregateId: ar.id,

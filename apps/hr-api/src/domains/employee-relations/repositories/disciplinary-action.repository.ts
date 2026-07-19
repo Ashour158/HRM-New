@@ -4,6 +4,7 @@ import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
 import { encryptPiiField, decryptPiiField } from '@hcm/platform-core';
+import type { CaseSeverity } from '@hcm/policy-engines';
 import { DisciplinaryAction, type DisciplinaryActionStatus } from '../aggregates/disciplinary-action.aggregate.js';
 
 @Injectable()
@@ -43,9 +44,11 @@ export class DisciplinaryActionRepository extends BaseRepository<'disciplinary_a
       workerId: new Uuid(row.worker_id),
       erCaseId: new Uuid(row.er_case_id),
       actionType: row.action_type,
-      severity: row.severity,
+      severity: row.severity as CaseSeverity,
       description: row.description != null ? decryptPiiField(row.description) : '',
       effectiveDate: row.effective_date,
+      legalReviewCompletedAt: row.legal_review_completed_at ?? undefined,
+      legalReviewCompletedBy: row.legal_review_completed_by ? new Uuid(row.legal_review_completed_by) : undefined,
       status: row.status as DisciplinaryActionStatus,
       aggregateVersion: row.aggregate_version,
       createdAt: row.created_at,
@@ -64,6 +67,8 @@ export class DisciplinaryActionRepository extends BaseRepository<'disciplinary_a
       description: entity.description ? encryptPiiField(entity.description) : null,
       effective_date: entity.effectiveDate,
       expiry_date: null,
+      legal_review_completed_at: entity.legalReviewCompletedAt ?? null,
+      legal_review_completed_by: entity.legalReviewCompletedBy?.value ?? null,
       status: entity.status,
       aggregate_version: entity.aggregateVersion,
       created_at: entity.createdAt,

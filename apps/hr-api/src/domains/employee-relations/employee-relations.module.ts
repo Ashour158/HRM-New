@@ -19,6 +19,7 @@ import { CompleteErInvestigationHandler } from './commands/complete-er-investiga
 import { DraftDisciplinaryActionHandler } from './commands/draft-disciplinary-action.handler.js';
 import { ApproveDisciplinaryActionHandler } from './commands/approve-disciplinary-action.handler.js';
 import { ExecuteDisciplinaryActionHandler } from './commands/execute-disciplinary-action.handler.js';
+import { RecordDisciplinaryActionLegalReviewHandler } from './commands/record-disciplinary-action-legal-review.handler.js';
 import { AppealDisciplinaryActionHandler } from './commands/appeal-disciplinary-action.handler.js';
 import { UpholdDisciplinaryActionHandler } from './commands/uphold-disciplinary-action.handler.js';
 import { RevokeDisciplinaryActionHandler } from './commands/revoke-disciplinary-action.handler.js';
@@ -55,6 +56,7 @@ import { registerAccommodationCaseFsm } from './fsm/accommodation-case.fsm.js';
     DraftDisciplinaryActionHandler,
     ApproveDisciplinaryActionHandler,
     ExecuteDisciplinaryActionHandler,
+    RecordDisciplinaryActionLegalReviewHandler,
     AppealDisciplinaryActionHandler,
     UpholdDisciplinaryActionHandler,
     RevokeDisciplinaryActionHandler,

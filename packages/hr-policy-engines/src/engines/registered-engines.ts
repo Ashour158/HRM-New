@@ -5,6 +5,7 @@ import { PayrollValidationEngine } from './payroll-validation.engine.js';
 import { SelfServiceAuthorityEngine } from './self-service.engine.js';
 import { CountryPolicyValidationEngine } from './country-policy-validation.engine.js';
 import { OfferCompensationEngine } from './offer-compensation.engine.js';
+import { EmployeeRelationsDisciplinaryEscalationEngine } from './employee-relations-escalation.engine.js';
 import { HrAiGovernanceEngine } from './hr-ai-governance.engine.js';
 import { RecruitingFairnessComplianceEngine } from './recruiting-fairness-compliance.engine.js';
 import { DeiPayTransparencyEngine } from './dei-pay-transparency.engine.js';
@@ -159,6 +160,12 @@ engineRegistry.register({
   requiresHumanReview: true,
   auditRequired: true,
 });
+
+// Binds the concrete executable engine for the definition above — real
+// severity-driven legal-review escalation gating (see
+// employee-relations-escalation.engine.ts), replacing the previous
+// metadata-only registration.
+export const employeeRelationsDisciplinaryEngine = new EmployeeRelationsDisciplinaryEscalationEngine();
 
 /* ── 9. Talent & Succession ── */
 engineRegistry.register({

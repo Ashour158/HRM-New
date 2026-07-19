@@ -196,6 +196,13 @@ export class EmployeeRelationsController {
     return this.commandBus.execute(this.buildCommand('ApproveDisciplinaryAction', 'DisciplinaryAction', { disciplinaryActionId: new Uuid(id), approvedBy: new Uuid(body.approvedBy) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
   }
 
+  @Post('disciplinary-actions/:id/commands/record-legal-review')
+  async recordLegalReviewDisciplinaryAction(@Param('id') id: string, @Body() body: { reviewedBy: string }, @Req() req: Request) {
+    const ar = await this.disciplinaryActionRepo.findById(new Uuid(id));
+    if (!ar) throw new BadRequestException('Disciplinary action not found');
+    return this.commandBus.execute(this.buildCommand('RecordDisciplinaryActionLegalReview', 'DisciplinaryAction', { disciplinaryActionId: new Uuid(id), reviewedBy: new Uuid(body.reviewedBy) }, req, { aggregateId: new Uuid(id), expectedState: ar.status, expectedVersion: ar.aggregateVersion }));
+  }
+
   @Post('disciplinary-actions/:id/commands/execute')
   async executeDisciplinaryAction(@Param('id') id: string, @Req() req: Request) {
     const ar = await this.disciplinaryActionRepo.findById(new Uuid(id));
