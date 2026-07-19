@@ -37,14 +37,6 @@ interface MfaVerifyDto {
   code: string;
 }
 
-interface RegisterDto {
-  tenantId?: string;
-  email: string;
-  password: string;
-  firstName?: string;
-  lastName?: string;
-}
-
 interface InviteDto {
   tenantId?: string;
   email: string;
@@ -100,24 +92,12 @@ export class AuthController {
     };
   }
 
-  @Post('register')
-  @Public()
-  async register(@Req() req: Request, @Body() dto: RegisterDto) {
-    const user = await this.authService.register({
-      tenantId: this.resolveTenantId(req, dto.tenantId),
-      email: dto.email,
-      password: dto.password,
-      firstName: dto.firstName,
-      lastName: dto.lastName,
-    });
-    const credentials = await this.authService.createSession(user);
-    return {
-      user: this.toUserResponse(user),
-      token: credentials.token,
-      refreshToken: credentials.refreshToken,
-      session: credentials.session,
-    };
-  }
+  // Note: there is intentionally no public self-registration endpoint. New
+  // employee access is always admin-provisioned via `invite` below, which
+  // binds the tenant to the authenticated caller's own context and never
+  // trusts a client-supplied tenantId -- open self-registration previously
+  // allowed anyone who knew/guessed a real employee's email to claim that
+  // employee's self-service identity (see HCM-P0-1).
 
   @Post('invite')
   async invite(@Req() req: Request, @Body() dto: InviteDto) {
