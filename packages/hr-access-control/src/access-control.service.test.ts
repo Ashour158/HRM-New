@@ -61,6 +61,39 @@ describe('AccessControlService time and attendance self-service commands', () =>
     expect(decision.allowed).toBe(true);
   });
 
+  it('allows managers to review, resolve, and escalate attendance exceptions (HCM-P0-9)', () => {
+    for (const commandName of ['ReviewAttendanceException', 'ResolveAttendanceException', 'EscalateAttendanceException']) {
+      const decision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'APPROVE',
+        aggregateType: 'AttendanceException',
+        payload: {},
+      }, {
+        actorType: 'MANAGER',
+        roles: ['MANAGER'],
+        employmentStatus: 'ACTIVE',
+      });
+
+      expect(decision.allowed, `expected ${commandName} to be allowed for MANAGER`).toBe(true);
+    }
+  });
+
+  it('allows HRBP to review, resolve, and escalate attendance exceptions (HCM-P0-9)', () => {
+    for (const commandName of ['ReviewAttendanceException', 'ResolveAttendanceException', 'EscalateAttendanceException']) {
+      const decision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'APPROVE',
+        aggregateType: 'AttendanceException',
+        payload: {},
+      }, {
+        actorType: 'HRBP',
+        roles: ['HRBP'],
+      });
+
+      expect(decision.allowed, `expected ${commandName} to be allowed for HRBP`).toBe(true);
+    }
+  });
+
   it('does not allow employees to finalize attendance ledgers', () => {
     const decision = service.evaluateCommandAccess({
       commandName: 'FinalizeAttendanceDailyLedger',
@@ -141,6 +174,34 @@ describe('AccessControlService time and attendance self-service commands', () =>
     });
 
     expect(managerReviewDecision.allowed, managerReviewDecision.reason).toBe(true);
+  });
+
+  it('allows employees and managers to start and complete learning assignments through self service (HCM-P0-11)', () => {
+    for (const commandName of ['StartLearningAssignment', 'CompleteLearningAssignment']) {
+      const employeeDecision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'UPDATE',
+        aggregateType: 'LearningAssignment',
+        payload: {},
+      }, {
+        actorType: 'EMPLOYEE',
+        roles: ['EMPLOYEE'],
+        employmentStatus: 'ACTIVE',
+      });
+      expect(employeeDecision.allowed, `EMPLOYEE ${commandName}: ${employeeDecision.reason}`).toBe(true);
+
+      const managerDecision = service.evaluateCommandAccess({
+        commandName,
+        commandType: 'UPDATE',
+        aggregateType: 'LearningAssignment',
+        payload: {},
+      }, {
+        actorType: 'MANAGER',
+        roles: ['MANAGER'],
+        employmentStatus: 'ACTIVE',
+      });
+      expect(managerDecision.allowed, `MANAGER ${commandName}: ${managerDecision.reason}`).toBe(true);
+    }
   });
 
   it('allows employees to submit their assigned 360 feedback through self service', () => {

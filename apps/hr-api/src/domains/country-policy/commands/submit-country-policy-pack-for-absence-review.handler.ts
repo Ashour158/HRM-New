@@ -45,7 +45,7 @@ export class SubmitCountryPolicyPackForAbsenceReviewHandler implements ICommandH
         'SubmitForGlobalHRReview',
         'SubmitForBenefitsReview',
         'SubmitForComplianceReview',
-        'SubmitForApproval',
+        'SubmitCountryPolicyPackForApproval',
       ],
       fieldAccessDecisions: {},
       eventsEmitted: pack.domainEvents.map((e) => e.eventName),

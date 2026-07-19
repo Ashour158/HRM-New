@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId } from '@hcm/database';
+import { BaseRepository, createKyselyInstance, getPool, getCurrentTenantId, parseNumeric } from '@hcm/database';
 import type { Database } from '@hcm/database';
 import type { Insertable, Updateable } from 'kysely';
 import { Uuid } from '@hcm/shared-kernel';
@@ -55,7 +55,7 @@ export class ContingentWorkerAssignmentRepository extends BaseRepository<'contin
       projectId: new Uuid(row.project_id),
       startDate: row.start_date,
       endDate: row.end_date,
-      rate: row.rate,
+      rate: parseNumeric(row.rate),
       currency: row.currency,
       status: row.status as ContingentWorkerAssignmentStatus,
       aggregateVersion: row.aggregate_version,

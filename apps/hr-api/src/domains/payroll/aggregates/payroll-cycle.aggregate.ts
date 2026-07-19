@@ -17,6 +17,8 @@ export interface PayrollCycleProps {
   closedAt?: Date;
   approvedBy?: Uuid;
   approvedAt?: Date;
+  /** The actor who prepared (created) this cycle, for the preparer/approver SoD check. Optional for backward compatibility with cycles created before this field existed. */
+  createdBy?: Uuid;
   aggregateVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -60,6 +62,7 @@ export class PayrollCycle extends AggregateRoot {
   closedAt?: Date;
   approvedBy?: Uuid;
   approvedAt?: Date;
+  readonly createdBy?: Uuid;
   createdAt: Date;
   updatedAt: Date;
 
@@ -79,6 +82,7 @@ export class PayrollCycle extends AggregateRoot {
     this.closedAt = props.closedAt;
     this.approvedBy = props.approvedBy;
     this.approvedAt = props.approvedAt;
+    this.createdBy = props.createdBy;
     this.createdAt = props.createdAt ?? new Date();
     this.updatedAt = props.updatedAt ?? new Date();
     if (props.aggregateVersion !== undefined) this._aggregateVersion = props.aggregateVersion;
@@ -129,6 +133,9 @@ export class PayrollCycle extends AggregateRoot {
 
   approve(approvedBy: Uuid, correlationId: Uuid): void {
     if (this.status !== 'REVIEW') throw new ValidationError(`Cannot approve from ${this.status}`);
+    if (this.createdBy && this.createdBy.value === approvedBy.value) {
+      throw new ValidationError('Segregation of duties: the preparer who created this payroll cycle cannot also approve it');
+    }
     this.status = 'APPROVED';
     this.approvedBy = approvedBy;
     this.approvedAt = new Date();

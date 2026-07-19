@@ -412,6 +412,7 @@ const ROLE_CATALOG: Record<RoleCode, RoleDefinition> = {
       'SERVICE_REQUEST',
       'RECRUITING_READ',
       'RECRUITING_CREATE',
+      'LEARNING_READ',
       'REPORT_READ',
       'WORKFLOW_APPROVE',
       'INTELLIGENCE_READ',
