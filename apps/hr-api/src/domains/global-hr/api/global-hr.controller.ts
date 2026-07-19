@@ -28,8 +28,12 @@ import { InternationalAssignmentRepository } from '../repositories/international
 import type * as dtos from './dtos.js';
 import {
   CreateCountryRuleSetDtoSchema,
+  SupersedeCountryRuleSetDtoSchema,
   CreateStatutoryLeaveTypeDtoSchema,
+  UpdateStatutoryLeaveTypeDtoSchema,
   CreateWorksCouncilConsultationDtoSchema,
+  InitiateWorksCouncilConsultationDtoSchema,
+  BlockWorksCouncilActionDtoSchema,
   CreateWorkAuthorizationCaseDtoSchema,
   ApproveWorkAuthorizationCaseDtoSchema,
   RenewWorkAuthorizationCaseDtoSchema,
@@ -117,6 +121,24 @@ export class GlobalHrController {
     return requestTenantId;
   }
 
+  private async getCountryRuleSetForCommand(id: string, tenantId: Uuid) {
+    const ruleSet = await this.countryRuleSetRepo.findByIdForTenant(new Uuid(id), tenantId);
+    if (!ruleSet) throw new BadRequestException('Country rule set not found');
+    return ruleSet;
+  }
+
+  private async getStatutoryLeaveTypeForCommand(id: string, tenantId: Uuid) {
+    const leaveType = await this.statutoryLeaveTypeRepo.findByIdForTenant(new Uuid(id), tenantId);
+    if (!leaveType) throw new BadRequestException('Statutory leave type not found');
+    return leaveType;
+  }
+
+  private async getWorksCouncilConsultationForCommand(id: string, tenantId: Uuid) {
+    const consultation = await this.worksCouncilConsultationRepo.findByIdForTenant(new Uuid(id), tenantId);
+    if (!consultation) throw new BadRequestException('Works council consultation not found');
+    return consultation;
+  }
+
   private async getWorkAuthorizationForCommand(id: string, tenantId: Uuid) {
     const authCase = await this.workAuthorizationCaseRepo.findByIdForTenant(new Uuid(id), tenantId);
     if (!authCase) throw new BadRequestException('Work authorization case not found');
@@ -156,6 +178,58 @@ export class GlobalHrController {
     return this.countryRuleSetRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 
+  @Post('country-rule-sets/:id/commands/activate')
+  async activateCountryRuleSet(@Param('id') id: string, @Req() req: Request) {
+    const ruleSet = await this.getCountryRuleSetForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'ActivateCountryRuleSet',
+      'CountryRuleSet',
+      { ruleSetId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: ruleSet.status,
+        expectedVersion: ruleSet.aggregateVersion,
+      },
+    ));
+  }
+
+  @Post('country-rule-sets/:id/commands/supersede')
+  async supersedeCountryRuleSet(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(SupersedeCountryRuleSetDtoSchema)) dto: dtos.SupersedeCountryRuleSetDto,
+    @Req() req: Request,
+  ) {
+    const ruleSet = await this.getCountryRuleSetForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'SupersedeCountryRuleSet',
+      'CountryRuleSet',
+      { ruleSetId: new Uuid(id), supersededBy: dto.supersededBy },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: ruleSet.status,
+        expectedVersion: ruleSet.aggregateVersion,
+      },
+    ));
+  }
+
+  @Post('country-rule-sets/:id/commands/retire')
+  async retireCountryRuleSet(@Param('id') id: string, @Req() req: Request) {
+    const ruleSet = await this.getCountryRuleSetForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'RetireCountryRuleSet',
+      'CountryRuleSet',
+      { ruleSetId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: ruleSet.status,
+        expectedVersion: ruleSet.aggregateVersion,
+      },
+    ));
+  }
+
   /* ---------------------------------------------------------------- */
   /*  Statutory Leave Types                                             */
   /* ---------------------------------------------------------------- */
@@ -183,6 +257,49 @@ export class GlobalHrController {
     return this.statutoryLeaveTypeRepo.findByIdForTenant(new Uuid(id), tenantId);
   }
 
+  @Post('statutory-leave-types/:id/commands/update')
+  async updateStatutoryLeaveType(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateStatutoryLeaveTypeDtoSchema)) dto: dtos.UpdateStatutoryLeaveTypeDto,
+    @Req() req: Request,
+  ) {
+    const leaveType = await this.getStatutoryLeaveTypeForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'UpdateStatutoryLeaveType',
+      'StatutoryLeaveType',
+      {
+        leaveTypeId: new Uuid(id),
+        leaveTypeName: dto.leaveTypeName,
+        minimumEntitlement: dto.minimumEntitlement,
+        unit: dto.unit,
+        carryoverAllowed: dto.carryoverAllowed,
+        maxCarryover: dto.maxCarryover,
+      },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: leaveType.status,
+        expectedVersion: leaveType.aggregateVersion,
+      },
+    ));
+  }
+
+  @Post('statutory-leave-types/:id/commands/supersede')
+  async supersedeStatutoryLeaveType(@Param('id') id: string, @Req() req: Request) {
+    const leaveType = await this.getStatutoryLeaveTypeForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'SupersedeStatutoryLeaveType',
+      'StatutoryLeaveType',
+      { leaveTypeId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: leaveType.status,
+        expectedVersion: leaveType.aggregateVersion,
+      },
+    ));
+  }
+
   /* ---------------------------------------------------------------- */
   /*  Works Council Consultations                                       */
   /* ---------------------------------------------------------------- */
@@ -207,6 +324,78 @@ export class GlobalHrController {
     this.assertGlobalHrAdminScope(req);
     const tenantId = requireTenantId(req, 'Global HR');
     return this.worksCouncilConsultationRepo.findByIdForTenant(new Uuid(id), tenantId);
+  }
+
+  @Post('works-council-consultations/:id/commands/initiate')
+  async initiateWorksCouncilConsultation(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(InitiateWorksCouncilConsultationDtoSchema)) dto: dtos.InitiateWorksCouncilConsultationDto,
+    @Req() req: Request,
+  ) {
+    const consultation = await this.getWorksCouncilConsultationForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'InitiateWorksCouncilConsultation',
+      'WorksCouncilConsultation',
+      { consultationId: new Uuid(id), deadlineDate: dto.deadlineDate },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: consultation.status,
+        expectedVersion: consultation.aggregateVersion,
+      },
+    ));
+  }
+
+  @Post('works-council-consultations/:id/commands/start-progress')
+  async startWorksCouncilProgress(@Param('id') id: string, @Req() req: Request) {
+    const consultation = await this.getWorksCouncilConsultationForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'StartWorksCouncilProgress',
+      'WorksCouncilConsultation',
+      { consultationId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: consultation.status,
+        expectedVersion: consultation.aggregateVersion,
+      },
+    ));
+  }
+
+  @Post('works-council-consultations/:id/commands/complete')
+  async completeWorksCouncilConsultation(@Param('id') id: string, @Req() req: Request) {
+    const consultation = await this.getWorksCouncilConsultationForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'CompleteWorksCouncilConsultation',
+      'WorksCouncilConsultation',
+      { consultationId: new Uuid(id) },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: consultation.status,
+        expectedVersion: consultation.aggregateVersion,
+      },
+    ));
+  }
+
+  @Post('works-council-consultations/:id/commands/block')
+  async blockWorksCouncilAction(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(BlockWorksCouncilActionDtoSchema)) dto: dtos.BlockWorksCouncilActionDto,
+    @Req() req: Request,
+  ) {
+    const consultation = await this.getWorksCouncilConsultationForCommand(id, requireTenantId(req, 'Global HR'));
+    return this.commandBus.execute(this.buildCommand(
+      'BlockWorksCouncilAction',
+      'WorksCouncilConsultation',
+      { consultationId: new Uuid(id), blockingUntil: dto.blockingUntil },
+      req,
+      {
+        aggregateId: new Uuid(id),
+        expectedState: consultation.status,
+        expectedVersion: consultation.aggregateVersion,
+      },
+    ));
   }
 
   /* ---------------------------------------------------------------- */
