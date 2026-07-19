@@ -1,5 +1,22 @@
 import { z } from 'zod';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
+
+/**
+ * NestJS pipe that validates a request body against an explicit Zod schema
+ * supplied at construction time (e.g. `@Body(new ZodValidationPipe(SomeDtoSchema))`).
+ * Unlike a metatype-based pipe, this can't silently no-op when a schema is
+ * missing — the schema is a required constructor argument.
+ */
+@Injectable()
+export class ZodValidationPipe implements PipeTransform {
+  constructor(private schema: z.ZodTypeAny) {}
+  transform(value: unknown): unknown {
+    const result = this.schema.safeParse(value);
+    if (!result.success) throw new BadRequestException(result.error.format());
+    return result.data;
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /*  Offboarding Plan DTOs                                              */

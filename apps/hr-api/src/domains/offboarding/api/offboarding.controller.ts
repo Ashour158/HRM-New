@@ -6,7 +6,6 @@ import {
   Body,
   Req,
   UseGuards,
-  UsePipes,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
@@ -19,15 +18,19 @@ import type { Request } from 'express';
 import { AuthGuard } from '../../../guards/auth.guard.js';
 import { requireActor, requireTenantId } from '../../../platform/http/request-context.js';
 
-import { ZodValidationPipe } from '../../../pipes/zod-validation.pipe.js';
 import { OffboardingPlanRepository } from '../repositories/offboarding-plan.repository.js';
 import { OffboardingTaskRepository } from '../repositories/offboarding-task.repository.js';
 
 import {
+  ZodValidationPipe,
   CreateOffboardingPlanDto,
+  CreateOffboardingPlanDtoSchema,
   CreateOffboardingTaskDto,
+  CreateOffboardingTaskDtoSchema,
   ApplyOffboardingTemplateDto,
+  ApplyOffboardingTemplateDtoSchema,
   RecordOffboardingTaskEvidenceDto,
+  RecordOffboardingTaskEvidenceDtoSchema,
 } from './dtos.js';
 import { OffboardingTemplateService } from '../services/offboarding-template.service.js';
 import { OffboardingProgressService } from '../services/offboarding-progress.service.js';
@@ -39,7 +42,6 @@ const OFFBOARDING_ADMIN_ROLES = new Set(['APP_ADMIN', 'PLATFORM_ADMIN', 'SUPER_A
 @ApiTags('Offboarding')
 @Controller('hr/offboarding')
 @UseGuards(AuthGuard)
-@UsePipes(ZodValidationPipe)
 export class OffboardingController {
   constructor(
     private readonly commandBus: CommandBus,
@@ -90,7 +92,7 @@ export class OffboardingController {
   @Post('plans')
   @ApiOperation({ summary: 'Initiate a new offboarding plan for a departing worker' })
   async createPlan(
-    @Body() dto: CreateOffboardingPlanDto,
+    @Body(new ZodValidationPipe(CreateOffboardingPlanDtoSchema)) dto: CreateOffboardingPlanDto,
     @Req() req: Request,
   ) {
     this.assertOffboardingAdminScope(req);
@@ -110,7 +112,7 @@ export class OffboardingController {
   @ApiParam({ name: 'id', description: 'Plan UUID' })
   async applyTemplate(
     @Param('id') id: string,
-    @Body() dto: ApplyOffboardingTemplateDto,
+    @Body(new ZodValidationPipe(ApplyOffboardingTemplateDtoSchema)) dto: ApplyOffboardingTemplateDto,
     @Req() req: Request,
   ) {
     this.assertOffboardingAdminScope(req);
@@ -213,7 +215,7 @@ export class OffboardingController {
   @Post('tasks')
   @ApiOperation({ summary: 'Create an offboarding task' })
   async createTask(
-    @Body() dto: CreateOffboardingTaskDto,
+    @Body(new ZodValidationPipe(CreateOffboardingTaskDtoSchema)) dto: CreateOffboardingTaskDto,
     @Req() req: Request,
   ) {
     this.assertOffboardingAdminScope(req);
@@ -245,7 +247,7 @@ export class OffboardingController {
   @ApiParam({ name: 'id', description: 'Task UUID' })
   async recordTaskEvidence(
     @Param('id') id: string,
-    @Body() dto: RecordOffboardingTaskEvidenceDto,
+    @Body(new ZodValidationPipe(RecordOffboardingTaskEvidenceDtoSchema)) dto: RecordOffboardingTaskEvidenceDto,
     @Req() req: Request,
   ) {
     await this.assertCanMutateTask(id, req);
