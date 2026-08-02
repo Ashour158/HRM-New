@@ -35,18 +35,18 @@
     "infra:logs": "docker compose -f infra/docker-compose.yml logs -f"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
-    "@vitest/coverage-v8": "^1.6.0",
+    "@types/node": "^26.1.2",
+    "@typescript-eslint/eslint-plugin": "^8.65.0",
+    "@typescript-eslint/parser": "^8.65.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "dotenv-cli": "^11.0.0",
-    "eslint": "^8.57.0",
+    "eslint": "^10.8.0",
     "husky": "^9.0.0",
-    "lint-staged": "^15.0.0",
-    "prettier": "^3.2.0",
-    "turbo": "^2.0.0",
-    "typescript": "^5.3.0",
-    "vitest": "^1.6.0"
+    "lint-staged": "^17.2.0",
+    "prettier": "^3.9.6",
+    "turbo": "^2.10.7",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "lint-staged": {
     "*.{ts,tsx}": [
@@ -66,8 +66,8 @@
       "tar": "^7.5.11",
       "glob": ">=11.1.0",
       "form-data@>=4.0.0 <4.0.6": ">=4.0.6",
-      "vitest": "3.2.6",
-      "@vitest/coverage-v8": "3.2.6",
+      "vitest": "4.1.10",
+      "@vitest/coverage-v8": "4.1.10",
       "vite": ">=6.4.3 <7",
       "tmp": ">=0.2.6",
       "minimatch": ">=9.0.6",
