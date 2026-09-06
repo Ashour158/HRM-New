@@ -13,8 +13,8 @@
     "audit:agent": "dotenv -e .env.local -- node dist/cli.js"
   },
   "dependencies": {
-    "@openai/agents": "^0.11.6",
-    "zod": "^4.4.3"
+    "@openai/agents": "^0.17.0",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
